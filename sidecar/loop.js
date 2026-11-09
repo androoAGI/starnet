@@ -1585,6 +1585,13 @@
     // request takes at most 100 images, and the child re-sends its whole history every turn).
     const HELD_IMAGE_TURNS = 20;
     const holdsHistory = () => { try { return !!(provider && typeof provider.holdsHistory === 'function' && provider.holdsHistory()); } catch (e) { failNote('loop.provider.holdsHistory', e); return false; } };
+    /* Where the CURRENT provider's cache can be read after a history edit (history-edit readFloor): the anchors its adapter
+       stamps for this model, or null on an automatic-prefix route. One that cannot say is taken to anchor (the dearer
+       assumption: an edit then counts as re-writing everything after the system prompt). */
+    const cacheAnchors = () => {
+      if (!provider || typeof provider.cacheAnchors !== 'function') return null;
+      try { return provider.cacheAnchors(model) || null; } catch (e) { failNote('loop.provider.cacheAnchors', e); return { history: false, system: 'prefix' }; }
+    };
     const screensView = (msgs) => evictStaleScreenshots(msgs, TOOL_IMAGE_KEEP, m => (screenshotMeta ? screenshotMeta.get(m) : null),
       (TOOL_IMAGE_KEEP > 0 && holdsHistory()) ? Math.max(TOOL_IMAGE_STEP, HELD_IMAGE_TURNS - TOOL_IMAGE_KEEP) : TOOL_IMAGE_STEP);
     const viewOf = (msgs) => (ageing ? ageing.view(screensView(msgs)) : screensView(msgs));
@@ -2674,19 +2681,21 @@
       }
       /* BATCHED AGEING (W2.1): a batch of old bodies may leave the view before this request (history-edit makeAgeing:
          behind the newest four tool turns, 60k characters at a time, never for a run projected at 24 requests or fewer,
-         and only when R x F x r > T x (w - r) on this route). After any fold (whose own edit goes first) and every note
-         this turn appends, so it prices the request that goes out. The request view strips the thinking it unbinds. */
+         and only when R x F x r > T x (w - r) on this route, R at most 12 requests, T counted from where this route's
+         next read can land: readFloor). After any fold (whose own edit goes first) and every note this turn appends, so
+         it prices the request that goes out. The request view strips the thinking it unbinds. */
       if (ageing) {
         try {
           const batch = await ageing.plan(screensView(messages), {
-            requests: turns, maxIters, holdsHistory: holdsHistory(), park: ageingParker, measure: ageingRuler,
+            requests: turns, maxIters, holdsHistory: holdsHistory(), park: ageingParker, measure: ageingRuler, standIn: standInPark,
+            anchors: cacheAnchors(), isHistoryEnd: isRunContextNote, stable: typeof o.cacheSystemPrefix === 'string' ? o.cacheSystemPrefix : '',
             rates: () => ((cost && typeof cost.cacheRates === 'function') ? cost.cacheRates(model) : null)
           });
           if (batch) failNote('loop.historyEdit.aged', 'batched ageing from message ' + batch.editAt + ': ' + batch.results + ' tool result(s) and '
             + batch.args + ' write argument(s) left the request view (' + batch.freedChars + ' characters; the run keeps every full body); payback '
-            + Math.round(batch.saving) + ' > ' + Math.round(batch.rewrite) + ' = ' + batch.remaining + ' requests projected x ' + Math.round(batch.freed)
-            + ' freed x read ' + batch.read + (batch.assumed ? ' (assumed)' : '') + ' against ' + Math.round(batch.suffix) + ' re-written x (write '
-            + batch.write + ' - read) on ' + String(model));
+            + Math.round(batch.saving) + ' > ' + Math.round(batch.rewrite) + ' = ' + batch.remaining + ' requests credited x ' + Math.round(batch.freed)
+            + ' freed x read ' + batch.read + (batch.assumed ? ' (assumed)' : '') + ' against ' + Math.round(batch.suffix) + ' re-written from message '
+            + batch.from + ' x (write ' + batch.write + ' - read) on ' + String(model));
         } catch (e) { failNote('loop.historyEdit.ageing', e); }
       }
       const turnStart = turns;

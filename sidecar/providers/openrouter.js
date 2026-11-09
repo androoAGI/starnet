@@ -131,6 +131,13 @@
   function supportsExplicitCache(model) {
     return /anthropic\/|claude/i.test(String(model || ''));
   }
+  /* WHERE A READ CAN LAND AFTER A HISTORY EDIT (W2.1, history-edit.js readFloor): the anchors applyCacheControl stamps for
+     `model` — the leading system run anchored whole, the sliding tail, and with cache TTL 'mixed' the end of history —
+     or null when it stamps none (a non-Claude model: whatever automatic prefix caching its upstream does). The managed
+     route stamps through applyCacheControl too, so the factory hands it this same answer. */
+  function cacheAnchorsFor(model) {
+    return supportsExplicitCache(model) ? { history: cacheTtl.anchorsHistory(cacheTtl.mode()), system: 'all' } : null;
+  }
   function applyCacheControl(messages, model, cacheSystemPrefix, neverReread) {
     if (neverReread === true || !Array.isArray(messages) || !supportsExplicitCache(model)) return messages;
     // The tier each anchor asks for (cache-ttl.js, read once per call): the leading system anchors are STABLE, the
@@ -648,8 +655,8 @@
       return provider.verifyResponse(doFetch, baseUrl + '/auth/key', { headers: { Authorization: 'Bearer ' + (key || ''), Accept: 'application/json' }, signal: o && o.signal },
         j => j && j.data && typeof j.data === 'object' && !Array.isArray(j.data) ? [{ credential: true }] : [], !!key, classifyApiError);
     }
-    return { stream, listModels, verifyCredential, warmCatalog, contextLimit, outputLimit, priceOf, supportsTools, supportsImages, reasoningEfforts, effortAsSent };
+    return { stream, listModels, verifyCredential, warmCatalog, contextLimit, outputLimit, priceOf, supportsTools, supportsImages, reasoningEfforts, effortAsSent, cacheAnchors: cacheAnchorsFor };
   }
 
-  return { makeOpenRouterProvider, applyCacheControl, attachCatalogCache, _internals: { normalizeReasoningEffort, reasoningEffortsForModel, clampReasoningEffortForModel, repairToolPairs } };
+  return { makeOpenRouterProvider, applyCacheControl, cacheAnchorsFor, attachCatalogCache, _internals: { normalizeReasoningEffort, reasoningEffortsForModel, clampReasoningEffortForModel, repairToolPairs } };
 });

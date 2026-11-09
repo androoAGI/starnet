@@ -1061,10 +1061,15 @@
       return provider.verifyResponse(doFetch, baseUrl + '/models', { headers: headerBag(key, 'application/json'), signal: o && o.signal },
         j => (Array.isArray(j.data) ? j.data : []).map(normalizeModel).filter(Boolean), !!key, classifyApiError);
     }
+    /* WHERE A READ CAN LAND AFTER A HISTORY EDIT (W2.1, history-edit.js readFloor): every request this adapter caches
+       carries explicit breakpoints (buildBody: the static prefix, the sliding tail, and with cache TTL 'mixed' the end of
+       history), so a read lands only on one of them. system 'prefix': beside a tool anchor only the cache-stable prefix
+       of a split system is anchored (TOOL ANCHOR); 'all': every system block is. Read per call, like the stamping. */
+    function cacheAnchors() { return { history: cacheTtl.anchorsHistory(cacheTtl.mode()), system: toolAnchorOn() ? 'prefix' : 'all' }; }
     /* PRESERVED THINKING IS THE LOOP'S TO KEEP CONSISTENT (W1.7): on these models a history edit unbinds every block at or
        after it, so the loop's request view (history-edit.js makeRequestView) strips exactly those, once, instead of
        replaying them into a drop cascade. Asked per model; the rescue below still covers anything this list misses. */
-    return { stream, listModels, verifyCredential, warmCatalog, catalogHttpStatus, catalogFetchError, contextLimit, outputLimit, priceOf, supportsTools, reasoningEfforts, bindsThinking, effortAsSent };
+    return { stream, listModels, verifyCredential, warmCatalog, catalogHttpStatus, catalogFetchError, contextLimit, outputLimit, priceOf, supportsTools, reasoningEfforts, bindsThinking, effortAsSent, cacheAnchors };
   }
 
   return { makeAnthropicProvider, _internals: { messagesToAnthropic, toAnthropicTools, normalizeUsage, normalizeModel, cleanBaseUrl, headerBag, firstUnbound } };

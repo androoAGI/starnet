@@ -52,6 +52,11 @@
       clampOutput and the loop's turn squeeze cut through it too, so none of those cuts splits a surrogate pair.
    5. OLD RESULTS AND SUCCESSFUL WRITE ARGUMENTS AGE IN BATCHES, IN THE REQUEST VIEW ONLY (makeAgeing, W2.1). Off unless
       the host turns it on (STARNET_BATCHED_AGEING). One more edit kind through 1. and 2.: see BATCHED AGEING below.
+   6. AN EDIT RE-WRITES THE CACHE FROM WHERE THE NEXT READ CAN LAND, NOT FROM THE EDIT (readFloor, W2.1 review). On a
+      route with explicit cache breakpoints (the Claude routes) the request after an edit reads only up to an anchor
+      it pins (the static prefix; with cache TTL 'mixed', the end of the conversation's history), so everything after
+      that anchor is written again, a resumed conversation included. On an automatic-prefix route the read reaches the
+      edit. Whatever weighs an edit's cost asks here.
 
    Pure apart from the injected parker and the request view's in-place strip (1.); no clock; UMD so loop.js can load it
    wherever it loads. */
@@ -221,6 +226,60 @@
     return { messages, unbound };
   }
 
+  // ---------------------------------------------------------------- 6. where the next read lands
+  /* readFloor(list, at, o) -> { from, systemTail }   WHERE THE REQUEST AFTER AN EDIT CAN STILL READ THE CACHE.
+     An edit at message `at` changes every prefix from there on. The next request reads the cache up to the last point
+     where an entry can still be found and WRITES the rest. Where that point is depends on how the route caches, which its
+     adapter declares (provider.cacheAnchors(model), passed as o.anchors):
+       · null: automatic prefix caching, or none (the OpenAI-shaped routes, Gemini, DeepSeek). The longest prefix an
+         earlier request sent is matched wherever it ends, so the read reaches the edit: from = at.
+       · { history, system }: explicit breakpoints (Claude on the Anthropic API, through OpenRouter, the managed route).
+         A read lands only on a block where an earlier request wrote a breakpoint, found by looking back at most 20
+         positions from one of this request's own breakpoints (claude-api shared/prompt-caching.md, "20-block lookback
+         window"; "Reads can only land on positions where a previous request wrote a breakpoint"). This request's
+         breakpoints are the static prefix (tools and system: anthropic.js buildBody, openrouter.js applyCacheControl) and
+         the 2-3 newest messages. Those newest ones sit behind every turn an edit leaves alone (a batch keeps the newest
+         four tool turns whole), so the read lands on the static prefix: everything after the leading system run the
+         adapter hoists is written again (from = that run's end), and so is the part of the hoisted system the adapter
+         leaves unanchored. system 'prefix' says only the cache-stable prefix (o.stable: the run's cacheSystemPrefix) of a
+         split system is anchored (anthropic.js beside its tool anchor): the rest of that system is the systemTail (all
+         of the system run when a system message carries parts).
+         With cache TTL 'mixed' (history: true) one more anchor is pinned on the end of the conversation's history, the
+         last block before the newest <run_context> note (o.isHistoryEnd): an edit after that note re-writes from the note.
+         An older entry within reach of the newest breakpoints is ignored on purpose: assuming a read stops at the pinned
+         anchor can only make an edit look dearer than it is (a payback then errs toward not ageing), never cheaper.
+       · o.holdsHistory: the provider holds the run's history itself (claude-cli's persistent child) and re-sends all of
+         it after any edit: from = 0.
+     from: the first message the next request writes. systemTail: the unanchored rest of the hoisted system prompt, as a
+     message to size ({ role: 'system', content }), or null. Pure. */
+  function readFloor(list, at, o) {
+    o = o || {};
+    const src = Array.isArray(list) ? list : [];
+    const edit = Math.max(0, Math.min(Math.floor(Number(at) || 0), src.length));
+    if (o.holdsHistory) return { from: 0, systemTail: null };
+    const a = o.anchors;
+    if (!a || typeof a !== 'object') return { from: edit, systemTail: null };
+    const isEnd = m => { try { return typeof o.isHistoryEnd === 'function' && !!o.isHistoryEnd(m); } catch (_) { return false; } };
+    // the leading system run an adapter hoists into its system field (anthropic.js extractLeadingSystem stops at the note)
+    let lead = 0;
+    while (lead < src.length && src[lead] && src[lead].role === 'system' && !isEnd(src[lead])) lead++;
+    if (a.history) {
+      let note = -1;
+      for (let i = src.length - 1; i >= 0; i--) if (isEnd(src[i])) { note = i; break; }
+      if (note > lead && note <= edit) return { from: note, systemTail: null };   // the end-of-history anchor is read
+    }
+    let systemTail = null;
+    if (a.system === 'prefix' && lead > 0) {
+      const stable = typeof o.stable === 'string' ? o.stable.trim() : '';
+      const run = src.slice(0, lead);
+      if (stable && run.every(m => typeof m.content === 'string')) {
+        const joined = run.map(m => m.content.trim()).filter(Boolean).join('\n\n');   // as anthropic.js extractLeadingSystem hoists it
+        if (joined.indexOf(stable) === 0 && joined.slice(stable.length).trim()) systemTail = { role: 'system', content: joined.slice(stable.length) };
+      } else if (stable) systemTail = { role: 'system', content: run.map(m => m.content) };   // a system in parts: all of it (the dearer answer)
+    }
+    return { from: Math.min(lead, edit), systemTail };
+  }
+
   // ---------------------------------------------------------------- 5. batched ageing
   /* BATCHED AGEING (W2.1, cost audit 2026-11-08). A long run sends every old tool result and every file it wrote on
      every request; at cache-read prices that is most of its input bill. Ageing one result per turn changed the prefix on
@@ -232,12 +291,20 @@
        · a run projected at AGE_SHORT_RUN requests or fewer is never aged (the measured break-even): the projection is
          the requests made so far plus as many again (a run tends to last about as long again as it has run), never past
          the run's turn ceiling;
-       · THE PAYBACK: a batch ages only when  R x F x r  >  T x (w - r).  R: the projected remaining requests; F: what the
-         batch takes out of every later request; T: the request from the first aged message to its end, the part the
-         next request writes instead of reading (all of it on a provider that holds the run's history); r and w: the
-         route's cache read and write price in fresh-input units (the cost engine's cacheRates, W1.13). F and T by the
-         loop's own ruler. An unpriced route (a sign-in, a local model) has nothing to weigh and never ages; a priced one
-         that publishes no cache rates is weighed at AGE_ASSUMED_RATES.
+       · THE PAYBACK: a batch ages only when  R x F x r  >  T x (w - r).  R: the projected remaining requests, never more
+         than AGE_HORIZON (half of AGE_SHORT_RUN: what the shortest run that ages has left), so a batch pays for itself
+         within that many requests or waits for a bigger one: a run's age alone never buys a large re-write (measured in
+         review: with R the run's whole age, a resumed conversation's re-write passed late in the run, where the fewest
+         requests were left, and cost resumed replays on the 5-minute cache up to 17% more than ageing off; capped, the
+         fresh replays batched as before, bar one late batch in each of the two longest on 'mixed', and saved more); F:
+         what the batch takes out of every later request; T: the part of the next request that is written instead of
+         read, from where that request's read can land to its end (readFloor, 6.): from the first aged message on an
+         automatic-prefix route; on a route with explicit breakpoints (the Claude routes) from the anchor it pins, so the
+         conversation a run resumed counts in full (measured in review: T from the first aged message made batches that
+         cost a resumed conversation more than ageing off); all of it on a provider that holds the run's history. r and
+         w: the route's cache read and write price in fresh-input units (the cost engine's cacheRates, W1.13). F and T by
+         the loop's own ruler. An unpriced route (a sign-in, a local model) has nothing to weigh and never ages; a priced
+         one that publishes no cache rates is weighed at AGE_ASSUMED_RATES.
      WHAT AGES: a tool result, through elideToolResult (2.: the micro tier's stub, wording and handle); and the long
      string arguments of a write that SUCCEEDED (WRITE_ARGS), as an ARG_ELIDED stub naming a saved copy of the exact
      argument. Only a body a handle covers ages, and only when its stub at least halves it: words quoted from another
@@ -252,13 +319,16 @@
   const AGE_BATCH_CHARS = 60000;
   const AGE_MIN_TURNS = 2;
   const AGE_SHORT_RUN = 24;
+  const AGE_HORIZON = AGE_SHORT_RUN / 2;
   const AGE_ASSUMED_RATES = Object.freeze({ read: 0.10, write: 1.25 });   // Anthropic's 5-minute tier: the cached routes' usual write premium
   // the writes whose long string arguments age once the call succeeded (wire names), and which arguments
   const WRITE_ARGS = Object.freeze({ fs_write: ['content'], fs_append: ['content'], fs_edit: ['find', 'replace'], fs_patch: ['patch'] });
   const ARG_ELIDED = '[argument elided at compaction — ';
-  // a handle as long as the host's usual one (index.js parkOutput: .output/<tool>-<run id>-<seq>.txt): a stub is priced
-  // before its park, which only the batch itself makes
+  /* a handle as long as the host's: a stub is priced before its park, which only the batch itself makes. The loop hands
+     its micro tier's stand-in parker (ctx.standIn: index.js parkOutput's longest usual shape, placed where this run
+     reads it, so an absolute path in a project session); without one, a relative .output/<tool>-<run id>-<seq>.txt */
   const STAND_IN = { via: 'saved', call: pathCall('.output/' + 'x'.repeat(48) + '.txt') };
+  const STAND_IN_TOOL = 'x'.repeat(40);   // the longest tool stem the host parker keeps (index.js parkOutput: slice(0, 40))
   const wireName = n => String(n == null ? '' : n).replace(/\./g, '_').toLowerCase();
   function argStubText(text, call) { return ARG_ELIDED + utf8Bytes(text) + ' bytes; the whole argument is saved: read it with ' + call + ']'; }
   // one message's characters on the wire (content and call arguments): the ruler when the loop has none
@@ -284,9 +354,13 @@
      plan(list, ctx) -> Promise<batch | null>   before a request: ages a batch when one is due and pays (see above).
        list: what the request would carry before ageing (screen captures already aged out: the loop's own messages);
        ctx: { requests (made so far), maxIters, rates() -> { read, write, published } | null (the cost engine's
-       cacheRates), measure(message) -> its size by the loop's ruler, holdsHistory, park (the host parker) }.
-       batch: { editAt (the first aged message), results, args, freedChars, requests, remaining, read, write, assumed,
-       freed, suffix, saving, rewrite } — the payback's numbers, for the diagnostics line.
+       cacheRates), measure(message) -> its size by the loop's ruler, park (the host parker), standIn (a parker that
+       writes nothing and names a path as long as the host's: the micro tier's), and where the next read lands
+       (readFloor): holdsHistory, anchors (provider.cacheAnchors(model)), isHistoryEnd (the run-context note), stable
+       (the run's cacheSystemPrefix) }.
+       batch: { editAt (the first aged message), from (the first message the next request re-writes), results, args,
+       freedChars, requests, remaining (the requests the payback credited), read, write, assumed, freed, suffix, saving,
+       rewrite } — the payback's numbers, for the diagnostics line.
      view(list) -> list with each aged message swapped for its copy; the list itself while nothing has aged.
      agedOf(original) -> its aged copy, or null (the micro tier folds an aged result into the same stub, no second park).
      originalOf(copy) -> the original an aged copy stands in for, or null (the request view's ownerOf). */
@@ -300,7 +374,7 @@
     if (!aged || !owners || !never) return { plan: async () => null, view: list => list, agedOf: () => null, originalOf: () => null };
     const quoted = meta => !!meta && Array.isArray(meta.quotedStreams) && meta.quotedStreams.length > 0;
     // what one message would become, priced with a stand-in handle (nothing is parked), or null: it can never age
-    function candidate(m, names, results, park) {
+    function candidate(m, names, results, park, standIn) {
       if (typeof park !== 'function') return null;
       if (m.role === 'tool') {
         if (isElided(m)) return null;   // the micro tier's stub already
@@ -310,7 +384,7 @@
         if (text.length <= ELIDE_HEAD) return null;
         const parkedPath = origin.parkedPath ? String(origin.parkedPath) : null;
         if (!parkedPath && (quoted(origin.parkMeta) || !wellFormed(text))) return null;
-        const est = stubText(text, String(names.get(m.tool_call_id) || 'tool'), parkedPath ? { via: 'parked', call: pathCall(parkedPath) } : STAND_IN);
+        const est = stubText(text, String(names.get(m.tool_call_id) || 'tool'), parkedPath ? { via: 'parked', call: pathCall(parkedPath) } : standIn);
         if (est.length * 2 > text.length) return null;
         return { kind: 'result', msg: m, name: String(names.get(m.tool_call_id) || 'tool'), text, origin, est: Object.assign({}, m, { content: est }) };
       }
@@ -331,7 +405,7 @@
         for (const f of fields) {
           const v = args[f];
           if (typeof v !== 'string' || !wellFormed(v)) continue;
-          const s = argStubText(v, STAND_IN.call);
+          const s = argStubText(v, standIn.call);
           if (s.length * 2 > v.length) continue;
           take.push(f); estArgs[f] = s;
         }
@@ -342,7 +416,7 @@
       return calls.length ? { kind: 'args', msg: m, calls, est: Object.assign({}, m, { tool_calls: estCalls }) } : null;
     }
     // the messages a batch would age now: every one behind the newest AGE_KEEP_TURNS tool turns not aged yet
-    function pending(list, park) {
+    function pending(list, park, standIn) {
       const turns = [];
       for (let i = 0; i < list.length; i++) { const m = list[i]; if (m && m.role === 'assistant' && Array.isArray(m.tool_calls) && m.tool_calls.length) turns.push(i); }
       if (turns.length <= AGE_KEEP_TURNS) return null;
@@ -360,24 +434,34 @@
         if (i === turns[turn + 1]) turn++;
         const m = list[i];
         if (!m || typeof m !== 'object' || aged.has(m) || never.has(m)) continue;
-        const it = candidate(m, names, results, park);
+        const it = candidate(m, names, results, park, standIn);
         if (!it) { never.add(m); continue; }
         it.at = i;
         items.push(it); spanned.add(turn); freedChars += charsOf(m) - charsOf(it.est);
       }
       return { items, turns: spanned.size, freedChars };
     }
+    // the stand-in handle a stub is priced with: the loop's stand-in parker at the longest tool stem, else STAND_IN
+    async function standInOf(ctx) {
+      if (typeof ctx.standIn !== 'function') return STAND_IN;
+      let at = null;   // a stand-in that fails or names nothing: the fixed one
+      try { const s = await ctx.standIn('', { tool: STAND_IN_TOOL, reason: 'elided-at-compaction' }); at = (s && s.path) ? String(s.path) : null; } catch (_) { at = null; }
+      const call = at ? pathCall(at) : '';
+      return call.length > STAND_IN.call.length ? { via: 'saved', call } : STAND_IN;
+    }
     async function plan(list, ctx) {
       ctx = ctx || {};
       if (!Array.isArray(list)) return null;
       const park = typeof ctx.park === 'function' ? ctx.park : null;
-      const p = pending(list, park);
+      const p = pending(list, park, await standInOf(ctx));
       if (!p || !p.items.length || p.freedChars < AGE_BATCH_CHARS || p.turns < AGE_MIN_TURNS) return null;
-      // THE PROJECTION: as many requests again as the run has made, never past its turn ceiling
+      // THE PROJECTION: as many requests again as the run has made, never past its turn ceiling; the payback credits at
+      // most AGE_HORIZON of them
       const n = Math.max(0, Math.floor(Number(ctx.requests) || 0));
       const cap = Number(ctx.maxIters);
-      const remaining = Math.min(n, (cap > 0 && isFinite(cap)) ? Math.max(0, Math.floor(cap) - n) : Infinity);
-      if (n + remaining <= AGE_SHORT_RUN) return null;
+      const ahead = Math.min(n, (cap > 0 && isFinite(cap)) ? Math.max(0, Math.floor(cap) - n) : Infinity);
+      if (n + ahead <= AGE_SHORT_RUN) return null;
+      const remaining = Math.min(ahead, AGE_HORIZON);
       // THE ROUTE'S RATES
       let rates = null;
       try { rates = typeof ctx.rates === 'function' ? ctx.rates() : null; } catch (_) { rates = null; }
@@ -393,9 +477,11 @@
         return v > 0 ? v : 0;
       };
       const est = new Map(p.items.map(it => [it.msg, it.est]));
-      let freed = 0, suffix = 0;
+      // T: what the next request writes instead of reading, from where its read can land (6.), the batch's stubs in place
+      const floor = readFloor(list, p.items[0].at, { holdsHistory: !!ctx.holdsHistory, anchors: ctx.anchors || null, isHistoryEnd: ctx.isHistoryEnd, stable: ctx.stable });
+      let freed = 0, suffix = floor.systemTail ? size(floor.systemTail) : 0;
       for (const it of p.items) freed += size(it.msg) - size(it.est);
-      for (let i = ctx.holdsHistory ? 0 : p.items[0].at; i < list.length; i++) { const m = list[i]; suffix += size(est.get(m) || aged.get(m) || m); }
+      for (let i = floor.from; i < list.length; i++) { const m = list[i]; suffix += size(est.get(m) || aged.get(m) || m); }
       const saving = remaining * freed * r, rewrite = suffix * (w - r);
       if (!(freed > 0) || !(saving > rewrite)) return null;
       // THE BATCH: each body parked (or its registry park named), then its copy swapped in from the next request on
@@ -427,12 +513,12 @@
         if (!copy) { never.add(it.msg); continue; }
         inheritMarkers(it.msg, copy);
         aged.set(it.msg, copy); owners.set(copy, it.msg);
+        any = true;   // at once: whatever agedOf answers, the view swaps in too (a throw later in the batch splits nothing)
         freedChars += charsOf(it.msg) - charsOf(copy);
         if (editAt < 0) editAt = it.at;
       }
       if (editAt < 0) return null;
-      any = true;
-      return { editAt, results, args, freedChars, requests: n, remaining, read: r, write: w, assumed, freed, suffix, saving, rewrite };
+      return { editAt, from: floor.from, results, args, freedChars, requests: n, remaining, read: r, write: w, assumed, freed, suffix, saving, rewrite };
     }
     function view(list) {
       if (!any || !Array.isArray(list)) return list;
@@ -457,7 +543,7 @@
     };
   }
 
-  return { makeRequestView, elideToolResult, foldRequest, headTail, isElided, makeAgeing, inheritMarkers, ELIDED, ELIDE_HEAD, HEAD_SHARE, ARG_ELIDED,
-    AGEING: { KEEP_TURNS: AGE_KEEP_TURNS, BATCH_CHARS: AGE_BATCH_CHARS, MIN_TURNS: AGE_MIN_TURNS, SHORT_RUN: AGE_SHORT_RUN, ASSUMED_RATES: AGE_ASSUMED_RATES, WRITE_ARGS },
+  return { makeRequestView, elideToolResult, foldRequest, headTail, isElided, makeAgeing, readFloor, inheritMarkers, ELIDED, ELIDE_HEAD, HEAD_SHARE, ARG_ELIDED,
+    AGEING: { KEEP_TURNS: AGE_KEEP_TURNS, BATCH_CHARS: AGE_BATCH_CHARS, MIN_TURNS: AGE_MIN_TURNS, SHORT_RUN: AGE_SHORT_RUN, HORIZON: AGE_HORIZON, ASSUMED_RATES: AGE_ASSUMED_RATES, WRITE_ARGS },
     _internals: { wireKey, hashOf, stubText, utf8Bytes, stripFrom, argStubText, charsOf } };
 });
