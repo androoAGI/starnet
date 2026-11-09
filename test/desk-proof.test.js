@@ -307,7 +307,7 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
   before('async function handlePluginsAllow(', /deskGate\(req, res, 'plugin-allow', id \+ '@' \+ digest/, /pluginLoader\.allow\(id, digest\)/, 'approving plugin code asks first, for that exact digest');
   before('async function handleProjectBless(', /deskGate\(req, res, 'project-bless', String\(root\)/, /projectBless\.blessPath\(/, 'trusting a folder asks first (inside blessPath, for the root it resolves to)');
   A.ok(/if \(typeof o\.confirm === 'function' && !\(await o\.confirm\(proposedReal\)\)\)[\s\S]{0,200}const isGit = await isGitRepoOf\(proposedReal\);\s*const ok = await bless\(proposedReal/.test(read('sidecar/projectbless.js')), 'blessPath asks the desk for the real root after every check and before the grant');
-  before('function handleCronCreate(', /grants\.length && !deskGate\(req, res, 'routine-grants'/, /createCronJobFromSpec\(body, \{ grantsConfirmed: grants\.length > 0, scriptDigest \}\)/, 'a routine with an unattended grant asks first');
+  before('function handleCronCreate(', /grants\.length && !deskGate\(req, res, 'routine-grants'/, /createCronJobFromSpec\(body, \{ grantsConfirmed: grants\.length > 0, scriptDigest, grantDrive \}\)/, 'a routine with an unattended grant asks first');
   A.ok(/if \(!\(opts && opts\.grantsConfirmed === true\)\) body = Object\.assign\(\{\}, body, \{ unattendedGrants: \[\] \}\);/.test(A.fnBody(IDX, 'async function createCronJobFromSpec(')), 'every other create path makes a routine with no unattended grant');
   before('function handleCronUpdate(', /if \(confirm\.length\) \{[\s\S]{0,400}deskGate\(req, res, 'routine-grants'/, /await withCronWrite\(jobs => \{\s*const current = cronStore\.getJob\(jobs, id\);/, 'adding a grant to a routine asks first (removing never does)');
   {
@@ -325,11 +325,16 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
     const exec = A.fnBody(IDX, 'async function executeCronScript(');
     A.ok(exec.indexOf('cronScriptStale(job)') > 0 && exec.indexOf('cronScriptStale(job)') < exec.indexOf('cronScriptSpec(job)'), 'a script whose bytes changed is refused before anything runs');
     A.ok(/script: o\.cronScript, scriptDigest: o\.cronScriptDigest \|\| null,/.test(IDX) && /cronScriptDigest: job\.scriptDigest \|\| null,/.test(read('sidecar/cron-driver.js')), 'the scheduled fire and Run Now hand the recorded digest to the script run');
-    A.ok(/spec\.scriptDigest = cronScriptDigest\(spec\);\s*if \(!deskGate\(req, res, 'routine-grants'/.test(upd) && /if \(spec\.script\) confirmedDigest = spec\.scriptDigest;/.test(upd), 'ALLOW THIS VERSION is a desk yes for the bytes as they are now, and records them');
-    A.ok(/s\.runsLine === true, String\(s\.scriptDigest \|\| ''\)\]/.test(scope), 'the desk scope covers the script bytes');
-    A.ok(/body = Object\.assign\(\{\}, body, \{ scriptDigest: \(opts && opts\.grantsConfirmed === true && typeof opts\.scriptDigest === 'string'\) \? opts\.scriptDigest : null \}\);/.test(A.fnBody(IDX, 'async function createCronJobFromSpec(')), 'a create keeps only the station\'s own digest, read at the desk\'s yes');
+    A.ok(/spec\.scriptDigest = cronScriptDigest\(spec\);\s*spec\.grantDrive = routineDriveFor\(spec\);[^\n]*\n\s*if \(!deskGate\(req, res, 'routine-grants'/.test(upd) && /if \(spec\.script\) confirmedDigest = spec\.scriptDigest;\s*confirmedDrive = spec\.grantDrive;/.test(upd), 'ALLOW THIS VERSION is a desk yes for the bytes and the model as they are now, and records them');
+    A.ok(/s\.runsLine === true, String\(s\.scriptDigest \|\| ''\),/.test(scope), 'the desk scope covers the script bytes');
+    // final review #2: and the model it runs on
+    A.ok(/String\(s\.model \|\| ''\), String\(s\.provider \|\| ''\), String\(s\.grantDrive \|\| ''\)\]/.test(scope), 'the desk scope covers the model, the provider and what they resolve to');
+    A.ok(/scriptDigest: \(opts && opts\.grantsConfirmed === true && typeof opts\.scriptDigest === 'string'\) \? opts\.scriptDigest : null,\s*grantDrive: \(opts && opts\.grantsConfirmed === true && typeof opts\.grantDrive === 'string'\) \? opts\.grantDrive : null \}\);/.test(A.fnBody(IDX, 'async function createCronJobFromSpec(')), 'a create keeps only the station\'s own digest and drive, read at the desk\'s yes');
+    A.ok(/routineDriveMoved\(o\.cronGrantDrive, providerId, model, baseUrl\)/.test(IDX) && /cronGrantDrive: job\.grantDrive \|\| null,/.test(read('sidecar/cron-driver.js')) && /cronGrantDrive: job\.grantDrive \|\| null,/.test(IDX), 'the scheduled fire and Run Now hand the recorded drive to the run, which checks it');
     A.ok(/workshop: \(call, tool\) => !execution\.taintedBy\(\) && workshopOf\(agentId\),/.test(IDX), 'the away-workshop grant is lifted by taint, as the terminal grant is');
-    A.ok(/runsLine: j\.runsLine === true, scriptDigest: typeof j\.scriptDigest === 'string' \? j\.scriptDigest : null \};/.test(A.fnBody(IDX, 'function cronAuthorityParts(')), 'the seal covers the digest and every run field of a granted routine');
+    const parts = A.fnBody(IDX, 'function cronAuthorityParts(');
+    A.ok(/runsLine: j\.runsLine === true, scriptDigest: typeof j\.scriptDigest === 'string' \? j\.scriptDigest : null \},/.test(parts), 'the seal covers the digest and every run field of a granted routine');
+    A.ok(/legacy \? \{\} : \{ model: [^\n]*provider: [^\n]*\n\s*grantDrive: /.test(parts), 'final review #2: and, in the new form, its model, provider and drive');
   }
   {
     const roster = A.fnBody(IDX, 'async function handleRoster(');

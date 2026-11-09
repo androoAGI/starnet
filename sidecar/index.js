@@ -6539,6 +6539,38 @@ function cronScriptStale(job) {
   const grants = Array.isArray(job && job.unattendedGrants) ? job.unattendedGrants : [];
   return !!(job && job.script && grants.length && (!job.scriptDigest || cronScriptDigest(job) !== job.scriptDigest));
 }
+/* WHAT DRIVES A GRANT (final review #2, 2026-11-08). A routine's grants let the model that runs it use the terminal, the
+   accounts or the studio with nobody watching, so the model is part of what the desk said yes to: the routine's own model
+   and provider (cronStore RUN_FIELDS), and also what they resolve to when the routine follows its agent or the station
+   default, and the endpoint the provider's calls go to. The page key could re-point any of those without touching the
+   routine (the agent's model, the station default, a provider on a local port). So the station records the drive when
+   the desk says yes (grantDrive: 'd1:<model and provider>:<endpoint>', '-' for an endpoint not known then), and a run
+   whose drive differs runs without its grants and says why. A script-only routine (noAgent) calls no model: null. */
+const sha32 = s => crypto.createHash('sha256').update(String(s)).digest('hex').slice(0, 32);
+function routineDriveOf(providerId, model, baseUrl) {
+  const pm = sha32(JSON.stringify([normalizeProvider(providerId || ''), String(model || '').trim()]));
+  return 'd1:' + pm + ':' + (String(baseUrl || '').trim() ? sha32(String(baseUrl).trim().replace(/\/+$/, '')) : '-');
+}
+// the drive a routine resolves to now, as its run would (cron-driver and Run Now: cronWireFor, the station's own key)
+function routineDriveFor(job, opts) {
+  if (!job || job.noAgent === true) return null;
+  const w = cronWireFor(job);
+  const providerId = normalizeProvider(w.provider || 'openrouter');
+  const model = chatModelId(providerId, String(w.model || '').trim());
+  if (!model) return null;
+  if (opts && opts.endpoint === false) return routineDriveOf(providerId, model, '');
+  const key = providerRuntimeKey(providerId, '');
+  return routineDriveOf(providerId, model, providerRuntimeBaseUrl(providerId, '', key, key, false));
+}
+// '' when the run's drive is the one the grant was given for, else why not (in the run's words)
+function routineDriveMoved(stamp, providerId, model, baseUrl) {
+  if (typeof stamp !== 'string' || !/^d1:[0-9a-f]{32}:(?:[0-9a-f]{32}|-)$/.test(stamp)) return 'the model it runs on was never confirmed with its grants';
+  const now = routineDriveOf(providerId, model, baseUrl).split(':');
+  const was = stamp.split(':');
+  if (was[1] !== now[1]) return 'it would run on ' + String(model || 'another model').slice(0, 80) + ' (' + String(providerId || '').slice(0, 40) + '), not the model its grants were given for';
+  if (was[2] !== '-' && now[2] !== '-' && was[2] !== now[2]) return 'the endpoint its provider calls changed since its grants were given';
+  return '';
+}
 // the first lines of the script, for the desk words: the yes is for what the person could read
 function cronScriptExcerpt(job) {
   if (!job || !job.script) return '';
@@ -7721,17 +7753,26 @@ const CRON_NOTEPAD_UNSEALED = 'routine notepad changed outside StarNet';
 const CRON_NOTEPAD_UNCHECKED = 'routine notepad StarNet could not check (its permission seal is not available)';
 let cronSealsRead = null;              // the __seals record as last read: what a keyless save carries
 let cronGrantsSealed = new Map();      // routine id -> its grants as last read or sealed (removing one moves the floor)
-function cronAuthorityParts(jobs) {
+/* THE MODEL IS SEALED WITH THE GRANT (final review #2). A grant part now also binds the routine's model, provider and the
+   drive the desk confirmed (grantDrive), so a same-user edit of cron.jobs.json's model no longer keeps a valid seal. The
+   record says which form its parts take (p: 2); a record from before (no p) is checked in its own form, so a routine sealed
+   then keeps its grants, and the first keyed save after reading one moves the floor, so that older form never opens again
+   (it did not bind the model). */
+const CRON_PARTS_FORM = 2;
+let cronSealsLegacy = false;           // the record read was in the first form: the next keyed seal moves the floor
+function cronAuthorityParts(jobs, legacy) {
   const parts = {};
   for (const j of (Array.isArray(jobs) ? jobs : [])) {
     if (!j || typeof j !== 'object' || typeof j.id !== 'string') continue;
     const grants = Array.isArray(j.unattendedGrants) ? j.unattendedGrants.map(String) : [];
-    if (grants.length) parts['grant:' + j.id] = { grants, agentId: j.agentId == null ? null : String(j.agentId), prompt: j.prompt == null ? null : String(j.prompt),
+    if (grants.length) parts['grant:' + j.id] = Object.assign({ grants, agentId: j.agentId == null ? null : String(j.agentId), prompt: j.prompt == null ? null : String(j.prompt),
       script: j.script == null ? null : j.script, workdir: j.workdir == null ? null : String(j.workdir), noAgent: j.noAgent === true,
       enabledToolsets: Array.isArray(j.enabledToolsets) ? j.enabledToolsets : null,
       // review2 #2/#3: everything that changes what the grant runs, and the script bytes it was given for
       skills: Array.isArray(j.skills) ? j.skills : null, contextFrom: Array.isArray(j.contextFrom) ? j.contextFrom : null,
-      runsLine: j.runsLine === true, scriptDigest: typeof j.scriptDigest === 'string' ? j.scriptDigest : null };
+      runsLine: j.runsLine === true, scriptDigest: typeof j.scriptDigest === 'string' ? j.scriptDigest : null },
+      legacy ? {} : { model: j.model == null ? null : String(j.model), provider: j.provider == null ? null : String(j.provider),
+        grantDrive: typeof j.grantDrive === 'string' ? j.grantDrive : null });
     if (typeof j.notepad === 'string' && j.notepad && !j.notepadTaint) parts['notepad:' + j.id] = { notepad: j.notepad };
   }
   return parts;
@@ -7740,7 +7781,9 @@ const cronGrantKey = j => (Array.isArray(j && j.unattendedGrants) ? j.unattended
 // raw: the envelope as read; jobs: its validated jobs. -> the jobs a reader may obey
 function cronOpenAuthority(raw, jobs) {
   cronSealsRead = raw && typeof raw === 'object' && raw.__seals && typeof raw.__seals === 'object' && !Array.isArray(raw.__seals) ? raw.__seals : null;
-  const r = authoritySeal.openParts('cron.jobs.json', cronSealsRead, cronAuthorityParts(jobs));
+  const legacy = !(cronSealsRead && cronSealsRead.p === CRON_PARTS_FORM);
+  cronSealsLegacy = legacy && !!(cronSealsRead && cronSealsRead.macs && Object.keys(cronSealsRead.macs).length);
+  const r = authoritySeal.openParts('cron.jobs.json', cronSealsRead, cronAuthorityParts(jobs, legacy));
   let out = jobs;
   if (r && Array.isArray(r.ok)) {
     const ok = new Set(r.ok);
@@ -7772,7 +7815,9 @@ function cronSealRecord(jobs) {
     const is = now.has(id) ? now.get(id).split(',').filter(Boolean) : [];
     if (was.split(',').some(g => is.indexOf(g) < 0)) { lowering = true; break; }   // a grant removed, or a granted routine deleted
   }
-  return authoritySeal.sealParts('cron.jobs.json', cronAuthorityParts(jobs), { lowering });
+  const rec = authoritySeal.sealParts('cron.jobs.json', cronAuthorityParts(jobs, false), { lowering: lowering || cronSealsLegacy });
+  if (rec) { rec.p = CRON_PARTS_FORM; cronSealsLegacy = false; }
+  return rec;
 }
 // A3: how many stored routines the last load had to repair, and which ones were already logged (a failed boot
 // persist re-applies the repair on every load; it is logged once per routine, not once per load).
@@ -7901,6 +7946,20 @@ if (Array.isArray(authoritySealBoot.migrating) && authoritySealBoot.migrating.in
     cronJobs = cronJobs.map(j => (j && stamps.get(j.id)) ? Object.assign({}, j, { scriptDigest: stamps.get(j.id) }) : j);
     try { saveCronJobs(); console.warn('[cron] recorded the script fingerprint of ' + unstamped.length + ' routine(s) allowed to run unattended; a later change to those files stops them until you allow it again'); }
     catch (e) { failNote('cron.script-digest.stamp', e); }
+  }
+}
+/* final review #2: a granted routine from before the station recorded what model its grants were given for is stamped ONCE
+   with the model and provider it resolves to now (the trust it had before this version), so it keeps running; from here on
+   another model stops its grants. Its endpoint is not stamped (the desktop app's keys may not have arrived yet at boot): a
+   new yes at the desk records it. Only while the seal can check what it stamps, and only for grants that survived it. */
+{
+  const unstamped = authoritySeal.held ? [] : cronJobs.filter(j => j && j.noAgent !== true && Array.isArray(j.unattendedGrants) && j.unattendedGrants.length && !j.grantDrive);
+  if (unstamped.length) {
+    const stamps = new Map();
+    for (const j of unstamped) { try { const d = routineDriveFor(j, { endpoint: false }); if (d) stamps.set(j.id, d); } catch (e) { failNote('cron.grant-drive.stamp', e); } }
+    cronJobs = cronJobs.map(j => (j && stamps.get(j.id)) ? Object.assign({}, j, { grantDrive: stamps.get(j.id) }) : j);
+    try { if (stamps.size) { saveCronJobs(); console.warn('[cron] recorded the model of ' + stamps.size + ' routine(s) allowed to run unattended; a later change of model stops their grants until you allow it again'); } }
+    catch (e) { failNote('cron.grant-drive.stamp', e); }
   }
 }
 // A3: write a load-time toolset repair back ONCE, through the same durable saveCronJobs, so the next boot reads the
@@ -18632,9 +18691,12 @@ function handleCronCreate(req, res) {
     // review2 #3: a script routine's yes is for the script's bytes as they are now; the digest is in the scope and is kept
     let scriptDigest = '';
     if (grants.length && body.script) { try { scriptDigest = cronScriptDigest(Object.assign({}, body, { agentId: parseCronAgentIdOr400(body.agentId) })); } catch (e) { scriptDigest = ''; } }
-    const spec = Object.assign({}, body, { scriptDigest });
+    // final review #2: and for the model it runs on, as it resolves now
+    let grantDrive = null;
+    if (grants.length) { try { grantDrive = routineDriveFor(Object.assign({}, body, { agentId: parseCronAgentIdOr400(body.agentId) })); } catch (e) { grantDrive = null; } }
+    const spec = Object.assign({}, body, { scriptDigest, grantDrive });
     if (grants.length && !deskGate(req, res, 'routine-grants', routineGrantScope(spec, grants), routineGrantWords(spec, grants))) return;
-    const out = await createCronJobFromSpec(body, { grantsConfirmed: grants.length > 0, scriptDigest });
+    const out = await createCronJobFromSpec(body, { grantsConfirmed: grants.length > 0, scriptDigest, grantDrive });
     /* ARM ON CREATE (routine reliability, 2026-10-01): the panel used to save a routine and then toast "saved, but
        the scheduler is off — this won't run" — a routine the Commander just made never firing is the most common
        way a routine "doesn't work". body.arm:true (sent by the CREATE form, same default as routine.create's
@@ -18663,7 +18725,9 @@ function routineGrantScope(spec, grants) {
   const list = v => (Array.isArray(v) ? v.map(String) : null);
   return crypto.createHash('sha256').update(JSON.stringify([String(s.agentId || ''), grants, String(s.name || ''), String(s.prompt || ''),
     String(s.script || ''), String(s.workdir || ''), s.noAgent === true, list(s.enabledToolsets), list(s.skills), list(s.contextFrom),
-    s.runsLine === true, String(s.scriptDigest || '')])).digest('hex');   // review2 #3: and the script's bytes
+    s.runsLine === true, String(s.scriptDigest || ''),   // review2 #3: and the script's bytes
+    // final review #2: and its model, provider and the drive they resolve to
+    String(s.model || ''), String(s.provider || ''), String(s.grantDrive || '')])).digest('hex');
 }
 const ROUTINE_GRANT_WORDS = { workbench: 'use the terminal (run commands on this computer)', connectors: 'use your connected accounts', studio: 'make images in the studio' };
 function routineGrantWords(spec, grants, changed) {
@@ -18682,7 +18746,8 @@ async function createCronJobFromSpec(body, opts) {
   // action, an app's refresh routine, a line's schedule) makes a routine with none, as the chain-grants law says
   if (!(opts && opts.grantsConfirmed === true)) body = Object.assign({}, body, { unattendedGrants: [] });
   // the script digest is the station's own, read when the desk said yes (review2 #3); never the body's
-  body = Object.assign({}, body, { scriptDigest: (opts && opts.grantsConfirmed === true && typeof opts.scriptDigest === 'string') ? opts.scriptDigest : null });
+  body = Object.assign({}, body, { scriptDigest: (opts && opts.grantsConfirmed === true && typeof opts.scriptDigest === 'string') ? opts.scriptDigest : null,
+    grantDrive: (opts && opts.grantsConfirmed === true && typeof opts.grantDrive === 'string') ? opts.grantDrive : null });   // final review #2
   const out = (status, obj) => ({ status: status, body: obj });
   const takeoverId = body.meta && body.meta.workflowTakeoverId;
   const widgetId = body.meta && body.meta.widgetId;
@@ -18759,7 +18824,7 @@ async function createCronJobFromSpec(body, opts) {
       // on this routine. cron-store whitelists it and inputpolicy re-filters at the gate, so an arbitrary body
       // value cannot widen a run. Absent -> [] -> the routine has no terminal, exactly as before.
       unattendedGrants: body.unattendedGrants,
-      skills: body.skills, script: body.script, scriptDigest: body.scriptDigest, scriptTimeoutMs: body.scriptTimeoutMs, workdir: body.workdir, contextFrom: body.contextFrom,
+      skills: body.skills, script: body.script, scriptDigest: body.scriptDigest, grantDrive: body.grantDrive, scriptTimeoutMs: body.scriptTimeoutMs, workdir: body.workdir, contextFrom: body.contextFrom,
       noAgent: body.noAgent, enabledToolsets: body.enabledToolsets, attachToSession: body.attachToSession,
       monitorMode: body.monitorMode === true,
       origin: body.origin,
@@ -18844,7 +18909,7 @@ function handleCronUpdate(req, res) {
        asks to keep them (keepGrants) and the desk says yes for the routine as it will run. Before, a desk-confirmed
        grant stayed on a routine whose prompt or script the page key had just rewritten. */
     const keepGrants = body.keepGrants === true;
-    let confirmed = new Set(), confirmedDigest;
+    let confirmed = new Set(), confirmedDigest, confirmedDrive;
     {
       const current = cronStore.getJob(cronJobs, id) || {};
       const held = new Set(normalizeUnattendedGrants(current.unattendedGrants));
@@ -18860,9 +18925,11 @@ function handleCronUpdate(req, res) {
         if (authoritySeal.held) return json(409, { ok: false, error: authoritySeal.held });   // it could not be sealed (review 4a/4d)
         const spec = Object.assign({}, current, patch);
         spec.scriptDigest = cronScriptDigest(spec);
+        spec.grantDrive = routineDriveFor(spec);   // final review #2: the model it will run on, as it resolves now
         if (!deskGate(req, res, 'routine-grants', id + ':' + routineGrantScope(spec, confirm), routineGrantWords(spec, confirm, rewrite || stale))) return;
         confirmed = new Set(confirm);
         if (spec.script) confirmedDigest = spec.scriptDigest;
+        confirmedDrive = spec.grantDrive;
       }
     }
     let grantsDropped = [];
@@ -18886,7 +18953,8 @@ function handleCronUpdate(req, res) {
         const candidate = Object.assign({}, current, edit);
         if (String(candidate.deliver || 'local').trim() === 'local' && candidate.attachToSession && !(candidate.origin && (candidate.origin.sessionId || candidate.origin.streamId))) throw new Error('follow-up needs a captured session origin');
         // review2 #3: the bytes the desk's yes was for, recorded with it
-        let next = cronStore.updateJob(jobs, id, edit, Object.assign({ now: Date.now(), defaultTz: CRON_HOST_TZ }, confirmedDigest !== undefined ? { scriptDigest: confirmedDigest } : {}));
+        let next = cronStore.updateJob(jobs, id, edit, Object.assign({ now: Date.now(), defaultTz: CRON_HOST_TZ }, confirmedDigest !== undefined ? { scriptDigest: confirmedDigest } : {},
+          confirmedDrive !== undefined ? { grantDrive: confirmedDrive } : {}));
         if (enabled === true) next = cronStore.resumeJob(next, id, { now: Date.now(), defaultTz: CRON_HOST_TZ });
         else if (enabled === false) next = cronStore.pauseJob(next, id);
         return next;
@@ -19137,6 +19205,7 @@ async function handleCronRun(req, res) {
       // SOP recipes: Run Now is held to the same host-checked acceptance contract as the scheduled fire.
       postconditions: (job.meta && job.meta.postconditions != null) ? job.meta.postconditions : undefined,
       preloadSkills: Array.isArray(job.skills) ? job.skills.slice() : [], requiredPreloads: true, cronScript: job.script || null, cronScriptDigest: job.scriptDigest || null,
+      cronGrantDrive: job.grantDrive || null,   // the model its grants were given for (routineDriveFor, final review #2)
       scriptTimeoutMs: job.scriptTimeoutMs,
       // dockId comes from the crate above (placeCronWorkitem resolves job.dockId, else the agent's entry bay), exactly
       // like the scheduled fire's wrapper — a second dockId key here silently overrode it with undefined.
@@ -23548,6 +23617,15 @@ async function runOnceCore(o) {
      other caller, so every non-cron surface stays byte-identical. */
   // while the authority seal holds (it cannot check cron.jobs.json, review 4a/4d) no routine runs with its grants
   const unattendedGrants = (surface === 'interactive' || authoritySeal.held) ? [] : Array.from(normalizeUnattendedGrants(o.unattendedGrants));
+  /* final review #2: the grants hold only on the model, provider and endpoint the desk said yes to (routineDriveFor). A
+     script-only routine calls no model; any other run that carries grants without a matching drive runs without them
+     (emptied here, before anything reads the list). */
+  const grantDriveMoved = (unattendedGrants.length && o.noAgent !== true) ? routineDriveMoved(o.cronGrantDrive, providerId, model, baseUrl) : '';
+  if (grantDriveMoved) {
+    unattendedGrants.length = 0;
+    console.warn('[cron] routine ' + String(o.cronJobId || '?') + ' runs without its unattended grants: ' + grantDriveMoved);
+    if (runNotices.length < 4) runNotices.push('this routine ran without its unattended grants: ' + grantDriveMoved + '. Grant them again in SCHEDULES (StarNet asks you to confirm)');
+  }
   /* UNTRUSTED-CONTENT TAINT (2026-07-25) — the structural half of the tool-result injection defence.
      Fencing tells the model that fetched text is data; it cannot MAKE the model obey. So the host removes the
      payoff instead of trying to detect the payload: once content the Commander did not author has entered this
@@ -25182,9 +25260,14 @@ async function runOnceCore(o) {
     runNotices.push('and ' + fbUnsaid + ' more fallback' + (fbUnsaid === 1 ? '' : 's') + ' on a provider this station does not know ' + (fbUnsaid === 1 ? 'was' : 'were') + ' skipped');
     runStartExtra.notices = runNotices;
   }
-  const fallbacks = rotationFallbacks
+  /* A ROUTINE WITH GRANTS RUNS ONLY ON THE MODEL THEY WERE GIVEN FOR (final review #2). A fallback to another model or
+     provider (the station's saved chain, which the page key sets) would hand the grants to a model the desk never saw, so
+     such a run keeps only its credential rotations (the same model, another key or account). */
+  const fallbacksAll = rotationFallbacks
     .concat(fallbackModels.map(m => ({ provider, providerId, model: m })))
     .concat(providerFallbacks);
+  const fallbacks = unattendedGrants.length ? fallbacksAll.filter(f => f && f.providerId === providerId && f.model === model) : fallbacksAll;
+  if (fallbacks.length < fallbacksAll.length && runNotices.length < 4) runNotices.push('its fallbacks to other models were skipped: a routine allowed to run unattended runs only on the model its grants were given for');
   // INTERNAL self-talk (a title, session ideas, a goal plan) is reason-only aux work: it runs on the aux effort, not the
   // effort the Commander picked for their own chat (auxPassEffort). Every adapter clamps a per-request effort to what
   // the model it lands on offers, so a fallback hop stays valid. null = no override (every other run — an /v1
