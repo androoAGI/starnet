@@ -538,6 +538,9 @@
       keyRequired: false,
       modelsRequireAuth: false,
       defaultReasoningEffort: 'medium',
+      // the effort dial never reaches a run here: the CLI is given no --effort for a message (factory.js builds it with
+      // none; its run records say 'cli-default'), so no line may promise the dial changes one (effortDialReachesRuns)
+      effortDialReachesRuns: false,
       unmetered: false,
       credentialPool: false,
       supportsTools: true,
@@ -664,6 +667,14 @@
     const profile = getProviderProfile(value) || BY_ID.get(DEFAULT_PROVIDER_ID);
     return (profile && profile.defaultReasoningEffort) || 'medium';
   }
+  /* Does the reasoning-effort dial (Settings, the dock, an agent's class, /reasoning, /fast) reach the runs on this route?
+     THE one answer every line about the dial reads — COMMS (chat.js) and the terminal (bin/lib/dashboard.js) — so none
+     promises an effect the route does not deliver. False only for a profile that says so (claude-cli); an unknown or
+     empty route is treated as reaching (the station's own default wire). */
+  function effortDialReachesRuns(value) {
+    const profile = getProviderProfile(value);
+    return !(profile && profile.effortDialReachesRuns === false);
+  }
   function providerRequiresKey(value) {
     const profile = getProviderProfile(value);
     return !!(profile && profile.keyRequired);
@@ -716,6 +727,7 @@
     providerUsesCodex,
     providerUsesDeviceOAuth,
     defaultReasoningEffortForProvider,
+    effortDialReachesRuns,
     providerRequiresKey,
     providerRequiresBaseUrl,
     providerIds,

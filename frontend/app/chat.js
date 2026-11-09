@@ -10062,7 +10062,7 @@ const Chat = (() => {
     Object.freeze({ name: 'personality', desc: 'show or set the active personality', argsHint: '[personality]', action: 'personality' }),
     Object.freeze({ name: 'yolo', desc: 'toggle full-access approval mode', argsHint: '[on|off]', action: 'yolo' }),
     Object.freeze({ name: 'reasoning', desc: 'show or set how hard the model thinks before answering', argsHint: '[none|minimal|low|medium|high|xhigh]', action: 'reasoning' }),
-    Object.freeze({ name: 'fast', desc: 'drop reasoning effort to minimal for quicker, cheaper replies', action: 'fast' }),
+    Object.freeze({ name: 'fast', desc: 'drop reasoning effort to minimal', action: 'fast' }),
     Object.freeze({ name: 'voice', desc: 'show or toggle spoken replies', argsHint: '[on|off|handsfree|status]', action: 'voice' }),
     // no local action by design — the sidecar owns CAP_REGISTRY + the toolset switches (dispatch:'server')
     Object.freeze({ name: 'tools', desc: 'show the tools this agent can actually call', action: 'tools' }),
@@ -10765,11 +10765,13 @@ const Chat = (() => {
   }
   // WARN-not-block (same precedent as /model against the warmed catalog): if the selected model has no reasoning
   // dial, setting one is a no-op — say so rather than letting the confirmation imply an effect it won't have.
-  // The Claude CLI is given no effort for a message (sidecar effortAsRun: its run records say 'cli-default'), so on it this
-  // dial changes nothing a message runs on, and no line here may promise that it does.
+  // The dial reaches a message only on a route whose runs are given it: the provider registry's effortDialReachesRuns, the
+  // one answer the terminal's lines read too (the Claude CLI is given no effort for a message, so its run records say
+  // 'cli-default'). On any other route no line here may promise that it does.
   function effortReachesModel() {
     const prov = (typeof Harness !== 'undefined' && Harness.getProv && Harness.getProv()) || '';
-    return String(prov).trim().toLowerCase() !== 'claude-cli';
+    const reg = typeof SK !== 'undefined' && SK.providers && SK.providers.registry;
+    return !(reg && typeof reg.effortDialReachesRuns === 'function') || reg.effortDialReachesRuns(prov);
   }
   function reasoningModelNote() {
     if (!effortReachesModel()) return ' Note: Claude Code runs your messages on its own default effort, so this setting does not change them.';
