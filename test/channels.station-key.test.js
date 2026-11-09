@@ -339,7 +339,8 @@ function station(opts) {
     A.eq(s.stationHubRunConfig('agent', s.view('discord')).baseUrl, PROXY, "the caller's own pair still runs where it was saved for");
     A.eq(s.reconcile().followers.concat(s.reconcile().moved), [], 'running it again changes nothing');
     const idx = require('./helpers/source.js').readSidecarIndex();
-    A.ok(/let channelSecrets = loadChannelSecrets\(\);\n[\s\S]{0,4000}?const channelsReconciled = reconcileChannelCredentials\(\);\n[\s\S]{0,2400}?\(function migrateChannelSecretsToKeychain\(\) \{[\s\S]{0,1500}?\}\)\(\);\n[\s\S]{0,400}?if \(!channelsReconciled\.pending\.length\) scrubChannelSecretsBak\(\);\nnameChannelQuarantines\(\);\n/.test(idx),
+    // final review #3: the load goes through trustChannelOwners (an owner the sealed record does not name is no owner)
+    A.ok(/let channelSecrets = trustChannelOwners\(loadChannelSecrets\(\)\);[^\n]*\n[\s\S]{0,4000}?const channelsReconciled = reconcileChannelCredentials\(\);\n[\s\S]{0,2400}?\(function migrateChannelSecretsToKeychain\(\) \{[\s\S]{0,1500}?\}\)\(\);\n[\s\S]{0,400}?if \(!channelsReconciled\.pending\.length\) scrubChannelSecretsBak\(\);\nnameChannelQuarantines\(\);\n/.test(idx),
       'at load: the reconciliation, then the token migration, then the .bak sweep (never while a move is pending)');
   }
   // ...and a record the reconciliation has not reached is never read for a key: the one reader of those fields is the reconciliation
@@ -406,7 +407,7 @@ function station(opts) {
   {
     const core = sidecarTopLevelFunction('runOnceCore');
     const from = core.indexOf('  const providerFallbacks = [];');
-    const to = core.indexOf('  const fallbacks = rotationFallbacks', from);
+    const to = core.indexOf('  const fallbacksAll = rotationFallbacks', from);
     A.ok(from > 0 && to > from && to - from < 6000, "fixture: runOnceCore's fallback loop is sliced");
     const s = station({ runtimeKeys: { openrouter: STATION_OR }, env: { ANTHROPIC_API_KEY: 'sk-ant-OPERATOR' } });
     const runNotices = [], runStartExtra = {};
@@ -524,7 +525,7 @@ function station(opts) {
   {
     const core = sidecarTopLevelFunction('runOnceCore');
     const from = core.indexOf('  const providerFallbacks = [];');
-    const to = core.indexOf('  const fallbacks = rotationFallbacks', from);
+    const to = core.indexOf('  const fallbacksAll = rotationFallbacks', from);
     const s = station({ runtimeKeys: { openrouter: STATION_OR } });
     const runFallbacks = (list, notices) => {
       const runNotices = notices.slice(), runStartExtra = {};
@@ -776,15 +777,16 @@ function station(opts) {
     const tokens = text => (text.match(/keyInRequest/g) || []).length;
     A.eq([tokens(SRC)].concat(F4_FNS.map(f => tokens(censusBody(f)))), [23, 2, 6, 10, 3, 1, 0, 1],
       'keyInRequest lives in exactly these callers, across every sidecar file (handleRun sets it; the others carry/read it, including the cached-only window endpoint lookup)');
-    // ...and only these pass providerRuntimeBaseUrl its 5th argument (inRequest)
+    // ...and only these pass providerRuntimeBaseUrl its 5th argument (inRequest). A literal `false` there says the opposite
+    // (no key came in a request: routineDriveFor reads where a routine's model resolves now, final review #2), so it is not one.
     const fifthArgCalls = text => {
       let n = 0;
       const re = /providerRuntimeBaseUrl\(/g;
       for (let m; (m = re.exec(text));) {
         if (/function\s+$/.test(text.slice(Math.max(0, m.index - 12), m.index))) continue;   // the declaration
-        let d = 0, args = 1;
-        for (let i = m.index + m[0].length; i < text.length; i++) { const ch = text[i]; if ('([{'.includes(ch)) d++; else if (')]}'.includes(ch)) { if (!d) break; d--; } else if (ch === ',' && !d) args++; }
-        if (args >= 5) n++;
+        let d = 0, args = 1, fifthAt = -1, i;
+        for (i = m.index + m[0].length; i < text.length; i++) { const ch = text[i]; if ('([{'.includes(ch)) d++; else if (')]}'.includes(ch)) { if (!d) break; d--; } else if (ch === ',' && !d) { args++; if (args === 5) fifthAt = i + 1; } }
+        if (args >= 5 && !(args === 5 && text.slice(fifthAt, i).trim() === 'false')) n++;
       }
       return n;
     };
