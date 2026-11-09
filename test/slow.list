@@ -284,6 +284,11 @@ test/connector-storage-start-fresh.http.test.js
 test/verdictpackets.http.test.js
 # aux-token-ceiling.e2e: about 9 sidecar boots across four arms — 49 s and 51 s standalone, one file at a time, not from a full run.
 test/aux-token-ceiling.e2e.test.js
+# effort-truth.e2e: four arms, each a real sidecar boot (a fake claude CLI, the configured aux tier, a mock OpenRouter, three fake HTTP
+# wires with a lead's team.dispatch to a worker), about 19 runs and passes, each waited out until its background passes stop for 1.5 s —
+# 48.3 s standalone through scripts/run-test-list.mjs at 94-100% CPU (review round 2), 58.6 s with the dispatch leg at 85% (2026-11-09);
+# listed by the >= 40 s rule so a 2-3x slowdown under load cannot turn a healthy step red.
+test/effort-truth.e2e.test.js
 # memory-learning-boundary.http — 46.2 s.
 test/memory-learning-boundary.http.test.js
 # station-builder.e2e — 45.8 s.
