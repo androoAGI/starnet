@@ -1683,7 +1683,7 @@ html body.vx:not(.hud-mode) #screen-game :is(#left, #chat-panel) > h3::before {
 /* the live readouts sit in small LCD pills cut into the plate */
 html body.vx:not(.hud-mode) #screen-game #left > h3 #crew-sum,
 html body.vx:not(.hud-mode) #screen-game #chat-panel > h3 .comms-session {
-  order: 2; flex: 0 1 auto; width: auto; min-width: 0; display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 3px 12px; border: 0; border-radius: 999px;
+  order: 2; flex: 0 1 auto; width: auto; min-width: 0; overflow: hidden; display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 3px 12px; border: 0; border-radius: 999px;
   font-size: 15px; letter-spacing: 1.5px; white-space: nowrap;
   color: color-mix(in srgb, var(--vx-core) 85%, #fff); text-shadow: 0 0 6px rgba(var(--ph-rgb), .7);
   background: var(--vx-lcd); box-shadow: var(--vx-lcd-shadow);
@@ -1691,6 +1691,11 @@ html body.vx:not(.hud-mode) #screen-game #chat-panel > h3 .comms-session {
 html body.vx:not(.hud-mode) #screen-game #left > h3 #crew-sum span { color: inherit; text-shadow: inherit; }
 html body.vx:not(.hud-mode) #screen-game #left > h3 #crew-sum .pos { color: color-mix(in srgb, var(--vx-core) 70%, #fff); }
 html body.vx:not(.hud-mode) #screen-game #left > h3 #crew-sum .dim { opacity: .7; }
+/* a narrow rail sheds the readout a whole word at a time (the words wrap onto a hidden second line), never a clipped half
+   word; each crew row still says its own state */
+html body.vx:not(.hud-mode) #screen-game #left > h3 #crew-sum { flex-wrap: wrap; align-content: flex-start; height: 24px; row-gap: 10px; }
+html body.vx:not(.hud-mode) #screen-game #left > h3 #crew-sum :is(.pos, .dim) { flex: none; line-height: 18px; }
+
 html body.vx:not(.hud-mode) #screen-game #left > h3 #crew-sum:empty { display: none; }
 html body.vx:not(.hud-mode) #screen-game #chat-panel > h3 #comms-title { display: inline-flex; align-items: center; gap: 12px; color: inherit; }
 html body.vx:not(.hud-mode) #screen-game #chat-panel > h3 .comms-session { letter-spacing: 1px; }
