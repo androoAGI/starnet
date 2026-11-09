@@ -27,6 +27,10 @@
       any edit between the checkpoint and the request (the recovered run's own preflight compaction). So every
       replayed block goes on that request — removing them all is always valid, the API's own strip-every-block
       recovery — and every block from then on is the view's own and replays intact.
+      THE BACKSTOP (view.unbound): an edit the view never saw (made below it, on the wire) still reaches the API, which
+      reports it as prefix_binding_mismatch drops. Those blocks go too, in place, from the turn of the first dropped
+      one through the newest, with the response's own (whether a block made on a request that dropped its predecessors
+      chains to them is not documented): a cause the view misses costs one request's reasoning, not the rest of the run.
    2. AN ELIDED BODY KEEPS A HANDLE (elideToolResult: the ONE stub/handle builder; W1.8 cross-run replay reuses it).
       The micro tier's stub kept 240 chars and said "re-run the tool": a write-free re-run is not always possible, and a
       re-run of a command is not the same bytes. The stub now names a saved file that gives the elided bytes back: the
@@ -174,7 +178,11 @@
      is returned. editAt: the first message whose prefix changed since the last view (0 = the tools changed, or there is
      no last view; -1 = append-only). unproven: there was no last view (the run's first binding request, or the first
      after a stretch that did not bind), so no replayed block was proven and every one went. stripped: the turns whose
-     blocks this call deleted. */
+     blocks this call deleted.
+     unbound(list, first) -> the turns whose blocks it deleted: the backstop (1. above). `first` is the first block the
+     API dropped for prefix_binding_mismatch (its signature; a redacted block's data); the blocks go from the turn that
+     holds it through the newest, or all of them when no turn does. Thinking is not part of a wire key, so the view's
+     baseline is untouched: the next request is append-only and replays what is left. */
   function makeRequestView() {
     let last = null;
     function messages(list, o) {
@@ -193,7 +201,14 @@
       last = { keys, tools };
       return { messages: src, editAt, stripped, unproven };
     }
-    return { messages };
+    function unbound(list, first) {
+      const src = Array.isArray(list) ? list : [];
+      const holds = m => m && m.role === 'assistant' && Array.isArray(m.reasoning)
+        && m.reasoning.some(b => b && (b.signature === first || b.data === first));
+      const at = first ? src.findIndex(holds) : -1;
+      return stripFrom(src, Math.max(0, at));
+    }
+    return { messages, unbound };
   }
 
   return { makeRequestView, elideToolResult, foldRequest, headTail, isElided, ELIDED, ELIDE_HEAD, HEAD_SHARE,

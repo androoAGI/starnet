@@ -191,6 +191,27 @@ const firstLine = s => String(s).split('\n')[0];
     A.ok(Array.isArray(ra3.reasoning) && ra3.reasoning.length === 1, 'view: and the block the recovered run produced replays intact');
     const offFirst = makeRequestView().messages([sys, u0, asst('x', 7)], { tools, binds: false });
     A.ok(offFirst.stripped === 0 && offFirst.unproven === false && 'reasoning' in offFirst.messages[2], 'view: a first request on a provider that does not bind strips nothing');
+
+    // THE BACKSTOP (view.unbound): the API dropped blocks for a prefix change the view never saw. The blocks go from the
+    // turn holding the first dropped one through the newest (a redacted block is named by its data); a name no turn
+    // holds, or none, takes every block. The view's baseline is untouched: the next request is append-only.
+    const bv = makeRequestView();
+    const b1 = asst('one', 1), b2 = asst('two', 2), b3 = { role: 'assistant', content: 'three', reasoning: [{ type: 'redacted_thinking', data: 'R3' }] };
+    const bt = k => ({ role: 'tool', tool_call_id: 'b' + k, content: 'B' + k });
+    const bl = [sys, u0, b1, bt(1), b2, bt(2), b3, bt(3)];
+    bv.messages(bl.slice(0, 2), { tools, binds: true });
+    A.eq(bv.messages(bl, { tools, binds: true }).stripped, 0, 'unbound setup: the turns were appended after the first request (append-only)');
+    A.eq(bv.unbound(bl, 'sig2'), 2, 'unbound: from the turn of the first dropped block through the newest');
+    A.ok(Array.isArray(b1.reasoning) && !('reasoning' in b2) && !('reasoning' in b3) && b2.content === 'two', 'unbound: the turns before it keep their blocks; in place, the text kept');
+    const bn = bv.messages(bl.concat([asst('four', 4)]), { tools, binds: true });
+    A.eq([bn.editAt, bn.stripped], [-1, 0], 'unbound: the next request is append-only (thinking is not part of a wire key)');
+    const c1 = asst('one', 1), c2 = { role: 'assistant', content: 'two', reasoning: [{ type: 'redacted_thinking', data: 'R2' }] };
+    A.eq(makeRequestView().unbound([sys, u0, c1, bt(1), c2], 'R2'), 1, 'unbound: a redacted block is found by its data');
+    A.ok(Array.isArray(c1.reasoning) && !('reasoning' in c2), 'unbound: and only from its turn on');
+    const d1 = asst('one', 1), d2 = asst('two', 2);
+    A.eq(makeRequestView().unbound([sys, u0, d1, bt(1), d2], 'sig-gone'), 2, 'unbound: a name no turn holds takes every block');
+    const e1 = asst('one', 1);
+    A.eq(makeRequestView().unbound([sys, u0, e1], ''), 1, 'unbound: and so does no name');
   }
 
   A.report('history-edit.test');

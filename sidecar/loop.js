@@ -2380,6 +2380,7 @@
         let sawStreamEvent = false;   // any event from this attempt's stream: provider.retry `stage` + the waiting phase
         let streamClosed = false;     // the provider's stream ran to its own end (not cut off by a cancel)
         let billedPerCall = true;     // false once the adapter says this call bills nothing per call (a subscription sign-in)
+        let unboundDrop = null;       // the API dropped replayed thinking for a prefix change the view did not make (done.bindingDropped)
         /* The wait this attempt opens ends at the first visible output (a streamed token) or when the attempt
            settles. A retried attempt announces itself with an immediate sinceMs:0 beat, so a "retry in 30s"
            line is replaced the moment the retry actually goes out instead of lingering until the next tick. */
@@ -2429,12 +2430,20 @@
             else if (ev.type === 'tool_start') { acc.toolCalls[ev.index] = { id: ev.id, name: ev.name, args: '' }; waiting.resume('streaming'); }
             else if (ev.type === 'tool_args') { if (acc.toolCalls[ev.index]) acc.toolCalls[ev.index].args += (ev.chunk || ''); waiting.resume('streaming'); }
             else if (ev.type === 'usage') { usage = ev.usage; noteGeneration(usage && usage.generation_id); if (cost) emit('cost.estimate', Object.assign({ agentId, runId }, cost.estimate(usage, model))); }
-            else if (ev.type === 'done') { lastFinishReason = ev.finishReason; sawTruncation = !!ev.truncated; }   // A3: remember WHY the turn stopped
+            else if (ev.type === 'done') { lastFinishReason = ev.finishReason; sawTruncation = !!ev.truncated; if (ev.bindingDropped) unboundDrop = ev.bindingDropped; }   // A3: remember WHY the turn stopped
             // 'tool_done' needs no action here
           }
           streamClosed = !signal.aborted;
         } catch (e) { streamErr = e; }
         finally { waiting.stop(); }
+        /* THE BACKSTOP (history-edit view.unbound): a prefix change the view did not make still reached the API, which
+           dropped the first stale block and every later one, for this request only: kept, they would be dropped again on
+           every request. They go now, from the first dropped block's turn, with this response's own. */
+        if (unboundDrop && requestView) {
+          const lost = requestView.unbound(messages, unboundDrop.first);
+          acc.reasoning = [];
+          failNote('loop.historyEdit.unbound', 'the API dropped ' + unboundDrop.blocks + ' replayed thinking block(s) on ' + String(model) + ' for a prefix change the request view did not make; the thinking of ' + lost + ' earlier turn(s) and of this response was removed, so the next request replays none of it');
+        }
         // a call that bills nothing per call (claude-cli on a subscription sign-in) cost nothing when cut: never a floor
         if (signal.aborted && sawStreamEvent && !streamClosed && billedPerCall) streamCut = true;
         if (!streamErr) {

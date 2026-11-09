@@ -13,7 +13,9 @@
       RECOVERED from the run journal (index.js o.recovery: the checkpoint verbatim, the original tools, the system prompt
       as one block) drops nothing either, whichever checkpoint it starts from — after the edit, before it (its own
       preflight compaction edits again), or after a tool.search reveal: its first request replays none of the blocks it
-      cannot prove, and every block it produces replays intact.
+      cannot prove, and every block it produces replays intact. An edit made BELOW the view (on the wire, where it
+      cannot see) costs the one request that meets it: the backstop strips from the first block the API dropped, and
+      nothing is dropped after.
    2. EVERY ELISION STUB NAMES A HANDLE THAT READS BACK BYTE-IDENTICAL. The REAL loop + registry + fs tools + the host
       parker shape (output-artifacts.js, stems like index.js capCtx.parkOutput) fold old results through the micro
       tier. The agent edits the file it read before the elision, the file is rewritten again after it, and the run's
@@ -41,6 +43,7 @@ const { runAgentLoop } = require('../sidecar/loop.js');
 const { makeContext } = require('../sidecar/context.js');
 const { makeRegistry } = require('../sidecar/tools/registry.js');
 const { makeAnthropicProvider } = require('../sidecar/providers/anthropic.js');
+const failopen = require('../sidecar/failopen.js');
 const { makeReplayProvider } = require('../sidecar/providers/replay.js');
 const { makeFsTools } = require('../sidecar/tools/builtin/fs.js');
 const { makeOutputArtifacts } = require('../sidecar/output-artifacts.js');
@@ -85,7 +88,7 @@ function bindingServer(script, usageFor) {
         if (!dropping && b.signature === prefixSig(body, body.messages.slice(0, i), m.content.slice(0, j))) continue;
         if (!drop) return new Response(JSON.stringify({ type: 'error', error: { type: 'invalid_request_error', message: 'messages.' + i + '.content.' + j + ': Invalid `signature` in `thinking` block. The block is bound to a different conversation.' } }), { status: 400 });
         dropping = true;
-        transformations.push({ type: 'thinking_block_dropped', reason: 'prefix_binding_mismatch', location: 'messages.' + i + '.content.' + j });
+        transformations.push({ type: 'thinking_dropped', path: 'messages.' + i + '.content.' + j, reason: 'prefix_binding_mismatch' });   // the documented entry
       }
     }
     rec.dropped = transformations.length;
@@ -147,7 +150,7 @@ async function runBound(o) {
   const res = await runAgentLoop({
     messages: o.messages || [{ role: 'system', content: 'You are a station agent.' }, { role: 'user', content: 'do the task' }],
     onCheckpoint: o.onCheckpoint,
-    provider: makeAnthropicProvider({ fetch: up.fetch, key: 'k', reasoningEffort: 'medium' }), emit: makeEmitter(bus, () => {}),
+    provider: (o.wrap || (p => p))(makeAnthropicProvider({ fetch: up.fetch, key: 'k', reasoningEffort: 'medium' })), emit: makeEmitter(bus, () => {}),
     cost: makeCostEngine({ priceOf: () => ({ in: 1, out: 1 }) }), model: 'claude-opus-5-5', agentId: 'a', runId: 'r',
     cacheSystemPrefix: o.cacheSystemPrefix,
     tools: [fn('fs_read', { path: { type: 'string' } }), fn('tool_search', { query: { type: 'string' } }), fn('snap'), fn('noop')],
@@ -287,6 +290,30 @@ async function readBack(reg, ctx, call) {
       A.eq(blocksIn(g.crashed.up, g.snap.messages), [[3]], 'recovery after a reveal: the checkpoint carries block 3, made with web_fetch advertised');
       A.ok(names(g.crashed.up.posts[2]).indexOf('web_fetch') >= 0 && g.tail.every(p => names(p).indexOf('web_fetch') < 0), 'recovery after a reveal: the source run advertised web_fetch from request 3, the recovered run does not');
     }
+
+    /* (h) THE BACKSTOP: an edit the view cannot see. A provider wrapper rewrites turn 1's tool result on the wire from
+       request 3 on (a change made below the request view, as a rewrite inside a provider would be): the view sees an
+       append-only history, so it strips nothing, and the API drops block 2 (the first block after the rewrite) on
+       request 3. The loop then strips from block 2's turn on, with request 3's own block (block 1, before the rewrite,
+       stays): no request after that one drops anything, where the cascade dropped 1, 2, 3 blocks on requests 3, 4, 5. */
+    const below = p => { let n = 0; return Object.assign({}, p, { stream(req) {
+      if (++n < 3) return p.stream(req);
+      let hit = false;
+      const messages = req.messages.map(m => {
+        if (hit || !m || m.role !== 'tool') return m;
+        hit = true;
+        return Object.assign({}, m, { content: String(m.content) + ' (rewritten below the view)' });
+      });
+      return p.stream(Object.assign({}, req, { messages }));
+    } }); };
+    const unboundBefore = failopen.counts()['loop.historyEdit.unbound'] || 0;
+    const h = await runBound({ wrap: below, script: n => n <= 4 ? thinkTool('fs_read', { path: 'h' + n }) : thinkText });
+    A.eq(h.res.reason, 'done', 'an edit below the view: the run finishes');
+    A.eq(h.up.posts.length, 5, 'an edit below the view: every turn went out');
+    A.ok(editedRequests(h.up.posts).indexOf(3) >= 0, 'an edit below the view: the rewrite really reached the wire at request 3');
+    A.eq(h.up.posts.map(p => p.dropped), [0, 0, 1, 0, 0], 'an edit below the view: only the request that met it drops (block 2), and nothing is dropped after (no cascade)');
+    A.eq(h.up.posts[4].replayed, [1, 4], 'an edit below the view: block 1 (before the rewrite) and every block made after the backstop replay');
+    A.eq((failopen.counts()['loop.historyEdit.unbound'] || 0) - unboundBefore, 1, 'an edit below the view: the backstop ran once, and said so (diagnostics line)');
   }
 
   // ================= 2. every elision stub names a handle that reads back byte-identical =================
