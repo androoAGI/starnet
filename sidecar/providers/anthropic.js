@@ -745,7 +745,7 @@
               const kinds = {};
               for (const t of tx) {
                 if (!t || typeof t !== 'object') continue;
-                const k = String(t.type || 'unknown').slice(0, 40) + (t.reason ? ' ' + String(t.reason).slice(0, 60) : '');
+                const k = [t.type || 'unknown', t.reason].filter(Boolean).map(x => String(x).slice(0, 60)).join(' ');   // an API entry's words, not a run's end
                 kinds[k] = (kinds[k] || 0) + 1;
                 if (t.type === 'thinking_dropped') droppedThinking++;
               }
