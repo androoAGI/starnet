@@ -113,6 +113,7 @@ const MANIFEST = {
     stub: {
       runOnce: 'the scripted run host (agent.* contract, tool steps journaled on the disk)', steerRun: 'joins the host\'s live run',
       runSlash: 'answers every slash command', userCommandNames: 'none',
+      ownerCardFree: 'absent: the owner\'s DM runs as a desk-bound (Full Access) agent\'s would, card-free (final review #1 is channels.buttons 5E)',
       desktopCommand: 'none', canReadAllGroupMessages: 'unknown', secrets: 'a configured provider', resolveEntryRunConfig: 'a configured provider', resolveRunConfig: 'a configured downstream provider',
       persona: 'a fixed persona', classify: 'every message is a task', redact: 'identity', emit: 'records channel.delivery events',
       briefFor: 'no brief', groundedFor: 'none', resolveAgent: 'no floor plan', lineRunner: 'no work line',

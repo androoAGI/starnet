@@ -26326,8 +26326,9 @@ async function runOnceCore(o) {
   // rule verbatim and only a table of contents for its reference sections (~6.3K instead of ~9.3K); without it the
   // whole manual stays inline. Both forms are constants, so the cached prefix is as stable as before.
   // An owner-trusted chat-app turn (the Commander on their phone) gets only a pointer to manual.read — never the 6K index.
-  const manualBlock = (isTask && surface === 'interactive') ? (coreNames.indexOf('manual.read') >= 0 ? starnetManualIndex() : starnetManual())
-    : (isTask && ownerTrusted && coreNames.indexOf('manual.read') >= 0) ? starnetManualPointer() : '';
+  // (final review #1: an owner's DM to an ask-first agent now runs interactive so it can ask in the chat; it is still the phone)
+  const manualBlock = (isTask && ownerTrusted && coreNames.indexOf('manual.read') >= 0) ? starnetManualPointer()
+    : (isTask && surface === 'interactive') ? (coreNames.indexOf('manual.read') >= 0 ? starnetManualIndex() : starnetManual()) : '';
   // A terminal (CLI) task turn gets the terminal pointer instead: the desktop manual's "open X / place Y" has no meaning there.
   const operatorManual = (isTask && o.viewer === 'terminal') ? starnetManualTerminal() : manualBlock;
   // a run never waits for the build id (VD-HANDOVER-01: a diagnostic never holds a run). [RUNTIME] reads the version as
