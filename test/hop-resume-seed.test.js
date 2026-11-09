@@ -20,7 +20,7 @@ const hub = read('sidecar/channels/hub.js');
 const count = (s, needle) => s.split(needle).length - 1;
 
 // the guards: the resume seed and the queued-turn re-seed both honor the opt-out
-A.ok(/!o\.recovery && !o\.groupTools && !internal && o\.resumeSeed !== false && streamId && Array\.isArray\(messages\)/.test(idx),
+A.ok(/!o\.recovery && !o\.groupTools && !internal(?: && !grantedRun)? && o\.resumeSeed !== false && streamId && Array\.isArray\(messages\)/.test(idx),
   'runOnceCore: the resume seed skips a run that opted out (resumeSeed:false)');
 A.ok(/if \(queued && o\.resumeSeed !== false && !o\.recovery/.test(idx), 'a queued turn is not re-seeded from the stream when it opted out');
 

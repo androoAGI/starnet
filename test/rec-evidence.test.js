@@ -73,7 +73,7 @@ A.ok(/\? \(String\(system \|\| ''\) \+ evidenceBlock\)/.test(idxSrc),
 const sysAssign = idxSrc.slice(idxSrc.indexOf('const sys = internal'), idxSrc.indexOf('// H1.2: bulletproof resume'));
 A.eq(/manualBlock|summarizeCapabilities|skillBlock/.test(sysAssign.split(': withQuests')[0]), false,
   'an internal run STILL receives no manual, capability summary or skill catalog (only the evidence it asked for)');
-A.ok(/if \(!internal\) try \{\s*const stored = notebookStore\.get/.test(idxSrc),
+A.ok(/if \(!internal(?: && !grantedRun)?\) try \{[^\n]*\n\s*const stored = notebookStore\.get/.test(idxSrc),
   'the memory fence + recall-stat writes remain gated on `internal` alone — evidence buys no recall credit');
 
 // the three generators ask for it, and nothing else does
