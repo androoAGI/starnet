@@ -20,7 +20,9 @@
 
    HTTP ARM. A record names what the request carried, never the dial: Codex sends minimal as low and max as xhigh, Opus 5.5 on
    the Anthropic API always thinks (minimal and none go out as low), and an OpenRouter model that takes no reasoning field is
-   sent none, so its record names no effort. One fake endpoint for the three wires logs every request's effort. */
+   sent none, so its record names no effort. One fake endpoint for the three wires logs every request's effort. Its DISPATCH
+   LEG checks what the lead model reads: a lead hands a class-high worker on that model a task (team.dispatch), and the receipt
+   its next request carries back as the tool result names the effort the worker's request carried (none), never the dial. */
 'use strict';
 const fs = require('node:fs');
 const http = require('node:http');
@@ -101,6 +103,17 @@ async function runOn(f, body) {
 const asSent = spawn => spawn.effort || 'cli-default';   // what the CLI was given: its --effort, or nothing (its own default)
 const one = list => Array.from(new Set(list));
 const named = v => (v === undefined || v === '' ? null : v);   // a record that names no effort: the field is absent (a row) or empty (a run record)
+// one worker's row in the dispatch receipts the lead's requests carried back as tool results: { found, effort }
+function receiptRow(contents, agentId) {
+  for (const c of contents) {
+    const s = String(c || '');
+    let rows = null;
+    try { rows = JSON.parse(s); } catch (_) { try { rows = JSON.parse(s.slice(s.indexOf('['), s.lastIndexOf(']') + 1)); } catch (_) {} }
+    const row = Array.isArray(rows) ? rows.find(r => r && r.agentId === agentId) : null;
+    if (row) return { found: true, effort: row.reasoningEffort };
+  }
+  return { found: false, effort: undefined };
+}
 
 async function cliArm() {
   const f = SidecarFixture.create({ prefix: 'sk-efforttruth-cli-', timeoutMs: 60000, env: {
@@ -305,8 +318,9 @@ async function openrouterArm() {
 const IPC = 'effort-truth-ipc-token-1234567890abcdef';
 const JWT = 'fixture.' + Buffer.from(JSON.stringify({ exp: 4102444800, 'https://api.openai.com/profile': { email: 'plan@example.test' } })).toString('base64url') + '.fixture';
 const NO_REASONING = 'meta-llama/llama-3.3-70b-instruct';
+const LEAD = 'or-lead', WORKER = 'or-worker';   // the dispatch leg: a lead on that model hands a class-high worker on it a task
 function startWires() {
-  const calls = [];
+  const calls = [], receipts = [];
   return new Promise(resolve => {
     const server = http.createServer((req, res) => {
       const route = String(req.url || '').split('/')[1];
@@ -341,6 +355,20 @@ function startWires() {
           send({ type: 'content_block_stop', index: 0 });
           send({ type: 'message_delta', delta: { stop_reason: 'end_turn' }, usage: { output_tokens: 8 } });
           send({ type: 'message_stop' });
+        } else if (probe === LEAD && kind === 'main' && JSON.stringify(body.tools || []).indexOf('team_dispatch') >= 0) {
+          // THE DISPATCH LEG: the lead's first call delegates to the worker; its next call carries the dispatch receipt back as
+          // the tool result, which is what the lead model reads
+          calls[calls.length - 1].offeredDispatch = true;
+          const results = (body.messages || []).filter(m => m && m.role === 'tool');
+          if (!results.length) {
+            send({ choices: [{ delta: { tool_calls: [{ index: 0, id: 'call_dispatch', type: 'function', function: { name: 'team_dispatch',
+              arguments: JSON.stringify({ workers: [{ agentId: WORKER, prompt: 'Write up what changed in the staging rollback path.' }] }) } }] } }] });
+            send({ choices: [{ delta: {}, finish_reason: 'tool_calls' }], usage: { prompt_tokens: 40, completion_tokens: 8, total_tokens: 48 } });
+          } else {
+            for (const m of results) receipts.push(typeof m.content === 'string' ? m.content : JSON.stringify(m.content));
+            send({ choices: [{ delta: { content: 'Handed off.' } }] });
+            send({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 40, completion_tokens: 8, total_tokens: 48 } });
+          }
         } else {
           send({ choices: [{ delta: { content: text } }] });
           send({ choices: [{ delta: {}, finish_reason: 'stop' }], usage: { prompt_tokens: 40, completion_tokens: 8, total_tokens: 48 } });
@@ -348,7 +376,7 @@ function startWires() {
         res.end('data: [DONE]\n\n');
       });
     });
-    server.listen(0, '127.0.0.1', () => resolve({ server, calls, base: 'http://127.0.0.1:' + server.address().port }));
+    server.listen(0, '127.0.0.1', () => resolve({ server, calls, receipts, base: 'http://127.0.0.1:' + server.address().port }));
   });
 }
 
@@ -414,6 +442,31 @@ async function httpArm() {
       }
     }
     A.ok(checked >= 3, 'http: fixture: post-run pass rows were checked on the three wires (' + checked + ')');
+
+    // DISPATCH LEG: the receipt the LEAD model reads. A lead on the no-reasoning model hands a class-high worker on the same model
+    // a task (team.dispatch). The worker's request carries no effort, so its run record and ledger row name none, and so must
+    // the receipt the lead reads back as the tool result: it used to fall back to the dial the worker was handed (high).
+    const roster = await f.json('POST', '/api/roster', { updatedAt: Date.now(), agents: [
+      { agentId: 'agent', name: 'ADA', system: MARK + ':' + LEAD + ': you are Ada.', provider: 'openrouter', model: NO_REASONING, reasoningEffort: null },
+      { agentId: WORKER, name: 'WRITER', system: MARK + ':' + WORKER + ': you write things up.', provider: 'openrouter', model: NO_REASONING, reasoningEffort: 'high', role: 'specialist' }] });
+    A.eq(roster.status, 200, 'http: fixture: a lead and a class-high worker on the no-reasoning model are on the roster');
+    const fromCall = wires.calls.length;
+    const leadReason = await runOn(f, { agentId: 'agent', provider: 'openrouter', model: NO_REASONING, reasoningEffort: 'medium', isTask: true,
+      system: MARK + ':' + LEAD + ': you are Ada.', messages: [{ role: 'user', content: 'Have the writer write up what changed in the staging rollback path' }] });
+    A.eq(leadReason, 'done', 'http: fixture: the lead run finished');
+    await settle();
+    const leg = wires.calls.slice(fromCall);
+    const legRecs = ((await f.json('GET', '/api/runs?agent=*&limit=80')).body || {}).runs || [];
+    const workerRec = legRecs.find(r => r.agentId === WORKER) || {};
+    const workerRow = rowsOf(f).find(r => !r.aux && r.agentId === WORKER) || {};
+    const receipt = receiptRow(wires.receipts, WORKER);
+    if (process.env.EFFORT_TRUTH_DEBUG) console.error(JSON.stringify({ leg: leg.map(c => [c.route, c.probe || c.kind, c.effort, !!c.offeredDispatch]), workerRec: workerRec.reasoningEffort, workerRow: workerRow.reasoningEffort, receipts: wires.receipts.map(r => String(r).slice(0, 400)) }));
+    A.ok(leg.some(x => x.probe === LEAD && x.offeredDispatch === true), 'http: fixture: the lead was offered team.dispatch and delegated');
+    A.eq(one(leg.filter(x => x.probe === WORKER).map(x => x.effort)), [null], 'http: fixture: the class-high worker\'s requests carried no effort (its model takes no reasoning field)');
+    A.ok(receipt.found, 'http: fixture: the lead\'s next request carried the dispatch receipt back (' + wires.receipts.length + ' tool result(s))');
+    A.eq(named(workerRec.reasoningEffort), null, 'dispatch: the worker\'s run record names no effort (' + JSON.stringify(workerRec.reasoningEffort) + '), never its high dial');
+    A.eq(named(workerRow.reasoningEffort), null, 'dispatch: the worker\'s ledger row names none too (' + JSON.stringify(workerRow.reasoningEffort) + ')');
+    A.eq(named(receipt.effort), null, 'dispatch: the receipt the lead reads names the effort its worker\'s request carried, none (' + JSON.stringify(receipt.effort) + '), never the high dial');
   } finally { await f.dispose(); await new Promise(r => wires.server.close(r)); }
 }
 
