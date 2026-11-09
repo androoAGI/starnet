@@ -4690,6 +4690,32 @@ async function rehydrateReviewJob(job) {
     unmetered: !billing.policyOf(providerId).ledgerMetered
   });
 }
+/* W3.2 A THUMBS-UP IS A VERDICT TOO (Andrew's law for the cost lane: feedback is critical, a verdict always qualifies). It
+   qualifies through the one rule (skillReview.reviewCause) on the cadence floor: when the agent's nudge is due, the 👍
+   releases the agent's HELD review (kept due because no run since gave it anything to learn from) onto the run it praised,
+   the procedure that worked. It is the review the run end would have run had the rating been known then: the same prompt (no
+   verdict block: praise is no shortfall), the same guards (a finished run of the station's own work, trusted evidence, the
+   in-flight guard), the same admission (the background lane and its token ceiling) and the same spend (only an admitted
+   review starts the count over). Under the bar a 👍 reviews nothing, as before W3.2. Returns whether a review was set in motion. */
+function releaseHeldReview(runId, verdict, lead) {
+  const packet = verdictReview.peek(runId);   // peeked, never taken: praise does not spend the parked packet
+  // the run end reviews only a finished run, and never a /v1 caller's traffic (surface autonomous)
+  if (!packet || packet.failed || (lead && lead.surface === 'autonomous')) return false;
+  const agentId = String(packet.agentId || 'agent');
+  const due = skillReview.nudgeAfterRun(skillNudge.get(agentId) || 0, { every: SKILL_REVIEW_EVERY }).due;
+  if (skillReview.reviewCause({ verdict, due }) !== 'verdict') return false;
+  const job = Object.assign({}, packet, { runId });
+  if (!forgetRegistry.admit({ streamId: job.streamId, runId, rowId: job.directive && job.directive.rowId, at: Date.now() })) return false;
+  if (!LearningEvidence.buildLearningEvidence(job, redact).eligible) { console.log('[skills] review held: no trusted learning evidence in run=' + runId + '; the nudge stays due agent=' + agentId); return false; }
+  if (skillReviewingNow.has(agentId)) { console.log('[skills] review held: a review of this agent is running; the nudge stays due run=' + runId + ' agent=' + agentId); return false; }
+  console.log('[skills] review qualifies (verdict ' + verdict + ') run=' + runId + ' agent=' + agentId);
+  skillReviewingNow.add(agentId);
+  rehydrateReviewJob(job).then(j => automaticAux(j.route, 'skill-review', agentId, runId, () => {
+    skillNudge.set(agentId, 0); persistSkillNudge();   // only an admitted review spends the held count
+    return runBackgroundSkillReview(j);
+  })).catch(swallow('aux.skillreview.envelope')).finally(() => { skillReviewingNow.delete(agentId); });
+  return true;
+}
 const SKILL_CURATOR_INTERVAL_MS = num(ENV('SKILL_CURATOR_INTERVAL_MS'), 24 * 60 * 60 * 1000);
 const SKILL_CURATOR_MAX_COST_USD = num(ENV('SKILL_CURATOR_MAX_USD'), limitsRegistry.BY_KEY.skillCuratorUsd.def);
 const skillCuratorLastRun = new Map();
@@ -26981,10 +27007,10 @@ async function runOnceCore(o) {
     ? skillReview.nudgeAfterRun(skillNudge.get(agentId) || 0, { turns: (result && result.turns) || 0, managed: managedSkills.some(m => skillReview.isWriteAction(m.action)), every: SKILL_REVIEW_EVERY })
     : null;
   /* W3.2 REVIEW ONLY WHEN USEFUL (cost lane, Andrew 2026-11-08). A due count no longer fires the review by itself:
-     skillReview.reviewCause, the one rule for every skill review (launchVerdictReview asks it too), names what this run
-     gives it to learn from: a tool error, a correction cue in the Commander's own words, or a new multi-step procedure.
-     A due count on a run that holds none of them is kept for the next run that does: the count write below carries it
-     (clamped at the bar), and only an admitted review spends it. */
+     skillReview.reviewCause, the one rule for every skill review (launchVerdictReview and a thumbs-up's releaseHeldReview
+     ask it too), names what this run gives it to learn from: a tool error, a correction cue in the Commander's own words,
+     or a new multi-step procedure. A due count on a run that holds none of them is kept for the next run that does, or for
+     a thumbs-up on any run: the count write below carries it (clamped at the bar), and only an admitted review spends it. */
   const _reviewDue = !!(_auxDone && _nudge && _nudge.due);
   const _reviewWhy = _reviewDue ? skillReview.reviewCause({ due: true, commanderWords, toolTrace: execution.toolTraceList(), loadedSkills }) : '';
   if (_reviewDue) console.log('[skills] review ' + (_reviewWhy ? 'qualifies (' + _reviewWhy + ')' : 'held: no tool error, correction or new procedure in this run; the nudge stays due') + ' run=' + runId + ' agent=' + agentId);
@@ -30629,7 +30655,8 @@ async function handleGrowthRatings(req, res) {
   if (!result || result.error) return json(400, { ok: false, error: (result && result.error) || 'rating failed' });
   // CONSISTENCY LOOP: a first-time `ok`/`miss` verdict on a run that was parked at run end fires the quiet skill
   // review NOW, with the verdict (and the Commander's correction when the body carries one) in the prompt. Never
-  // on a duplicate rating, never on `great`. Reported truthfully in the response so the UI can say it happened.
+  // on a duplicate rating. A `great` (W3.2) never arms that review: it releases the agent's held nudge review onto the
+  // run when the nudge is due (releaseHeldReview). Reported truthfully in the response so the UI can say it happened.
   // GOLDEN (slice 4): a first-time `great` FREEZES this run for every skill it loaded — the reference a later run
   // of the same directive is measured against (skills/goldens.js check). Praise never spends the review packet.
   let goldensMinted = 0;
@@ -30671,6 +30698,7 @@ async function handleGrowthRatings(req, res) {
     // chip or the next typed message (POST /api/growth/ratings/correction) — rides into the prompt in their words.
     skillReviewArmed = verdictReview.arm(runId, canonical.verdict, launchVerdictReview, String(body.correction || ''));
     if (skillReviewArmed) console.log('[skills] verdict-triggered review armed run=' + runId + ' verdict=' + canonical.verdict + ' grace=' + verdictReview.graceMs + 'ms');
+    else if (canonical.verdict === skillReview.PRAISE) skillReviewArmed = releaseHeldReview(runId, canonical.verdict, lead);
   }
   return json(200, { ok: true, duplicate: !!result.duplicate, rating: result.rating, skillReviewArmed, goldensMinted, feedbackMemory });
 }

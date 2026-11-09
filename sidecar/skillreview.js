@@ -39,8 +39,8 @@
     if (!result || !RunOutcome.resolve({ reason: result.reason, finishReason: result.finishReason }).ok) return false;
     // VERDICT-TRIGGERED (consistency loop, 2026-08-22): the Commander rating the work `ok` or `miss` is a lesson
     // regardless of run size — a two-turn run they called short of the mark teaches MORE than a forty-tool run
-    // nobody rated. `great` never triggers here; praise is not a procedure change.
-    if (opts.verdict === 'ok' || opts.verdict === 'miss') return true;
+    // nobody rated. `great` never triggers here by itself: it rides the nudge (reviewCause, the one verdict rule).
+    if (reviewCause({ verdict: opts.verdict }) === 'verdict') return true;
     const s = stats(result.messages);
     const minToolCalls = opts.minToolCalls == null ? 4 : opts.minToolCalls;
     const minTurns = opts.minTurns == null ? 8 : opts.minTurns;
@@ -194,50 +194,64 @@
      30k input-eq on a claude-cli station) and 1 proposal came out of 3. reviewCause is the ONE rule for every skill review,
      the run-end one and the rating's: it names what the run gives the review to learn from, read only from state the
      harness already holds (never a model call), or '' for nothing:
-       'verdict'        the Commander rated the run short of the mark (VERDICTS: the ok/miss the rating path arms). A
-                        verdict ALWAYS qualifies, due or not. Praise (great) is not one, as before: it mints goldens for
-                        the loaded skills and saves the like (feedback memory), and it has never spent a review.
+       'verdict'        the Commander rated the run. A verdict ALWAYS qualifies the run it rates (Andrew's law for this
+                        lane: feedback is critical). A rating short of the mark (VERDICTS: the ok/miss the rating path arms)
+                        qualifies due or not, as before: it is the Commander's lesson, outside the cadence. A thumbs-up
+                        (PRAISE: great, the other thumb the chat offers) qualifies on the cadence floor like the run's own
+                        triggers: when the nudge is due it releases the agent's held review onto the run it praised (the
+                        procedure that worked) and spends the count, so praise never adds a review the 2026-09-28 cadence
+                        would not have run. Before W3.2 a thumbs-up never reviewed anything.
        'correction'     an explicit correction or preference cue in the Commander's own latest words (W1.4's cue
                         resolver, learning-cooldown.js cueIn; the host mints commanderWords from the owner's own
                         surfaces only, so a routine's or a worker's brief carries none).
-       'tool-error'     a call of the work came back failed (what the evidence packet shows the review as 'failed') in a
-                        run that still succeeded: the fix or retry pattern the review is told to capture. A denied
-                        approval is the Commander's decision, not an error, and a skipped call never ran: neither counts.
+       'tool-error'     a call of the work ran and came back failed (what the evidence packet shows the review as
+                        'failed') in a run that still succeeded: the fix or retry pattern the review is told to capture. A
+                        call that never ran is not an error: refused by the Commander (denied), by the station's policy
+                        (capdenied, user-control-denied, code-nested-denied) or by their own hook (hook-blocked), withdrawn
+                        before anyone answered (cancelled), or skipped by the loop (REFUSED).
        'new-procedure'  a NEW MULTI-STEP PROCEDURE, which is what the review proposes a skill from: the run got there
                         through at least PROCEDURE_STEPS successful calls of the work across at least PROCEDURE_TOOLS
-                        distinct tools, and it loaded no saved skill (no skill.view, no /skill preload), so no saved
-                        procedure governed it. One tool repeated is a lookup, not a procedure; a run that followed a saved
-                        skill and hit nothing new has nothing to add to it.
-     A call of the WORK is any call but NOT_WORK's: the skill tools are the skillbase itself and the Task Brief tools are
-     the run's own paperwork (taskbrief-tools.js), so neither is a step of a procedure, and neither one failing is a lesson
-     about how to do the task. Every kind but the verdict needs the nudge DUE as well (facts.due), so the nudge stays the
-     cadence floor: reviews only get rarer than the 2026-09-28 cadence, never more frequent. Pure: no clock, no I/O. */
+                        distinct tools, and it loaded no saved skill (no skill.view of its own skill or of a bundled
+                        recipe, no /skill preload), so no saved procedure governed it. One tool repeated is a lookup, not a
+                        procedure; a run that followed a saved skill and hit nothing new has nothing to add to it.
+     A call of the WORK is any call but NOT_WORK's: the skill tools are the skillbase itself, the Task Brief tools are the
+     run's own paperwork (taskbrief-tools.js), and the notebook, memory, tool-search and widget tools are the agent's own
+     bookkeeping (memory captures facts and state, the review prompt says, never procedure), so none is a step of a
+     procedure, and none failing is a lesson about how to do the task. Every kind but a verdict short of the mark needs the
+     nudge DUE as well (facts.due), so the nudge stays the cadence floor: reviews only get rarer than the 2026-09-28
+     cadence, never more frequent. Pure: no clock, no I/O. */
+  const PRAISE = 'great';
   const PROCEDURE_STEPS = 3;
   const PROCEDURE_TOOLS = 2;
   // a trace names a call by its wire name (skill_view, brief_proceed)
-  const NOT_WORK = /^(?:skill[._](?:list|view|write|manage)|brief[._](?:ask|update|proceed))$/;
+  const NOT_WORK = /^(?:skill[._](?:list|view|write|manage)|brief[._](?:ask|update|proceed)|notebook[._]\w+|memory[._]\w+|tool[._]search|widget[._]\w+)$/;
   const isWork = t => !NOT_WORK.test(str(t && t.name));
-  // a call of the work that ran and came back failed: the evidence packet's 'failed' (learningevidence.js), minus a denied
-  // approval (the refusal mark reflect.js refusedAction reads) and a call the loop skipped (cancelled, terminal evidence)
+  const REFUSED = /^(?:denied|cancelled|capdenied|user-control-denied|code-nested-denied|hook-blocked|skipped\b.*)$/;
+  const ran = t => !!t && t.endedAt != null;
+  const succeeded = t => ran(t) && t.ok && !t.isError;
+  // a call of the work that ran and came back failed: the evidence packet's 'failed' (learningevidence.js), minus a call
+  // that never ran (REFUSED: the refusal marks the registry and the loop write; 'denied' is the one reflect.js refusedAction reads)
   function callFailed(t) {
-    if (!t || t.endedAt == null || (t.ok && !t.isError) || !isWork(t)) return false;
-    const summary = str(t.summary);
-    return summary !== 'denied' && !/^skipped\b/.test(summary);
+    return ran(t) && !succeeded(t) && isWork(t) && !REFUSED.test(str(t.summary));
   }
   // procedureOf(toolTrace) -> { steps, tools }: the run's successful calls of the work, and their distinct tools
   function procedureOf(toolTrace) {
-    const steps = (Array.isArray(toolTrace) ? toolTrace : []).filter(t => t && t.endedAt != null && t.ok && !t.isError && isWork(t));
+    const steps = (Array.isArray(toolTrace) ? toolTrace : []).filter(t => succeeded(t) && isWork(t));
     return { steps: steps.length, tools: new Set(steps.map(t => str(t.name))).size };
   }
   // reviewCause({ verdict, due, commanderWords, toolTrace, loadedSkills }) -> 'verdict' | 'correction' | 'tool-error' | 'new-procedure' | ''
   function reviewCause(facts) {
     const f = facts || {};
-    if (VERDICTS.has(str(f.verdict))) return 'verdict';
+    const verdict = str(f.verdict);
+    if (VERDICTS.has(verdict)) return 'verdict';
     if (f.due !== true) return '';
+    if (verdict === PRAISE) return 'verdict';
     if (cueIn(str(f.commanderWords))) return 'correction';
     const trace = Array.isArray(f.toolTrace) ? f.toolTrace : [];
     if (trace.some(callFailed)) return 'tool-error';
-    const loaded = Array.isArray(f.loadedSkills) && f.loadedSkills.length > 0;
+    // loaded: the host's list of the agent's own skills this run viewed or preloaded, or any skill view that answered (a
+    // bundled recipe is fetched by skill.view too, and never joins that list)
+    const loaded = (Array.isArray(f.loadedSkills) && f.loadedSkills.length > 0) || trace.some(t => succeeded(t) && /^skill[._]view$/.test(str(t.name)));
     const p = procedureOf(trace);
     return !loaded && p.steps >= PROCEDURE_STEPS && p.tools >= PROCEDURE_TOOLS ? 'new-procedure' : '';
   }
@@ -274,5 +288,5 @@
   }
 
   return { stats, shouldReviewRun, buildPrompt, transcript, isWriteAction, makeReviewObserver, NUDGE_EVERY, parseNudgeEvery, nudgeAfterRun,
-    reviewCause, procedureOf, PROCEDURE_STEPS, PROCEDURE_TOOLS };
+    reviewCause, procedureOf, PRAISE, PROCEDURE_STEPS, PROCEDURE_TOOLS };
 });

@@ -16,7 +16,13 @@
         the skill it proposes waits for the Commander's approval: a pending candidate, never an active skill;
      I5 a thumbs-down VERDICT on a clean run fires exactly 1 review, the verdict's own, with the verdict in its prompt
         (base: 2, the nudge's review first, blind to the verdict);
-     I6 the clean run's kept count survives a sidecar restart (skill.nudge.json), and the same agent's next run, a short
+     I6 a thumbs-UP on a clean run fires exactly 1 review: the run end holds it, the thumbs-up releases it onto the run it
+        praised, with the run end's own prompt (no verdict block), and spends the held count (base: the run end's 1, the
+        thumbs-up 0; a verdict always qualifies, and praise rides the cadence floor);
+     I7 THE FLOOR: a fresh agent's short runs, under the bar, that each hold a tool error AND a correction cue fire 0
+        reviews, and the count grows by their turns; a thumbs-up under the bar fires 0 too (reviews only ever get rarer
+        than the 2026-09-28 cadence: this case fails the moment the gate stops needing a due count);
+     I8 the clean run's kept count survives a sidecar restart (skill.nudge.json), and the same agent's next run, a short
         one (under the bar on its own) with a tool error, reviews (base: 0, the clean run had spent the count).
    Zero network, zero real key (the fake key routes to the mock). Prints the measured counts on one line. */
 'use strict';
@@ -49,6 +55,8 @@ const PLANS = {
   cue: [VIEW].concat(ok2(10)),
   fresh: ok2(11),
   verdict: [VIEW].concat(ok2(10)),
+  praise: [VIEW].concat(ok2(10)),
+  floor: [MISS].concat(ok2(2)),   // 3 tool turns and the answer: a tool error, well under the bar
   short: [MISS]
 };
 
@@ -164,7 +172,7 @@ function nudgeCount(fixture, agentId) {
 (async () => {
   const mock = await startMock();
   const fixture = SidecarFixture.create({ prefix: 'sk-review-useful-', env: hermeticEnv(mock.base), timeoutMs: 30000 });
-  seedSkills(fixture.workspace, ['rw-clean', 'rw-error', 'rw-cue', 'rw-verdict']);
+  seedSkills(fixture.workspace, ['rw-clean', 'rw-error', 'rw-cue', 'rw-verdict', 'rw-praise']);
   await fixture.start();
   const counts = {};
   try {
@@ -211,14 +219,45 @@ function nudgeCount(fixture, agentId) {
     A.eq(counts.verdict, 1, 'I5 a thumbs-down on a clean 12-turn run fires exactly one skill review (run end ' + rated.reviews.length + ', verdict ' + verdictReviews.length + ')');
     A.ok(verdictReviews.length === 1 && verdictReviews[0].prompt.indexOf('COMMANDER VERDICT ON THIS RUN') >= 0, 'I5 the one review is the verdict\'s, with the verdict in its prompt');
 
-    // ---- I6 the kept count survives a restart, and the clean agent's next run, a short one with a tool error, reviews ----
+    // ---- I6 a thumbs-up on a clean run: the run end holds the review, the thumbs-up releases exactly one, the run's own ----
+    const praised = await drive(fixture, mock, 'rw-praise', 'praise');
+    A.eq(praised.mains, 12, 'fixture: the run to be praised took 12 model turns');
+    A.eq(nudgeCount(fixture, 'rw-praise'), 10, 'fixture: its run end held the due count');
+    const fromUp = mock.state.calls.length;
+    const up = await fixture.json('POST', '/api/growth/ratings', { runId: praised.runId, verdict: 'great', epoch: 1 });
+    A.ok(up.status === 200 && up.body && up.body.ok === true && up.body.skillReviewArmed === true, 'I6 the thumbs-up was saved and says it set a review in motion: ' + JSON.stringify(up.body).slice(0, 300));
+    await settle(mock.state);
+    const upReviews = reviewsIn(mock.state.calls.slice(fromUp));
+    counts.praise = praised.reviews.length + upReviews.length;
+    A.eq([praised.reviews.length, upReviews.length], [0, 1], 'I6 a thumbs-up on a clean 12-turn run fires exactly one skill review: none at the run end, one for the thumbs-up');
+    A.ok(upReviews.length === 1 && upReviews[0].prompt.indexOf('[RW praise]') >= 0 && upReviews[0].prompt.indexOf('COMMANDER VERDICT') < 0,
+      'I6 it reviews the run it praised, with the run end\'s own prompt (no verdict block)');
+    A.eq(nudgeCount(fixture, 'rw-praise'), 0, 'I6 and it spends the held count');
+
+    // ---- I7 THE FLOOR: under the bar, a tool error and a correction still fire nothing, and neither does a thumbs-up ----
+    const floorWords = 'Survey the station and its workspace. From now on, always list the steps before you run them.';
+    const floor1 = await drive(fixture, mock, 'rw-floor', 'floor', floorWords);
+    const floor2 = await drive(fixture, mock, 'rw-floor', 'floor', floorWords);
+    A.ok(floor1.turns > 0 && floor2.turns > 0 && floor1.turns + floor2.turns < 10, 'fixture: two short runs, under the bar of 10 together (' + floor1.turns + ' + ' + floor2.turns + ' turns)');
+    counts.floor = floor1.reviews.length + floor2.reviews.length;
+    A.eq(counts.floor, 0, 'I7 THE FLOOR: under the bar, runs that each hold a tool error and a correction cue fire no skill review');
+    A.eq(nudgeCount(fixture, 'rw-floor'), floor1.turns + floor2.turns, 'I7 and the count grows by their turns (nothing spent it)');
+    const fromFloorUp = mock.state.calls.length;
+    const floorUp = await fixture.json('POST', '/api/growth/ratings', { runId: floor2.runId, verdict: 'great', epoch: 1 });
+    A.ok(floorUp.status === 200 && floorUp.body && floorUp.body.ok === true && floorUp.body.skillReviewArmed === false, 'I7 a thumbs-up under the bar is saved and sets no review in motion: ' + JSON.stringify(floorUp.body).slice(0, 300));
+    await settle(mock.state);
+    counts.praiseUnderBar = reviewsIn(mock.state.calls.slice(fromFloorUp)).length;
+    A.eq(counts.praiseUnderBar, 0, 'I7 a thumbs-up under the bar fires no skill review (praise rides the cadence floor)');
+    A.eq(nudgeCount(fixture, 'rw-floor'), floor1.turns + floor2.turns, 'I7 and spends nothing');
+
+    // ---- I8 the kept count survives a restart, and the clean agent's next run, a short one with a tool error, reviews ----
     await fixture.restart();
-    A.eq(nudgeCount(fixture, 'rw-clean'), 10, 'I6 the count the clean run kept survives a sidecar restart (skill.nudge.json)');
+    A.eq(nudgeCount(fixture, 'rw-clean'), 10, 'I8 the count the clean run kept survives a sidecar restart (skill.nudge.json)');
     const short = await drive(fixture, mock, 'rw-clean', 'short', 'Read my notes file and tell me what it says.');
     A.ok(short.turns > 0 && short.turns < 10, 'fixture: the follow-up run is short, under the bar of 10 on its own (' + short.turns + ' turns)');
     counts.carried = short.reviews.length;
-    A.eq(counts.carried, 1, 'I6 the count the clean run kept fires the review on the next run that holds a tool error');
-    A.eq(nudgeCount(fixture, 'rw-clean'), 0, 'I6 and that review starts the count over');
+    A.eq(counts.carried, 1, 'I8 the count the clean run kept fires the review on the next run that holds a tool error');
+    A.eq(nudgeCount(fixture, 'rw-clean'), 0, 'I8 and that review starts the count over');
   } finally {
     await fixture.dispose();
     try { mock.server.close(); } catch (_) {}
