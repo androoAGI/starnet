@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "9fe11ac97448b9b0c5c47ab4f44c97b35399b09d",
+    "sourceCommit": "539e846ba84846317cb434bd71931ee02320a370",
     "pathSetSha256": "03e6e69f94fc87395ad72f91e37e52cbc635a7bbcd855c2500b23d3e412a1321",
     "files": [
       {
@@ -173,8 +173,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 488094,
-        "sha256": "be5029dd2880551c28288c4a0e719c8da86424998251486321fd8455d3ed1727"
+        "bytes": 488335,
+        "sha256": "73d50ce33c9ccd089b866dc70d5e51bef2846a609455183c2fbe788ecedee3be"
       },
       {
         "path": "frontend/app/approved-sheet-effects.js",
@@ -413,8 +413,8 @@
       },
       {
         "path": "frontend/app/crewdefaults.js",
-        "bytes": 8714,
-        "sha256": "d26a97fc489297d8a0ea5bf9099b110c386a80ab7f8f438e7ede8787796d5871"
+        "bytes": 9627,
+        "sha256": "f9df4674daa7dc4dc6dbf18e7352e182a1e2224b6fd32cb38ebbd816ac51a07c"
       },
       {
         "path": "frontend/app/cronhuman.js",
@@ -713,8 +713,8 @@
       },
       {
         "path": "frontend/app/marketplace.js",
-        "bytes": 282521,
-        "sha256": "f4b144f95b4daa301bdd0912592b65aeb5949dae44e180680b89efc9ee8afe5d"
+        "bytes": 282385,
+        "sha256": "d8f043e36cfe0bc6ba8bc01066457e8d4c3021ebd6ada23efb76b8023b5e11af"
       },
       {
         "path": "frontend/app/memtruth.js",
