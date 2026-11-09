@@ -33,6 +33,9 @@
   let dailyCap = 5;                     // $/day — a real default, so an unattended loop is never born uncapped
   // armed by a pre-flight warning: the NEXT start proceeds anyway. Reset on any edit so a new mistake re-warns.
   let preflightOk = false;
+  // the one-use approval a desk-confirmed pre-flight hands back for exactly that folder and command (review2 #4), so
+  // START asks at the desk once for the try and the loop together
+  let checkApproval = null;
 
   const T = () => (typeof LoopTemplates !== 'undefined' ? LoopTemplates : null);
 
@@ -693,6 +696,7 @@
           // the station runs the project's check for up to 120 s: wait for its verdict, never the page's own deadline
           const res = await Harness.api.post('/api/loops/testcheck', { path: extra.workdir, cmd: cmdNow }, { timeoutMs: 150000 });
           const r = res.j || {};
+          if (r && typeof r.checkApproval === 'string') checkApproval = { id: r.checkApproval, workdir: extra.workdir, cmd: cmdNow };
           const warn = !res.ok ? 'the check could not be tried: ' + Harness.api.why(res)
             : r.alreadyGreen ? 'that check ALREADY passes — this loop would finish immediately with nothing to do'
             : r.couldNotRun ? 'that command could not run — ' + String(r.summary || '').slice(0, 90) : null;
@@ -708,6 +712,8 @@
       }
 
       const spec = tpl.buildSpec(t, values, Object.assign({}, extra, { workdir: extra.workdir || undefined }));
+      if (checkApproval && spec.checkCmd === checkApproval.cmd && extra.workdir === checkApproval.workdir) spec.checkApproval = checkApproval.id;
+      checkApproval = null;   // one use, whatever the station answers
       try {
         // "loop started" only on the station's yes: a 409 {ok:false, code} without an error key used to read as started
         const res = await Harness.api.post('/api/loops', spec);

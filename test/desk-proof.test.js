@@ -250,6 +250,16 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
     A.ok(!/mintOwnerCode|OwnerPairing\(/.test(A.fnBody(IDX, 'async function handleTelegramOwnerRevoke(')), 'revoking an owner makes no code');
     A.ok(/'channel-owner-pair'/.test(read('sidecar/deskproof.js')), 'the desk knows the new change');
   }
+  // review2 #4: a loop's check is a stored host command, gated like a hook for the exact command and folder
+  before('function handleLoopsCreate(', /loopCheckAtDesk\(req, res, workdir, String\(body\.checkCmd\)/, /loopjobStore\.createLoop\(/, 'a loop that carries a check asks first');
+  before('function handleLoopsUpdate(', /loopCheckAtDesk\(req, res, nextDir, nextCmd/, /loopjobStore\.updateLoop\(/, 'a changed or moved check asks first; removing one never does');
+  before('function handleLoopsTestCheck(', /loopCheckAtDesk\(req, res, root, cmd, \{ now: true \}\)/, /shellRunCommand\(/, 'trying a check (it runs now) asks first');
+  A.ok(/if \(held && held\.scope === scope && held\.until > now\) \{ loopCheckApprovals\.delete\(String\(approvalId\)\); return true; \}/.test(A.fnBody(IDX, 'function loopCheckAtDesk(')), 'a try\'s approval covers one create, for the same folder and command');
+  A.ok(/'loop-check'/.test(read('sidecar/deskproof.js')), 'the desk knows the loop check');
+  {
+    const fe = read('frontend/app/windows/loops.js');
+    A.ok(/if \(checkApproval && spec\.checkCmd === checkApproval\.cmd && extra\.workdir === checkApproval\.workdir\) spec\.checkApproval = checkApproval\.id;\s*checkApproval = null;/.test(fe), 'the loops window hands the try\'s approval to START once, for the same pair');
+  }
   before('async function handleHooksAllow(', /deskGate\(req, res, 'hook-allow', event \+ '\\n' \+ command/, /shellHooks\.allow\(event, command\)/, 'approving a hook asks first, for that exact command');
   before('async function handleHooksCreate(', /deskGate\(req, res, 'hook-allow', event \+ '\\n' \+ hookCommand/, /shellHooks\.create\(/, 'creating (and so approving) a hook asks first');
   before('async function handlePluginsAllow(', /deskGate\(req, res, 'plugin-allow', id \+ '@' \+ digest/, /pluginLoader\.allow\(id, digest\)/, 'approving plugin code asks first, for that exact digest');

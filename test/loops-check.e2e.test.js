@@ -20,6 +20,8 @@ const os = require('os');
 const fs = require('fs');
 const { spawn, execFileSync } = require('child_process');
 const { bootToken } = require('./_httpToken.js');
+const { makeDeskCodeReader } = require('./helpers/desk-code.js');
+const desk = makeDeskCodeReader();   // the station's desk codes, read from its console as the person there would
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
 
 const HOST = '127.0.0.1';
@@ -73,6 +75,7 @@ function boot(port, env, attemptsLeft) {
     let out = '', settled = false;
     const onData = d => {
       out += d.toString();
+      desk.feed(d);
       if (!settled && out.indexOf('http://' + HOST + ':' + port) >= 0) { settled = true; resolve({ child, port }); }
       else if (!settled && BIND_REFUSED.test(out)) {
         settled = true; try { child.kill(); } catch (_) {}
@@ -133,7 +136,17 @@ function makeRepo() {
     const B = 'http://' + HOST + ':' + port;
     const token = await bootToken(B, B);
     const headers = { 'Content-Type': 'application/json', 'X-StarNet-Token': token, Origin: B };
-    const mk = (body) => fetch(B + '/api/loops', { method: 'POST', headers, body: JSON.stringify(body) });
+    // blessing a folder and a loop's check command (a host command run after every pass) are confirmed at the desk
+    // (fix-sec2 review 3 and review2 #4): the test types the code the station printed, as the person there would
+    const atDesk = async (route, body) => {
+      const go = async extra => {
+        const r = await fetch(B + route, { method: 'POST', headers: Object.assign({}, headers, extra || {}), body: JSON.stringify(body) });
+        return { status: r.status, body: await r.json().catch(() => ({})) };
+      };
+      const out = await desk.confirm(await go(), go);
+      return { status: out.status, json: async () => out.body };
+    };
+    const mk = (body) => atDesk('/api/loops', body);
 
     /* ---- an UNBLESSED root: the loop must stand down BEFORE it spends -----------------------------------
        A dogfood run burned three passes and $0.33 against a folder whose grant did not match, because the
@@ -157,7 +170,7 @@ function makeRepo() {
     }
 
     // ---- bless the project, the way the real UI does -----------------------------------------------------
-    const bless = await fetch(B + '/api/projects/bless', { method: 'POST', headers, body: JSON.stringify({ path: repo, surface: 'interactive' }) });
+    const bless = await atDesk('/api/projects/bless', { path: repo, surface: 'interactive' });
     A.eq(bless.status, 200, 'the project blessed');
     A.eq((await bless.json()).ok, true, 'and reports ok');
 
@@ -239,6 +252,55 @@ function makeRepo() {
     const callsAtDone = mock.prompts.length;
     await sleep(3000);
     A.eq(mock.prompts.length, callsAtDone, 'a completed loop spends NOTHING further');
+
+    /* ---- review2 #4: a loop's check is a host command run after every pass with nobody watching, so making one,
+       changing it and trying it now are confirmed at the desk, for exactly that command in exactly that folder ---- */
+    const gate = makeRepo();
+    try {
+      fs.writeFileSync(path.join(gate, 'mark.js'), "require('fs').writeFileSync(__dirname + '/ran.txt', 'x'); process.exit(1);\n");
+      A.eq((await atDesk('/api/projects/bless', { path: gate, surface: 'interactive' })).status, 200, 'a second project is blessed');
+      const post = async (route, body) => {
+        const r = await fetch(B + route, { method: 'POST', headers, body: JSON.stringify(body) });
+        return { status: r.status, body: await r.json().catch(() => ({})) };
+      };
+      const count = async () => ((await (await fetch(B + '/api/loops', { headers })).json()).loops || []).length;
+      const n0 = await count();
+      const spec = { name: 'gated', objective: 'make the check pass', workdir: gate, checkCmd: 'node mark.js', exitOn: 'check-green', model: 'test/model', provider: 'openrouter' };
+      const bare = await post('/api/loops', spec);
+      A.eq(bare.status, 403, 'a loop that carries a check is not made on the page key alone');
+      A.eq(bare.body.code, 'desk_confirm_required', 'it asks at the desk');
+      const words = String((bare.body.deskConfirm || {}).summary || '');
+      A.ok(words.indexOf('node mark.js') >= 0 && words.indexOf(gate) >= 0, 'and the question shows the whole command and the folder: ' + words.slice(0, 200));
+      A.eq(await count(), n0, 'nothing was made');
+      const tryBare = await post('/api/loops/testcheck', { path: gate, cmd: 'node mark.js' });
+      A.eq(tryBare.status, 403, 'trying a check runs it now, so it asks too');
+      A.ok(!fs.existsSync(path.join(gate, 'ran.txt')), 'and the command did not run');
+      const tried = await atDesk('/api/loops/testcheck', { path: gate, cmd: 'node mark.js' });
+      const tb = await tried.json();
+      A.eq(tried.status, 200, 'confirmed, the try runs');
+      A.ok(fs.existsSync(path.join(gate, 'ran.txt')), 'the command ran');
+      A.ok(/^lc_/.test(String(tb.checkApproval || '')), 'and the try hands back a one-use approval for that folder and command');
+      const other = await post('/api/loops', Object.assign({}, spec, { checkCmd: 'node mark.js --other', checkApproval: tb.checkApproval }));
+      A.eq(other.status, 403, 'the approval does not cover another command');
+      const made = await post('/api/loops', Object.assign({}, spec, { checkApproval: tb.checkApproval }));
+      A.eq(made.status, 200, 'START after the try is not asked twice');
+      const again = await post('/api/loops', Object.assign({}, spec, { name: 'gated again', checkApproval: tb.checkApproval }));
+      A.eq(again.status, 403, 'the approval is good once');
+      const gid = made.body.loop.id;
+      const changed = await post('/api/loops/update', { id: gid, patch: { checkCmd: 'node mark.js --changed' } });
+      A.eq(changed.status, 403, 'changing the check asks at the desk');
+      const moved = await post('/api/loops/update', { id: gid, patch: { workdir: repo } });
+      A.eq(moved.status, 403, 'so does running the same check in another folder');
+      const renamed = await post('/api/loops/update', { id: gid, patch: { name: 'gated, renamed' } });
+      A.eq(renamed.status, 200, 'an edit that leaves the check alone does not ask');
+      const cleared = await post('/api/loops/update', { id: gid, patch: { checkCmd: null, exitOn: 'never' } });
+      A.eq(cleared.status, 200, 'removing the check never asks');
+      const long = await post('/api/loops/testcheck', { path: gate, cmd: 'node mark.js ' + 'x'.repeat(700) });
+      A.eq(long.status, 400, 'a check longer than the store keeps is refused, never cut after the desk saw it');
+      await post('/api/loops/remove', { id: gid });
+    } finally {
+      try { fs.rmSync(gate, { recursive: true, force: true }); } catch (_) {}
+    }
 
   } finally {
     try { child && child.kill(); } catch (_) {}

@@ -11176,6 +11176,38 @@ function handleLoopsList(req, res) {
   json(200, loopStateSnapshot());
 }
 
+/* A LOOP'S CHECK IS A STORED HOST COMMAND (fix-sec2, review2 #4). checkCmd runs as the person, in the project folder,
+   after every iteration, with nobody watching: the same thing a hook is, and hooks are confirmed at the desk
+   (hook-allow). So is a check: creating a loop that carries one, changing it or the folder it runs in, and the
+   pre-flight that runs it once now (testcheck). The desk shows the whole command and the folder; the scope binds the
+   yes to exactly that pair. A desk-confirmed pre-flight hands back a one-use approval for the same pair, so the
+   window's START (pre-flight, then create) asks once, not twice. A check longer than the store keeps is refused
+   rather than cut, so what was shown is what runs. Removing a check never asks. */
+const LOOP_CHECK_MAX = 600;   // loopjob-store keeps at most this many characters of a check
+const LOOP_CHECK_WORDS_MAX = 900;     // folder + command; the rest of the desk's words stay under its 1200 cap
+const LOOP_CHECK_APPROVAL_MS = 10 * 60 * 1000;
+const loopCheckApprovals = new Map();   // approval id -> { scope, until }
+function loopCheckScope(workdir, cmd) { return String(workdir || '') + '\n' + String(cmd || ''); }
+function loopCheckAtDesk(req, res, workdir, cmd, details, approvalId) {
+  // the desk's words have a cap; a folder and command that would not fit whole are refused, never shown cut
+  if (Array.from(String(workdir || '')).length + Array.from(String(cmd || '')).length > LOOP_CHECK_WORDS_MAX) {
+    loopJson(res)(400, { error: 'that folder and check command are too long to show in full when StarNet asks you to confirm them' });
+    return false;
+  }
+  const scope = loopCheckScope(workdir, cmd);
+  const now = Date.now();
+  for (const [k, v] of loopCheckApprovals) if (v.until <= now) loopCheckApprovals.delete(k);
+  const held = approvalId ? loopCheckApprovals.get(String(approvalId)) : null;
+  if (held && held.scope === scope && held.until > now) { loopCheckApprovals.delete(String(approvalId)); return true; }
+  return deskGate(req, res, 'loop-check', scope, Object.assign({ workdir: String(workdir || ''), command: String(cmd || '') }, details || {}));
+}
+function loopCheckApproval(workdir, cmd) {
+  const id = 'lc_' + crypto.randomBytes(18).toString('base64url');
+  loopCheckApprovals.set(id, { scope: loopCheckScope(workdir, cmd), until: Date.now() + LOOP_CHECK_APPROVAL_MS });
+  while (loopCheckApprovals.size > 16) loopCheckApprovals.delete(loopCheckApprovals.keys().next().value);
+  return id;
+}
+
 // POST /api/loops — create a standing objective. body: { name, objective, agentId?, gate?, queueCap?,
 // maxIterations?, dryStopAfter?, workdir?, model?, provider?, perDayUsd?, perIterationUsd? }
 function handleLoopsCreate(req, res) {
@@ -11198,6 +11230,10 @@ function handleLoopsCreate(req, res) {
     // A check needs somewhere to run. Accepting a checkCmd with no workdir would create a loop whose stated
     // exit condition could never be evaluated — a promise the harness cannot keep.
     if (body.checkCmd && !workdir) return json(400, { error: 'a check command needs a project folder — set workdir' });
+    if (body.checkCmd != null) body.checkCmd = String(body.checkCmd).trim();   // what is shown at the desk is what is kept
+    if (body.checkCmd != null && String(body.checkCmd).length > LOOP_CHECK_MAX) return json(400, { error: 'a check command is at most ' + LOOP_CHECK_MAX + ' characters' });
+    if (body.checkCmd != null && String(body.checkCmd).trim()
+      && !loopCheckAtDesk(req, res, workdir, String(body.checkCmd), { name: deskProofMod.cutPoints(String(body.name || objective), 60) }, body.checkApproval)) return;
     const id = crypto.randomUUID();
     try {
       const candidate = loopjobStore.createLoop(loopJobs, {
@@ -11232,6 +11268,15 @@ function handleLoopsUpdate(req, res) {
       try { patch.agentId = parseCronAgentIdOr400(patch.agentId); } catch (e) { return json(e.code || 400, { error: e.message }); }
     }
     if (Object.prototype.hasOwnProperty.call(patch, 'workdir') && patch.workdir) patch.workdir = path.resolve(String(patch.workdir));
+    // review2 #4: a new check, or the check moved to another folder, is confirmed at the desk; removing one never asks
+    {
+      const cur = loopjobStore.getLoop(loopJobs, id) || {};
+      const nextCmd = Object.prototype.hasOwnProperty.call(patch, 'checkCmd') ? (patch.checkCmd == null ? '' : String(patch.checkCmd)) : String(cur.checkCmd || '');
+      const nextDir = Object.prototype.hasOwnProperty.call(patch, 'workdir') ? (patch.workdir || '') : (cur.workdir || '');
+      if (nextCmd.length > LOOP_CHECK_MAX) return json(400, { error: 'a check command is at most ' + LOOP_CHECK_MAX + ' characters' });
+      if (nextCmd.trim() && (nextCmd !== String(cur.checkCmd || '') || nextDir !== String(cur.workdir || ''))
+        && !loopCheckAtDesk(req, res, nextDir, nextCmd, { name: deskProofMod.cutPoints(String(cur.name || ''), 60) }, body.checkApproval)) return;
+    }
     try { commitLoops(loopjobStore.updateLoop(loopJobs, id, patch, { now: Date.now() })); }
     catch (e) { return json(500, { error: 'could not save: ' + ((e && e.message) || e) }); }
     armLoops(true);
@@ -11381,6 +11426,11 @@ function handleLoopsTestCheck(req, res) {
     catch (e) { return json(400, { error: 'that folder does not exist: ' + root }); }
     // the host only ever executes at a root the Commander has approved — the same law the loop check obeys.
     if (!isBlessedRoot(root)) return json(403, { error: 'that folder is not approved yet — pick it again to approve it' });
+    // review2 #4: this runs the command now, as you; the page key alone used to be enough. The desk's yes for it also
+    // covers creating the loop with the same check in the same folder (checkApproval, once, for ten minutes).
+    if (cmd.length > LOOP_CHECK_MAX) return json(400, { error: 'a check command is at most ' + LOOP_CHECK_MAX + ' characters' });
+    if (!loopCheckAtDesk(req, res, root, cmd, { now: true })) return;
+    const checkApproval = loopCheckApproval(root, cmd);
     try {
       const r = await shellRunCommand({
         spawn: childSpawn, cmd: cmd, cwd: root, timeoutMs: 120000, maxBytes: LOOP_CHECK_MAX_BYTES,
@@ -11402,9 +11452,10 @@ function handleLoopsTestCheck(req, res) {
         exitCode: r.exitCode, timedOut: !!r.timedOut,
         couldNotRun: !v.passed && couldNotRun,
         // the loop would finish instantly on an already-green check — the most important case to surface.
-        alreadyGreen: v.passed
+        alreadyGreen: v.passed,
+        checkApproval
       });
-    } catch (e) { json(200, { ok: false, error: 'could not run it — ' + ((e && e.message) || e) }); }
+    } catch (e) { json(200, { ok: false, error: 'could not run it — ' + ((e && e.message) || e), checkApproval }); }
   }).catch(() => { try { json(400, { error: 'bad request' }); } catch (_) {} });
 }
 
@@ -16907,6 +16958,11 @@ function deskWords(action, d) {
       summary: (o.connecting ? 'Connect ' + o.label + ' and make' : 'Make') + ' a one-time code that makes the account that sends it the OWNER of ' + o.label + (o.agentName ? ' (' + o.agentName + ')' : '') + '?\n\nThe owner can give your agents work from there and answer their permission requests there.' };
     case 'project-bless': return { title: 'StarNet — trust a project folder', verb: 'Trust this folder',
       summary: 'Trust the folder ' + o.root + '?\n\nYour agents may read and change everything in it without asking you about each file, until you remove it under Projects.' };
+    // review2 #4: the whole command, never cut (the routes refuse one longer than the store keeps)
+    case 'loop-check': return { title: 'StarNet — approve a loop check', verb: o.now ? 'Run it' : 'Approve check',
+      summary: (o.now ? 'Run this command now, as you, in ' + o.workdir + ', to try it as a loop check?'
+        : 'Run this command as you, in ' + o.workdir + ', after every pass of the loop "' + (o.name || 'untitled') + '", with nobody watching?')
+        + '\n\n' + o.command };
     case 'hook-allow': return { title: 'StarNet — approve a hook', verb: 'Approve hook',
       summary: 'Run this command on every "' + o.event + '" event, as you, with no prompt?\n\n' + o.command };
     case 'plugin-allow': return { title: 'StarNet — approve a plugin', verb: 'Approve plugin',
