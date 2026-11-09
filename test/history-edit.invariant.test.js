@@ -221,9 +221,14 @@ async function readBack(reg, ctx, call) {
     checkBound('reveal', reveal, { requests: 4, editAt: 3, lastReplays: [3] });
     A.ok(JSON.stringify(reveal.up.posts[0].body).indexOf('cache_control') >= 0, 'a run-loop request still anchors its prompt cache (only fold requests stop writing)');
 
-    // (b) screenshot eviction (keep 1): capture 1 becomes a placeholder at request 3 -> block 1 (before it) stays bound
-    const shots = await runBound({ toolImages: true, limits: { toolImageKeep: 1 }, script: n => n <= 2 ? thinkTool('snap') : n === 3 ? thinkTool('fs_read', { path: 'a' }) : thinkText });
+    // (b) screenshot eviction (keep 1, one at a time: toolImageStep 0, the view before W1.9's steps): capture 1 becomes a
+    //     placeholder at request 3 -> block 1 (before it) stays bound
+    const shots = await runBound({ toolImages: true, limits: { toolImageKeep: 1, toolImageStep: 0 }, script: n => n <= 2 ? thinkTool('snap') : n === 3 ? thinkTool('fs_read', { path: 'a' }) : thinkText });
     checkBound('screenshot eviction', shots, { requests: 4, editAt: 3, lastReplays: [1, 3] });
+    // (b2) the same eviction IN STEPS (W1.9's default, step 4): six captures ride as pixels, then the oldest five leave
+    //      together at request 7 -> block 1 (before capture 1) stays bound, blocks 2-6 do not, block 7 follows the edit
+    const stepped = await runBound({ toolImages: true, limits: { toolImageKeep: 1 }, script: n => n <= 6 ? thinkTool('snap') : n === 7 ? thinkTool('fs_read', { path: 'a' }) : thinkText });
+    checkBound('screenshot eviction in steps', stepped, { requests: 8, editAt: 7, lastReplays: [1, 7] });
 
     // (c) the micro tier: results 1-2 are elided before request 4 -> block 1 (before them) stays bound, 2-3 do not
     const usage = n => (n === 3 ? 14000 : 2000);
