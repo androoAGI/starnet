@@ -13,7 +13,12 @@
      3. at 89% (the provider said so on the user's next message) every one of them goes.
      4. 2M weighted tokens of unattended work in the last 24 h pause unattended starts (the rail), never the user's message;
         RESUME — re-arming the posture, the control that turns unattended work on — lets them through, and the resume
-        survives a restart. */
+        survives a restart.
+   And the review round (W3.1 blockers):
+     2b. a routine the user asks for from his own message (routine.manage run_now) fires on the next tick at 92%, is never
+        held, and its calls carry no unattended origin (B2);
+     4b. WAIT and CHECK WITH ME, even sent with resumeHalt, resume nothing: railResumed false and a new routine stays held (B1);
+        the ROUTINES row's tokens per fire and the AUTONOMY panel's tokens per beat are their starts' receipts, weighted. */
 'use strict';
 const A = require('./_assert.js');
 const fs = require('node:fs');
@@ -26,15 +31,22 @@ const { seedActiveStation } = require('./helpers/station.js');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const IPC = 'unattended-hold-e2e-ipc-token-0123456789';
 const MODEL = 'gpt-5.5';
-const MARK = { user: 'UNATTENDED-E2E-USER', routine: 'UNATTENDED-E2E-ROUTINE', loop: 'UNATTENDED-E2E-LOOP', build: 'UNATTENDED-E2E-BUILD' };
+const MARK = { user: 'UNATTENDED-E2E-USER', routine: 'UNATTENDED-E2E-ROUTINE', loop: 'UNATTENDED-E2E-LOOP', build: 'UNATTENDED-E2E-BUILD', ask: 'UNATTENDED-E2E-ASK' };
 const SOURCE = 'x-codex-* response headers';
 const jwt = 'fixture.' + Buffer.from(JSON.stringify({ exp: 4102444800, 'https://api.openai.com/profile': { email: 'plan@example.test' } })).toString('base64url') + '.fixture';
 const HOUR = 3600000;
 
 function sse(parts) { return parts.map(p => typeof p === 'string' ? p : 'data: ' + JSON.stringify(p)).join('\n\n') + '\n\n'; }
+const USAGE = { input_tokens: 40, input_tokens_details: { cached_tokens: 0 }, output_tokens: 4, output_tokens_details: { reasoning_tokens: 0 } };
 const reply = text => sse([{ type: 'response.output_text.delta', output_index: 0, delta: text },
-  { type: 'response.completed', response: { status: 'completed', usage: { input_tokens: 40, input_tokens_details: { cached_tokens: 0 }, output_tokens: 4, output_tokens_details: { reasoning_tokens: 0 } } } },
+  { type: 'response.completed', response: { status: 'completed', usage: USAGE } },
   'data: [DONE]']);
+// one tool call on the Responses wire (a dotted tool name goes out underscored: routine.manage -> routine_manage)
+const toolCall = (name, args) => {
+  const item = { type: 'function_call', id: 'fc_ask', call_id: 'call_ask', name, arguments: JSON.stringify(args) };
+  return sse([{ type: 'response.output_item.added', output_index: 0, item }, { type: 'response.output_item.done', output_index: 0, item },
+    { type: 'response.completed', response: { status: 'completed', usage: USAGE } }, 'data: [DONE]']);
+};
 
 // the loopback ChatGPT: every POST is a model call, classified by what it carries and answered with the window the test sets
 function startUpstream(win) {
@@ -49,18 +61,22 @@ function startUpstream(win) {
       }
       // classified by the call's LAST user turn (the directive it was sent to do), never by context it quotes: a beat's
       // propose turn may well quote the user's own recent messages
-      let last = raw;
+      let last = raw, answered = false;
       try {
-        const turns = (JSON.parse(raw).input || []).filter(m => m && m.role === 'user');
+        const input = JSON.parse(raw).input || [];
+        const turns = input.filter(m => m && m.role === 'user');
         const t = turns[turns.length - 1];
         if (t) last = Array.isArray(t.content) ? t.content.map(p => (p && p.text) || '').join('\n') : String(t.content || '');
+        answered = input.some(x => x && x.type === 'function_call_output');
       } catch (_) { /* not JSON: classify the raw body */ }
-      const kind = (/JOB:/.test(last) && /GROUNDS:/.test(last)) ? 'beat' : last.indexOf(MARK.user) >= 0 ? 'user' : last.indexOf(MARK.routine) >= 0 ? 'routine'
+      const kind = (/JOB:/.test(last) && /GROUNDS:/.test(last)) ? 'beat' : last.indexOf(MARK.ask) >= 0 ? 'ask' : last.indexOf(MARK.user) >= 0 ? 'user' : last.indexOf(MARK.routine) >= 0 ? 'routine'
         : last.indexOf(MARK.loop) >= 0 ? 'loop' : last.indexOf(MARK.build) >= 0 ? 'build' : 'other';
       calls.push({ kind, at: Date.now(), pct: win.pct, said: kind === 'other' ? last.slice(-160) : undefined });
       res.writeHead(200, { 'Content-Type': 'text/event-stream', 'x-codex-primary-used-percent': String(win.pct), 'x-codex-primary-window-minutes': '300',
         'x-codex-primary-reset-at': String(Math.floor(win.resetsAt / 1000)) });
-      res.end(reply(kind === 'user' ? 'Hello from the plan.' : 'Nothing to do.'));
+      // the user's ask (2b): his message's first turn calls routine.manage run_now on the routine the test names; then it answers
+      if (kind === 'ask' && !answered && win.askFor) return res.end(toolCall('routine_manage', { action: 'run_now', id: win.askFor }));
+      res.end(reply(kind === 'user' || kind === 'ask' ? 'Hello from the plan.' : 'Nothing to do.'));
     });
   });
   return new Promise(resolve => server.listen(0, '127.0.0.1', () => resolve({ server, calls, base: 'http://127.0.0.1:' + server.address().port })));
@@ -102,6 +118,7 @@ function hotBeliefs(now) {
   const fx = SidecarFixture.create({ prefix: 'unattended-hold-e2e-', timeoutMs: 30000, entry: bootEntry(scratch), env: ENV });
   const ws = fx.workspace;
   const usage = path.join(ws, '.usage');
+  const evidence = {};   // the numbers behind the locks, printed once at the end (the lane report quotes them)
   const ledger = async () => { const b = (await fx.json('GET', '/api/autonomy/ledger?limit=500')).body; return (b && Array.isArray(b.entries)) ? b.entries : []; };
   const status = async () => (await fx.json('GET', '/api/nightshift/status')).body || {};
   const until = async (pred, maxMs) => { for (const end = Date.now() + maxMs; Date.now() < end; await sleep(150)) { if (await pred()) return true; } return !!(await pred()); };
@@ -126,7 +143,51 @@ function hotBeliefs(now) {
     const start = (events.find(e => e.name === 'agent.run.start') || {}).payload || {};
     return { status: r.status, reason: end.reason, runId: String(end.runId || start.runId || ''), text: String(r.text || '').slice(0, 300) };
   };
+  /* the user's own message that asks for a routine to fire now (2b): a real lead run (not self-talk) whose model calls
+     routine.manage run_now. Its consent card rides the run's own stream, so the stream is read as it comes and the card is
+     answered "once" (handleConsent finds the waiting run by runId first, then the prompt) — never awaited, the run waits on it. */
+  const askRun = async (words) => {
+    const res = await fx.request('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ agentId: 'agent', provider: 'codex', model: MODEL, isTask: true, messages: [{ role: 'user', content: MARK.ask + ' ' + words }] }) });
+    const events = [];
+    let runId = '', buf = '';
+    const reader = res.body.getReader(), dec = new TextDecoder();
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      for (let nl = buf.indexOf('\n'); nl >= 0; nl = buf.indexOf('\n')) {
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        if (!line) continue;
+        let ev = null;
+        try { ev = JSON.parse(line); } catch (_) { continue; }
+        events.push(ev);
+        if ((ev.name === 'agent.run.start' || ev.name === 'runId') && ev.payload && ev.payload.runId) runId = String(ev.payload.runId);
+        if (ev.name === 'permission.prompt' && ev.payload) {
+          fx.json('POST', '/api/consent', { runId: String(ev.payload.runId || runId), promptId: ev.payload.promptId, decision: 'once' }).catch(() => {});
+        }
+      }
+    }
+    return { status: res.status, events, runId };
+  };
   const posture = (resume) => fx.json('POST', '/api/autonomy/posture', Object.assign({ posture: { initiative: 'leash', reach: 'sandbox', leashPerDay: 12 }, beliefs: hotBeliefs(Date.now()) }, resume ? { resumeHalt: true } : {}));
+  // the usage receipts as the station wrote them (WORKSPACES/.usage/calls.jsonl), and the weight the rail counts them at
+  const callsFile = path.join(usage, 'calls.jsonl');
+  const receipts = () => (fs.existsSync(callsFile) ? fs.readFileSync(callsFile, 'utf8') : '').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch (_) { return null; } }).filter(Boolean);
+  const weigh = r => (r.usageMissing ? 0 : (r.uncachedIn || 0) + (r.cacheWrite || 0) + (r.cacheRead || 0) / 10 + (r.out || 0));
+  // one start's weighted receipts, averaged over the newest 10 starts of origin/ref (tokens per fire / per beat, read off the file)
+  const perStart = (origin, ref) => {
+    const by = new Map();
+    for (const r of receipts()) {
+      if (r.origin !== origin || String(r.ref || '') !== ref || !r.start) continue;
+      const s = by.get(r.start) || { tokens: 0, at: 0 };
+      s.tokens += weigh(r); s.at = Math.max(s.at, r.at || 0);
+      by.set(r.start, s);
+    }
+    const list = Array.from(by.values()).sort((a, b) => b.at - a.at).slice(0, 10);
+    return list.length ? { tokens: Math.round(list.reduce((s, x) => s + x.tokens, 0) / list.length), starts: list.length } : null;
+  };
   const holdRow = (e, binding) => e && e.binding === binding || (e && e.detail && e.detail.hold === binding);
   // a boot, and the page's push of the ChatGPT sign-in's endpoint (the loopback fake) that every page load makes
   const boot = async () => {
@@ -197,6 +258,27 @@ function hotBeliefs(now) {
     await sleep(1200);
     A.eq(kinds(t1).filter(k => k !== 'user'), [], 'the user\'s message did not open the door for unattended work');
 
+    /* ===== 2b. a routine the user asks for from his own message is HIS: at 92% it fires on the next tick (B2) ===== */
+    // the routine held above (a one-shot; the hold released its fire claim) is asked to run now, by routine.manage in his run
+    const tAsk = Date.now();
+    win.askFor = routineId;
+    const askedRun = await askRun('run the harbor ledger routine now');
+    win.askFor = '';
+    const toolRows = askedRun.events.filter(e => /tool|permission|error/.test(e.name)).map(e => [e.name, e.payload && (e.payload.name || e.payload.tool || e.payload.message || (e.payload.isError ? 'isError' : 'ok'))]);
+    A.eq(askedRun.status, 200, 'his run streams');
+    A.ok(askedRun.events.some(e => e.name === 'agent.tool_call' && e.payload && /^routine[._]manage$/.test(String(e.payload.name || ''))) && askedRun.events.some(e => e.name === 'permission.prompt' && e.payload && e.payload.tool === 'routine.manage')
+      && askedRun.events.some(e => e.name === 'agent.tool_result' && e.payload && !e.payload.isError),
+      'his run called routine.manage run_now (asked his consent, answered once) and it succeeded: ' + JSON.stringify(toolRows).slice(0, 600));
+    await until(async () => kinds(tAsk).indexOf('routine') >= 0, 8000);
+    A.ok(kinds(tAsk).indexOf('routine') >= 0, 'at 92% the routine he asked for reached the provider on the next tick: ' + JSON.stringify(kinds(tAsk)));
+    A.eq((await ledger()).filter(e => Number(e.ts) >= tAsk && e.jobId === routineId && holdRow(e, 'window-reserve')).length, 0, 'it was never held: no hold row for it');
+    let askedJob = {};
+    await until(async () => { askedJob = ((await fx.json('GET', '/api/cron')).body.jobs || []).find(j => j && j.id === routineId) || {}; return !!askedJob.lastRunId; }, 8000);
+    const askedCalls = receipts().filter(r => askedJob.lastRunId && r.runId === askedJob.lastRunId);
+    A.ok(askedCalls.length > 0 && askedCalls.every(r => !r.origin), 'his fire\'s calls carry no unattended origin (the rail and tokens per fire leave it out): ' + JSON.stringify({ runId: askedJob.lastRunId, origins: askedCalls.map(r => r.origin || '-') }));
+    A.ok(!askedJob.tokensPerFire, 'the routine shows no tokens per fire: its only fire was his — ' + JSON.stringify(askedJob.tokensPerFire));
+    evidence.asked = { pct: win.pct, kinds: kinds(tAsk), fireRunId: askedJob.lastRunId, fireOrigins: askedCalls.map(r => r.origin || '-'), tokensPerFire: askedJob.tokensPerFire || null };
+
     /* ===== 3. at 89% every unattended start goes ===== */
     win.pct = 89;
     const t2 = Date.now();
@@ -227,8 +309,6 @@ function hotBeliefs(now) {
     /* ===== 4. the 24-hour rail, RESUME, and a restart ===== */
     await fx.stop();
     // what ran above, as its usage receipts say it: every unattended start stamped with who started it, the user's message never
-    const calls = path.join(usage, 'calls.jsonl');
-    const receipts = () => fs.readFileSync(calls, 'utf8').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch (_) { return null; } }).filter(Boolean);
     const ran = receipts().filter(r => r.at >= t2);
     const origins = Array.from(new Set(ran.map(r => r.origin).filter(Boolean))).sort();
     A.eq(origins, ['loop', 'nightshift', 'routine', 'workshop'], 'each unattended start\'s calls carry who started it: ' + JSON.stringify(ran.map(r => [r.origin || '-', r.ref || '-']).slice(0, 40)));
@@ -241,11 +321,17 @@ function hotBeliefs(now) {
     const seed = [];
     for (let i = 0; i < 3; i++) seed.push({ v: 1, at: now - (50 - i * 10) * 60000, ms: 1000, provider: 'codex', account: 'primary', model: MODEL, uncachedIn: 700000, cacheRead: 0, cacheWrite: 0, out: 0, reasoning: 0, end: 'done', origin: 'routine', ref: 'seeded', start: 'seeded-' + i });
     seed.push({ v: 1, at: now - 20 * 60000, ms: 1000, provider: 'codex', account: 'primary', model: MODEL, uncachedIn: 9000000, cacheRead: 0, cacheWrite: 0, out: 0, reasoning: 0, end: 'done' });
-    fs.appendFileSync(calls, seed.map(r => JSON.stringify(r)).join('\n') + '\n');
+    fs.appendFileSync(callsFile, seed.map(r => JSON.stringify(r)).join('\n') + '\n');
     // the rail's own count: the unattended calls of the last 24 h, weighted (fresh input, cache writes and output whole, a cache read at 1/10)
-    const weigh = r => (r.uncachedIn || 0) + (r.cacheWrite || 0) + (r.cacheRead || 0) / 10 + (r.out || 0);
     const railCount = Math.round(receipts().filter(r => r.origin && r.at > Date.now() - 24 * HOUR && !r.usageMissing).reduce((s, r) => s + weigh(r), 0));
     await boot();
+    // tokens per fire (the ROUTINES row) and per beat (the AUTONOMY panel) are their starts' own receipts, weighted the rail's way
+    const fire2 = ((await fx.json('GET', '/api/cron')).body.jobs || []).find(j => j && j.id === routine2) || {};
+    const want2 = perStart('routine', routine2);
+    A.ok(!!want2 && JSON.stringify(fire2.tokensPerFire) === JSON.stringify(want2), 'the second routine\'s tokens per fire is its fire\'s receipts: ' + JSON.stringify({ api: fire2.tokensPerFire, receipts: want2 }));
+    const beatWant = perStart('nightshift', 'agent'), beatApi = (await status()).tokensPerBeat;
+    A.ok(!!beatWant && JSON.stringify(beatApi) === JSON.stringify(beatWant), 'tokens per beat is the away beats\' receipts: ' + JSON.stringify({ api: beatApi, receipts: beatWant }));
+    evidence.perStart = { fire: { api: fire2.tokensPerFire, receipts: want2 }, beat: { api: beatApi, receipts: beatWant } };
     A.ok((await posture(false)).body.ok === true, 'the night shift is armed again (no RESUME asked)');
     const t3 = Date.now();
     const routine3 = await routine(MARK.routine + ' third note', 'in 1s', 'orchard census');
@@ -264,6 +350,19 @@ function hotBeliefs(now) {
     const t4 = Date.now();
     const third = await userRun('still me');
     A.eq([third.status, third.reason], [200, 'done'], 'the Commander\'s own message runs past the rail — ' + third.text);
+    // B1: RESUME is a re-arm of a posture that turns unattended work ON. WAIT and CHECK WITH ME (line up suggestions), even sent
+    // with resumeHalt, lift E-STOP halts as before and resume nothing here: the rail still holds a new routine
+    const waitResume = await fx.json('POST', '/api/autonomy/posture', { posture: { initiative: 'wait', reach: 'observe', leashPerDay: 12 }, resumeHalt: true });
+    A.eq([waitResume.status, waitResume.body && waitResume.body.railResumed], [200, false], 'WAIT with resumeHalt resumes nothing — ' + String(waitResume.text).slice(0, 200));
+    const checkResume = await fx.json('POST', '/api/autonomy/posture', { posture: { initiative: 'propose', reach: 'observe', leashPerDay: 12 }, resumeHalt: true });
+    A.eq([checkResume.status, checkResume.body && checkResume.body.railResumed], [200, false], 'CHECK WITH ME with resumeHalt resumes nothing — ' + String(checkResume.text).slice(0, 200));
+    const t35 = Date.now();
+    const routine4 = await routine(MARK.routine + ' fourth note', 'in 1s', 'quarry roster');
+    const railHeld4 = async () => held(await ledger(), e => e.ts >= t35 && e.jobId === routine4 && holdRow(e, 'unattended-rail'));
+    await until(async () => (await railHeld4()).length > 0, 10000);
+    A.eq((await railHeld4()).length, 1, 'after WAIT and CHECK WITH ME a new routine is still paused by the rail (one row)');
+    A.eq(kinds(t35).filter(k => k === 'routine'), [], 'and it never reached the provider');
+    evidence.resume = { wait: waitResume.body && waitResume.body.railResumed, checkWithMe: checkResume.body && checkResume.body.railResumed, routine4RailRows: (await railHeld4()).length };
     const resume = await posture(true);
     A.eq([resume.status, resume.body && resume.body.railResumed], [200, true], 'RESUME: re-arming the posture resumes unattended work — ' + String(resume.text).slice(0, 300));
     await until(async () => kinds(t4).indexOf('beat') >= 0, 15000);
@@ -282,5 +381,6 @@ function hotBeliefs(now) {
     await new Promise(r => up.server.close(r));
     try { fs.rmSync(scratch, { recursive: true, force: true }); } catch (_) {}
   }
+  console.log('unattended-hold.e2e evidence: ' + JSON.stringify(evidence));
   A.report('unattended-hold.e2e.test');
 })().catch(e => { console.log('FAIL: unattended-hold.e2e.test threw - ' + (e && e.stack || e)); process.exit(1); });
