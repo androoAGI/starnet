@@ -368,3 +368,4 @@ test/routine-drive.http.test.js
 test/channel-owner-cardfree.http.test.js
 test/channel-owner-seal.http.test.js
 test/seal-wipe.http.test.js
+test/desk-code-log.http.test.js

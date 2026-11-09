@@ -17161,8 +17161,25 @@ function ipcTokenOk(req) {
    rides in an API body. Under the desktop shell the console is a log file, so a station there with no shell proof shows
    no code at all and its page confirmations cannot be given (fail closed). A same-user process that can read this
    console's buffer, a log file it is redirected to (pm2's), or this process's memory can still read the code: that is
-   the same-user residual that only an OS sandbox for agent-run commands closes. */
+   the same-user residual that only an OS sandbox for agent-run commands closes.
+   A CONSOLE THAT IS A LOG KEEPS NO CODE (final review #9, 2026-11-08). pm2 saves this console to ~/.pm2/logs, and a
+   console redirected to a file (or a socket: journald) keeps it the same way, so the client key plus one read of that log
+   turned FULL BYPASS on. There the code is not written: the line says what is waiting and how to confirm it (run the
+   station in a terminal, or the `starnet` terminal), and STARNET_DESK_CODE_TO_LOG=1 is the operator's own choice to
+   write codes to the log anyway. Said plainly: a bare or pm2 station is not sealed, and it does not protect its
+   permissions from other programs running as the same user (they can write its files); the desk code only keeps the
+   page key alone from making those changes. */
 const DESK_CODE_TO_PARENT = ENV('DESK_CODE_IPC') === '1';
+function deskCodeConsoleKept() {
+  if (/^(?:1|true|yes)$/i.test(String(ENV('DESK_CODE_TO_LOG') || '').trim())) return '';
+  const e = process.env || {};
+  if (e.pm_id !== undefined || e.pm_err_log_path !== undefined || e.PM2_HOME !== undefined) return 'pm2';
+  const out = process.stderr;
+  if (!out || out.isTTY) return '';
+  if (typeof out.fd !== 'number') return '';   // not a descriptor (a stream handed in): nothing on disk to keep
+  try { const st = fs.fstatSync(out.fd); return st.isFile() ? 'file' : st.isSocket() ? 'socket' : ''; }
+  catch (err) { return 'unknown'; }   // a console this process cannot even describe gets no code
+}
 function announceDeskCode(note) {
   const n = note || {};
   const line = n.kind === 'code'
@@ -17172,6 +17189,13 @@ function announceDeskCode(note) {
       : 'Confirmation codes: ' + n.max + ' wrong codes were typed, so this station takes no permission change until ' + deskLockClock(n.until) + ' (a restart does not end it).';
   if (DESK_CODE_TO_PARENT && typeof process.send === 'function' && process.connected) {
     process.send({ type: 'starnet.desk-code', kind: n.kind, id: n.id || '', label: n.label || '', code: n.code || '', title: n.title || '', verb: n.verb || '', expiresAt: n.expiresAt || 0, text: line });
+    return;
+  }
+  const kept = n.kind === 'code' ? deskCodeConsoleKept() : '';
+  if (kept) {
+    process.stderr.write('\n  [StarNet] Confirm at the desk: ' + String(n.title || '').replace(/^StarNet — /, '') + ' (' + String(n.verb || 'Confirm') + '), asked for confirmation '
+      + n.label + '. This station\'s console is ' + (kept === 'pm2' ? 'saved by pm2' : 'kept in a log') + ', so its code is not written here (whatever can read the log could use it). '
+      + 'To confirm, run the station in a terminal (npm start, or the starnet terminal), or start it with STARNET_DESK_CODE_TO_LOG=1 to write codes to this log anyway.\n\n');
     return;
   }
   process.stderr.write('\n  [StarNet] ' + line + '\n\n');
