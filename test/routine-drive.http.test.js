@@ -40,7 +40,7 @@ const marker = (b) => { const u = (b.messages || []).filter(m => m && m.role ===
     const r1 = await mk('one', { model: 'test/model', provider: 'openrouter' });
     A.eq(r1.status, 200, 'the Commander creates a granted routine at the desk');
     const j1 = r1.body.job;
-    A.ok(/^d1:[0-9a-f]{32}:[0-9a-f]{32}$/.test(String(j1.grantDrive)), 'the station records the model and endpoint the desk said yes to (' + j1.grantDrive + ')');
+    A.ok(/^d1:[0-9a-f]{32}:[0-9a-f]{32}:[0-9a-f]{32}$/.test(String(j1.grantDrive)), 'the station records the model, endpoint, instructions and skills the desk said yes to (' + j1.grantDrive + ')');
     await st.call(st.CLIENT, 'POST', '/api/cron/run', { id: j1.id });
     A.ok(await waitFor('LEGIT_ONE.txt'), 'Run Now on the confirmed model uses the terminal grant (the legit marker is written)');
 
@@ -107,7 +107,7 @@ const marker = (b) => { const u = (b.messages || []).filter(m => m && m.role ===
     const back = (await st.call(st.API, 'GET', '/api/cron')).body;
     const row4 = (back.jobs || []).find(j => j.id === j4.id);
     A.eq(row4 && row4.unattendedGrants, ['workbench'], 'a routine sealed in the first form keeps its grants after the upgrade');
-    A.ok(row4 && /^d1:[0-9a-f]{32}:-$/.test(String(row4.grantDrive)), 'and is stamped once with the model it runs on (' + (row4 && row4.grantDrive) + ')');
+    A.ok(row4 && /^d1:[0-9a-f]{32}:-:[0-9a-f]{32}$/.test(String(row4.grantDrive)), 'and is stamped once with the model it runs on, its agent instructions and its skills (' + (row4 && row4.grantDrive) + ')');
     await st.call(st.CLIENT, 'POST', '/api/cron/run', { id: j4.id });
     A.ok(await waitFor('LEGIT_FOUR.txt'), 'and its grant still works on that model');
     await st.stop();
