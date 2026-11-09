@@ -25766,7 +25766,7 @@ async function runOnceCore(o) {
     const connectorFullAccess = /^mcp:/.test(String(liveTool?.capability || ''))
       && typeof o.connectorAuthority?.fullAccess === 'function' && o.connectorAuthority.fullAccess() === true;
     /* SAME-ORIGIN API CONTINUATION (owner decision 2026-10-12): a run whose only untrusted reads are responses from ONE
-       https API may keep calling that same API with keys it already sent there — no per-call card, and unattended runs
+       https API may keep reading that same API with keys it already sent there (final review #8: a body-less GET/HEAD to its path or named folder, taint.js) — no per-call card, and unattended runs
        are not refused for it. The taint stays latched: every other host, key, tool and power keeps the lock below. */
     const sameOriginApi = !!taintSource && !inheritedTaint && taintSource === execution.taintedBy()
       && taintPolicy.sameOriginContinuation(taintScope, liveTool, c, { untrustedEntry: untrustedEntryRun });

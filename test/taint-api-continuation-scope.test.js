@@ -27,7 +27,7 @@ const cont = (scope, url, extra) => taint.sameOriginContinuation(scope, wr, call
 // ---- the scope remembers the first read's method and folder ----
 {
   const s = first(GH + '/repos/victim/project/issues/5');
-  A.eq(s, { origin: GH, keys: ['GITHUB_TOKEN'], method: 'GET', prefix: '/repos/victim/project/issues/' }, 'the first read scopes origin, key, method and folder');
+  A.eq(s, { origin: GH, keys: ['GITHUB_TOKEN'], method: 'GET', prefix: '/repos/victim/project/issues/', path: '/repos/victim/project/issues/5' }, 'the first read scopes origin, key, method, folder and its own path');
   A.eq(first(GH + '/repos/victim/project/issues').prefix, '/repos/victim/project/', 'a collection path scopes its parent folder');
   A.eq(first(GH + '/').prefix, '/', 'the root path scopes the whole origin');
   A.eq(first(GH + '/graphql', { method: 'post', body: '{}' }).method, 'POST', 'the method is compared upper-case');
@@ -58,7 +58,7 @@ const cont = (scope, url, extra) => taint.sameOriginContinuation(scope, wr, call
 // ---- a write job keeps its own method and folder; files never ride along ----
 {
   const s = first(GH + '/graphql', { method: 'POST', body: '{"query":"{ viewer { login } }"}' });
-  A.ok(cont(s, GH + '/graphql', { method: 'POST', body: '{"query":"{ repository(owner:\\"victim\\",name:\\"project\\"){ id } }"}' }), 'a POST to the same endpoint continues (one-endpoint APIs)');
+  A.ok(!cont(s, GH + '/graphql', { method: 'POST', body: '{"query":"{ repository(owner:\\"victim\\",name:\\"project\\"){ id } }"}' }), 'final review #8: a POST to the same endpoint asks (GraphQL queries and mutations share it)');
   A.ok(!cont(s, GH + '/graphql', { method: 'GET' }), 'another method asks');
   A.ok(!cont(s, GH + '/graphql', { method: 'POST', body: '{"q":"' + FILE('report.pdf') + '"}' }), 'a ${file:} reference in the body is never a continuation');
   A.ok(!cont(s, GH + '/graphql', { method: 'POST', multipart: [{ name: 'f', file: 'report.pdf' }] }), 'nor a multipart part with a file');
@@ -66,6 +66,45 @@ const cont = (scope, url, extra) => taint.sameOriginContinuation(scope, wr, call
   A.eq([taint.requestCarriesFiles(call(GH, { body: '{"a":1}' })), taint.requestCarriesFiles(call(GH, { body: 'x ' + FILE('a.png') })),
     taint.requestCarriesFiles(call(GH, { multipart: [] })), taint.requestCarriesFiles(call(GH, { multipart: 'not-an-array' })), taint.requestCarriesFiles(call(GH))],
   [false, true, true, false, false], 'requestCarriesFiles reads the body reference and any multipart array (web.js ignores a non-array)');
+}
+
+// ---- final review #8: on RPC-style APIs the folder says nothing, so a continuation is a body-less read ----
+{
+  const SL = 'https://slack.com';
+  const slackKey = { headers: { Authorization: 'Bearer $' + '{SLACK_BOT_TOKEN}' } };
+  const sFirst = (url, extra) => taint.scopeAfterSource(null, wr, call(url, Object.assign({}, slackKey, extra || {})), { wasTainted: false, runId: 'r1', responseOrigin: SL });
+  const sCont = (scope, url, extra) => taint.sameOriginContinuation(scope, wr, call(url, Object.assign({}, slackKey, extra || {})));
+  // Slack: POST /api/conversations.history, then chat.postMessage or conversations.invite
+  const post = sFirst(SL + '/api/conversations.history', { method: 'POST', body: '{"channel":"C1"}' });
+  A.ok(!sCont(post, SL + '/api/chat.postMessage', { method: 'POST', body: '{"channel":"C2","text":"x"}' }), '#8: Slack chat.postMessage after a POST read asks');
+  A.ok(!sCont(post, SL + '/api/conversations.invite', { method: 'POST', body: '{"users":"U9"}' }), '#8: and conversations.invite');
+  A.ok(!sCont(post, SL + '/api/conversations.history', { method: 'POST', body: '{"channel":"C1","cursor":"n"}' }), '#8: a run whose first read was a POST has no continuation at all');
+  A.eq(taint.continuationHint(post), '', '#8: and the lockout promises none');
+  // the same by GET (Slack takes GET for its methods): the folder /api/ names nothing
+  const get = sFirst(SL + '/api/conversations.history?channel=C1');
+  A.ok(!sCont(get, SL + '/api/chat.postMessage?channel=C2&text=x'), '#8: a GET to another method under /api/ asks');
+  A.ok(sCont(get, SL + '/api/conversations.history?channel=C1&cursor=n'), '#8: paging the very method it read still goes through');
+  A.eq(taint.continuationHint(get), 'Calls that still go through on this run without a confirmation: GET requests to https://slack.com/api/conversations.history (other pages of it) with the keys already sent there, no body and no attached files.', '#8: and the lockout says so');
+  // generic folders name nothing either, and a dotted method name under a named folder is not a data file
+  const v = sFirst(SL + '/api/v2/users.list');
+  A.ok(!sCont(v, SL + '/api/v2/chat.post?text=x'), '#8: /api/v2/ is a generic folder');
+  const nested = sFirst(SL + '/team/T1/api/users.list');
+  A.ok(!sCont(nested, SL + '/team/T1/api/chat.postMessage?text=x'), '#8: an RPC method name under a named folder asks');
+  // GitHub GraphQL: one POST endpoint for queries and mutations
+  const gq = first(GH + '/graphql', { method: 'POST', body: '{"query":"{ viewer { login } }"}' });
+  A.ok(!cont(gq, GH + '/graphql', { method: 'POST', body: '{"query":"mutation { addStar(input:{starrableId:1}) { clientMutationId } }"}' }), '#8: a GraphQL mutation after a query asks');
+  // a first read at the root scopes nothing but itself
+  const root = first(GH + '/search?q=x');
+  A.ok(!cont(root, GH + '/admin/export'), '#8: GET /search then GET /admin/export asks');
+  A.ok(cont(root, GH + '/search?q=x&page=2'), '#8: the next page of the same search goes through');
+  // a GET with a body (an inlined workspace read) is not a continuation
+  const s = first(GH + '/repos/victim/project/issues/5');
+  A.ok(!cont(s, GH + '/repos/victim/project/issues/6', { body: 'contents of notes/keys.txt' }), '#8: a body on a GET is never a continuation');
+  A.ok(cont(s, GH + '/repos/victim/project/issues/6', { body: '' }), 'an empty body is no body');
+  // the nested REST case keeps working, data files included
+  A.ok(taint.sameOriginContinuation(taint.scopeAfterSource(null, wr, call('https://api.printify.com/v1/shops/1/products/9.json', KEY), { wasTainted: false, runId: 'r1', responseOrigin: 'https://api.printify.com' }), wr, call('https://api.printify.com/v1/shops/1/products/10.json', KEY)), 'a data file under a named folder still goes through');
+  // a scope recorded before this change (no path) never continues: fail closed
+  A.ok(!taint.sameOriginContinuation({ origin: GH, keys: ['GITHUB_TOKEN'], method: 'GET', prefix: '/repos/victim/project/issues/' }, wr, call(GH + '/repos/victim/project/issues/6', KEY)), '#8: a scope without its path never continues');
 }
 
 // ---- the post-taint boundary: an upload asks even under Full Access; untainted use is unchanged ----
@@ -88,7 +127,7 @@ const cont = (scope, url, extra) => taint.sameOriginContinuation(scope, wr, call
   const lead = taint.lockoutLead(wr, call(GH + '/x', { method: 'POST', multipart: [{ name: 'f', file: 'a.png' }] }));
   A.ok(/^This "web_request" call attaches workspace files/.test(lead) && /fresh confirmation\.$/.test(lead), 'an upload lockout says it is the files that are refused: ' + lead);
   A.eq(taint.lockoutLead(wr, call(GH + '/x')), '"web_request" is no longer available on this run.', 'any other lockout keeps its words');
-  A.eq(taint.continuationHint(s), 'Calls that still go through on this run without a confirmation: GET requests under https://api.github.com/repos/victim/project/issues/ with the keys already sent there and no attached files.', 'the hint names method, folder, keys and files');
+  A.eq(taint.continuationHint(s), 'Calls that still go through on this run without a confirmation: GET requests under https://api.github.com/repos/victim/project/issues/ with the keys already sent there, no body and no attached files.', 'the hint names method, folder, keys and files');
   A.eq([taint.continuationHint({ broad: true }), taint.continuationHint(null)], ['', ''], 'no hint without a narrow scope');
 }
 

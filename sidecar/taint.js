@@ -275,29 +275,59 @@
     if (!scope) {
       // the first proven API read: its request was chosen before any untrusted byte reached the run
       const path = requestPath(call);
-      return path ? { origin, keys, method: requestMethod(call), prefix: pathFolder(path) } : { broad: true };
+      return path ? { origin, keys, method: requestMethod(call), prefix: pathFolder(path), path } : { broad: true };
     }
     if (scope.origin !== origin || !keys.every(k => scope.keys.indexOf(k) >= 0)) return { broad: true };
     return scope;
   }
-  // May this call skip the post-taint confirmation? Only a web_request back to the scoped origin, with the scoped method,
-  // under the scoped folder, attaching no files and spending no key the run had not already sent there. Never for an
-  // untrusted ENTRY (webhook/forward/attachment-started run).
+  /* A CONTINUATION IS A READ (final review #8, 2026-11-08). On RPC-style APIs the folder said nothing: Slack's methods all
+     live under /api/ (conversations.history, then chat.postMessage), GitHub's GraphQL is one POST /graphql for queries and
+     mutations alike, and a first read at the root (GET /search) scoped the whole origin. So a continuation is now only:
+       - a GET or HEAD with no body at all (nothing of the workspace rides inline, and nothing is POSTed, PUT or deleted);
+         a run whose first API read was a POST (GraphQL, a query endpoint) has no continuation: each call after the taint
+         asks, or is refused unattended;
+       - to the very path the first read used (paging it: only the query string differs), or under its folder when that
+         folder names something (at least two segments, one of them not a generic api/v1/rpc/graphql word) and the call's
+         last segment is not an RPC method name (users.list, chat.postMessage; a data file like products.json is fine). */
+  const CONTINUE_METHODS = ['GET', 'HEAD'];
+  const GENERIC_SEGMENT = /^(?:api|apis|rest|rpc|jsonrpc|json-rpc|xmlrpc|graphql|gql|query|services?|methods?|v\d+(?:\.\d+)*)$/i;
+  const RPC_METHOD_SEGMENT = /^[A-Za-z][A-Za-z0-9_-]*(?:\.[A-Za-z][A-Za-z0-9_-]*)+$/;
+  const DATA_EXTENSION = /\.(?:json|xml|csv|tsv|txt|html?|md|ya?ml|atom|rss|ics|pdf|png|jpe?g|gif|webp|svg)$/i;
+  function namedFolder(prefix) {
+    const segs = String(prefix || '').split('/').filter(Boolean);
+    return segs.length >= 2 && segs.some(s => !GENERIC_SEGMENT.test(s));
+  }
+  function rpcMethodName(path) {
+    const last = String(path || '').split('/').pop() || '';
+    return RPC_METHOD_SEGMENT.test(last) && !DATA_EXTENSION.test(last);
+  }
+  function continuable(scope) {
+    return !!(scope && !scope.broad && typeof scope.method === 'string' && CONTINUE_METHODS.indexOf(scope.method) >= 0
+      && typeof scope.prefix === 'string' && scope.prefix && typeof scope.path === 'string' && scope.path);
+  }
+  // May this call skip the post-taint confirmation? Only a body-less GET/HEAD web_request back to the scoped origin, with
+  // the scoped method, to the first read's path or under its named folder, spending no key the run had not already sent
+  // there. Never for an untrusted ENTRY (webhook/forward/attachment-started run).
   function sameOriginContinuation(scope, tool, call, opts) {
     opts = opts || {};
-    if (!scope || scope.broad || opts.untrustedEntry === true || !isWebRequest(tool, call)) return false;
+    if (!continuable(scope) || opts.untrustedEntry === true || !isWebRequest(tool, call)) return false;
     if (requestOrigin(call) !== scope.origin) return false;
     if (requestCarriesFiles(call)) return false;
-    if (typeof scope.method !== 'string' || requestMethod(call) !== scope.method) return false;
+    const a = (call && call.args) || {};
+    if (a.body != null && String(a.body) !== '') return false;
+    if (requestMethod(call) !== scope.method) return false;
     const path = requestPath(call);
-    if (!path || typeof scope.prefix !== 'string' || !scope.prefix || path.indexOf(scope.prefix) !== 0) return false;
+    if (!path) return false;
+    const samePath = path === scope.path;
+    if (!samePath && !(namedFolder(scope.prefix) && path.indexOf(scope.prefix) === 0 && !rpcMethodName(path))) return false;
     return requestKeys(call).every(k => scope.keys.indexOf(k) >= 0);
   }
   // What still goes through without a card, in words for the lockout, so the model can stay inside it. '' unless scoped. Pure.
   function continuationHint(scope) {
-    if (!scope || scope.broad || typeof scope.method !== 'string' || typeof scope.prefix !== 'string') return '';
-    return 'Calls that still go through on this run without a confirmation: ' + scope.method + ' requests under '
-      + scope.origin + scope.prefix + ' with the keys already sent there and no attached files.';
+    if (!continuable(scope)) return '';
+    return 'Calls that still go through on this run without a confirmation: ' + scope.method + ' requests '
+      + (namedFolder(scope.prefix) ? 'under ' + scope.origin + scope.prefix : 'to ' + scope.origin + scope.path + ' (other pages of it)')
+      + ' with the keys already sent there, no body and no attached files.';
   }
 
   return { isUntrustedSource, allowedWhenTainted, openActionsWhenTainted, lockoutLead, postTaintBoundary, relayedTaint, firstTaint, scopeAfterSource, sameOriginContinuation, continuationHint, requestCarriesFiles, CONNECTOR_CAP, UNTRUSTED_PARK_PREFIX, ATTACHMENT_TAINT, rowStoresAttachmentText };
