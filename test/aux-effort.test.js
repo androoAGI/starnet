@@ -53,11 +53,12 @@ A.eq(G.clampEffort('turbo', ['low']), null, 'an unknown ask: no override');
 A.eq(G.clampEffort('low', ['HIGH', 'Low']), null, 'only exact effort ids count');
 // pickAuxEffort is that clamp from the bottom, kept at or below low (its asserts above are unchanged)
 A.ok(/clampEffort\(AUX_EFFORT_LADDER\[0\], allowed\)/.test(fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'auxgovernor.js'), 'utf8')), 'pickAuxEffort goes through clampEffort');
-// ---- the background TOOL loops (skill review, curator): low, clamped, never above the run's effort ----
+// ---- the background TOOL loops (skill review, curator): low, clamped, never above a run effort the list holds ----
 A.eq(G.LOOP_EFFORT, 'low', 'the loop effort is low');
 A.eq(G.loopEffort(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'], 'high'), 'low', 'a high run\'s review runs low');
 A.eq(G.loopEffort(['low', 'medium', 'high', 'xhigh', 'max'], 'cli-default'), 'low', 'claude-cli (its rungs start at low): low, whatever the run got');
-A.eq(G.loopEffort(['none', 'minimal', 'low', 'medium', 'high'], 'minimal'), 'minimal', 'a /fast run\'s review stays minimal: a loop is only ever lowered');
+A.eq(G.loopEffort(['none', 'minimal', 'low', 'medium', 'high'], 'minimal'), 'minimal', 'a /fast run\'s review stays minimal: a loop never goes above a run effort the list holds');
+A.eq(G.loopEffort(['low', 'medium', 'high', 'xhigh'], 'none'), 'low', 'a run below every listed rung (Codex gpt-5.5 at none, sent as none): its loop gets the lowest listed rung, low, above that run');
 A.eq(G.loopEffort(['none', 'minimal', 'low', 'medium', 'high'], 'none'), 'none', 'a run with no thinking: its loop has none either');
 A.eq(G.loopEffort(['medium', 'high'], 'high'), 'medium', 'no low rung: the nearest above it (the lowest the model has)');
 A.eq(G.loopEffort(['medium', 'high'], 'minimal'), 'medium', 'below every rung: the model\'s lowest, never nothing');

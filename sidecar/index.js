@@ -4100,9 +4100,9 @@ function providerEfforts(provider, model) {
 }
 /* auxLoopEffort — the effort for the station's background TOOL loops (the skill review, the skill curator), `o` = the
    loop's inputs (runEffort). sent: 'low', or the configured STARNET_AUX_EFFORT, clamped to the rungs the provider lists for
-   the loop's model and never above the run's own effort (AuxGovernor.loopEffort, over the same clampEffort every background
-   effort goes through); undefined = no list: no override. ran(): the effort the loop's row records, read after the loop (a
-   mid-loop heal moved it; effortAsRun). */
+   the loop's model and never above the run's own effort when the list holds it (AuxGovernor.loopEffort, over the same
+   clampEffort every background effort goes through); undefined = no list: no override. ran(): the effort the loop's row
+   records, read after the loop (a mid-loop heal moved it; effortAsRun). */
 function auxLoopEffort(o, provider, model) {
   const configured = String(ENV('AUX_EFFORT') || '').trim();
   const sent = AuxGovernor.loopEffort(providerEfforts(provider, model), o && o.runEffort, configured ? normalizeReasoningEffort(configured) : undefined) || undefined;
@@ -4619,7 +4619,7 @@ async function rehydrateReviewJob(job) {
   return Object.assign({}, job, {
     provider, route: providerId, cost: makeCostEngine({ priceOf: provider.priceOf }),
     model: auxSkillModel(provider, cfg.model),   // the CURRENT config's model: the parked one may belong to a provider since switched away from
-    runEffort,   // the effort that provider is built with: the review loop runs at or below it (auxLoopEffort)
+    runEffort,   // the effort that provider is built with: the review loop never goes above it where the model lists it (auxLoopEffort)
     unmetered: !billing.policyOf(providerId).ledgerMetered
   });
 }
@@ -4636,7 +4636,7 @@ async function runBackgroundSkillReview(o) {
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, SKILL_REVIEW_TIMEOUT_MS);
   const reviewRunId = String(runId || 'run') + '_skill_review_' + crypto.randomUUID();
-  const effort = auxLoopEffort(o, provider, model);   // low, clamped to this model's rungs, never above the run's
+  const effort = auxLoopEffort(o, provider, model);   // low, clamped to this model's rungs, never above a run effort they hold
   let result = null, changedSkillbase = false;   // a pass that staged/edited a skill did its work, whatever stopped it
   try {
     const registry = makeRegistry();

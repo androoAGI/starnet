@@ -15,8 +15,8 @@
    --effort low, and each record or row says 'low' — never no --effort at all while the skill review got low.
 
    OPENROUTER ARM. A high-effort run's skill review is a background tool loop: it goes out at reasoning effort low (it used to
-   inherit the run's high), a /fast run's review stays at minimal (a loop is only ever lowered), the main run keeps the
-   Commander's effort, and every ledger row names the effort its request carried.
+   inherit the run's high), a /fast run's review stays at minimal (a loop never goes above a run effort the list holds), the
+   main run keeps the Commander's effort, and every ledger row names the effort its request carried.
 
    HTTP ARM. A record names what the request carried, never the dial: Codex sends minimal as low and max as xhigh, Opus 5.5 on
    the Anthropic API always thinks (minimal and none go out as low), and an OpenRouter model that takes no reasoning field is
@@ -298,7 +298,7 @@ async function openrouterArm() {
     A.ok(high.some(c => c.kind === 'skill-review') && fast.some(c => c.kind === 'skill-review'), 'fixture: each run fired its nudge-due skill review');
     A.eq(one(high.filter(c => c.kind === 'main').map(c => c.effort)), ['high'], 'the main run keeps the Commander\'s effort (high)');
     A.eq(one(high.filter(c => c.kind === 'skill-review').map(c => c.effort)), ['low'], 'the skill review of a high run goes out at low (it used to inherit high)');
-    A.eq(one(fast.filter(c => c.kind === 'skill-review').map(c => c.effort)), ['minimal'], 'the skill review of a /fast run stays at minimal: a background loop is only ever lowered');
+    A.eq(one(fast.filter(c => c.kind === 'skill-review').map(c => c.effort)), ['minimal'], 'the skill review of a /fast run stays at minimal: a background loop never goes above a run effort the list holds');
 
     const recs = ((await f.json('GET', '/api/runs?agent=*&limit=50')).body || {}).runs || [];
     A.eq((recs.find(r => r.agentId === 'or-high') || {}).reasoningEffort, 'high', 'an HTTP run record still names the effort it ran on');

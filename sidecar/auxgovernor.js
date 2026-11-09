@@ -160,9 +160,10 @@
 
   // loopEffort(allowed, runEffort, want?) -> the effort a background TOOL loop (the skill review, the skill curator) runs on:
   // `want` (LOOP_EFFORT unless the operator configured one) clamped to the rungs the provider lists for the model, and never
-  // above the run's own effort when that is a rung: a /fast run's review stays minimal. These loops are only ever lowered,
-  // never raised. They used to send no effort, so each inherited the run's (a class-high agent's review thought at high to
-  // edit a skill file). null = no list (no override: the provider default stands).
+  // above the run's own effort when the list holds that rung: a /fast run's review stays minimal. A run below every listed
+  // rung gets the lowest listed one, which can be above what that run sent: Codex gpt-5.5 lists low..xhigh, so a run at none
+  // (sent as none) has its review at low. They used to send no effort, so each inherited the run's (a class-high agent's
+  // review thought at high to edit a skill file). null = no list (no override: the provider default stands).
   const LOOP_EFFORT = 'low';
   function loopEffort(allowed, runEffort, want) {
     const pick = clampEffort(want || LOOP_EFFORT, allowed);

@@ -246,7 +246,7 @@ async function postLoop(kind, opts) {
   A.eq(okAux.skill && [okAux.skill.reason, okAux.skill.outcome], ['done', 'succeeded'], 'aux inputs / succeeded: the skill review carries the outcome beside done');
   A.eq(okAux.skill && okAux.skill.route, 'route-1', 'aux inputs: the skill review keeps its route');
   A.eq(okAux.stash && okAux.stash.route, 'route-1', 'aux inputs: and so does the verdict-review packet');
-  A.eq([okAux.skill && okAux.skill.runEffort, okAux.stash && okAux.stash.runEffort], ['high', 'high'], 'aux inputs: the skill review and the verdict-review packet carry the run\'s effort (their loop runs at or below it)');
+  A.eq([okAux.skill && okAux.skill.runEffort, okAux.stash && okAux.stash.runEffort], ['high', 'high'], 'aux inputs: the skill review and the verdict-review packet carry the run\'s effort (their loop never goes above it where the model lists it)');
 
   // runFailureReview hands Failreview.review the outcome; runBackgroundSkillReview hands the skill reviewer's prompt the outcome
   const indexFns = { failure: sidecarTopLevelFunction('runFailureReview'), skill: sidecarTopLevelFunction('runBackgroundSkillReview') };
