@@ -149,9 +149,17 @@ function makeUsageReceipts(opts) {
     return out;
   }
 
+  // A line that is not whole JSON (a crash mid-append leaves one; the next append starts a fresh line) is skipped,
+  // and the read says so once: a lost receipt is never silent.
   function parse(lines) {
     const out = [];
-    for (const l of lines) { try { const r = JSON.parse(l); if (r && r.v === 1 && isNum(r.at)) out.push(r); } catch (_) { /* a torn line is skipped */ } }
+    let torn = 0;
+    for (const l of lines) {
+      let r = null;
+      try { r = JSON.parse(l); } catch (_) { torn += 1; continue; }
+      if (r && r.v === 1 && isNum(r.at)) out.push(r);
+    }
+    if (torn) note('usage-receipts.torn', new Error(torn + ' unreadable receipt line(s) skipped'));
     return out;
   }
   function records() {

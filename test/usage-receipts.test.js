@@ -101,12 +101,13 @@ const REQ = { model: 'gpt-5.5', runId: 'run-1', messages: [{ role: 'user', conte
   A.ok(back.length >= 3 && back.length < 30, 'read back: what the two segments still hold (older rolls are gone): ' + back.length + ' of 30');
   A.ok(back.every((x, i) => i === 0 || x.at > back[i - 1].at), '...oldest first');
   A.eq(back[back.length - 1].at, fclock.t, '...ending with the newest call');
+  A.eq(notes, [], 'nothing went wrong on the way');
   fs.appendFileSync(file, '{"v":1,"at":99,"torn');
   await drain(one(), REQ);
   const afterTorn = fr.records();
   A.ok(afterTorn.every(x => x.at !== 99) && afterTorn[afterTorn.length - 1].at === fclock.t, 'a torn line is skipped and the next receipt still lands whole');
+  A.eq(notes, ['usage-receipts.torn'], '...and the read that skipped it says so (a lost receipt is never silent)');
   A.ok(!/SECRET/.test(fs.readFileSync(file, 'utf8') + (fs.existsSync(file + '.1') ? fs.readFileSync(file + '.1', 'utf8') : '')), 'the files hold counts and ids, not a word of prompt or reply');
-  A.eq(notes, [], 'nothing went wrong on the way');
 
   const blocker = path.join(dir, 'blocker');
   fs.writeFileSync(blocker, 'a file, not a directory');
