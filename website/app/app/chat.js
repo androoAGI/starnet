@@ -2157,6 +2157,14 @@ const Chat = (() => {
     return promise;
   }
 
+  // a crash cut a save short and the station set that line aside (GET setAside): said once per kept file, quietly, never saved
+  const setAsideSaid = new Set();
+  function noteSetAside(ws, loadToken, list) {
+    const fresh = (Array.isArray(list) ? list : []).filter(x => x && typeof x.id === 'string' && !setAsideSaid.has(x.id));
+    if (!fresh.length || !activeWs || activeWs.id !== ws.id || historyPinSeq !== loadToken || Channels.isBusy(ws.id)) return;
+    fresh.forEach(x => setAsideSaid.add(x.id));
+    localLine('The last unfinished message was set aside: StarNet stopped before it finished saving it.');
+  }
   async function reconcileServerHistory(ws, loadToken, read) {
     if (!ws || !ws.id) return;
     const cronSession = String(ws.id).indexOf('cron-') === 0;
@@ -2177,7 +2185,7 @@ const Chat = (() => {
     let busy = false;
     try { busy = typeof Channels !== 'undefined' && Channels.isBusy && Channels.isBusy(ws.id); } catch (_) {}
     const waits = cronSession && !busy ? [120, 400] : [];
-    let turns = [], identity = null, reachable = false, refused = false, failed = false;
+    let turns = [], identity = null, reachable = false, refused = false, failed = false, setAside = null;
     for (let attempt = 0; attempt <= waits.length; attempt++) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), windowMs);
@@ -2188,7 +2196,7 @@ const Chat = (() => {
         if (r.ok) {
           const j = (await r.json()) || {};
           if (!Array.isArray(j.turns)) break; // malformed is unknown, never an empty transcript
-          turns = j.turns; identity = j.identity;
+          turns = j.turns; identity = j.identity; setAside = j.setAside;
           reachable = true;
           if (!cronSession || turns.some(t => t && t.role === 'assistant' && String(t.content == null ? '' : t.content).trim())) break;
         }
@@ -2271,11 +2279,12 @@ const Chat = (() => {
         ? '⚠ output has not arrived yet — StarNet will retry automatically when this session opens'
         : '⚠ couldn\'t load the output yet — StarNet will retry automatically when this session opens'
     });
-    if (!readBack && JSON.stringify(next) === JSON.stringify(ws.history || [])) return reachable;   // (rows read back are not on screen yet: they repaint even when the merge adds nothing)
+    if (!readBack && JSON.stringify(next) === JSON.stringify(ws.history || [])) { if (setAside) noteSetAside(ws, loadToken, setAside); return reachable; }   // (rows read back are not on screen yet: they repaint even when the merge adds nothing)
     ws.history = next;
     read.repaint = true;
     try { if (typeof App !== 'undefined' && App.persist) App.persist(); } catch (_) {}
     paint();
+    if (setAside) noteSetAside(ws, loadToken, setAside);   // after the repaint
     return reachable;
   }
 

@@ -4,7 +4,7 @@
    per-stream summaries; each closed segment has a durable term index. Queries load indexes and
    segment bodies one at a time, so lifetime history is retained without becoming boot-time RAM.
    The active segment is append-only + fsync'd, and appendDurable() reads the appended row back as a
-   complete, newline-bounded LINE of the file before claiming success (a torn tail is isolated first).
+   complete, newline-bounded LINE of the file before claiming success (a torn tail is set aside first: setAsideTornTail).
    Legacy transcript.jsonl(.1) files are imported without deleting or rewriting the originals.
 
    COST PER ROW AND PER READ (perf review 2026-10-19, #4/#5). Every row used to open the segment three times (tail
@@ -108,6 +108,11 @@ function countTerms(text, terms, counts) {
 }
 function segmentName(n) { return 'segment-' + String(n).padStart(6, '0') + '.jsonl'; }
 function indexName(n) { return 'segment-' + String(n).padStart(6, '0') + '.index.json'; }
+// a torn last line set aside (setAsideTornTail): <segment file>.torn-<byte offset it began at>-<12 hex of its sha256>. Never a
+// segment name (parseSegmentNumber), so no listing or proof reads it as history; eachRow still reads it for the claims it names.
+function tornName(n, offset, fragment) { return segmentName(n) + '.torn-' + offset + '-' + crypto.createHash('sha256').update(fragment).digest('hex').slice(0, 12); }
+const TORN_NAME_RE = /^segment-\d{6}\.jsonl\.torn-\d+-[0-9a-f]{12}$/;
+const SET_ASIDE_KEPT = 50;   // set-aside notes one process keeps for the page (the files themselves are never removed)
 function clone(v) { return Object.assign({}, v); }
 function publicRow(v) { const out = clone(v); delete out.legacyKey; return out; }
 function indexHash(index) { return crypto.createHash('sha256').update(JSON.stringify(index)).digest('hex'); }
@@ -175,6 +180,7 @@ function makeSegmentedTranscriptIo(opts) {
   let resized = [];              // closed segments this boot found at a size their persisted meta does not record
   const staleIndexes = new Set();   // segments whose index this process built from an unreadable file
   const scans = new Map();       // n -> what a parse of segment n proved about its rowIds (noteScan)
+  const setAside = [];           // { file, segment, offset, bytes, streamId }: torn last lines this process set aside
 
   function warning(message) { try { warn(message); } catch (_) {} }
   function ensureRoot() { fs.mkdirSync(root, { recursive: true }); }
@@ -274,6 +280,104 @@ function makeSegmentedTranscriptIo(opts) {
     return scan;
   }
   function readSegmentFile(n) { return parseSegment(fs.readFileSync(segFile(n))); }
+  /* A TORN LAST LINE IS SET ASIDE, NOT KEPT AS DAMAGE (fix-torn-1108). appendRaw acknowledges a row only after reading it back as a
+     complete, newline-terminated line, so bytes after the append-active segment's last newline that do not parse were never
+     acknowledged to anyone: a crash, a force quit or a power cut stopped that append. They used to stay: every strict read of the
+     segment failed on them (the owner proof, the retract context, a complete view), the next append isolated them on a line of
+     their own (damage in the middle, for good), and the segment, once closed, was never vouched (corruptLines), so the
+     conversation's history could not be restored again.
+     Now exactly that fragment is set aside: its bytes are written whole beside the segment (tornName; fsync'd, read back, never
+     deleted), and only then is the segment cut back to its last newline (fsync'd), so the next append starts a clean line and the
+     history is vouched for every complete line. One warning names the file; the page hears of it (setAsideTails).
+     NOT RELAXED: a line that ends in a newline and does not parse (in the middle or last), a final fragment that parses as JSON
+     (a complete value, not a cut one: `{"x":1}` is damage, as before), any line of a closed segment, a segment this view cannot
+     vouch for (degraded, unvouched: reads leave it alone). Every strict read still fails on those. A fragment that cannot be set
+     aside (its copy or the cut fails) is left exactly as it was, and is damage as before.
+     CONCURRENCY: one sidecar owns the workspace (workspace-owner.js), and every call of this io is synchronous, so no append, read
+     or second repair runs between the judgment below and the cut. The cut is still made only through a handle that sees exactly
+     the bytes judged (a size or byte change leaves the segment alone), and the copy's name is a function of its bytes and offset,
+     so a repair that runs twice writes the same file once and cuts nothing the second time. */
+  function tornTailOf(buf) {
+    const boundary = buf.lastIndexOf(0x0a) + 1;
+    if (boundary >= buf.length) return null;                  // ends in a newline, or is empty
+    const fragment = buf.subarray(boundary), text = fragment.toString('utf8');
+    if (!text.trim()) return null;                             // blank: never a row, and the next append's separator ends it
+    let parses = true;
+    try { JSON.parse(text); } catch (_) { parses = false; }
+    return parses ? null : { boundary, fragment };
+  }
+  // the conversation a torn row was written for, when its first field reached the disk (the store writes streamId first)
+  function streamOfFragment(fragment) {
+    const m = /^\{"streamId":("(?:[^"\\\u0000-\u001f]|\\.){1,200}")[,}]/.exec(fragment.toString('utf8'));
+    if (!m) return '';
+    try { const sid = JSON.parse(m[1]); return typeof sid === 'string' ? sid : ''; } catch (_) { return ''; }
+  }
+  // the size and last byte of a segment (0x0a for an empty one) through a short-lived read handle: one open, no parse
+  function lastByteOf(file) {
+    const fd = fs.openSync(file, 'r');
+    try {
+      const size = fs.fstatSync(fd).size;
+      if (!size) return 0x0a;
+      const one = Buffer.alloc(1);
+      if (fs.readSync(fd, one, 0, 1, size - 1) !== 1) throw new Error('transcript tail byte unreadable');
+      return one[0];
+    } finally { fs.closeSync(fd); }
+  }
+  // n: the append-active segment. Returns { size } (the segment's length after the cut), or null: nothing torn, or a fragment
+  // that could not be set aside (left as it was). Never throws.
+  function setAsideTornTail(n, why) {
+    const file = segFile(n);
+    let buf;
+    try {
+      if (lastByteOf(file) === 0x0a) return null;             // the common case: one open and one byte, no parse
+      buf = fs.readFileSync(file);
+    } catch (e) {
+      if (!(e && e.code === 'ENOENT')) warning('segment ' + n + ': its last line could not be checked (' + ((e && e.message) || e) + ')');
+      return null;
+    }
+    const torn = tornTailOf(buf);
+    if (!torn) return null;
+    const name = tornName(n, torn.boundary, torn.fragment), keep = path.join(root, name);
+    try {
+      // 1. the bytes, whole, durable and read back, before a byte of the segment changes. A copy an interrupted repair already
+      // made is used as it is; a different file under that name is never overwritten (the fragment then stays where it is).
+      let held = null;
+      try { held = fs.readFileSync(keep); } catch (e) { if (!(e && e.code === 'ENOENT')) throw e; }
+      if (held && !held.equals(torn.fragment)) throw new Error(name + ' already holds other bytes');
+      if (!held) {
+        durableWrite({ fs, path }, keep, torn.fragment);
+        if (!fs.readFileSync(keep).equals(torn.fragment)) throw new Error('its copy did not read back whole');
+      }
+      // 2. the cut, through a handle of its own (Windows refuses truncation through the append handle), and only while that
+      // handle sees exactly the bytes judged: the newline before the fragment (when there is one) and the fragment itself
+      closeAppend();
+      tail = null;
+      const fd = fs.openSync(file, 'r+');
+      try {
+        const from = torn.boundary ? torn.boundary - 1 : 0, seen = Buffer.alloc(buf.length - from);
+        if (fs.fstatSync(fd).size !== buf.length || fs.readSync(fd, seen, 0, seen.length, from) !== seen.length || !seen.equals(buf.subarray(from))) {
+          warning('segment ' + n + ': changed while its unfinished last line was being set aside; it is left as it is now');
+          return null;
+        }
+        fs.ftruncateSync(fd, torn.boundary);
+        fs.fsyncSync(fd);
+      } finally { fs.closeSync(fd); }
+    } catch (e) {
+      warning('segment ' + n + ': an unfinished last line could not be set aside (' + ((e && e.message) || e) + '); it is left as it was');
+      return null;
+    }
+    tail = torn.boundary ? { n, size: torn.boundary, last: 0x0a } : null;
+    if (activeRows && activeRows.n === n) activeRows = null;
+    if (!setAside.some(x => x.file === name)) {
+      setAside.push({ file: name, segment: n, offset: torn.boundary, bytes: torn.fragment.length, streamId: streamOfFragment(torn.fragment) });
+      if (setAside.length > SET_ASIDE_KEPT) setAside.shift();
+    }
+    // the active summary is rebuilt from the bytes now on disk (its byte count and damaged-line count no longer hold)
+    if (activeIndex && activeIndex.segment === n) { activeIndex = buildIndex(n); upsertMeta(activeIndex); }
+    warning('segment ' + n + ': set aside an unfinished last line (' + torn.fragment.length + ' bytes a stopped append never finished; '
+      + why + ') in ' + name + '; the history ends at its last complete row');
+    return { size: torn.boundary };
+  }
   /* WHICH CLOSED PARSES STAY: the newest segments that fit the budget. A conversation reads newest-first and a
      lifetime search touches every segment, so least-recently-used would evict exactly what the next pass needs (a
      pass over one more segment than fits misses every time). Keeping the highest numbers holds what history reads
@@ -317,7 +421,9 @@ function makeSegmentedTranscriptIo(opts) {
     if (manifest && n === manifest.activeSegment) {
       const size = fs.statSync(segFile(n)).size;
       if (!strict && activeRows && activeRows.n === n && activeRows.size === size) return { seg: activeRows, fresh: false };
-      const seg = readSegmentFile(n);
+      let seg = readSegmentFile(n);
+      // a torn last line found while running (a failed append whose rollback failed too) is set aside before it is read as damage
+      if (seg.torn && !degraded && !unvouched && setAsideTornTail(n, 'found by a read')) seg = readSegmentFile(n);
       activeRows = { n, size: seg.bytes, rows: seg.rows, bad: seg.bad };
       return { seg: activeRows, fresh: true };
     }
@@ -746,6 +852,14 @@ function makeSegmentedTranscriptIo(opts) {
     try { here = fs.statSync(file, { bigint: true }); } catch (_) { return false; }   // gone: the caller reopens by path
     return held.nlink > 0n && here.ino === held.ino && here.dev === held.dev;
   }
+  // the active file's last byte at `offset` (0x0a for an empty file): remembered after our own proven append, read otherwise
+  function tailByte(fd, n, offset) {
+    if (offset <= 0) return 0x0a;
+    if (tail && tail.n === n && tail.size === offset) return tail.last;
+    const one = Buffer.alloc(1);
+    if (fs.readSync(fd, one, 0, 1, offset - 1) !== 1) throw new Error('transcript tail byte unreadable');
+    return one[0];
+  }
   function appendRaw(entry, options) {
     const settings = options || {};
     // UNSAFE MODE: no proven floor, so refuse before an id is consumed or a byte is written (a strict writer fails
@@ -762,6 +876,9 @@ function makeSegmentedTranscriptIo(opts) {
     else manifest.nextRowId = Math.max(manifest.nextRowId, num(row.rowId) + 1);
     const encoded = Buffer.from(JSON.stringify(row) + '\n', 'utf8');
     if (activeIndex.rows > 0 && activeIndex.bytes + encoded.length > segmentBytes) {
+      // a segment never closes on a torn last line (closed, it would be damage for good): set it aside first. Checked on disk at
+      // every roll (one open and one byte per segment), never from the remembered tail, which cannot see bytes it did not write.
+      setAsideTornTail(manifest.activeSegment, 'found before the segment closed');
       saveIndex(activeIndex);
       upsertMeta(activeIndex);
       closeAppend();                 // the closed segment is never written again
@@ -776,8 +893,10 @@ function makeSegmentedTranscriptIo(opts) {
     /* TORN TAIL (H2). A crash mid-append can leave the segment ending in a partial row with no newline. Appending
        straight after it glued the new row onto that fragment: one unparsable line, so readRows() dropped the NEW
        row too — after the read-back below had already "proven" it by parsing only its own byte range, and a run
-       journal had been retired on that proof. A lone '\n' first isolates the fragment on its own line (readRows
-       skips and counts it as corrupt), and the read-back now proves the row is a complete LINE of the file.
+       journal had been retired on that proof. The read-back now proves the row is a complete LINE of the file. A torn
+       fragment is first set aside (setAsideTornTail: kept beside the segment, the segment cut back to its last newline);
+       only a final fragment that is not torn, or one that could not be set aside, is isolated by a lone '\n' on its own
+       line (readRows skips it and counts it as corrupt, as before).
        The size comes from the open handle on every row; the remembered last byte is trusted only while the file is
        exactly the size our own last proven append left it at (anything else re-reads the byte). */
     let offset = 0, sep = 0;
@@ -794,15 +913,15 @@ function makeSegmentedTranscriptIo(opts) {
         fd = appendHandle(n);
       }
       offset = fs.fstatSync(fd).size;
-      if (offset > 0) {
-        let last = tail && tail.n === n && tail.size === offset ? tail.last : -1;
-        if (last < 0) {
-          const one = Buffer.alloc(1);
-          if (fs.readSync(fd, one, 0, 1, offset - 1) !== 1) throw new Error('transcript tail byte unreadable');
-          last = one[0];
-        }
-        if (last !== 0x0a) sep = 1;
+      let last = tailByte(fd, n, offset);
+      // a torn last line is set aside first (setAsideTornTail), so this row starts a clean line and the fragment never becomes
+      // a damaged line in the middle; a final fragment that is not torn (it parses) or cannot be set aside is isolated as before
+      if (last !== 0x0a && setAsideTornTail(n, 'found before an append')) {
+        fd = appendHandle(n);
+        offset = fs.fstatSync(fd).size;
+        last = tailByte(fd, n, offset);
       }
+      if (last !== 0x0a) sep = 1;
     } catch (e) { closeAppend(); tail = null; throw e; }
     const bytes = sep ? Buffer.concat([Buffer.from('\n', 'utf8'), encoded]) : encoded;
     const rowStart = offset + sep;
@@ -894,6 +1013,9 @@ function makeSegmentedTranscriptIo(opts) {
     // A valid manifest makes boot lazy: only the active tail is read. A missing/corrupt manifest is the
     // exceptional recovery path and rebuilds from every bounded segment without discarding any of them.
     manifest = valid ? reconcileManifest(loaded) : rebuildManifest(loaded);
+    // A crash mid-append leaves the append-active segment ending in a torn line: it is set aside before the segment's
+    // index is built, so the index, the next append and every strict read see only complete lines (setAsideTornTail).
+    setAsideTornTail(manifest.activeSegment, 'found at boot');
     // Never trust a persisted index for the append-active tail: it may predate rows that were fsync'd just
     // before a crash. Rebuilding this one bounded segment prevents stale term hits, byte counts, or row ranges.
     activeIndex = buildIndex(manifest.activeSegment);
@@ -1154,6 +1276,22 @@ function makeSegmentedTranscriptIo(opts) {
       for (const line of seg.bad) for (const [c, w] of written) if (!doubted.has(c) && line.includes(w)) doubted.add(c);
       for (const row of seg.rows) visit(row);
     }
+    // A torn last line set aside (setAsideTornTail) is no longer history, but a delete is never surer than before it: a claim its
+    // kept bytes may name stays doubted, as it was while the fragment sat in the segment. Read only when there are claims.
+    if (written.length) {
+      let names;
+      try { names = fs.readdirSync(root).filter(name => TORN_NAME_RE.test(name)); }
+      catch (e) { throw refuse('the transcript folder cannot be listed now: ' + ((e && (e.code || e.message)) || e)); }
+      for (const name of names) {
+        let text;
+        try { text = fs.readFileSync(path.join(root, name)).toString('utf8'); }
+        catch (e) {
+          if (e && (e.code === 'ENOENT' || e.code === 'ENOTDIR')) continue;
+          throw refuse('the set-aside line ' + name + ' cannot be read now: ' + ((e && (e.code || e.message)) || e));
+        }
+        for (const [c, w] of written) if (!doubted.has(c) && text.includes(w)) doubted.add(c);
+      }
+    }
     return { doubted: Array.from(doubted), unread };
   }
   function readById(rowId) {
@@ -1344,6 +1482,9 @@ function makeSegmentedTranscriptIo(opts) {
     readByIds,
     retractionsFor(rowIds) { return readByIds(rowIds, { retractionsOnly: true }); },
     isCollided(rowId) { return Number.isSafeInteger(rowId) && rowId > 0 && collisionRanges.some(c => rowId >= c.lo && rowId <= c.hi); },
+    // the torn last lines this process set aside (setAsideTornTail), oldest first: those a stream's own row left when one is
+    // named, else all. { file, segment, offset, bytes, streamId } copies; the files stay beside the segments.
+    setAsideTails(streamId) { return setAside.filter(x => streamId == null || x.streamId === str(streamId)).map(clone); },
     // releases the open append handle (the next append reopens it); the process exit releases it too
     close() { closeAppend(); },
     // the manifest copy, plus whether boot degraded, whether appends are refused (unsafe), and the boot audit

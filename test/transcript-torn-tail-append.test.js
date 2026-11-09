@@ -3,8 +3,9 @@
    A crash mid-append can leave the active transcript segment ending in a partial row with no newline. appendRaw used
    to write the next row straight after it: fragment + row became ONE unparsable line, readRows() dropped both — and
    the strict read-back had "proven" the row by parsing only its own byte range, so a run journal was retired on a
-   row nobody could read back. Now: a lone '\n' isolates the fragment, the read-back proves the row is a complete
-   newline-bounded LINE of the file, and a short/stalled write throws (strict callers fail) and rolls back. */
+   row nobody could read back. Now: the fragment is set aside (kept beside the segment, the segment cut back to its last
+   newline: test/transcript-torn-tail-recovery.test.js holds the rest of that contract), the read-back proves the row is a
+   complete newline-bounded LINE of the file, and a short/stalled write throws (strict callers fail) and rolls back. */
 'use strict';
 const fs = require('fs');
 const os = require('os');
@@ -25,21 +26,26 @@ function open(fsImpl, warnings) {
 function withFs(prop, impl) { return new Proxy(fs, { get(target, key) { return key === prop ? impl(target) : target[key]; } }); }
 
 try {
-  // ---- 1. torn tail → the next strict append survives a restart, the fragment is isolated on its own line ----------
+  // ---- 1. torn tail → set aside, the next strict append starts a clean line and survives a restart ------------------
   {
-    const store = makeTranscriptStore({ io: open(), clock });
+    const warned = [];
+    const store = makeTranscriptStore({ io: open(fs, warned), clock });
     store.appendStrict({ streamId: 's', agentId: 'a', role: 'user', content: 'first row' });
-    fs.appendFileSync(SEG, '{"streamId":"s","role":"assistant","content":"half of a ro');   // the crash-torn tail
+    const fragment = '{"streamId":"s","role":"assistant","content":"half of a ro';
+    fs.appendFileSync(SEG, fragment);   // the crash-torn tail
     const proven = store.appendStrict({ streamId: 's', agentId: 'a', role: 'assistant', content: 'written after the tear' });
     A.eq(proven.content, 'written after the tear', 'the strict append reports the row it proved');
     const lines = fs.readFileSync(SEG, 'utf8').split('\n');
-    A.eq(lines.length, 4, 'row, isolated fragment, new row, trailing newline');
-    A.ok(lines[1].indexOf('half of a ro') > 0 && lines[1].indexOf('written after') < 0, 'the torn fragment sits alone on its own line');
-    A.eq(JSON.parse(lines[2]).content, 'written after the tear', 'the new row is a complete line of its own');
+    A.eq(lines.length, 3, 'row, new row, trailing newline: the fragment is out of the segment, never glued to the new row');
+    A.eq(JSON.parse(lines[1]).content, 'written after the tear', 'the new row is a complete line of its own');
+    const kept = fs.readdirSync(ROOT).filter(n => /^segment-000001\.jsonl\.torn-\d+-[0-9a-f]{12}$/.test(n));
+    A.eq(kept.length, 1, 'the fragment is kept in one file beside the segment');
+    A.eq(kept.length && fs.readFileSync(path.join(ROOT, kept[0]), 'utf8'), fragment, 'byte for byte');
+    A.ok(warned.some(w => /set aside an unfinished last line/.test(w)), 'one warning says the fragment was set aside, and where');
     const warnings = [];
     const reopened = makeTranscriptStore({ io: open(fs, warnings), clock });   // restart: only disk
     A.eq(reopened.history('s').map(r => r.content), ['first row', 'written after the tear'], 'after restart the new row is readable (it was lost before the fix)');
-    A.ok(warnings.some(w => /isolated 1 corrupt line/.test(w)), 'the fragment is reported as one isolated corrupt line, not silently merged');
+    A.ok(!warnings.some(w => /corrupt line/.test(w)), 'and the restart finds no damaged line in the segment');
     // and appending again on a clean tail adds NO extra separator
     const before = fs.statSync(SEG).size;
     const again = open();

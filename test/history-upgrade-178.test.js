@@ -51,7 +51,9 @@ function writeOldStore(dir, o) {
     put('cron-nightly', 'assistant', 'routine report ' + i + ' ' + 'y'.repeat(160));
     put('other', 'user', 'another session ' + i + ' ' + 'z'.repeat(160));
     if (i === 6) { undone = talk[3]; put('talk', 'system', '', { kind: 'retract', targets: [undone.rowId], reason: 'undo' }); }
-    if (i === 9 && o && o.damage) fs.appendFileSync(io._internals.segFile(io.status().activeSegment), '{"rowId":');   // a crash mid-append; the next row isolates it
+    // a damaged line in the middle of a segment: the bytes an older build left when a crash tore an append and the next row isolated
+    // the fragment with a newline (a torn LAST line is now set aside instead: test/transcript-torn-tail-recovery.test.js)
+    if (i === 9 && o && o.damage) fs.appendFileSync(io._internals.segFile(io.status().activeSegment), '{"rowId":\n');
   }
   io.close();
   const manifestFile = path.join(dir, 'manifest.json'), manifest = JSON.parse(fs.readFileSync(manifestFile, 'utf8'));

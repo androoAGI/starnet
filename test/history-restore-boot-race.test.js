@@ -64,7 +64,7 @@ function harness(root, opts) {
   const merge = require('./helpers/turnmerge').source('mergeCanonicalHistory') + '\n' + A.fnBody(src, 'function placeSteerNotes(rows)');
   const start = src.indexOf('  const historyLoads = new WeakMap();');
   const seam = src.slice(start, src.indexOf('\n  // swap the rendered conversation', start));
-  assert.ok(merge.length > 500 && start > 0 && seam.length > 1000 && seam.length < 24000, root + ': bounded production seam');   // (24000: the seam also holds hydrateHistory, the read-back of a packed history)
+  assert.ok(merge.length > 500 && start > 0 && seam.length > 1000 && seam.length < 25000, root + ': bounded production seam');   // (25000: the seam also holds hydrateHistory, the read-back of a packed history, and the set-aside note)
   vm.runInContext(merge + '\n' + seam + '\nthis.api={loadServerHistory,ensureHistoryReady,continuityDiagnostics};', context);
   const flush = async () => { for (let i = 0; i < 25; i++) await new Promise(r => setImmediate(r)); };
   // Advance the fake clock, firing every timer that falls due (in order) and letting the page's promises settle between.

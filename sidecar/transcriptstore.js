@@ -1410,6 +1410,12 @@
       view, viewMany, pageAfter, rowsByIds, rowsByIdsBatch, findTurn, findTurns, ownerProof, retract, cacheRetractions, cacheRetractionsBatch, isForgotten: forgotten, isQuoteForgotten: quoteForgotten, forgetVerdicts, eachRow,
       all() { return keep(rows).map(r => Object.assign({}, r)); },
       count() { return rows.length; },
+      // the unfinished last lines the io set aside this process that this stream's own row left (transcript-history.js
+      // setAsideTornTail): what the page says quietly when it loads the conversation. [] for an io that never sets one aside.
+      setAside(streamId) {
+        try { return typeof io.setAsideTails === 'function' ? io.setAsideTails(normStream(streamId)) : []; }
+        catch (error) { failNote('transcript.setAside', error); return []; }
+      },
       _internals: { normStream, SID_RE }
     };
   }
