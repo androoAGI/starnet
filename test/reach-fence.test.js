@@ -44,7 +44,18 @@ const { makePathTrust } = require('../sidecar/pathtrust.js');
   A.eq(view.authority.fenced, true, 'readout: the fence is disclosed');
   A.ok(view.authority.filesystemLabel !== 'Whole local computer', 'readout never says "whole local computer" for a fenced agent: ' + view.authority.filesystemLabel);
   A.ok(/^FULL ACCESS/.test(view.authority.approvalLabel) && /TRUSTED PROJECT/.test(view.authority.approvalLabel), 'readout keeps the no-prompts label and names the reach: ' + view.authority.approvalLabel);
-  A.eq(view.toolsets.find(t => t.id === 'web').switchEffective, true, 'a fenced agent\'s TOOLSETS switches still bind');
+  // the fence narrows REACH, never tools: a fenced Full Power agent keeps every family, its switch overridden like any Full Power agent's
+  A.eq(view.toolsets.find(t => t.id === 'web').available, true, 'a fenced Full Power agent keeps every tool family (the switch is overridden)');
+  A.eq(view.toolsets.find(t => t.id === 'web').grantSource, 'Full Access', 'readout names Full Access as the tool grant');
+
+  // 3b. the run's projection: every tool family, but no physical-desktop tool (that is reach, not capability)
+  const ProjectTools = require('../sidecar/capability/project-tools.js');
+  const { CAP_REGISTRY } = require('../sidecar/capability/registry.js');
+  const fencedStation = ProjectTools.projectStation({ id: 'forge' }, { surface: 'autonomous' }, { lead: false },
+    { connectorIds: [], unrestrictedHost: false, fullPower: true, executionProfile: Profiles.resolve('trusted-project', { approvalMode: 'full' }) }).station;
+  const placedTypes = new Set(((fencedStation.rooms[fencedStation.agents.forge.room] || {}).objects || []).map(ob => ob.objectType));
+  const missing = Object.keys(CAP_REGISTRY).filter(t => t !== 'builder' && t !== 'orchestrator' && !placedTypes.has(t));
+  A.eq(missing, [], 'a fenced Full Power run is projected every capability family');
   const thisComputer = effectiveToolsets({ agentId: 'ultron', agent: { approvalMode: 'full', executionProfile: 'this-computer' }, placed: [] });
   A.eq(thisComputer.authority.filesystemLabel, 'Whole local computer', 'THIS COMPUTER + Full Access readout is unchanged');
 

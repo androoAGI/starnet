@@ -53,7 +53,8 @@ many of these — they win on any wording conflict.
     approval half and never gets the reach half, under per-agent Full Access AND the station-wide bypass:
     no cards inside its workspace and approved project folders, a path outside them asks on a watched run and
     is refused on an unattended one, the terminal keeps the workspace floor, the hardline floor stays, and
-    screen/input control needs the desktop lease. Every other reach is unchanged (Full Power = whole computer).
+    screen/input control needs the desktop lease. It keeps Full Power's whole TOOL kit (every family, switches
+    overridden): the fence narrows reach, never tools. Every other reach is unchanged (Full Power = whole computer).
     One predicate decides it everywhere: `sidecar/execution-profiles.js` `reachesWholeHost` / `fencesHost`.
     Asked for by a user running unattended "departments" who wanted no approvals but not their whole PC.
 - **Truthful telemetry is THE core law.** The app must never assert state the harness can't

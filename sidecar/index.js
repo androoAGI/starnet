@@ -16799,7 +16799,7 @@ async function toolsetsPreview(agentId, extraObjects, placement) {
   const origin = { surface: 'interactive', floorless: false, ownerTrusted: false, trigger: 'directive', isTask: true, extraObjects, unattendedGrants: [] };
   const role = { lead: true, delegatedBy: '' };
   const facts = {
-    registry, authority, connectorIds: connectors.ids(), disabledCaps: disabledCapsSet(), unrestrictedHost,
+    registry, authority, connectorIds: connectors.ids(), disabledCaps: disabledCapsSet(), unrestrictedHost, fullPower: stationBypass || agentFull,
     realDesktopAuthority: unrestrictedHost && computerControl.available(), executionProfile, widgetScope: '',
     internalBriefTools: ['brief.ask', 'brief.update', 'brief.proceed'].filter(n => registry.get(n)), deferralOff,
     keySaveOffered: false, directDomain: false, leanCrew: ENV('LEAN_CREW'), crewCount: crewCountFor(agentId), connectorDefer: CONNECTOR_DEFER,
@@ -21241,11 +21241,11 @@ async function runSlashForChannel(input, ctx) {
       : !ctx.ownerTrusted;
     const executionProfile = executionProfiles.resolve(rec.executionProfile, { approvalMode: hostPowerWithheld ? 'ask' : rec.approvalMode,
       backendId: executionEnvironment.backendIdFor(agentId), physicalDesktopLease: false });
-    const unrestrictedHost = executionProfiles.reachesWholeHost(executionProfile,
-      !hostPowerWithheld && (FULL_ACCESS || masterBypassOn() || rec.approvalMode === 'full'));
+    const fullPower = !hostPowerWithheld && (FULL_ACCESS || masterBypassOn() || rec.approvalMode === 'full');
+    const unrestrictedHost = executionProfiles.reachesWholeHost(executionProfile, fullPower);
     const floor = ProjectTools.projectStation({ id: agentId },
       { surface: 'autonomous', floorless: true, ownerTrusted: !!ctx.ownerTrusted, station: admit.stationFor(agentId) || undefined },   // a hold throws into the catch below: no placed objects, never the whole default office
-      { lead: false }, { connectorIds: connectors.ids(), unrestrictedHost, executionProfile }).station;
+      { lead: false }, { connectorIds: connectors.ids(), unrestrictedHost, fullPower, executionProfile }).station;
     const room = floor.rooms && floor.agents && floor.agents[agentId] && floor.rooms[floor.agents[agentId].room];
     placed = Array.from(new Set(placedTypesFrom((room && room.objects) || [])));
   } catch (e) { failNote('slash.channel-floor', e); placed = []; }
@@ -23941,7 +23941,7 @@ async function runOnceCore(o) {
     extraObjects: o.extraObjects, unattendedGrants, enabledToolsets: o.enabledToolsets, groupTools: Array.isArray(o.groupTools) ? o.groupTools : undefined };
   const projectionRole = { lead: !!o.lead, delegatedBy: o.delegatedBy || '' };
   const projectionFacts = {
-    registry, authority: userControlAuthority, connectorIds: connectors.ids(), disabledCaps: disabledCapsSet(), unrestrictedHost: unrestrictedHostNow(),
+    registry, authority: userControlAuthority, connectorIds: connectors.ids(), disabledCaps: disabledCapsSet(), unrestrictedHost: unrestrictedHostNow(), fullPower: fullPowerNow(),
     realDesktopAuthority, executionProfile, widgetScope, internalBriefTools, deferralOff,
     keySaveOffered: !!(isTask && keyTexts && KeyTools.hasKeyCandidate(keyTexts)), directDomain: !!hostScope,
     leanCrew: ENV('LEAN_CREW'), crewCount: crewCountFor(agentId), connectorDefer: CONNECTOR_DEFER, availability
@@ -25608,7 +25608,8 @@ async function runOnceCore(o) {
           // ROOM SCOPE facts: the TOOLSETS switches resolveTools applied and the routine's own toolset list enforceEnabledToolsets
           // applied (gear either one leaves out is no room fix), and the image route makeImageTools was built from (without one
           // a STUDIO only analyzes images)
-          disabledCaps: unrestrictedHostNow() ? new Set() : disabledCapsSet(), enabledToolsets: unrestrictedHostNow() ? null : o.enabledToolsets,
+          // the switches Full Power overrides (its capability half: a TRUSTED PROJECT run keeps it, see project-tools.js fullPowerOf)
+          disabledCaps: fullPowerNow() ? new Set() : disabledCapsSet(), enabledToolsets: fullPowerNow() ? null : o.enabledToolsets,
           mediaRoute: !!(studioRoute && studioRoute.ok),
           // ROOM SCOPE: lazy (called only when a floor object is missing); the room it names is stable per agent, so the cached prefix holds.
           // hasBay first: an agent crewing no dock on the router's plan (the bayless hero) never reads or validates the saved floor

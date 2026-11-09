@@ -8,8 +8,9 @@ function effectiveToolsets({ registry, agentId, agent, placed = [], disabled = {
   agent = agent || {};
   const source = fullAccess ? 'environment' : masterBypass ? 'station' : agent.approvalMode === 'full' ? 'agent' : null;
   const profile = profiles.resolve(agent.executionProfile, { approvalMode: agent.approvalMode, backendId });
-  // Full Power's APPROVAL half (no prompts) vs its REACH half (the whole host): a TRUSTED PROJECT agent gets only the
-  // first (execution-profiles.js reachesWholeHost), so its rows stay the profile's grants and the switches still bind.
+  // Full Power's APPROVAL + CAPABILITY halves (no prompts, every tool family, switches overridden) vs its REACH half
+  // (the whole host): a TRUSTED PROJECT agent gets the first two only (execution-profiles.js reachesWholeHost), so its
+  // rows read like any Full Power agent's while its files label stays the profile's.
   const fullPower = !!source;
   const unrestricted = profiles.reachesWholeHost(profile, fullPower);
   const onFloor = new Set(placed);
@@ -27,9 +28,9 @@ function effectiveToolsets({ registry, agentId, agent, placed = [], disabled = {
       const profileGranted = projected.has(r.object);
       const runtimeGranted = lead && r.object === 'orchestrator';
       return Object.assign({}, r, { toolCount: r.tools.length, enabled, placed: placedHere, profileGranted, runtimeGranted,
-        available: unrestricted || (enabled && (placedHere || profileGranted || runtimeGranted)),
-        grantSource: unrestricted ? 'Full Access' : profileGranted ? profile.label : placedHere ? 'station prop' : runtimeGranted ? 'lead run' : null,
-        switchEffective: !unrestricted, consentGated: !unrestricted && r.consentGated });
+        available: fullPower || (enabled && (placedHere || profileGranted || runtimeGranted)),
+        grantSource: fullPower ? 'Full Access' : profileGranted ? profile.label : placedHere ? 'station prop' : runtimeGranted ? 'lead run' : null,
+        switchEffective: !fullPower, consentGated: !fullPower && r.consentGated });
     })
   };
 }

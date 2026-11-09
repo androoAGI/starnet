@@ -26,7 +26,9 @@
    origin : host-minted facts about where this run came from — { surface, floorless, ownerTrusted, trigger, cronJobId,
             isTask, station, extraObjects, unattendedGrants, enabledToolsets, groupTools }
    role   : { lead, delegatedBy } — the lead of a Commander-started run, or a worker another agent delegated to
-   facts  : { registry, authority, connectorIds, disabledCaps, unrestrictedHost, realDesktopAuthority, executionProfile,
+   facts  : { registry, authority, connectorIds, disabledCaps, unrestrictedHost, fullPower, realDesktopAuthority, executionProfile,
+            (fullPower = Full Power's CAPABILITY half — every tool family, switches overridden — which a TRUSTED PROJECT
+             run keeps; unrestrictedHost = its REACH half, which it does not. Absent fullPower reads as unrestrictedHost.)
             dynamicTools: { connector: [def], plugin: [def] }, widgetScope, internalBriefTools, deferralOff,
             keySaveOffered, directDomain, leanCrew, crewCount, connectorDefer: { bytes, tools },
             availability: { mediaRoute, voiceRoute, spotifyConnected, ptyRuntime } } */
@@ -50,6 +52,13 @@ function directDomainWithheld(directDomain, name) {
   return !!directDomain && (/^team\./.test(name) || name === 'web_search');
 }
 
+/* THE REACH FENCE (execution-profiles.js fencesHost): a TRUSTED PROJECT run on Full Power keeps every tool family Full
+   Power projects; what it loses is host REACH (paths, the terminal floor, screen/input), which realDesktopAuthority, the
+   run authority and the path guard decide. Physical-desktop tools stay off here through realDesktopAuthority. */
+function fullPowerOf(facts) {
+  return facts.fullPower === true || facts.unrestrictedHost === true;
+}
+
 /* projectStation — the room this run resolves against: the composed office (or the bay's own room) plus every
    host-side augmentation, in runOnce's order. `sources` names, per room instanceId, the step that put that object
    there — the explanation half of "grant source"; it decides nothing. */
@@ -60,7 +69,7 @@ function projectStation(agent, origin, role, facts) {
   const surface = origin.surface === 'interactive' ? 'interactive' : 'autonomous';
   const unattendedGrants = Array.isArray(origin.unattendedGrants) ? origin.unattendedGrants : [];
   const connectorIds = Array.isArray(facts.connectorIds) ? facts.connectorIds : [];
-  const unrestricted = facts.unrestrictedHost === true;
+  const unrestricted = fullPowerOf(facts);
   const executionProfile = facts.executionProfile || { capabilityObjects: [], connectors: false };
   const sources = {};
   /* THE MOAT IS A FLOOR FACT, NOT A CONSENT FACT (2026-07-28): `floorless` says this run has no floor to read placed
@@ -118,7 +127,7 @@ function projectTools(agent, origin, role, facts) {
   const surface = origin.surface === 'interactive' ? 'interactive' : 'autonomous';
   const trigger = origin.trigger || 'directive';
   const isTask = !!origin.isTask;
-  const unrestricted = facts.unrestrictedHost === true;
+  const unrestricted = fullPowerOf(facts);
   const realDesktopAuthority = facts.realDesktopAuthority === true;
   const enabledToolsets = unrestricted ? null : origin.enabledToolsets;
   const dynamicTools = facts.dynamicTools || {};
