@@ -51,7 +51,9 @@ for (const part of ['anchor apple generic', 'identifier \\"{identifier}\\"', 'ce
   A.ok(verify.indexOf(part) > 0, 'the designated requirement has: ' + part);
 }
 A.ok(/"--verify"\.into\(\),\s*"--deep"\.into\(\),\s*"--strict"\.into\(\),/.test(verify) && /"-R"\.into\(\),\s*format!\("=\{requirement\}"\)\.into\(\),/.test(verify), 'codesign --verify --deep --strict -R =<requirement>');
-A.ok(/let requirement = designated_requirement\(&pin\.identifier, &pin\.team\)\?;[\s\S]*unpack_app_archive\(bytes, &app\)\?;[\s\S]*codesign_verify_args\(&app, &requirement\)/.test(verify), 'the pin is chosen, the archive unpacked, then codesign verifies it');
+A.ok(/let pin = choose_mac_pin\(MAC_TEAM_PIN, identity\.as_ref\(\)\)\?;[\s\S]*unpack_app_archive\(bytes, &app\)\?;\s*codesign_against\(&app, &pin\)\?;/.test(verify), 'the pin is chosen, the archive unpacked, then codesign verifies it against the pin');
+A.ok(/pub fn codesign_against\(app: &Path, pin: &MacIdentity\)[\s\S]*?let requirement = designated_requirement\(&pin\.identifier, &pin\.team\)\?;[\s\S]*?codesign_verify_args\(app, &requirement\)[\s\S]*?if !verdict\.ok \{\s*return Err/.test(verify), 'codesign_against builds the pinned requirement and refuses on any codesign failure');
+A.ok(/fn verify_macos_update\(bytes: &\[u8\]\)[\s\S]*?current_exe\(\)[\s\S]*?verify_macos_update_against\(bytes, &running\)/.test(verify), 'the installed shell pins from its own running bundle (the release gate runs the same _against path)');
 
 // ---- 4. the same unpacker as the plugin ----
 A.ok(/\ntar = "0\.4"\n/.test(toml) && /\nflate2 = "1"\n/.test(toml), 'Cargo.toml: tar 0.4 + flate2 1');

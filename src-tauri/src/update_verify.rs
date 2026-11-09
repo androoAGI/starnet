@@ -405,18 +405,32 @@ fn verify_macos_update(bytes: &[u8]) -> Result<(), String> {
         .ok()
         .and_then(|exe| bundle_of_executable(&exe))
         .ok_or_else(|| MAC_NO_TEAM.to_string())?;
+    verify_macos_update_against(bytes, &running).map(|_| ())
+}
+
+/// The whole macOS check against a given "running" bundle: its own signature names the pin, the archive is unpacked
+/// as the plugin will unpack it, and codesign must accept the unpacked bundle against the pin. The installed shell
+/// passes its own bundle; the release gate (update-verify-gate) passes the freshly signed .app of the same build.
+/// Ok(the pin that admitted it).
+pub fn verify_macos_update_against(bytes: &[u8], running: &Path) -> Result<MacIdentity, String> {
     let shown = run_bounded(
-        command(CODESIGN, codesign_display_args(&running)),
+        command(CODESIGN, codesign_display_args(running)),
         CODESIGN_SHOW_LIMIT,
     )?;
     let identity = parse_codesign_display(&shown.output);
     let pin = choose_mac_pin(MAC_TEAM_PIN, identity.as_ref())?;
-    let requirement = designated_requirement(&pin.identifier, &pin.team)?;
     let scratch = Scratch::new()?;
     let app = scratch.path().join("StarNet.app");
     unpack_app_archive(bytes, &app)?;
+    codesign_against(&app, &pin)?;
+    Ok(pin)
+}
+
+/// `codesign --verify --deep --strict -R =<requirement>` on a bundle already on disk, for `pin`.
+pub fn codesign_against(app: &Path, pin: &MacIdentity) -> Result<(), String> {
+    let requirement = designated_requirement(&pin.identifier, &pin.team)?;
     let verdict = run_bounded(
-        command(CODESIGN, codesign_verify_args(&app, &requirement)),
+        command(CODESIGN, codesign_verify_args(app, &requirement)),
         CODESIGN_VERIFY_LIMIT,
     )?;
     if !verdict.ok {
@@ -535,8 +549,9 @@ fn powershell_path() -> PathBuf {
         .join("powershell.exe")
 }
 
+/// The whole Windows check on installer bytes (the installed shell and the release gate call this same function).
 #[cfg_attr(not(windows), allow(dead_code))]
-fn verify_windows_update(bytes: &[u8]) -> Result<(), String> {
+pub fn verify_windows_update(bytes: &[u8]) -> Result<(), String> {
     let ext = windows_installer_extension(bytes).ok_or_else(|| {
         "the code signature check refused the update: the download is not a Windows installer (.exe or .msi) StarNet can check. Nothing was installed.".to_string()
     })?;
@@ -1285,6 +1300,14 @@ mod tests {
     fn each_platform_refuses_what_it_cannot_check() {
         // a test binary is not inside an .app: the macOS check has no team to pin to, and says so before anything else
         assert_eq!(verify_macos_update(b"junk"), Err(MAC_NO_TEAM.to_string()));
+        // the release gate's entry points refuse a bundle that is not there (no codesign off a Mac: refused too)
+        let missing = Path::new("/nonexistent/StarNet.app");
+        assert!(verify_macos_update_against(b"junk", missing).is_err());
+        let pin = MacIdentity {
+            identifier: "ai.skynet.harness".into(),
+            team: TEAM.into(),
+        };
+        assert!(codesign_against(missing, &pin).is_err());
         // a zip (or anything but an .exe/.msi) is refused before PowerShell is asked
         let why = verify_windows_update(b"PK\x03\x04junk").unwrap_err();
         assert!(

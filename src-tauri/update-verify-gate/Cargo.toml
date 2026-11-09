@@ -1,0 +1,17 @@
+# RELEASE GATE for GHSA-2hpj-9wm7-rvg5 #10 (release-train.yml, build job). A tiny bin that runs the shell's OWN update
+# signer check (../src/update_verify.rs, compiled in unchanged) on the artifacts the train just built and signed, so a
+# check that would refuse a real release fails the train instead of every installed copy's next update.
+# Its own package (not a [[bin]] of skynet-desktop): `tauri build` would bundle every bin of the app package. Only
+# tar + flate2, at the versions src-tauri/Cargo.lock pins (test/release-update-signer-gate.test.js), so it builds in
+# seconds into the job's existing src-tauri/target.
+[package]
+name = "update-verify-gate"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+[dependencies]
+tar = "0.4"
+flate2 = "1"
+
+[workspace]
