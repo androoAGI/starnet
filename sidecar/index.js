@@ -4451,7 +4451,7 @@ async function runStudy(o) {
     if (proposals.length && !forgetRegistry.admit(o.src || { runId })) { console.log('[study] proposals for run=' + runId + ' dropped: its session was deleted'); proposals = []; }   // the registry's gate: a pass that began before a delete stashes nothing
     if (proposals.length) {
       kept = true;   // W1.4: the window is armed by the ATTEMPT (finally below), whatever survived
-      stashStudy(agentId, runId,proposals.map(p => ({ id: p.id, dim: p.dim, kind: p.kind, text: p.text, evidence: p.evidence || '', evidenceRef: p.evidenceRef || { runId: p.sourceRunId || runId, kind: 'directive' }, source: 'study', sourceRunId: p.sourceRunId || runId })));
+      stashStudy(agentId, runId, proposals.map(p => ({ id: p.id, dim: p.dim, kind: p.kind, text: p.text, evidence: p.evidence || '', evidenceRef: p.evidenceRef || { runId: p.sourceRunId || runId, kind: 'directive' }, source: 'study', sourceRunId: p.sourceRunId || runId })));
       // NB: NO chanEmit — study needs no bus event. The browser fetches /api/study/proposals on agent.run.end
       // (a frozen event it already listens to), so the shared/events.js contract stays untouched.
     }
