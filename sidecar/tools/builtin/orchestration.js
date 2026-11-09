@@ -1596,8 +1596,12 @@
        another paid turn, as often as it took. wait:true blocks, bounded, the way shell.bg.wait does: it returns as
        soon as a listed worker's status or generation changes, when the run is cancelled, or when a note is waiting for this
        run (deps.steerPending: the loop folds it on the next turn), else at timeoutMs with the list unchanged — a timeout is
-       an answer, not an error. Read-only, and nothing caps how often it may be called. */
-    const SUBAGENT_WAIT_MAX_MS = 600000;
+       an answer, not an error. Read-only, and nothing caps how often it may be called.
+       THE CAP SITS UNDER THE PROMPT CACHE (review round 1). The next model call re-reads the whole prefix; a gap past the
+       provider's 5-minute cache tier (providers/anthropic.js CACHE TTL; the claude-cli child also closes after 5 idle
+       minutes) re-WRITES it at full price, which one long wait would spend more on than the polls it replaced. Three
+       minutes leaves room for the turn that issued the wait; a longer job is waited on again, each look a cache hit. */
+    const SUBAGENT_WAIT_MAX_MS = 180000;
     const SUBAGENT_WAIT_STEP_MS = 250;
     const steerPending = (typeof deps.steerPending === 'function') ? deps.steerPending : null;
     function napUnlessAborted(ms, signal) {
@@ -1635,7 +1639,8 @@
     function waitNote(w) {
       const after = hasClock ? ' after ' + Math.max(0, Math.round(w.ms)) + 'ms' : '';
       if (w.state === 'idle') return '[wait: none of these workers is running, so there was nothing to wait for]';
-      if (w.state === 'changed') return '[wait: a worker\'s status changed' + after + ']';
+      // 'changed' = the watched rows differ (a status, a generation, or a worker that left a status-filtered list): say no more
+      if (w.state === 'changed') return '[wait: the worker list changed' + after + ']';
       if (w.state === 'cancelled') return '[wait: stopped' + after + ' — the run was cancelled]';
       if (w.state === 'note') return '[wait: stopped' + after + ' — a note for this run is waiting to be read]';
       return '[wait: no status changed within ' + w.budget + 'ms — the workers are still running. This is not an error; wait again or check back later]';
@@ -1645,7 +1650,7 @@
     const subagentsTool = {
       name: 'team.subagents', capability: 'orchestrator', impact: 'none', scope: 'read', requiresConsent: false,
       timeoutMs: SUBAGENT_WAIT_MAX_MS + 10000,   // registry backstop above the bounded wait (a plain list returns at once)
-      description: 'List or inspect your BACKGROUND subagents (team.dispatch with background:true, and team.spawn). Pass id for one worker, or omit id to list recent workers for this lead. Returned records include the current generation, status, event tail, result, steering history, and whether they can be interrupted or resumed. Use the returned id + generation for team.steer. A normal (foreground) team.dispatch is NEVER in this list; to confirm one really ran, pass runId (from its dispatch result) and the station\'s run history answers. wait:true waits up to timeoutMs (max 10 min) for a status change instead of polling.',
+      description: 'List or inspect your BACKGROUND subagents (team.dispatch with background:true, and team.spawn). Pass id for one worker, or omit id to list recent workers for this lead. Returned records include the current generation, status, event tail, result, steering history, and whether they can be interrupted or resumed. Use the returned id + generation for team.steer. A normal (foreground) team.dispatch is NEVER in this list; to confirm one really ran, pass runId (from its dispatch result) and the station\'s run history answers. wait:true waits up to timeoutMs (max 3 min) for a status change instead of polling.',
       schema: { type: 'object', properties: { id: { type: 'string' }, agentId: { type: 'string' }, status: { type: 'string' }, runId: { type: 'string', description: 'A worker runId from a team.dispatch result: look it up in the station\'s durable run history.' }, wait: { type: 'boolean' }, timeoutMs: { type: 'number' } } },
       run: async (args, ctx) => {
         const leadId = (ctx && ctx.agentId) || 'agent';

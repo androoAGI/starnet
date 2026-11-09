@@ -440,8 +440,11 @@ const NOT_A_CHECK = 'commands the host does not count as a check';
       const tool = tools.subagentsTool;
       const props = (tool.schema && tool.schema.properties) || {};
       A.ok(props.wait && props.wait.type === 'boolean' && props.timeoutMs && props.timeoutMs.type === 'number', 'E0 the schema documents wait and timeoutMs (law 5)');
-      A.ok(/wait:true/.test(tool.description) && /timeoutMs/.test(tool.description), 'E0 the description says how to wait instead of polling');
-      A.ok(Number(tool.timeoutMs) >= 600000, 'E0 the registry backstop sits above the longest bounded wait');
+      A.ok(/wait:true/.test(tool.description) && /timeoutMs \(max 3 min\)/.test(tool.description), 'E0 the description says how to wait instead of polling, and the real cap');
+      const orchSrc = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'tools', 'builtin', 'orchestration.js'), 'utf8');
+      const cap = Number((/const SUBAGENT_WAIT_MAX_MS = (\d+);/.exec(orchSrc) || [])[1]);
+      A.ok(cap > 0 && cap <= 240000, 'E0 one wait never outlives the 5-minute prompt cache (cap ' + cap + 'ms, a minute left for the turn that asked)');
+      A.ok(Number(tool.timeoutMs) >= cap && Number(tool.timeoutMs) < 300000, 'E0 the registry backstop sits above the bounded wait (' + tool.timeoutMs + 'ms)');
 
       finishAfter.set('researcher', 300);
       const handle = JSON.parse((await tools.dispatchTool.run({ workers: [{ agentId: 'researcher', prompt: 'x' }], background: true }, { agentId: 'lead', emit: () => {} })).content)[0];
@@ -453,7 +456,7 @@ const NOT_A_CHECK = 'commands the host does not count as a check';
       const rows = JSON.parse(String(waited.content).split('\n')[0]);
       A.eq(rows[0] && rows[0].status, 'done', 'E1 wait:true returns with the worker\'s new status');
       A.ok(tookMs < 3000, 'E1 ...as soon as it changed, not at the timeout (' + tookMs + 'ms)');
-      A.ok(/changed/.test(String(waited.content)), 'E1 ...and says a worker changed: ' + String(waited.content).split('\n').slice(1).join(' '));
+      A.ok(/\[wait: the worker list changed/.test(String(waited.content)), 'E1 ...and says the list changed (a status, a generation or a filtered row: never more than it saw): ' + String(waited.content).split('\n').slice(1).join(' '));
 
       const one = await tool.run({ id: handle.id, wait: true, timeoutMs: 2000 }, { agentId: 'lead' });
       A.ok(/nothing to wait for/.test(String(one.content)) && JSON.parse(String(one.content).split('\n')[0]).status === 'done', 'E2 waiting on a worker that already finished returns at once');
