@@ -18,7 +18,7 @@ const path = require('node:path');
 const A = require('./_assert.js');
 
 const ROOT = path.resolve(__dirname, '..');
-const IDX = fs.readFileSync(path.join(ROOT, 'sidecar', 'index.js'), 'utf8');
+const IDX = require('./helpers/source.js').readSidecarIndex();
 let G = null;
 try { G = require('../sidecar/granted-context.js'); } catch (e) { A.ok(false, 'sidecar/granted-context.js loads (' + (e && e.message) + ')'); A.report('granted-context.census.test'); process.exit(); }
 
