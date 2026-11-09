@@ -71,7 +71,7 @@ function appsPage(payload) {
     const pair = (await fx.json('POST', '/api/remote/pair', { name: 'Scheduler proof phone' })).body;
     const key = await Phone.makeDeviceKey();
     const base = 'http://127.0.0.1:' + lanPort;
-    const paired = await Phone.pair({ base, pairingId: pair.pairingId, code: pair.code, name: 'Scheduler proof phone', key });
+    const paired = await Phone.pair({ base, pairingId: pair.pairingId, secret: pair.secret, name: 'Scheduler proof phone', key });
     phone = Phone.connect({ base, deviceId: paired.deviceId, stationPub: pair.stationPub, key });
 
     async function inspect(label, held) {

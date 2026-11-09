@@ -13498,10 +13498,12 @@ async function handleRemotePair(req, res) {
   const urls = remoteLanUrls();
   // what the phone needs, in one blob; carried in a URL FRAGMENT so it never reaches a server log. The relay URL
   // rides along only when it isn't the page's own origin (a self-hosted or test relay).
-  const blob = remoteCrypto.b64u(Buffer.from(JSON.stringify(Object.assign({ v: remoteCrypto.VERSION, i: p.stationId, s: p.stationPub, p: p.pairingId, c: p.code },
+  // `c` is the pairing's 128-bit SECRET, the proof's key (GHSA-2hpj #7). It used to be the 8-character code; every phone
+  // app proves with whatever `c` holds, so an older app pairs with the secret too. The code is answered below as a lookup.
+  const blob = remoteCrypto.b64u(Buffer.from(JSON.stringify(Object.assign({ v: remoteCrypto.VERSION, i: p.stationId, s: p.stationPub, p: p.pairingId, c: p.secret },
     remoteRelay ? { r: REMOTE_RELAY_URL } : { u: urls }))));
   const pairUrl = remoteRelay ? REMOTE_RELAY_URL + '/#pair=' + blob : (urls.length ? urls[0] + '/remote/app/#pair=' + blob : null);
-  respondJson(res, 200, { ok: true, pairingId: p.pairingId, code: p.code, stationId: p.stationId, stationPub: p.stationPub, fingerprint: p.fingerprint,
+  respondJson(res, 200, { ok: true, pairingId: p.pairingId, code: p.code, secret: p.secret, stationId: p.stationId, stationPub: p.stationPub, fingerprint: p.fingerprint,
     expiresAt: p.expiresAt, urls, relay: remoteRelay ? REMOTE_RELAY_URL : null, pairBlob: blob, pairUrl });
 }
 // POST /api/remote/device { deviceId, askFirst } — this phone asks before every gated step (true) or works with the desk's permissions

@@ -1300,7 +1300,7 @@
     $('setup-fp').textContent = await PhoneClient.fingerprint(p.s);
     const key = await PhoneClient.makeDeviceKey();
     const name = /iPhone/.test(navigator.userAgent) ? 'iPhone' : /iPad/.test(navigator.userAgent) ? 'iPad' : /Android/.test(navigator.userAgent) ? 'Android phone' : 'Phone';
-    const res = await PhoneClient.pairRelay({ relay, stationPub: p.s, pairingId: p.p, code: p.c, name, key });
+    const res = await PhoneClient.pairRelay({ relay, stationPub: p.s, pairingId: p.p, secret: p.c, name, key });   // c = the 128-bit link secret (GHSA-2hpj #7)
     const rec = { key, station: { stationId: res.stationId || p.i, stationPub: p.s, deviceId: res.deviceId, relayToken: res.relayToken, relay, name, fingerprint: res.fingerprint, pairedAt: Date.now() } };
     await RemoteStore.save(rec);
     return rec;
