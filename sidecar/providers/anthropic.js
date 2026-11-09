@@ -968,7 +968,10 @@
       return provider.verifyResponse(doFetch, baseUrl + '/models', { headers: headerBag(key, 'application/json'), signal: o && o.signal },
         j => (Array.isArray(j.data) ? j.data : []).map(normalizeModel).filter(Boolean), !!key, classifyApiError);
     }
-    return { stream, listModels, verifyCredential, warmCatalog, catalogHttpStatus, catalogFetchError, contextLimit, outputLimit, priceOf, supportsTools, reasoningEfforts };
+    /* PRESERVED THINKING IS THE LOOP'S TO KEEP CONSISTENT (W1.7): on these models a history edit unbinds every block at or
+       after it, so the loop's request view (history-edit.js makeRequestView) strips exactly those, once, instead of
+       replaying them into a drop cascade. Asked per model; the rescue below still covers anything this list misses. */
+    return { stream, listModels, verifyCredential, warmCatalog, catalogHttpStatus, catalogFetchError, contextLimit, outputLimit, priceOf, supportsTools, reasoningEfforts, bindsThinking };
   }
 
   return { makeAnthropicProvider, _internals: { messagesToAnthropic, toAnthropicTools, normalizeUsage, normalizeModel, cleanBaseUrl, headerBag } };

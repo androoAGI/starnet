@@ -25,6 +25,9 @@
   // fold-fidelity helpers (verbatim user section, usage anchor, provider-reported window). Node-only like failopen;
   // absent (a browser build that never runs the loop) = compaction stays off rather than folding unfaithfully.
   const fidelity = (typeof require === 'function') ? require('./compaction-fidelity.js') : null;
+  // THE ONE HISTORY-EDIT RESOLVER (W1.7): the request view that strips only the thinking an edit invalidated, and the
+  // elision stub that keeps a handle. Node-only like fidelity: absent, requests go out as before and nothing folds.
+  const HistoryEdit = (typeof require === 'function') ? require('./history-edit.js') : null;
   const SteeringMessage = (typeof require === 'function') ? require('../frontend/app/steering-message.js') : null;
   // the per-run <run_context> note's predicate (providers/provider.js owns the fence) — compaction pins that note
   const isRunContextNote = (typeof require === 'function') ? require('./providers/provider.js').isRunContextNote : null;
@@ -281,7 +284,7 @@
         const r = results[i];
         if (give >= r.content.length || r.parkedPath) continue;
         let p = null;
-        try { p = await capCtx.parkOutput(r.content, { tool: nameOf.get(r.callId) || 'tool', reason: 'turn-output-budget' }); }
+        try { p = await capCtx.parkOutput(r.content, Object.assign({ tool: nameOf.get(r.callId) || 'tool', reason: 'turn-output-budget' }, provenanceOf(r))); }
         catch (e) { failNote('loop.turnBudget.park', e); p = null; }
         if (p && p.path) results[i] = Object.assign({}, r, { parkedPath: String(p.path) });
       }
@@ -348,6 +351,20 @@
   // a HOST refusal's own reason (registry.js refusalReason) rides its tool_result, so the tool's line says why instead
   // of a bare "✗ error" (run-paths-polish P2); the host scrubs host paths out of it before it is shown (index.js loopEmit)
   const refusalOf = r => (r && r.isError && typeof r.reason === 'string' && r.reason ? { reason: r.reason } : {});
+  /* PROVENANCE RIDES THE RESULT (W1.7). A later elision may park this body (history-edit elideToolResult), and a park
+     must know what the registry knew: words quoted from another session are never written to a workspace file, and a
+     relayed taint names the file untrusted. Additive and only when present, so every other result is unchanged. */
+  const provenanceOf = r => {
+    const out = {};
+    if (r && Array.isArray(r.quotedStreams) && r.quotedStreams.length) out.quotedStreams = r.quotedStreams.slice();
+    if (r && typeof r.taintedBy === 'string' && r.taintedBy) out.taintedBy = r.taintedBy;
+    return out;
+  };
+  /* A BODY THAT IS NOT THE TOOL'S WHOLE OUTPUT (W1.7): the registry clamped it (outputChars counts more than it holds) or
+     the run-wide budget clipped it (outputBounded). The same fs.read would not return these bytes again, so a later
+     elision parks the body itself rather than naming that call. Additive and only when true. */
+  const cutOf = r => ((r && typeof r.content === 'string' && (r.outputBounded === true
+    || (typeof r.outputChars === 'number' && isFinite(r.outputChars) && r.outputChars !== r.content.length))) ? { contentCut: true } : {});
 
   /* A HIDDEN TOOL'S ERROR IS NOT NEWS FOR THE COMMANDER (rc walk 2026-10-14). The Task Brief tools draw no chip, so a model that
      narrated fixing one ("Let me fix that—sources needs to be an array:", "Let me correct that:") put a sentence in COMMS about
@@ -389,7 +406,7 @@
         return { c, r, ms: Math.max(0, (meta.clock ? meta.clock.now() : 0) - t0) };
       }));
       for (const s of settled) {
-        results.push({ callId: s.c.id, isError: !!s.r.isError, ok: !!s.r.ok, content: s.r.content, summary: s.r.summary || (s.r.isError ? 'error' : 'ok'), control: s.r.control || null, images: s.r.images || null, parkedPath: s.r.parkedPath || null, ...(s.r.outputElided > 0 ? { outputElided: s.r.outputElided } : {}), ...(s.r.quietRepair ? { quietRepair: true } : {}) });
+        results.push({ callId: s.c.id, isError: !!s.r.isError, ok: !!s.r.ok, content: s.r.content, summary: s.r.summary || (s.r.isError ? 'error' : 'ok'), control: s.r.control || null, images: s.r.images || null, parkedPath: s.r.parkedPath || null, ...(s.r.outputElided > 0 ? { outputElided: s.r.outputElided } : {}), ...(s.r.quietRepair ? { quietRepair: true } : {}), ...provenanceOf(s.r), ...cutOf(s.r) });
         if (meta.hiddenTools && meta.hiddenTools.has(s.c.name)) continue;
         emit('agent.tool_result', {
           agentId: meta.agentId, runId: meta.runId, callId: s.c.id, ok: !!s.r.ok,
@@ -432,7 +449,7 @@
       }
       r = quietHiddenError(c, r || { ok: false, isError: true, content: 'tool returned nothing', summary: 'error' }, meta);
       const t1 = meta.clock ? meta.clock.now() : 0;
-      results.push({ callId: c.id, isError: !!r.isError, ok: !!r.ok, content: r.content, summary: r.summary || (r.isError ? 'error' : 'ok'), control: r.control || null, images: r.images || null, parkedPath: r.parkedPath || null, ...(r.outputElided > 0 ? { outputElided: r.outputElided } : {}), ...(r.quietRepair ? { quietRepair: true } : {}) });
+      results.push({ callId: c.id, isError: !!r.isError, ok: !!r.ok, content: r.content, summary: r.summary || (r.isError ? 'error' : 'ok'), control: r.control || null, images: r.images || null, parkedPath: r.parkedPath || null, ...(r.outputElided > 0 ? { outputElided: r.outputElided } : {}), ...(r.quietRepair ? { quietRepair: true } : {}), ...provenanceOf(r), ...cutOf(r) });
       if (r.control && r.control.final) finalControl = r.control;
       if (r.control && r.control.stopTools) stopToolsControl = r.control;
       if (!hidden) emit('agent.tool_result', {
@@ -1245,6 +1262,16 @@
     const _tik = limits.toolImageKeep;
     const TOOL_IMAGE_KEEP = (_tik === false) ? -1 : ((typeof _tik === 'number' && _tik >= 0) ? Math.floor(_tik) : 2);
     const screenshotMeta = (typeof WeakMap === 'function') ? new WeakMap() : null;   // capture turn -> { tools, turn }
+    // tool message -> what a later elision needs to give its body a handle (history-edit elideToolResult): the file the
+    // host already parked the output to, whether the body is exactly the tool's own output, and the park provenance
+    const toolOrigin = (typeof WeakMap === 'function') ? new WeakMap() : null;
+    /* THE REQUEST VIEW (history-edit makeRequestView): on a provider that binds thinking to its prefix, the blocks an
+       edit invalidated are stripped (and stay stripped); every other provider gets `wireMessages()` untouched. */
+    const requestView = HistoryEdit ? HistoryEdit.makeRequestView() : null;
+    const bindsThinking = () => {
+      if (!provider || typeof provider.bindsThinking !== 'function') return false;
+      try { return provider.bindsThinking(model) === true; } catch (e) { failNote('loop.bindsThinking', e); return false; }
+    };
     // What the provider is sent: `messages` with stale screen captures replaced by placeholders (a view — never an edit).
     const wireMessages = () => evictStaleScreenshots(messages, TOOL_IMAGE_KEEP, m => (screenshotMeta ? screenshotMeta.get(m) : null));
     /* Per-turn aggregate tool output (see applyTurnBudget). 200k characters is ~2.5 full-size single results,
@@ -1735,21 +1762,33 @@
        model CONFABULATE what the results had said — 20 of 30 values invented. The first lines of a tool result
        are where its fact usually sits (path, status line, the matched text), so the elision keeps ELIDE_HEAD
        chars of it and the marker says exactly what was dropped. ~60 tokens per result; still a 10-50x shrink. */
-    const ELIDE_HEAD = 240;
-    const ELIDED = '[tool result elided at compaction — ';
-    const isElided = (m) => m && m.role === 'tool' && typeof m.content === 'string' && m.content.indexOf(ELIDED) === 0;
-    function elideTools(older) {
-      const names = new Map();
+    /* THE STUB KEEPS A HANDLE (W1.7). The stub is built by history-edit elideToolResult — the one builder, shared with
+       cross-run replay — and names an fs.read call that returns the elided bytes: where the host parked the output
+       before cutting it, the same fs.read call for an fs.read result, or a park of the exact body. `park` is null on
+       the dry pass that only measures (a failed trial must leave no file behind); the commit passes the host parker. A
+       body the head keeps whole is left as it is: its stub could only add bytes. */
+    async function elideTools(older, park) {
+      const callsById = new Map();
       let elided = 0;
-      const out = older.map(m => {
-        if (m && m.role === 'assistant' && Array.isArray(m.tool_calls)) for (const c of m.tool_calls) names.set(c && c.id, (c && c.function && c.function.name) || 'tool');
-        if (!m || m.role !== 'tool' || isElided(m)) return m;
-        const body = typeof m.content === 'string' ? m.content : JSON.stringify(m.content || '');
-        const name = names.get(m.tool_call_id) || 'tool';
+      const out = [];
+      for (const m of older) {
+        if (m && m.role === 'assistant' && Array.isArray(m.tool_calls)) for (const c of m.tool_calls) callsById.set(c && c.id, c);
+        if (!m || m.role !== 'tool' || HistoryEdit.isElided(m)) { out.push(m); continue; }
+        const call = callsById.get(m.tool_call_id);
+        let args = null;
+        try { args = call && call.function ? JSON.parse(call.function.arguments || '{}') : null; } catch (_) { args = null; }
+        /* no origin = a body this run did not produce (a resumed history): nothing says whether it is the tool's own output
+           or whose words it quotes, so it gets no handle at all (never a range, never a park): the old wording stands */
+        const origin = toolOrigin ? toolOrigin.get(m) : null;
+        const stub = await HistoryEdit.elideToolResult(m.content, {
+          name: (call && call.function && call.function.name) || 'tool', args,
+          exact: !!(origin && origin.exact), isError: origin ? origin.isError : true,
+          parkedPath: origin ? origin.parkedPath : null, parkMeta: origin ? origin.parkMeta : null, park: origin ? park : null
+        });
+        if (!stub) { out.push(m); continue; }
         elided++;
-        const head = body.length > ELIDE_HEAD ? body.slice(0, ELIDE_HEAD).replace(/\s+$/, '') + '…' : body;
-        return Object.assign({}, m, { content: ELIDED + name + ', ' + Buffer.byteLength(body, 'utf8') + ' bytes; first ' + Math.min(ELIDE_HEAD, body.length) + ' chars kept below; re-run the tool for the full output]' + String.fromCharCode(10) + head });
-      });
+        out.push(Object.assign({}, m, { content: stub.content }));
+      }
       return { older: out, elided };
     }
     /* An elided copy STANDS IN for its original, so it inherits the original's host-attached identity markers:
@@ -1902,7 +1941,7 @@
       const summaryNote = (text) => ({ role: 'system', content: '<conversation_summary>\n' + fidelity.joinSummary(text, userSection()) + '\n</conversation_summary>' });
       // ---- micro tier: free; measured on a copy; committed only if it clears the threshold on its own ----
       if (microCompaction && threshold > 0) {
-        const micro = elideTools(plan.older);
+        const micro = await elideTools(plan.older, null);   // the dry pass: measures only, parks nothing
         if (micro.elided > 0) {
           // the micro tier folds no user message: the previous note (its carried section included) stays as it was
           const trial = appendTodo(prefix.concat(prevNote ? [prevNote] : [], micro.older, plan.tail));
@@ -1927,10 +1966,19 @@
             if (summarize && typeof summarize.drain === 'function') {
               try { summarize.drain(plan.older); } catch (e) { failNote('loop.compaction.microDrain', e); return false; }
             }
-            carryMarkers(plan.older, micro.older);   // the drained originals' persisted marker rides onto the elided copies
-            messages.length = 0; for (const mm of trial) messages.push(mm);
+            /* THE COMMIT PASS parks what no other handle covers (the dry pass above only measured). The same results
+               are elided in the same order; a stub that names its file is a few characters longer, so the numbers
+               agent.compact reports are measured on what is actually committed. */
+            const parker = capCtx && typeof capCtx.parkOutput === 'function' ? (text, meta) => capCtx.parkOutput(text, meta) : null;
+            const done = parker ? await elideTools(plan.older, parker) : micro;
+            const swap = new Map();
+            micro.older.forEach((m, k) => { if (m !== done.older[k]) swap.set(m, done.older[k]); });
+            const committed = swap.size ? trial.map(m => swap.get(m) || m) : trial;
+            carryMarkers(plan.older, done.older);   // the drained originals' persisted marker rides onto the elided copies
+            messages.length = 0; for (const mm of committed) messages.push(mm);
             usageReading = null;
-            emit('agent.compact', { agentId, runId, beforeTokens, afterTokens, removed: Math.max(0, beforeTokens - afterTokens), reason: 'micro', elided: micro.elided });
+            const committedTokens = committed === trial ? afterTokens : context.estimateMessages(committed);
+            emit('agent.compact', { agentId, runId, beforeTokens, afterTokens: committedTokens, removed: Math.max(0, beforeTokens - committedTokens), reason: 'micro', elided: done.elided });
             return true;
           }
         }
@@ -2332,7 +2380,9 @@
         const waiting = startWaiting('first_byte', retrySent);
         retrySent = false;
         try {
-          const req = { model, messages: wireMessages(), tools, signal, stream: true };   // stale screen captures -> placeholders
+          // stale screen captures -> placeholders; then the thinking any history edit invalidated is stripped (binding models)
+          const viewed = requestView ? requestView.messages(wireMessages(), { tools, binds: bindsThinking() }).messages : wireMessages();
+          const req = { model, messages: viewed, tools, signal, stream: true };
           if (typeof o.isTask === 'boolean') req.isTask = o.isTask;
           if (o.runId) req.runId = o.runId;   // run attribution: only a profile that names a runIdHeader sends it (starnet)
           if (o.cacheSystemPrefix) req.cacheSystemPrefix = o.cacheSystemPrefix;
@@ -3014,7 +3064,9 @@
       for (const r of results) {
         // a merged duplicate has no result of its own: the kept call's result says the copies were not dispatched
         const merged = mergedDupes.get(r.callId) || 0;
-        messages.push(toolResultMsg(r.callId, r.isError, merged ? String(r.content == null ? '' : r.content) + duplicateNote(merged) : r.content));
+        const resultMsg = toolResultMsg(r.callId, r.isError, merged ? String(r.content == null ? '' : r.content) + duplicateNote(merged) : r.content);
+        if (toolOrigin) toolOrigin.set(resultMsg, { parkedPath: r.parkedPath || null, exact: !merged && !r.turnClamped && !r.contentCut, isError: !!r.isError, parkMeta: provenanceOf(r) });
+        messages.push(resultMsg);
       }
       for (const call of calls) {
         const receipt = results.find(r => r.callId === call.id);
