@@ -34,8 +34,9 @@
 
    FILE. WORKSPACES/.usage/calls.jsonl, beside subscriptions.json in the dotted .usage root (out of every agent's file
    jail), appended through logbound's durable append and rolled to calls.jsonl.1 past maxBytes (disk bounded to about
-   twice that). Never read at boot or by history: only GET /api/usage/providers reads it, on demand. A write that fails
-   is noted and the call goes on: a receipt never breaks a call.
+   twice that). Never read at boot or by history: it is read on demand, by GET /api/usage/providers and by the unattended
+   hold (W3.1: index.js unattendedRecords reads it once, at the first check, then onRecord feeds it each new receipt). A
+   write that fails is noted and the call goes on: a receipt never breaks a call.
 
    WHO STARTED IT (W3.1). `scope()` is read when a call STARTS: the host's AsyncLocalStorage around every unattended start
    ({ origin, ref, start }), so a call that start makes — its line hops, workers and reviews included — carries its origin.
