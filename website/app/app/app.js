@@ -1153,8 +1153,10 @@ const App = (() => {
   }
   // the summon card's view of that pick for the agent on the line (the model summonAgent copies), or null
   function leanTierModelFor(tier) { return (agent && !tierModelFor(tier)) ? leanTierModel(tier, agent.model, agent.provider) : null; }
-  // W3.3: where an agent's effort came from: 'class' (applyLoadout wrote the class default) or 'pin' (a hand pick). Kept only
-  // while the switch is on; off, a marker is dropped and the next push while on re-derives it (effortSourceOf)
+  // W3.3: where an agent's effort came from: 'class' (applyLoadout wrote the class default) or 'pin' (a hand pick). Written
+  // only while the switch is on. While it is off, a call here (a hand pick, a loadout) drops THIS agent's marker, so a push
+  // while on re-derives it (effortSourceOf: an effort equal to the class default reads as 'class'); a marker an earlier lean
+  // period wrote on another agent stays on it and in the save, and effortSourceOf sends none while off
   function noteEffortSource(a, source) {
     if (!a) return;
     if (source && a.reasoningEffort && crewDefaultsOn()) a.effortSource = source;

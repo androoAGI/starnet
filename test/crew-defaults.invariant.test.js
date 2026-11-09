@@ -154,13 +154,12 @@ function appSection(o) {
   const ma = msrc.indexOf('  function modelHelpHTML(s) {'), mb = msrc.indexOf('  // ONE section-header component', ma);
   if (ma < 0 || mb <= ma) A.ok(false, 'C: the summon card helpers moved in marketplace.js');
   else {
-    const card = (lean, tierPin) => vm.compileFunction(msrc.slice(ma, mb) + "\nreturn { help: modelHelpHTML, label: typeof inheritLabelOf === 'function' ? inheritLabelOf : null, summary: summonModelSummary };",
+    const card = (lean, tierPin) => vm.compileFunction(msrc.slice(ma, mb) + "\nreturn { help: modelHelpHTML, label: typeof inheritLabelOf === 'function' ? inheritLabelOf : null };",
       ['App', 'pickedSummonModel', 'esc', 'clearanceLabel'])({ tierModelFor: () => tierPin || null, leanTierModelFor: () => lean }, null, s => String(s), m => String(m).toUpperCase());
     const on = card('claude-sonnet-5-5', null), off = card(null, null);
     A.eq(on.label ? [on.label(balanced), off.label(balanced)] : null, ['Use the balanced tier model (claude sonnet 5 5)', 'Copy the model of the agent on the line'],
       'C: the card\'s model picker says what an untouched pick gives the recruit');
     A.ok(/uses <b>claude sonnet 5 5<\/b>, the <b>balanced<\/b> tier model in the family of the agent on the line\./.test(on.help(balanced)), 'C: and its helper line names the tier model: ' + on.help(balanced));
-    A.eq([on.summary(balanced), off.summary(balanced)], ['claude sonnet 5 5 (tier model)', 'Copies the agent on the line'], 'C: and the choice summary');
     A.ok(/Copies the model of the agent on the line now/.test(off.help(balanced)), 'C: off: the helper line is the one from before');
   }
 }

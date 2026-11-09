@@ -839,7 +839,7 @@ const Marketplace = (() => {
 
   function summonModelSummary(s) {
     const pin = pickedSummonModel;
-    const tierPin = tierModelOf(s) || leanModelOf(s);
+    const tierPin = tierModelOf(s);
     return (pin && pin.model ? shortModel(pin.model) : tierPin ? shortModel(tierPin) + ' (tier model)' : 'Copies the agent on the line') +
       (pin && pin.effort ? ' · ' + pin.effort : '');
   }
@@ -2291,7 +2291,6 @@ const Marketplace = (() => {
         if (!leanModelOf(s)) return;
         const inherit = modelWrap.querySelector('.mp-model option[value=""]'); if (inherit) inherit.textContent = inheritLabelOf(s);
         const help = sc.querySelector('#mkt-model-help'); if (help) help.innerHTML = modelHelpHTML(s);
-        const choice = sc.querySelector('.mkt-model-choice'); if (choice) choice.textContent = summonModelSummary(s);
       }).catch(() => {});
       ModelPicker.onChange(modelWrap, (sel) => {
         // EFFORT is an independent axis (audit item 5): a chosen effort must survive even when the MODEL is left
