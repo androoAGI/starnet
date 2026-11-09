@@ -355,10 +355,11 @@
     o = o || {};
     const ledger = o.ledger, kind = str(o.kind).trim() || 'aux', route = str(o.provider).trim();
     const rowClass = typeof o.rowClass === 'function' ? o.rowClass : null;
-    // effortOf(provider, req) -> the effort a streamed call ran on (the host's one answer, read after the call); the row names it
+    // effortOf(provider, req) -> the effort a streamed call ran on (the host's one answer, read after the call). The row names
+    // ONE effort only when every streamed call ran on it: a call on another, or on none the host can name, leaves it out
     const effortOf = typeof o.effortOf === 'function' ? o.effortOf : null;
     const generationReceipt = makeGenerationReceipt();
-    let calls = 0, missing = 0, unpriced = false, subscription = false, usd = 0, tokens = 0, cachedTokens = 0, effort = '';
+    let calls = 0, missing = 0, unpriced = false, subscription = false, usd = 0, tokens = 0, cachedTokens = 0, effort = null;   // null: no call named one yet
     function add(usage, cost, model, noteGeneration) {
       (noteGeneration || generationReceipt.begin())(usage && usage.generation_id);
       calls++;
@@ -385,7 +386,11 @@
           }
         } finally {
           add(usage, cost, req && req.model, noteGeneration);
-          if (effortOf) { try { effort = str(effortOf(provider, req) || '') || effort; } catch (_) { effort = ''; } }   // unreadable = unnamed, never a guess
+          if (effortOf) {
+            let ran = '';
+            try { ran = str(effortOf(provider, req) || ''); } catch (_) { ran = ''; }   // unreadable = unnamed, never a guess
+            effort = (effort === null || effort === ran) ? ran : '';   // two calls on different efforts: the row names neither
+          }
         }
         return out;
       },
@@ -397,9 +402,9 @@
         if (!knownClass(billingClass)) billingClass = null;
         const unmetered = billingClass ? !BillingClass.POLICY[billingClass].ledgerMetered : !!row.unmetered;
         const entry = ledger.record({ runId: row.runId, agentId: row.agentId, turns: num(row.turns), usd, tokens, cachedTokens, model: row.model, ...(billingClass ? { billingClass } : {}), unmetered,
-          unpriced: !unmetered && unpriced, usageMissing: !unmetered && missing > 0, subscription, provider: route, aux: kind, reasoningEffort: effort, ...generationReceipt.fields() });
+          unpriced: !unmetered && unpriced, usageMissing: !unmetered && missing > 0, subscription, provider: route, aux: kind, reasoningEffort: effort || '', ...generationReceipt.fields() });
         generationReceipt.reset();
-        calls = 0; missing = 0; unpriced = false; subscription = false; usd = 0; tokens = 0; cachedTokens = 0; effort = '';   // booked once: a second book() adds no copy
+        calls = 0; missing = 0; unpriced = false; subscription = false; usd = 0; tokens = 0; cachedTokens = 0; effort = null;   // booked once: a second book() adds no copy
         return entry;
       },
       calls() { return calls; },
