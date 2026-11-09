@@ -419,6 +419,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         document.body.style.setProperty(tok, c.length > 3 ? 'rgba(' + rgb.join(', ') + ', ' + c[3] + ')' : rgbHex(rgb));
       }
     }
+    // VECTOR reads the same knob (Andrew 11-08: "should also be settings to make it darker"): its chrome, glass and LCDs are
+    // drawn in vector.css rather than from the three ground tokens, so the darkening amount rides one var. 0 = untouched.
+    document.body.style.setProperty('--vx-dim', dim.toFixed(3));
     // WHERE THE STATION IS. One saved value spans two layers that work opposite ways: a SKY is
     // screen-space and must not zoom, a GROUND is world-space and must. Both modules resolve the
     // id themselves — Terrain turns OFF for anything that is not a known ground, SpaceBG falls

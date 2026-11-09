@@ -148,11 +148,10 @@ A.ok(/\.fam-tabs > \.fam-tab\.on, \.q-view-tabs > button\[aria-selected="true"\]
   'window tab rows light the chosen tab from the app’s own state (.on / aria-selected / aria-pressed)');
 A.ok(/#chat-inputrow \.chat-editline \{[^}]*var\(--vx-well\)/.test(css), 'the COMMS composer text sits in a recessed well inside a chrome deck');
 // ---- the playlist (Andrew 2026-11-08: "the session list should almost be like what the music playlist is here"): one dark LCD
-// screen, numbered tracks, a lit band on the chosen one. The band is NOT inverse video, so every state mark keeps its true
-// colour on it; the track numbers are display-only (hidden from assistive tech) ----
-A.ok(/#left :is\(#workstreams, #projects\) \{[^}]*background: var\(--vx-lcd\)[^}]*counter-reset: vxtrack/.test(css), 'the session list is one LCD screen that numbers its tracks');
-A.ok(/content: counter\(vxtrack, decimal-leading-zero\) "\." \/ "";/.test(css), 'track numbers are display-only (empty alt text: a reader never hears them)');
-A.ok(/:not\(\.rows-inbox\) #screen-game #left :is\(#workstreams, #projects\) > \.ws-row::before/.test(css), 'numbering stays out of the inbox row grid (it would claim a grid cell)');
+// screen, a lit band on the chosen track. The band is NOT inverse video, so every state mark keeps its true colour on it. No
+// track numbers (Andrew 2026-11-08: "get rid of the 01 02 03 in the sessions") ----
+A.ok(/#left :is\(#workstreams, #projects\) \{[^}]*background: var\(--vx-lcd\)/.test(css), 'the session list is one LCD screen');
+A.ok(!/counter\(vxtrack/.test(css) && !/counter-reset: vxtrack/.test(css), 'the sessions carry no track numbers (Andrew removed them)');
 for (const [st, col] of [['unseen', 'var(--gold)'], ['working', 'var(--ph-bright)'], ['failed', 'var(--bad)']])
   A.ok(css.split('\n').some(l => l.includes('.ws-row.ws-row.sel:not(.attn) .ws-dot.' + st) && (l.includes('{ background: ' + col) || css.includes('.ws-dot.' + st + ',\n'))),
     'the chosen track keeps its ' + st + ' dot colour on the band');
@@ -165,4 +164,18 @@ A.ok(/#topbar::before \{[^}]*top: calc\(50% - 22px\)[^}]*width: 202px/.test(css)
 A.ok(/#bottombar \.bb-group > \.bb-grp::before \{[^}]*border-radius: 50%/.test(css), 'each dock LED sits in a dark lamp pocket');
 A.ok(!/border-radius: 999px \d+px \d+px 999px/.test(css) && !/border-radius: \d+px 999px 999px \d+px/.test(css),
   'end keys use real pill radii (999px corners get scaled down with their neighbours and square the inner corners)');
+// ---- title plates, knobs, clamps, the dark knob (Andrew 2026-11-08: "get rid of NEW in the crew section", "the search and
+// collapse button to be updated", "the right side agent profile picture needs more space", "more detail between the panels",
+// "settings to make it darker", "improve the crew and comms on the top") ----
+A.ok(/#left \.ws-head #ws-new \{ display: none !important; \}/.test(css) && !/#ws-addproject(?!\[hidden\])[^{]*\{[^}]*display: none/.test(css),
+  'the rail drops + NEW but PROJECTS keeps its + ADD');
+A.ok(/#left, #chat-panel\) > h3 \{[^}]*display: flex[^}]*#eef2f6/.test(css), 'the CREW and COMMS heads are chrome title plates');
+A.ok(/#left > h3 #crew-sum,\n[^{]*\.comms-session \{[^}]*background: var\(--vx-lcd\)/.test(css), 'the live head readouts sit in LCD pills');
+A.ok(/#left > h3 \.crew-hide \{[^}]*border-radius: 50%/.test(css), 'find and fold are round chrome knobs');
+A.ok(/#left > h3 #crew-search-toggle\[aria-expanded="true"\] \{[^}]*var\(--ph\)/.test(css), 'an open finder is the lit knob (its aria-expanded state stays visible)');
+A.ok(/#chat-panel \.comms-portrait \{[^}]*width: 56px/.test(css), 'the COMMS portrait has a bigger bezel');
+A.ok(/:is\(\.crew-resizer, \.col-resizer\)::before \{[^}]*pointer-events: none/.test(css), 'the gutters carry clamp brackets that never catch the drag');
+A.ok(/calc\(var\(--vx-dim, 0\)/.test(css), 'the device darkens with the BRIGHTNESS knob (--vx-dim)');
+A.ok(/setProperty\('--vx-dim', dim\.toFixed\(3\)\)/.test(fsx.readFileSync(pathx.join(__dirname, '..', 'frontend', 'app', 'stationui.js'), 'utf8')),
+  'stationui writes --vx-dim from SETTINGS › BRIGHTNESS');
 A.report('vector-identity');

@@ -1489,8 +1489,8 @@ html body.vx:not(.hud-mode) .term:not(.pw) :is(.kb-add > .bb, .empty-state > .es
 }
 html body.vx:not(.hud-mode) .term:not(.pw) :is(.kb-add > .bb, .empty-state > .es-cta):is(:hover, :focus-visible) { background: var(--vx-cap-hot); }
 
-/* ============ 19 · PLAYLIST + SEATED MARK + DRONE KEYS — the session list is the skins' playlist screen (one dark LCD, numbered
-   tracks, a lit band on the chosen row, time column on the right); the brand well is centred on the bar's axis and wraps the
+/* ============ 19 · PLAYLIST + SEATED MARK + DRONE KEYS — the session list is the skins' playlist screen (one dark LCD,
+   a lit band on the chosen row, time column on the right); the brand well is centred on the bar's axis and wraps the
    whole mark; the dock keys are silver moulded keys parted by black channels (the drone's keypad) ============ */
 
 /* the brand well: centred on the bar's axis (the + key and the pipe share it) and wide enough to hold the whole mark */
@@ -1580,7 +1580,6 @@ html body.vx:not(.hud-mode) #screen-game #left :is(#workstreams, #projects) {
   margin: 4px 15px 15px; padding: 6px 0;
   border-radius: 12px; corner-shape: round;
   background: var(--vx-lcd); box-shadow: var(--vx-lcd-shadow);
-  counter-reset: vxtrack;
 }
 /* a track: a line of type on the screen, never a plate */
 html body.vx:not(.hud-mode) #screen-game #left :is(#workstreams, #projects) > .ws-row.ws-row.ws-row:not(.attn) {
@@ -1588,15 +1587,8 @@ html body.vx:not(.hud-mode) #screen-game #left :is(#workstreams, #projects) > .w
   border-radius: 0 !important; margin: 0 !important;
 }
 html body.vx:not(.hud-mode) #screen-game #left :is(#workstreams, #projects) > .ws-row {
-  counter-increment: vxtrack;
   min-height: 30px; padding: 2px 12px 2px 10px; gap: 8px;
 }
-html body.vx:not(.hud-mode):not(.rows-inbox) #screen-game #left :is(#workstreams, #projects) > .ws-row::before {
-  content: counter(vxtrack, decimal-leading-zero) "." / "";
-  flex: none; min-width: 2.2ch; order: -2;
-  color: rgba(var(--ph-rgb), .55); text-shadow: none;
-}
-html body.vx:not(.hud-mode):not(.rows-inbox) #screen-game #left :is(#workstreams, #projects) > .ws-row > .ws-dot { order: -1; }
 html body.vx:not(.hud-mode) #screen-game #left :is(#workstreams, #projects) > .ws-row .ws-title {
   color: color-mix(in srgb, var(--vx-core) 80%, #fff); text-shadow: 0 0 6px rgba(var(--ph-rgb), .45);
 }
@@ -1616,8 +1608,7 @@ html body.vx:not(.hud-mode) #screen-game #left #projects > .ws-row.ws-row.proj-r
     linear-gradient(90deg, rgba(var(--ph-rgb), .62), rgba(var(--ph-rgb), .34)) !important;
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .35), inset 0 -1px 0 rgba(0, 0, 0, .45) !important;
 }
-html body.vx:not(.hud-mode) #screen-game #left #workstreams > .ws-row.sel:not(.attn) *:not(.ws-dot),
-html body.vx:not(.hud-mode) #screen-game #left #workstreams > .ws-row.sel:not(.attn)::before { color: #fff !important; text-shadow: 0 0 6px rgba(var(--ph-rgb), .9) !important; }
+html body.vx:not(.hud-mode) #screen-game #left #workstreams > .ws-row.sel:not(.attn) *:not(.ws-dot) { color: #fff !important; text-shadow: 0 0 6px rgba(var(--ph-rgb), .9) !important; }
 html body.vx:not(.hud-mode) #screen-game #left #workstreams > .ws-row.sel:not(.attn) .ws-dot { box-shadow: 0 0 0 1px rgba(0, 0, 0, .7); }
 /* the selection band is not inverse video: the chosen track's LED keeps its own state colour (the old inverse rule blacked it) */
 html body.vx:not(.hud-mode) #screen-game #left #workstreams > .ws-row.ws-row.sel:not(.attn) .ws-dot { background: var(--ph-dim); }
@@ -1663,3 +1654,129 @@ html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group > .bb-grp::before 
   box-shadow: inset 0 1px 2px #000, 0 1px 0 rgba(255, 255, 255, .65), 0 -1px 0 rgba(0, 0, 0, .35);
 }
 html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group[data-group="system"] > .bb-grp::before { right: 10px; }
+
+/* ============ 20 · TITLE PLATES, KNOBS, CLAMPS + THE DARK KNOB — the CREW and COMMS heads are chrome title plates (the name
+   engraved into the metal, its live readout in a small LCD pill, a lit lamp at the lead); the head keys are round chrome knobs;
+   the gutters between the housings carry clamped conduits; the BRIGHTNESS setting (--vx-dim, written by stationui) darkens the
+   whole device. The rail's + NEW key is gone (Andrew 11-08: "get rid of NEW in the crew section"; /new in COMMS still starts one) ============ */
+
+/* ---- the title plate: liquid chrome inset in the glass, the outer corner following the housing ---- */
+html body.vx:not(.hud-mode) #screen-game :is(#left, #chat-panel) > h3 {
+  display: flex; align-items: center; gap: 12px; flex-wrap: nowrap;
+  min-height: 0; height: 50px; margin: 10px 14px 4px 12px; padding: 0 10px 0 36px;
+  font-size: 21px; color: #05080a; letter-spacing: 5px; text-shadow: 0 1px 0 rgba(255, 255, 255, .6), 0 -1px 0 rgba(0, 0, 0, .25);
+  background:
+    radial-gradient(ellipse 60% 70% at 30% -10%, rgba(255, 255, 255, .55), transparent 70%),
+    linear-gradient(180deg, rgba(255, 255, 255, .9) 0, rgba(255, 255, 255, 0) 3px),
+    var(--vx-grain-tube),
+    linear-gradient(180deg, #eef2f6 0, #c3cad2 22%, #8d96a1 48%, #6b747f 62%, #9aa3ae 84%, #c9d0d8 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, .3), inset 0 -2px 3px rgba(0, 0, 0, .35), 0 0 0 1px #050608, 0 3px 6px rgba(0, 0, 0, .7);
+}
+html body.vx:not(.hud-mode) #screen-game #left > h3 { border-radius: 18px 9px 9px 9px; }
+html body.vx:not(.hud-mode) #screen-game #chat-panel > h3 { border-radius: 9px 18px 9px 9px; margin: 10px 12px 4px 14px; }
+/* the lead lamp: a lit hue lamp in a dark pocket (the dock LEDs' language) */
+html body.vx:not(.hud-mode) #screen-game :is(#left, #chat-panel) > h3::before {
+  left: 13px; top: 50%; width: 9px; height: 9px; margin-top: -4.5px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #fff, var(--vx-core) 40%, color-mix(in srgb, var(--ph) 60%, #000) 100%);
+  box-shadow: 0 0 0 2px #05070a, 0 1px 0 2px rgba(255, 255, 255, .6), 0 0 8px rgba(var(--ph-rgb), .9);
+}
+/* the live readouts sit in small LCD pills cut into the plate */
+html body.vx:not(.hud-mode) #screen-game #left > h3 #crew-sum,
+html body.vx:not(.hud-mode) #screen-game #chat-panel > h3 .comms-session {
+  order: 2; flex: 0 1 auto; width: auto; min-width: 0; display: inline-flex; align-items: center; gap: 8px; margin: 0; padding: 3px 12px; border: 0; border-radius: 999px;
+  font-size: 15px; letter-spacing: 1.5px; white-space: nowrap;
+  color: color-mix(in srgb, var(--vx-core) 85%, #fff); text-shadow: 0 0 6px rgba(var(--ph-rgb), .7);
+  background: var(--vx-lcd); box-shadow: var(--vx-lcd-shadow);
+}
+html body.vx:not(.hud-mode) #screen-game #left > h3 #crew-sum span { color: inherit; text-shadow: inherit; }
+html body.vx:not(.hud-mode) #screen-game #left > h3 #crew-sum .pos { color: color-mix(in srgb, var(--vx-core) 70%, #fff); }
+html body.vx:not(.hud-mode) #screen-game #left > h3 #crew-sum .dim { opacity: .7; }
+html body.vx:not(.hud-mode) #screen-game #left > h3 #crew-sum:empty { display: none; }
+html body.vx:not(.hud-mode) #screen-game #chat-panel > h3 #comms-title { display: inline-flex; align-items: center; gap: 12px; color: inherit; }
+html body.vx:not(.hud-mode) #screen-game #chat-panel > h3 .comms-session { letter-spacing: 1px; }
+html body.vx:not(.hud-mode) #screen-game :is(#left > h3 .crew-h3-right, #chat-panel > h3 .h3-right) { order: 3; margin-left: auto; }
+
+/* ---- the head keys: round chrome knobs (find, fold) — the open finder is the pressed, lit knob ---- */
+html body.vx:not(.hud-mode) #screen-game #left > h3 .crew-h3-right { gap: 8px; }
+html body.vx:not(.hud-mode) #screen-game #left > h3 .crew-hide {
+  width: 30px; height: 30px; padding: 0; border: 0; border-radius: 50%; corner-shape: round;
+  display: inline-grid; place-items: center; font-size: 18px; line-height: 1;
+  background: radial-gradient(circle at 38% 28%, #fff 0, #c9d0d8 22%, #7c8692 58%, #3a414a 84%, #8d96a1 100%);
+  color: #0b1014; text-shadow: 0 1px 0 rgba(255, 255, 255, .55);
+  box-shadow: 0 0 0 1px #050608, 0 0 0 3px #2a3037, 0 1px 0 3px rgba(255, 255, 255, .55), 0 2px 4px 3px rgba(0, 0, 0, .45);
+}
+html body.vx:not(.hud-mode) #screen-game #left > h3 .crew-hide:is(:hover, :focus-visible) {
+  background: radial-gradient(circle at 38% 28%, #fff 0, color-mix(in srgb, var(--vx-core) 45%, #c9d0d8) 26%, color-mix(in srgb, var(--ph) 45%, #59626d) 62%, #3a414a 86%, #8d96a1 100%);
+  border: 0; color: #020604;
+}
+html body.vx:not(.hud-mode) #screen-game #left > h3 #crew-search-toggle[aria-expanded="true"] {
+  background: radial-gradient(circle at 38% 30%, #fff 0, color-mix(in srgb, var(--vx-core) 70%, #fff) 25%, var(--ph) 60%, color-mix(in srgb, var(--ph) 55%, #000) 100%);
+  border: 0; color: #020604; text-shadow: none;
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, .45), 0 0 0 1px #050608, 0 0 0 3px #2a3037, 0 0 12px 3px rgba(var(--ph-rgb), .55);
+}
+
+/* ---- + NEW leaves the CREW key bar; the PROJECTS view keeps its + ADD. With no key, the seat goes too ---- */
+html body.vx:not(.hud-mode) #screen-game #left .ws-head #ws-new { display: none !important; }
+html body.vx:not(.hud-mode) #screen-game #left .ws-head .ws-head-acts:has(> #ws-addproject[hidden]) { display: none; }
+
+/* ---- the COMMS portrait gets room: a bigger lensed bezel, clear of the housing edge ---- */
+html body.vx:not(.hud-mode) #screen-game #chat-panel #comms-idbar { padding: 10px 14px 10px 18px; min-height: 84px; gap: 14px; }
+html body.vx:not(.hud-mode) #screen-game #chat-panel .comms-portrait {
+  width: 56px; height: 64px; flex: none; display: grid; place-items: end center; padding: 0 0 4px;
+  border: 0; border-radius: 14px; background: var(--vx-lcd);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, .95), inset 0 0 18px rgba(var(--ph-rgb), .22),
+    0 0 0 2px #07090c, 0 0 0 4px #8d96a1, 0 1px 0 4px #eef2f6, 0 0 0 5px #20252b, 0 3px 6px 5px rgba(0, 0, 0, .45);
+}
+html body.vx:not(.hud-mode) #screen-game #chat-panel .comms-portrait > img { width: auto; height: 54px; max-width: 48px; object-fit: contain; }
+html body.vx:not(.hud-mode) #screen-game #chat-panel .comms-identity { gap: 4px; }
+
+/* ---- the gutters: a chrome conduit clamped at the head, the waist and the foot, bolted through ---- */
+html body.vx:not(.hud-mode) #screen-game :is(.crew-resizer, .col-resizer) {
+  background:
+    radial-gradient(circle, #f4f7fa 0 1px, #59626d 1.6px, #0b0d10 2.4px, transparent 2.8px) center 9% / 6px 6px no-repeat,
+    radial-gradient(circle, #f4f7fa 0 1px, #59626d 1.6px, #0b0d10 2.4px, transparent 2.8px) center 91% / 6px 6px no-repeat,
+    linear-gradient(90deg, #07090b, #9aa3ae 22%, #eef2f6 42%, #7c8692 64%, #2a3037 86%, #07090b) center 9% / 100% 28px no-repeat,
+    linear-gradient(90deg, #07090b, #9aa3ae 22%, #eef2f6 42%, #7c8692 64%, #2a3037 86%, #07090b) center 91% / 100% 28px no-repeat,
+    linear-gradient(90deg, #07090b, #9aa3ae 22%, #eef2f6 42%, #7c8692 64%, #2a3037 86%, #07090b) center 50% / 100% 70px no-repeat,
+    linear-gradient(90deg, transparent 2px, rgba(255, 255, 255, .5) 3px, transparent 4.5px) center / 9px 100% no-repeat,
+    linear-gradient(90deg, rgba(var(--ph-rgb), 0) 0, rgba(var(--ph-rgb), .55) 30%, color-mix(in srgb, var(--vx-core) 55%, #fff) 50%, rgba(var(--ph-rgb), .55) 70%, rgba(var(--ph-rgb), 0)) center / 5px 100% no-repeat,
+    linear-gradient(90deg, #050608, #2a3038 18%, #0b0e11 50%, #2a3038 82%, #050608) center / 9px 100% no-repeat;
+}
+
+/* ---- THE DARK KNOB: SETTINGS › BRIGHTNESS below 0 takes the device down (stationui writes --vx-dim 0….85) ---- */
+html body.vx:not(.hud-mode) #screen-game :is(#left, #chat-panel)::before {
+  background:
+    var(--vx-glass-sweep),
+    linear-gradient(rgba(0, 0, 0, calc(var(--vx-dim, 0) * .6)), rgba(0, 0, 0, calc(var(--vx-dim, 0) * .6))),
+    radial-gradient(ellipse 110% 18% at 50% 100%, rgba(var(--ph-rgb), .12), transparent 72%),
+    radial-gradient(ellipse 125% 95% at 50% 45%, transparent 56%, rgba(0, 0, 0, .5) 100%),
+    var(--vx-grain-tube),
+    linear-gradient(180deg, color-mix(in srgb, var(--ph) 9%, #10151a) 0%, color-mix(in srgb, var(--ph) 5%, #080b0e) 40%, color-mix(in srgb, var(--ph) 4%, #06080b) 75%, color-mix(in srgb, var(--ph) 8%, #0d1116) 100%);
+}
+html body.vx:not(.hud-mode) #screen-game :is(#left, #chat-panel)::after {
+  filter: brightness(calc(1 - var(--vx-dim, 0) * .4)) drop-shadow(0 3px 4px rgba(0, 0, 0, .75)) drop-shadow(0 0 1px rgba(0, 0, 0, .9));
+}
+html body.vx:not(.hud-mode) .term:not(.pw)::after { filter: brightness(calc(1 - var(--vx-dim, 0) * .4)) drop-shadow(0 3px 4px rgba(0, 0, 0, .75)); }
+html body.vx:not(.hud-mode) #screen-game :is(#topbar, #bottombar) {
+  box-shadow: inset 0 0 0 200px rgba(0, 0, 0, calc(var(--vx-dim, 0) * .45)),
+    0 0 0 1px #050608, inset 0 1px 0 rgba(255, 255, 255, .7), inset 0 -2px 3px rgba(0, 0, 0, .6), 0 4px 8px rgba(0, 0, 0, .6);
+}
+html body.vx:not(.hud-mode) #screen-game :is(#left, #chat-panel) > h3 { filter: brightness(calc(1 - var(--vx-dim, 0) * .22)); }
+html body.vx:not(.hud-mode) #screen-game #bottombar .bb-group,
+html body.vx:not(.hud-mode) #screen-game #left .ws-head :is(.ws-view, .ws-head-acts),
+html body.vx:not(.hud-mode) #screen-game #chat-panel #chat-inputrow { filter: brightness(calc(1 - var(--vx-dim, 0) * .35)); }
+
+/* the clamps: chrome brackets bolted across each gutter, binding the neighbouring housings together */
+html body.vx:not(.hud-mode) #screen-game :is(.crew-resizer, .col-resizer)::before {
+  content: ''; position: absolute; top: 0; bottom: 0; left: 50%; width: 34px; margin-left: -17px; pointer-events: none;
+  background:
+    radial-gradient(circle, #fff 0 1px, #7c8692 1.6px, #0b0d10 2.6px, transparent 3px) center 7% / 7px 7px no-repeat,
+    radial-gradient(circle, #fff 0 1px, #7c8692 1.6px, #0b0d10 2.6px, transparent 3px) center 32% / 7px 7px no-repeat,
+    radial-gradient(circle, #fff 0 1px, #7c8692 1.6px, #0b0d10 2.6px, transparent 3px) center 68% / 7px 7px no-repeat,
+    radial-gradient(circle, #fff 0 1px, #7c8692 1.6px, #0b0d10 2.6px, transparent 3px) center 93% / 7px 7px no-repeat,
+    linear-gradient(180deg, #eef2f6 0, #b8c0c9 30%, #6b747f 62%, #3a414a 100%) center 7% / 34px 14px no-repeat,
+    linear-gradient(180deg, #eef2f6 0, #b8c0c9 30%, #6b747f 62%, #3a414a 100%) center 32% / 26px 12px no-repeat,
+    linear-gradient(180deg, #eef2f6 0, #b8c0c9 30%, #6b747f 62%, #3a414a 100%) center 68% / 26px 12px no-repeat,
+    linear-gradient(180deg, #eef2f6 0, #b8c0c9 30%, #6b747f 62%, #3a414a 100%) center 93% / 34px 14px no-repeat;
+  filter: drop-shadow(0 0 0 #050608) drop-shadow(0 1px 0 #050608) drop-shadow(0 -1px 0 #050608) drop-shadow(0 2px 3px rgba(0, 0, 0, .8)) brightness(calc(1 - var(--vx-dim, 0) * .35));
+}
