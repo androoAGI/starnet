@@ -58,8 +58,35 @@
     // changed since — held before the job limit is spent (status.waitingOn names the build). It names only what is SURE to
     // lift it (the verdict, an owner run, the goal, the steered priority and the rung are all in sidecar futileBeatFingerprint);
     // never "anything new": a change the fingerprint does not read (a learned interest, a job-limit change) lifts nothing
-    'awaiting-verdict': 'it is waiting on your verdict — its last job only proposed a build already waiting on your desk, so it won’t spend another job until you keep or discard that one, message it, or change your goal, priority or autonomy rung'
+    'awaiting-verdict': 'it is waiting on your verdict — its last job only proposed a build already waiting on your desk, so it won’t spend another job until you keep or discard that one, message it, or change your goal, priority or autonomy rung',
+    // the unattended hold (cost fix W3.1): held before the job limit is spent, on the provider's own window reading or on the
+    // 24-hour rail of unattended tokens (status.hold names the reading or the count: unattendedHoldPhrase)
+    'window-reserve': 'your plan’s usage window is nearly used — the rest is kept for you, so jobs wait until it resets',
+    'unattended-rail': 'unattended work used its 24-hour token rail — jobs are paused until you re-arm autonomy (press an ON ITS OWN rung)'
   };
+  // the same two holds in the station's own numbers (status.hold.why, or a ledger row's detail): the reading, its source and the
+  // reset, or the count and how it resumes — in LOCAL time; the plain phrase when the numbers are missing
+  function unattendedHoldPhrase(binding, why, tzOffsetMin, keptPct, nowMs) {
+    const w = why && typeof why === 'object' ? why : null;
+    const pct = w && Number(w.usedPct), at = w && fmtLocalWhen(w.resetsAt, tzOffsetMin, nowMs);
+    if (binding === 'window-reserve' && w && w.provider && Number.isFinite(pct) && at) {
+      const read = fmtLocalWhen(w.seenAt, tzOffsetMin, nowMs);
+      return String(w.provider) + '’s ' + String(w.window || 'usage') + ' window is ' + pct + '% used (read ' + (read ? read + ' ' : '') + 'from the ' + String(w.source || 'provider') + ') — '
+        + (Number.isFinite(Number(keptPct)) ? 'the last ' + Number(keptPct) + '%' : 'the rest') + ' is kept for you, so jobs wait until it resets at ' + at;
+    }
+    const n = w && Number(w.tokens), lim = w && Number(w.limit);
+    if (binding === 'unattended-rail' && Number.isFinite(n) && Number.isFinite(lim)) {
+      const lifts = fmtLocalWhen(w.liftsAt, tzOffsetMin, nowMs);
+      return 'unattended work used ' + shortTokens(n) + ' weighted tokens in the last 24 hours (the rail is ' + shortTokens(lim) + ') — jobs are paused until you re-arm autonomy (press an ON ITS OWN rung)'
+        + (lifts ? ', or until ' + lifts : '');
+    }
+    return BINDING_PHRASE[binding] || bindingPhrase(binding);
+  }
+  // 2100000 -> '2.1M', 150400 -> '150k' (the weighted tokens the hold and the per-job stat name)
+  function shortTokens(n) {
+    n = Number(n) || 0;
+    return n >= 1e6 ? (Math.round(n / 1e5) / 10) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'k' : String(Math.round(n));
+  }
   // the same hold, naming the build from status.waitingOn (the live backlog's title); the plain phrase when the status has none
   function awaitingVerdictPhrase(waitingOn) {
     const t = waitingOn && typeof waitingOn.title === 'string' ? waitingOn.title.replace(/\s+/g, ' ').trim().slice(0, 120) : '';
@@ -92,6 +119,19 @@
     const ampm = h < 12 ? 'AM' : 'PM';
     h = h % 12; if (h === 0) h = 12;
     return h + ':' + (m < 10 ? '0' : '') + m + ' ' + ampm;
+  }
+  // the same LOCAL clock, with the local date beside it when the moment is not on nowMs's local day ("Nov 12, 1:10 AM"): a weekly
+  // window's reset days away must never read as a clock time today. No nowMs: the clock alone.
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function fmtLocalWhen(ms, tzOffsetMin, nowMs) {
+    const clock = fmtLocalTime(ms, tzOffsetMin);
+    const now = Number(nowMs);
+    if (!clock || !Number.isFinite(now) || now <= 0) return clock;
+    const off = (Number.isFinite(Number(tzOffsetMin)) ? Number(tzOffsetMin) : 0) * 60000;
+    const day = t => Math.floor((t + off) / 86400000);
+    if (day(Number(ms)) === day(now)) return clock;
+    const d = new Date(Number(ms) + off);   // read in UTC: the offset is already applied (no ambient zone)
+    return MONTHS[d.getUTCMonth()] + ' ' + d.getUTCDate() + ', ' + clock;
   }
 
   // pluralise a count with its noun ("1 beat" / "2 beats"). Pure helper the headline + lines share.
@@ -248,8 +288,13 @@
     // STATE: ACTIVE (armed) vs OFF, and the honest WHY when OFF (the live binding names the blocking gate).
     const off = !active;
     const stateText = off ? 'OFF' : (away ? 'ACTIVE · on watch' : 'ACTIVE · standing by');
+    // the unattended hold (W3.1): the reading or the count it rests on, from the same precheck the tick runs (status.hold)
+    const unattended = (s.binding === 'window-reserve' || s.binding === 'unattended-rail') ? (s.hold && s.hold.binding === s.binding ? s.hold : {}) : null;
+    const now = Number(input.nowMs) > 0 ? Number(input.nowMs) : 0;   // no clock passed: a reset reads as its time alone
     const whyOff = s.binding === 'awaiting-verdict' ? awaitingVerdictPhrase(s.waitingOn)
+      : unattended ? unattendedHoldPhrase(s.binding, unattended.why, tz, unattended.keptPct, now)
       : off ? bindingPhrase(s.binding) : (s.binding ? bindingPhrase(s.binding) : bindingPhrase(null));
+    const heldUntil = unattended && unattended.why ? fmtLocalWhen(s.binding === 'window-reserve' ? unattended.why.resetsAt : unattended.why.liftsAt, tz, now) : '';
     return {
       reachable: true,
       active: active,
@@ -268,8 +313,13 @@
         // the cooldown clock does not clear these (sweep/autonomy 2026-10-20): a spent leash refills at the local
         // midnight the station reports, and a budget/provider/readiness gate holds until its cause is fixed
         : s.binding === 'leash' ? ((fmtLocalTime(s.leashResetsAt, tz) ? 'not before ' + fmtLocalTime(s.leashResetsAt, tz) : 'tomorrow') + ' — today’s job limit is used')
+        // the unattended hold: the window's own reset, or the rail's re-arm (and when its oldest use rolls off)
+        : s.binding === 'window-reserve' ? (heldUntil ? 'not before ' + heldUntil + ' — when the usage window resets' : 'when the usage window resets')
+        : s.binding === 'unattended-rail' ? 'when you re-arm autonomy' + (heldUntil ? ', or ' + heldUntil : '')
         : NO_CLOCK_BINDINGS.has(String(s.binding || '')) ? 'not scheduled — held until the reason above is fixed'
         : (fmtLocalTime(s.nextEligibleAt, tz) || 'when the next window opens'),
+      // W3.1: what one away job spent, weighted (uncached input + a tenth of cached + output), over its newest jobs; '' until one is recorded
+      perJobText: (s.tokensPerBeat && Number(s.tokensPerBeat.tokens) > 0) ? '~' + shortTokens(s.tokensPerBeat.tokens) + ' weighted tokens a job' : '',
       modeText: modeText(s),
       modeWarn: s.buildMode === 'draft' && s.draftReason === 'no-workshop-grant',
       readinessText: readinessText(s.readiness)
@@ -375,12 +425,17 @@
 
   // one decision-trail row for the panel's scrollable ledger: "1:10 AM · declined · leash spent". Pure; a bad row
   // still renders its time + kind (never throws). kindLabel keeps the vocabulary honest (act/decline/note → words).
+  // a decline row's reason: the unattended hold names its reading or count from the row's own detail (W3.1), every other gate its phrase
+  function declinePhrase(e, tzOffsetMin) {
+    return (e.binding === 'window-reserve' || e.binding === 'unattended-rail') ? unattendedHoldPhrase(e.binding, e.detail, tzOffsetMin, undefined, Number(e.ts) || 0)
+      : bindingPhrase(e.binding);
+  }
   function trailLine(entry, tzOffsetMin) {
     const e = entry || {};
     const when = fmtLocalTime(e.ts, tzOffsetMin) || '—';
     const kind = e.kind === 'act' ? 'acted' : (e.kind === 'decline' ? 'declined' : 'noted');
     let tail = '';
-    if (e.kind === 'decline') tail = bindingPhrase(e.binding);
+    if (e.kind === 'decline') tail = declinePhrase(e, tzOffsetMin);
     else if (e.kind === 'act') tail = (e.detail && e.detail.title) ? String(e.detail.title) : (e.reason || 'left a draft');
     else tail = e.reason || (e.detail && e.detail.title) || '';
     return when + ' · ' + kind + (tail ? ' · ' + tail : '');
@@ -420,7 +475,7 @@
       const to = fmtLocalTime(e.ts, tzOffsetMin) || '—';
       const kind = e.kind === 'decline' ? 'declined' : (e.kind === 'act' ? 'acted' : 'noted');
       let tail = '';
-      if (e.kind === 'decline') tail = bindingPhrase(e.binding);
+      if (e.kind === 'decline') tail = declinePhrase(e, tzOffsetMin);
       else tail = e.reason || (e.detail && e.detail.title) || '';
       return from + '–' + to + ' · ' + kind + ' ×' + e.count + (tail ? ' · ' + tail : '');
     });

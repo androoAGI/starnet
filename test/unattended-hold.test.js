@@ -143,6 +143,27 @@ const ask = (origin, readings, extra) => admit(Object.assign({ origin, provider:
   A.eq(tokensPerStart(recs, { origin: 'nightshift', ref: 'agent' }), null, 'no start on record: no number');
 })();
 
+// ---- the panel's words: the AUTONOMY panel and its decision trail name the reading or the count in LOCAL time ----
+(function panelWords() {
+  const NR = require('../frontend/app/nightreport.js');
+  const why = { provider: 'codex', account: 'primary', window: '5-hour', usedPct: 92, resetsAt: NOW + 2 * HOUR, seenAt: NOW - MIN, source: SOURCE };
+  const base = { active: true, away: true, beatsUsedToday: 1, leashPerDay: 3 };
+  const held = NR.panelModel({ status: Object.assign({}, base, { binding: 'window-reserve', hold: { binding: 'window-reserve', why, keptPct: 10 } }), tzOffsetMin: -300, nowMs: NOW });
+  A.ok(/codex/.test(held.why) && /5-hour/.test(held.why) && /92%/.test(held.why) && held.why.indexOf(SOURCE) >= 0 && /4:59 AM/.test(held.why) && /7:00 AM/.test(held.why) && /last 10%/.test(held.why),
+    'the panel names the provider, the window, the percentage, its source, when it was read and the reset, in local time: ' + held.why);
+  A.eq(held.nextEligibleText, 'not before 7:00 AM — when the usage window resets', 'the next job: the window\'s own reset');
+  const weekly = NR.panelModel({ status: Object.assign({}, base, { binding: 'window-reserve', hold: { binding: 'window-reserve', why: Object.assign({}, why, { window: 'weekly', resetsAt: NOW + 3 * 24 * HOUR }) } }), tzOffsetMin: -300, nowMs: NOW });
+  A.ok(/Nov 12, 5:00 AM/.test(weekly.nextEligibleText) && /the rest is kept/.test(weekly.why), 'a reset days away carries its date, never a bare clock (and no kept share: the plain words): ' + weekly.nextEligibleText);
+  const rail = NR.panelModel({ status: Object.assign({}, base, { binding: 'unattended-rail', hold: { binding: 'unattended-rail', why: { tokens: 2100000, limit: 2000000, since: NOW - 20 * HOUR, liftsAt: NOW + 4 * HOUR } } }), tzOffsetMin: -300, nowMs: NOW });
+  A.ok(/2\.1M/.test(rail.why) && /2M/.test(rail.why) && /re-arm autonomy/.test(rail.why) && /9:00 AM/.test(rail.why), 'the rail pause says the count, the rail, RESUME and when it lifts on its own: ' + rail.why);
+  A.eq(rail.nextEligibleText, 'when you re-arm autonomy, or 9:00 AM', 'the next job: a re-arm, or the oldest use rolling off');
+  A.ok(/kept for you/.test(NR.panelModel({ status: Object.assign({}, base, { binding: 'window-reserve' }), tzOffsetMin: 0 }).why), 'an older sidecar with no hold: the plain phrase, never a made-up number');
+  const row = NR.trailLine({ ts: NOW, kind: 'decline', binding: 'window-reserve', detail: why }, -300);
+  A.ok(/declined/.test(row) && /92%/.test(row) && /7:00 AM/.test(row), 'a held beat\'s ledger row reads its own reading in the trail: ' + row);
+  A.eq(NR.panelModel({ status: Object.assign({}, base, { tokensPerBeat: { tokens: 152400, starts: 3 } }), tzOffsetMin: 0 }).perJobText, '~152k weighted tokens a job', 'tokens per beat: one short stat on the panel');
+  A.eq(NR.panelModel({ status: base, tzOffsetMin: 0 }).perJobText, '', '...absent until a beat is recorded');
+})();
+
 // ---- ONE RESOLVER: every unattended starter asks the same host check, which is the only caller of admit() ----
 const { readSidecarSource } = require('./helpers/source');
 const SRC = readSidecarSource();
@@ -170,6 +191,22 @@ const sliceOr = (header, max) => { try { const b = A.fnBody(SRC, header); return
   A.ok(/trigger === 'schedule'/.test(hop) && /asUnattended\('routine'/.test(hop) && /LineRunner\.makeLineRunner\(\{ chain: chainRunner, runOnce: lineHopRun,/.test(SRC),
     'a work-line hop of a scheduled fire runs in its fire\'s routine scope (a Run Now, channel or step-test hop does not)');
   A.ok(/railResumed = resumeUnattendedRail\(\)/.test(sliceOr('async function handleAutonomyPosture(', 12000)), 'RESUME is the posture re-arm (resumeHalt), the control that turns unattended work on');
+})();
+
+// ---- the existing cards: the postures that turn unattended work on say so; tokens per beat and per fire ride existing lines ----
+(function cards() {
+  const fs = require('fs'), path = require('path');
+  const ui = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'stationui.js'), 'utf8');
+  const rt = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'windows', 'routines.js'), 'utf8');
+  const at = ui.indexOf('const STATION_POSTURES = [');
+  const postures = at >= 0 ? ui.slice(at, ui.indexOf('];', at)) : '';
+  const blurb = id => { const m = new RegExp("id: '" + id + "'[^\\n]*\\n\\s*blurb: '([^']*)'").exec(postures); return m ? m[1] : ''; };
+  A.ok(/Turns on unattended work/.test(blurb('balanced')) && /Turns on unattended work/.test(blurb('open')) && !/unattended/.test(blurb('careful')),
+    'LET IT WORK and FULL POWER say they turn on unattended work (CHECK WITH ME, which does not, says nothing of it)');
+  A.ok(/m\.perJobText/.test(ui), 'the AUTONOMY panel carries tokens per beat on its existing job-limit line');
+  const si = rt.indexOf('function spendLine(j)'), spend = si >= 0 ? rt.slice(si, rt.indexOf('\n    }', si)) : '';
+  A.ok(/perFireLine\(j\)/.test(spend) && /' · last ' \+ lastResult\(j\) \+ spendLine\(j\)/.test(rt) && /j\.tokensPerFire/.test(rt), 'the routine row carries tokens per fire beside its spend');
+  A.ok(/tokensPerBeat: unattendedPerStart\('nightshift'/.test(SRC) && /tokensPerFire: t/.test(SRC), 'both numbers are read from the receipts the rail counts');
 })();
 
 A.report('unattended-hold.test');

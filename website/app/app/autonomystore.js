@@ -41,6 +41,8 @@ const AutonomyStore = (() => {
         if (j.nightshiftStatePersisted === false || j.cronHaltPersisted === false) error = 'Autonomy saved, but emergency stop could not be resumed. Try Resume again.';
         // org P06: a write that LIFTED a standing halt says so — the route's haltLifted is the proof, never the request
         if (j.haltLifted === true && !error) announceResume(get(), j);
+        // W3.1 RESUME: a write that re-armed autonomy while the 24-hour unattended rail held says so — railResumed is the proof
+        if (j.railResumed === true && !error) announceRail();
         return { ok: !error, posture: get(), error, haltLifted: j.haltLifted === true };
       } catch (e) {
         if (generation === epoch) {
@@ -87,6 +89,9 @@ const AutonomyStore = (() => {
   }
   function announceResume(posture, j) {
     try { if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify(resumedText(posture, j), 'good'); } catch (e) { console.warn('[autonomy] resume notice failed:', (e && e.message) || e); }
+  }
+  function announceRail() {
+    try { if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify('UNATTENDED WORK RESUMED: its 24-hour token rail counts again from now', 'good'); } catch (e) { console.warn('[autonomy] rail notice failed:', (e && e.message) || e); }
   }
   function init() { get(); return refresh(); }
   function refresh() { return enqueue(() => request()); }
