@@ -284,7 +284,7 @@ const { makeStationInspectTool } = require('./tools/builtin/station-inspect.js')
 const { makeManualReadTool } = require('./tools/builtin/manual-read.js');   // manual.read — the operator manual's reference sections, on demand
 const { makeStationShowTool } = require('./tools/builtin/station-show.js');   // station.show — the agent opens a StarNet window/tab for the Commander (frontend/app/places.js)
 const memcore = require('./memcore.js');
-const { makeConsentBroker } = require('./permissions.js');
+const { makeConsentBroker, exactCommand: isExactCommand, EXACT_CLASSES: COMMAND_GRANT_CLASSES } = require('./permissions.js');
 const { makeGrantManager } = require('./permgrants.js');
 const { makeProjectsStore } = require('./projects-store.js');   // NS-5: known-projects (blessed roots) durable store
 const { makePathTrust } = require('./pathtrust.js');            // NS-5: conversational path-trust guard
@@ -4883,10 +4883,18 @@ function setMasterBypass(on) {
 // the notebook store (sibling of the fs jail) so the agent's own fs.* tools can neither read nor rewrite it.
 const ALLOWLIST_FILE = path.join(WORKSPACES, 'permissions.allow.json');
 // fix-sec2 review 4a: the file is sealed (authority-seal.js); one changed outside StarNet reads as empty
+/* A RETIRED COMMAND GRANT (GHSA-2hpj #4). An older StarNet's ALWAYS on a command card saved the whole class
+   (workbench:execute: every command, every run, forever). A command is never allowed always now, and the broker never
+   reads a class row for one, so that row is not loaded at all: the Permissions panel and a config export no longer show
+   a grant that does nothing, and the next save of the file leaves it out. Commands ask again, one at a time. */
+const retiredCommandGrant = (k) => Object.prototype.hasOwnProperty.call(COMMAND_GRANT_CLASSES, k);
 function loadAllowlist() {
   try {
     const raw = authorityOpen('permissions.allow.json', loadResilient(ALLOWLIST_FILE, 'permissions'));   // recover blessed grants from .bak on a torn main
-    return new Set((raw && Array.isArray(raw.allow) ? raw.allow : []).filter(x => typeof x === 'string'));
+    const keys = (raw && Array.isArray(raw.allow) ? raw.allow : []).filter(x => typeof x === 'string');
+    const retired = keys.filter(retiredCommandGrant);
+    if (retired.length) console.log('  · permissions: ' + retired.join(', ') + ' (an older "always" for every command) is retired: each command asks again (GHSA-2hpj #4)');
+    return new Set(keys.filter(k => !retiredCommandGrant(k)));
   } catch (e) { return new Set(); }   // unrecoverable -> nothing pre-allowed (fail-closed, the safe default)
 }
 // ADDITIVE provenance (B1.1): a sibling `meta` map { dangerKey: { grantedAt } } persisted INSIDE the same file
@@ -5116,6 +5124,7 @@ function channelAskConsent(o) {
     scope: (o.tool && o.tool.scope) || 'write',
     argsSummary: consentSummary(o.call)
   };
+  if (isExactCommand(o.tool)) fields.exactCommand = true;   // additive (GHSA-2hpj #4): the phone's row and the chat keyboard know a command
   let untrack = null, askedId = '';
   return makeConsentWait({
     pending: pend, signal: o.signal, timeoutMs: CONSENT_TIMEOUT_MS, extendMs: CONSENT_ACK_EXTEND_MS,
@@ -16959,7 +16968,10 @@ function deskWords(action, d) {
     case 'device-desk-permissions': return { title: 'StarNet — phone permissions', verb: 'Allow',
       summary: 'Let the phone "' + o.name + '" (' + o.fingerprint + ') work with this computer’s own permissions?\n\nAgents on Full Access will act without asking when this phone gives them work.' };
     // fix-sec2, review 3, 6 and 7
-    case 'consent-session': return { title: 'StarNet — allow for this session', verb: 'Allow for this session',
+    case 'consent-session': if (o.command) return { title: 'StarNet — allow for this session', verb: 'Allow for this session',
+      // GHSA-2hpj #4: a command's session grant is that exact command (its words come last, so a long one is cut, never the rule)
+      summary: 'Allow ' + who + ' to run this exact command' + (o.tool ? ' (' + o.tool + ')' : '') + ' again without asking, for the rest of this session? Any other command still asks.\n\n' + o.command };
+      return { title: 'StarNet — allow for this session', verb: 'Allow for this session',
       summary: 'Allow ' + who + ' to ' + (o.tool ? 'use "' + o.tool + '"' : 'do this') + (o.scope ? ' (' + o.scope + ')' : '') + ' without asking, for the rest of this session?\n\nEvery later request of this kind in the session is allowed, not only this one.' };
     case 'routine-grants': return { title: 'StarNet — let a routine work unattended', verb: o.changed ? 'Keep allowing' : 'Allow unattended',
       summary: (o.changed ? 'The routine "' + o.name + '" (' + o.agentName + ') is changing what it runs. Keep letting it ' : 'Let the routine "' + o.name + '" (' + o.agentName + ') ')
@@ -18418,6 +18430,7 @@ function handleStateSnapshot(req, res) {
         // (the conversation, what it asks for) — the same fields its permission.prompt carried (askHuman)
         const row = { runId: runId, agentId: (ask && ask.workerAgentId) || agentId, promptId: promptId };
         if (ask && ask.tool) row.tool = ask.tool;   // additive: a reloaded floor words a question (brief.ask) as one, not an approval
+        if (ask && ask.exactCommand === true) row.exactCommand = true;   // additive (GHSA-2hpj #4): a reloaded card offers no ALWAYS for a command
         if (ask && f.detached) Object.assign(row, { background: true, tool: ask.tool, scope: ask.scope, argsSummary: ask.argsSummary,
           workerAgentId: ask.workerAgentId, workerRunId: ask.workerRunId, workerStreamId: ask.workerStreamId, streamId: ask.streamId, askedAt: ask.askedAt, leadAgentId: ask.agentId });
         out.prompts.push(row);
@@ -22806,6 +22819,8 @@ async function handleRun(req, res) {
       emitPrompt: (promptId) => {
         askId = promptId;
         const row = { promptId, agentId, tool: (fields && fields.tool) || 'tool', scope: (fields && fields.scope) || 'write', argsSummary: (fields && fields.argsSummary) || '' };
+        // additive (GHSA-2hpj #4): a command — every surface offers no ALWAYS for it, and "for this session" covers this exact call only
+        if (fields && fields.exactCommand === true) row.exactCommand = true;
         if (by) Object.assign(row, { workerAgentId: by.agentId, workerRunId: by.runId, workerStreamId: by.streamId, askedAt: Date.now() });
         // additive: the run that holds the answer slot + the conversation that handed the work off (a page that never
         // saw this lead's stream, or reloaded since, files the ask under that conversation and answers with this runId)
@@ -22818,6 +22833,7 @@ async function handleRun(req, res) {
         const orig = pending.get(promptId);
         if (orig) { orig.askRow = row; if (detached) orig.detached = true; }   // the snapshot + the page-closed note read these
         if (orig && fields && fields.fresh) orig.freshConsent = true;   // handleConsent: a "full" here approves this call only
+        if (orig && fields && fields.exactCommand === true) orig.exactCommand = true;   // handleConsent: an "always" here approves this call only (GHSA-2hpj #4)
         // an answer from the TERMINAL (POST /api/consent { via:'terminal' }) settles a card the page still shows: tell the page
         // on this run's own stream, the way a phone answer does, so the desk never keeps live keys on a settled ask
         if (orig) orig.announce = (decision) => { announced = true; answeredVia = 'terminal'; try { say('permission.response', { promptId, decision, via: 'terminal' }); } catch (e) { failNote('consent.terminalResponse', e); } };
@@ -22857,7 +22873,7 @@ async function handleRun(req, res) {
   function promptConsent(call, tool) {
     // an unanswered COMMS card is not a refusal: the broker's 'timeout' result says so (the card still gets expired:true)
     // …and one withdrawn by a stop or teardown is not one either ('cancelled': the broker's withdrawn result, never "you declined")
-    return askHuman({ tool: call.name, scope: (tool && tool.scope) || 'write', argsSummary: consentSummary(call, { streamId }), argsFull: consentArgsFull(call), fresh: !!(tool && tool.freshConsent === true) }, { timeoutDecision: 'timeout', abortDecision: 'cancelled' });
+    return askHuman({ tool: call.name, scope: (tool && tool.scope) || 'write', argsSummary: consentSummary(call, { streamId }), argsFull: consentArgsFull(call), fresh: !!(tool && tool.freshConsent === true), exactCommand: isExactCommand(tool) }, { timeoutDecision: 'timeout', abortDecision: 'cancelled' });
   }
   // NS-5: the "work in <root>? always/once/no" channel — the SAME permission.prompt mechanism, so the browser's
   // existing consent card answers it (Always = record a standing path grant; Approve once = this access only;
@@ -27509,6 +27525,10 @@ async function handleConsent(req, res) {
   // a background worker's ask outlives its lead's turn (askHuman): once that run's meta is gone, the ask row still names
   // the lead whose broker it rides — the same agent a "full" answer would have granted while the lead was live
   const agentId = (meta && meta.agentId) || (finish && finish.detached && finish.askRow && finish.askRow.agentId) || undefined;
+  // GHSA-2hpj #4: a command is never allowed always. ALWAYS on a command card (an older page, the terminal's `a`, a
+  // bridge's allow-always) approves this call once: nothing standing is made, so the desk is not asked, and the answer
+  // says what was applied.
+  if (finish && finish.exactCommand === true && decision === 'always') decision = 'once';
   // GHSA-2hpj #1: a STANDING answer (ALWAYS, FULL ACCESS) outlives this card, so it needs the desk's confirmation. Checked
   // before anything resolves: a refused answer leaves the card waiting for the confirmed replay (a fresh-consent card's
   // standing answer only ever approves this call, below, so it never asks).
@@ -27518,8 +27538,9 @@ async function handleConsent(req, res) {
   if (finish && finish.freshConsent !== true && (decision === 'always' || decision === 'full' || decision === 'session')) {
     const row = finish.askRow || {};
     const rec = agentId ? agentRoster.get(String(agentId)) : null;
+    // a command's "for this session" covers that exact command only (GHSA-2hpj #4): the dialog shows it and says so
     if (!deskGate(req, res, 'consent-' + decision, String(body.runId || '') + '\n' + String(body.promptId || ''),
-      { agentName: (rec && rec.name) || agentId || '', tool: row.tool || '', scope: row.scope || '' })) return;
+      { agentName: (rec && rec.name) || agentId || '', tool: row.tool || '', scope: row.scope || '', command: finish.exactCommand === true ? String(row.argsSummary || '') : '' })) return;
   }
   let persisted = true;
   // a fresh-consent card (station.power, plugin.submit) answers THIS call only: the broker grants any yes once, so a

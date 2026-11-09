@@ -421,6 +421,12 @@ const IMPLS = {
         note: 'Allowed once. Allow-always is confirmed in the StarNet window (Settings > Permissions), not from a bridge.' };
     }
     if (r.status !== 200) return badStatus('/api/consent', r);
+    /* A COMMAND IS ALLOWED ONCE (GHSA-2hpj #4): the station never records allow-always for a command (shell, terminal,
+       a check run) and answers with what it applied, so the bridge says that, never the grade it asked for. */
+    if (mapped === 'always' && j.ok && j.decision === 'once') {
+      return { resolved: true, id: id, decision: 'allow-once', mapped: 'once', requested: decision,
+        note: 'Allowed once. A command is approved one at a time: the next command asks again.' };
+    }
     return { resolved: true, id: id, decision: decision, mapped: mapped };
   }
 };

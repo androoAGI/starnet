@@ -158,8 +158,11 @@ const hardline = (call) => (call && call.args && /(^|\/)(\.env|permissions\.allo
     const r = auto(execCall, EXEC);
     A.ok(!r.allow && r.reason === SILENCE, 'autonomous shell DENIES despite a permanent grant (exec lockout)');
 
+    // GHSA-2hpj #4: a class-wide 'always' for commands is retired. The old pre-bless is never read as an allow:
+    // an interactive run asks again (here, with no prompt wired, it fails closed).
     const inter = makeConsentBroker({ surface: 'interactive', grantsPermanent: blessed() });
-    A.ok(inter(execCall, EXEC).allow === true, 'interactive shell HONORS the pre-bless (a human approved it)');
+    const ir = inter(execCall, EXEC);
+    A.ok(ir.allow === false && /no consent channel/.test(ir.reason), 'interactive shell does NOT honor a retired class-wide pre-bless: it asks');
 
     const yolo = makeConsentBroker({ surface: 'autonomous', bypass: true });
     A.ok(yolo(execCall, EXEC).allow === true, 'frozen FULL_ACCESS still allows autonomous shell (deliberate operator override)');

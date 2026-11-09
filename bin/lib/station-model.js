@@ -22,8 +22,10 @@ const RECENT_MS = 8000;      // how long "done" / "stopped" stays on a row befor
 // "always" comes back as once)
 const GRANT_WORDS = { once: 'allowed once', always: 'always allowed', full: 'full access', session: 'allowed for this session' };
 // the asks the app answers fresh every time — once or deny, no standing answer (chat.js: login windows, the station's
-// leash, a plugin install)
-const ONCE_ONLY_TOOLS = ['browser.login', 'browser.login.done', 'station.power', 'plugin.submit'];
+// leash, a plugin install), and every COMMAND (GHSA-2hpj #4: the station never records ALWAYS for one; the app card
+// offers no Always for it either, chat.js isCommandAsk)
+const COMMAND_TOOLS = ['shell.exec', 'shell.bg.write', 'terminal.start', 'terminal.write', 'verify.run'];
+const ONCE_ONLY_TOOLS = ['browser.login', 'browser.login.done', 'station.power', 'plugin.submit'].concat(COMMAND_TOOLS);
 const LOG_MAX = 300;         // per-agent conversation lines kept in memory
 const ORPHAN_GRACE_MS = 4000;   // a run the snapshot no longer lists is only called ended after this long
 
@@ -238,6 +240,7 @@ function makeStation() {
     const asker = String(p.workerAgentId || p.agentId || 'agent');
     const q = { promptId, runId: String(p.runId || ''), agentId: asker, leadId: String(p.agentId || asker), tool: toolName(p.tool),
       scope: String(p.scope || ''), summary: askGlance(toolName(p.tool), p.argsSummary, nameOf), raw: String(p.argsSummary || ''), askedAt: now, background: p.background === true, view: false, details: null };
+    if (p.exactCommand === true) q.onceOnly = true;   // the station's stamp: a command, approved one at a time (GHSA-2hpj #4)
     if (q.tool === 'brief.ask') { try { const j = JSON.parse(q.raw); q.question = { text: String(j.question || ''), options: Array.isArray(j.options) ? j.options.map(String).slice(0, 6) : [], recommended: String(j.recommended || '') }; } catch (_) { q.question = { text: oneLine(q.raw, 400), options: [], recommended: '' }; } }
     st.prompts.push(q);
     const a = agent(asker);
@@ -552,4 +555,4 @@ function costText(cost) {
   return 'spend unknown';
 }
 
-module.exports = { makeStation, endLook, runPairOf, sourceOf, toolName, oneLine, argDigest, askGlance, askInspect, fmtDur, fmtShort, ago, costText, SLOTS, SLOT_MS, RUN_FLOOR, RECENT_MS, ONCE_ONLY_TOOLS };
+module.exports = { makeStation, endLook, runPairOf, sourceOf, toolName, oneLine, argDigest, askGlance, askInspect, fmtDur, fmtShort, ago, costText, SLOTS, SLOT_MS, RUN_FLOOR, RECENT_MS, ONCE_ONLY_TOOLS, COMMAND_TOOLS };

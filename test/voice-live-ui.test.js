@@ -375,6 +375,7 @@ const consentStart = chatSource.indexOf('  const settledPromptNotices = new Set(
 const consentEnd = chatSource.indexOf('  // the channel\'s record', consentStart);
 assert.ok(approvalStart >= 0 && approvalEnd > approvalStart && approvalEnd - approvalStart < 4000, 'complete bounded voice approval controller is present');
 assert.ok(consentStart >= 0 && consentEnd > consentStart && consentEnd - consentStart < 6000, 'complete bounded confirmed-answer contract is present');
+const COMMAND_TOOLS = new Set(['shell.exec', 'shell.bg.write', 'terminal.start', 'terminal.write', 'verify.run']);   // chat.js EXACT_COMMAND_TOOLS
 const flushApproval = () => new Promise(resolve => setImmediate(resolve));
 function approvalFixture(opts = {}) {
   const Channels = require('../frontend/app/channels.js'); Channels.reset();
@@ -495,8 +496,15 @@ function approvalFixture(opts = {}) {
     assert.ok(f.spoken.every(t => !/Always allowed/.test(t)), tool + ': voice never confirms a standing grant');
     assert.match(f.spoken.at(-1) || '', /can only be approved once\. Approved once/, tool + ': voice says why it approved once');
   }
+  // GHSA-2hpj #4: a command (shell, terminal, verify) is approved one at a time — a spoken always is sent as once and said so
+  for (const tool of ['shell.exec', 'shell.bg.write', 'terminal.start', 'terminal.write', 'verify.run']) {
+    const f = approvalFixture({ tool, chat: { isCommandAsk: p => COMMAND_TOOLS.has(p.tool) } });
+    f.answer('always allow'); await flushApproval();
+    assert.deepEqual(f.calls, [['lead-run', 'worker-second', 'once']], tool + ': a spoken always on a command is submitted as once');
+    assert.match(f.spoken.at(-1) || '', /can only be approved once. Approved once/, tool + ': voice says why it approved once');
+  }
   {
-    const f = approvalFixture();
+    const f = approvalFixture({ tool: 'fs.write' });
     f.answer('always allow'); await flushApproval();
     assert.deepEqual(f.calls, [['lead-run', 'worker-second', 'always']], 'an ordinary card still takes a spoken always');
     assert.equal(f.spoken.at(-1), 'Always allowed.');
@@ -542,6 +550,11 @@ function approvalFixture(opts = {}) {
     chat = { consentPhrase: p => p.tool === 'shell.exec' ? 'run a command: npm test' : 'write a file' };
     App = { agentName: id => (id === 'lead' ? 'NOVA' : null) };
     assert.equal(say('shell.exec'), 'NOVA needs approval to run a command: npm test. Say approve, always allow, or deny.');
+    // GHSA-2hpj #4: with the real card rule (Chat.isCommandAsk) a command is offered approve or deny only
+    chat = Object.assign({}, chat, { isCommandAsk: p => COMMAND_TOOLS.has(p.tool) });
+    assert.equal(say('shell.exec'), 'NOVA needs approval to run a command: npm test. Say approve or deny.', 'a command is never offered "always allow" aloud');
+    assert.match(say('fs.write'), /Say approve, always allow, or deny.$/, 'a non-command card keeps all three answers');
+    chat = { consentPhrase: chat.consentPhrase };
     // a question is not an approval: it is spoken as the question, with only the answers voice can give — the card's
     // one-tap options (chipCommand presses them) — never approve/always/deny, which approvalCommand ignores for brief.ask
     const question = q => say('brief.ask', { argsSummary: typeof q === 'string' ? q : JSON.stringify(q) });

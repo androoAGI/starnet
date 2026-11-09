@@ -184,7 +184,8 @@ function consentSlice(world) {
   const src = names.map(n => sidecarFunctionSource(n)).filter(Boolean).join('\n');
   const deps = {
     makeConsentWait, channelPendingByRun: new Map(), channelConsentSettled: new Map(), CONSENT_TIMEOUT_MS: 120000, CONSENT_ACK_EXTEND_MS: 60000,
-    crypto: { randomUUID: () => world.uuid() }, remoteApprovals: world.approvals, failNote: () => {}, redact: (v) => v
+    crypto: { randomUUID: () => world.uuid() }, remoteApprovals: world.approvals, failNote: () => {}, redact: (v) => v,
+    isExactCommand: require('../../sidecar/permissions.js').exactCommand   // index.js's import (GHSA-2hpj #4: a command's ask is stamped)
   };
   try {
     return new Function(...Object.keys(deps), src + '\nreturn { channelAskConsent, channelResolveConsent, channelConsentOutcome };')(...Object.values(deps));   // eslint-disable-line no-new-func
