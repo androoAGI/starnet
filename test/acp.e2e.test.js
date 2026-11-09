@@ -373,9 +373,10 @@ function makeAcpClient(port, onPermission) {
       const runB = client.send('session/prompt', { sessionId: b, prompt: [{ type: 'text', text: 'work slowly (beta)' }] }, 90000);
       /* Wait (bounded) for the provider to hold BOTH completions before the cancel; a fixed sleep was a wall-clock guess.
          A run's start reads its owner-evidence proof from the transcript synchronously, and on a loaded Windows machine
-         that one file open was measured blocking 2.5-3.3 s (the antivirus scanning the segment the other run had just
-         appended to), so run B reached the provider after the old 1.6 s look. The proof is unchanged: nothing is
-         cancelled until both runs are provably in flight. */
+         that one file open was measured blocking 2.5-3.3 s inside the open itself (the station's own file calls were the
+         same as v0.15.0's; most likely the on-access antivirus scan of the segment the other run had just appended to), so
+         run B reached the provider after the old 1.6 s look. The proof is unchanged: nothing is cancelled until both runs
+         are provably in flight. */
       await waitFor(() => mock.inflight() >= 2, 30000);
       A.eq(mock.inflight(), 2, 'both runs are genuinely in flight (the provider is holding two completions)');
 
