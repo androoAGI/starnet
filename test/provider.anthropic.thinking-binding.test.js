@@ -8,7 +8,8 @@
      · a thinking block's signature is a hash of its conversation prefix (system, tools, every earlier message and every
        earlier block of its own turn — cache_control ignored); replaying it under a different prefix is the exact 400
        above, unless `thinking.block_binding.prefix_mismatch_behavior:'drop_block'` is on, in which case the block and
-       every later one are dropped and reported in message_start.input_transformations;
+       every later one are dropped and reported in message_start.input_transformations (the documented entry:
+       {type:'thinking_dropped', path, reason:'prefix_binding_mismatch'});
      · block_binding without the `thinking-binding-controls-2026-08-01` beta header is a 400;
      · Sonnet 5.5 refuses {type:'disabled'}; `between_tools` refuses any other field inside `thinking`.
    Then the fixes are proven against it, through the adapter alone and through the REAL loop (two consecutive turns). */
@@ -62,7 +63,7 @@ function fakeServer(script, o) {
         if (!dropping && b.signature === want) continue;
         if (!drop) return apiError(400, 'messages.' + i + '.content.' + j + ': ' + BOUND_400);
         dropping = true;   // the first mismatched block AND every later thinking block
-        transformations.push({ type: 'thinking_block_dropped', reason: 'prefix_binding_mismatch', location: 'messages.' + i + '.content.' + j });
+        transformations.push({ type: 'thinking_dropped', path: 'messages.' + i + '.content.' + j, reason: 'prefix_binding_mismatch' });   // the documented entry
       }
     }
     const content = script(posts.length, body);
@@ -179,6 +180,45 @@ function staleHistory() {
     A.eq(evs.find(e => e.type === 'done').thinkingDropped, 1, 'input_transformations surfaces as done.thinkingDropped');
     A.eq((failopen.counts()['providers.anthropic.thinking_dropped'] || 0) - before, 1, 'and as a tagged diagnostics line (failopen tally)');
     A.eq(thinkingCount(up.posts[0].body), 1, 'the block was still SENT (never pre-emptively stripped on adaptive)');
+  }
+  {
+    // the prefix drop names the block it dropped first (its signature, read off the body as sent): the loop's backstop
+    // (history-edit view.unbound) strips from that block's turn on
+    const up = fakeServer(() => [{ type: 'text', text: 'done' }]);
+    const history = staleHistory();
+    const evs = await collect(makeAnthropicProvider({ fetch: up.fetch, key: 'k', reasoningEffort: 'medium' }), { model: 'claude-opus-5-5', messages: history, tools: [fsTool] });
+    A.eq(evs.find(e => e.type === 'done').bindingDropped, { blocks: 1, first: history[1].reasoning[0].signature }, 'done.bindingDropped names the first block dropped for a prefix change');
+    const clean = fakeServer(() => [{ type: 'text', text: 'ok' }]);
+    const evs2 = await collect(makeAnthropicProvider({ fetch: clean.fetch, key: 'k', reasoningEffort: 'medium' }), { model: 'claude-opus-5-5', messages: [{ role: 'user', content: 'hi' }] });
+    const done2 = evs2.find(e => e.type === 'done');
+    A.ok(!('bindingDropped' in done2) && !('thinkingDropped' in done2), 'nothing dropped: the terminal event carries neither field');
+  }
+  {
+    // only a documented drop counts; only a prefix drop reaches the backstop; the earliest one is named; a path that
+    // does not resolve leaves no name (the loop then strips every block, which is always valid)
+    const fu = _internals.firstUnbound;
+    const wire = [
+      { role: 'user', content: [{ type: 'text', text: 'a' }] },
+      { role: 'assistant', content: [{ type: 'thinking', thinking: '', signature: 'S1' }, { type: 'text', text: 'x' }, { type: 'thinking', thinking: '', signature: 'S2' }] },
+      { role: 'user', content: [{ type: 'text', text: 'b' }] },
+      { role: 'assistant', content: [{ type: 'redacted_thinking', data: 'R3' }] }
+    ];
+    const drop = (i, j, reason) => ({ type: 'thinking_dropped', path: 'messages.' + i + '.content.' + j, reason: reason || 'prefix_binding_mismatch' });
+    A.eq(fu([drop(3, 0), drop(1, 2)], wire), { blocks: 2, first: 'S2' }, 'the earliest prefix drop is named, whatever the list order');
+    A.eq(fu([drop(3, 0)], wire), { blocks: 1, first: 'R3' }, 'a redacted block is named by its data');
+    A.eq(fu([drop(1, 0, 'model_binding_mismatch'), { type: 'thinking_mismatch_allowed', path: 'messages.1.content.0', reason: 'prefix_binding_mismatch' }, { type: 'later_kind' }], wire), null, 'a model drop, an allowed mismatch and an unknown entry are no prefix drop');
+    A.eq(fu([drop(1, 2), { type: 'thinking_dropped', path: 'messages.9.content.0', reason: 'prefix_binding_mismatch' }], wire), { blocks: 2, first: '' }, 'a path that does not resolve leaves no name: every block goes');
+    const up = fakeServer(() => [{ type: 'text', text: 'ok' }]);
+    const allowed = (url, init) => up.fetch(url, init).then(async r => {
+      const t = await r.text();
+      // message_start's message gains the entry an unenforced account would get (its first "usage":{)
+      return new Response(t.replace('"usage":{','"input_transformations":[{"type":"thinking_mismatch_allowed","path":"messages.1.content.0","reason":"prefix_binding_mismatch"}],"usage":{'), { status: r.status, headers: { 'Content-Type': 'text/event-stream' } });
+    });
+    const before = failopen.counts()['providers.anthropic.thinking_dropped'] || 0;
+    const evs = await collect(makeAnthropicProvider({ fetch: allowed, key: 'k', reasoningEffort: 'medium' }), { model: 'claude-opus-5-5', messages: [{ role: 'user', content: 'hi' }] });
+    const done = evs.find(e => e.type === 'done');
+    A.ok(!('thinkingDropped' in done) && !('bindingDropped' in done), 'a thinking_mismatch_allowed entry is not a drop (the block reached the model)');
+    A.eq((failopen.counts()['providers.anthropic.thinking_dropped'] || 0) - before, 1, 'but it is still named in the diagnostics line');
   }
 
   // ---- 4. strip-and-retry rescue: 'bound' (no drop_block possible: Sonnet 5.5 between_tools) ----

@@ -321,6 +321,25 @@
     }
     return false;
   }
+  /* The prefix_binding_mismatch drops of one input_transformations list -> { blocks, first } or null. `first` is the
+     earliest dropped block's signature (a redacted block's data), read off the body as sent ("messages.<i>.content.<j>"),
+     which is how the loop finds the turn it came from; '' when any such path does not resolve (the loop then strips
+     every block, which is always valid). */
+  function firstUnbound(tx, messages) {
+    let blocks = 0, at = null, blind = false;
+    for (const t of (Array.isArray(tx) ? tx : [])) {
+      if (!t || t.type !== 'thinking_dropped' || t.reason !== 'prefix_binding_mismatch') continue;
+      blocks++;
+      const p = /^messages\.(\d+)\.content\.(\d+)$/.exec(String(t.path || ''));
+      const i = p ? Number(p[1]) : -1, j = p ? Number(p[2]) : -1;
+      const m = p && Array.isArray(messages) ? messages[i] : null;
+      const b = m && Array.isArray(m.content) ? m.content[j] : null;
+      const key = b ? String((b.type === 'redacted_thinking' ? b.data : b.signature) || '') : '';
+      if (!key) { blind = true; continue; }
+      if (!at || i < at.i || (i === at.i && j < at.j)) at = { i, j, key };
+    }
+    return blocks ? { blocks, first: (blind || !at) ? '' : at.key } : null;
+  }
   // opts.skipReasoning(arr) -> true drops that turn's thinking blocks (stripped by a rescue, see wireStream).
   function messagesToAnthropic(messages, opts) {
     const skip = (opts && typeof opts.skipReasoning === 'function') ? opts.skipReasoning : null;
@@ -725,8 +744,14 @@
       // Where each thinking block sits in the turn (see assistantBlocks): text characters and tool_use blocks
       // already streamed when it STARTED. Counted from exactly what is yielded, so it indexes the loop's acc.text.
       let textChars = 0;
-      // input_transformations (message_start): thinking blocks the API dropped under drop_block, reported honestly.
+      /* input_transformations (message_start), as documented (claude-api model-migration, preserved thinking): an entry
+         {type:'thinking_dropped', path, reason} is a drop — reason 'prefix_binding_mismatch' when the history changed
+         before that block (drop_block drops it and every later block, for this request only), 'model_binding_mismatch' /
+         'organization_binding_mismatch' when this model or account cannot read it. Any other entry (a
+         'thinking_mismatch_allowed' block still reached the model; a type added later) is named in the note, never
+         counted as a drop. unbound: the prefix drops, for the loop's backstop (history-edit view.unbound). */
       let droppedThinking = 0;
+      let unbound = null;
 
       function parseLine(line) {
         const t = line.replace(/\r$/, '').trim();
@@ -736,8 +761,12 @@
         if (data === '[DONE]') return { done: true };
         try { return { json: JSON.parse(data) }; } catch (_) { return null; }
       }
-      // additive field on the terminal event; absent when nothing was dropped (byte-identical otherwise)
-      function withDrops(ev) { if (droppedThinking > 0) ev.thinkingDropped = droppedThinking; return ev; }
+      // additive fields on the terminal event; absent when nothing was dropped (byte-identical otherwise)
+      function withDrops(ev) {
+        if (droppedThinking > 0) ev.thinkingDropped = droppedThinking;
+        if (unbound) ev.bindingDropped = unbound;
+        return ev;
+      }
       let generationId = '';
       function withGeneration(usage) { return generationId ? Object.assign({}, usage, { generation_id: generationId }) : usage; }
       function* emitFrom(ev) {
@@ -754,13 +783,15 @@
             baseUsage = Object.assign({}, (ev.message && ev.message.usage) || {});
             const tx = ev.message && ev.message.input_transformations;
             if (Array.isArray(tx) && tx.length) {
-              const reasons = {};
+              const kinds = {};
               for (const t of tx) {
-                const r = String((t && (t.reason || t.type)) || 'unknown').slice(0, 60);
-                reasons[r] = (reasons[r] || 0) + 1;
-                droppedThinking++;
+                if (!t || typeof t !== 'object') continue;
+                const k = [t.type || 'unknown', t.reason].filter(Boolean).map(x => String(x).slice(0, 60)).join(' ');   // an API entry's words, not a run's end
+                kinds[k] = (kinds[k] || 0) + 1;
+                if (t.type === 'thinking_dropped') droppedThinking++;
               }
-              failNote('providers.anthropic.thinking_dropped', 'the API dropped ' + droppedThinking + ' replayed thinking block(s) on ' + String(body.model || '') + ' (' + Object.keys(reasons).map(k => k + ' x' + reasons[k]).join(', ') + ')');
+              unbound = firstUnbound(tx, body.messages);
+              failNote('providers.anthropic.thinking_dropped', 'the API dropped ' + droppedThinking + ' replayed thinking block(s) on ' + String(body.model || '') + ' (' + Object.keys(kinds).map(k => k + ' x' + kinds[k]).join(', ') + ')');
             }
             if (ev.message && ev.message.usage) yield { type: 'usage', usage: withGeneration(normalizeUsage(ev.message.usage)) };
             return;
@@ -1009,8 +1040,11 @@
       return provider.verifyResponse(doFetch, baseUrl + '/models', { headers: headerBag(key, 'application/json'), signal: o && o.signal },
         j => (Array.isArray(j.data) ? j.data : []).map(normalizeModel).filter(Boolean), !!key, classifyApiError);
     }
-    return { stream, listModels, verifyCredential, warmCatalog, catalogHttpStatus, catalogFetchError, contextLimit, outputLimit, priceOf, supportsTools, reasoningEfforts };
+    /* PRESERVED THINKING IS THE LOOP'S TO KEEP CONSISTENT (W1.7): on these models a history edit unbinds every block at or
+       after it, so the loop's request view (history-edit.js makeRequestView) strips exactly those, once, instead of
+       replaying them into a drop cascade. Asked per model; the rescue below still covers anything this list misses. */
+    return { stream, listModels, verifyCredential, warmCatalog, catalogHttpStatus, catalogFetchError, contextLimit, outputLimit, priceOf, supportsTools, reasoningEfforts, bindsThinking };
   }
 
-  return { makeAnthropicProvider, _internals: { messagesToAnthropic, toAnthropicTools, normalizeUsage, normalizeModel, cleanBaseUrl, headerBag } };
+  return { makeAnthropicProvider, _internals: { messagesToAnthropic, toAnthropicTools, normalizeUsage, normalizeModel, cleanBaseUrl, headerBag, firstUnbound } };
 });

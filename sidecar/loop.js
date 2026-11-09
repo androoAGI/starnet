@@ -25,6 +25,9 @@
   // fold-fidelity helpers (verbatim user section, usage anchor, provider-reported window). Node-only like failopen;
   // absent (a browser build that never runs the loop) = compaction stays off rather than folding unfaithfully.
   const fidelity = (typeof require === 'function') ? require('./compaction-fidelity.js') : null;
+  // THE ONE HISTORY-EDIT RESOLVER (W1.7): the request view that strips only the thinking an edit invalidated, and the
+  // elision stub that keeps a handle. Node-only like fidelity: absent, requests go out as before and nothing folds.
+  const HistoryEdit = (typeof require === 'function') ? require('./history-edit.js') : null;
   const SteeringMessage = (typeof require === 'function') ? require('../frontend/app/steering-message.js') : null;
   // the per-run <run_context> note's predicate (providers/provider.js owns the fence) — compaction pins that note
   const isRunContextNote = (typeof require === 'function') ? require('./providers/provider.js').isRunContextNote : null;
@@ -249,6 +252,8 @@
       }
       return content.slice(0, budget - short.length) + short;
     }
+    // the registry's 70/30 cut, through the one implementation (history-edit headTail: never splits a surrogate pair)
+    if (HistoryEdit) return HistoryEdit.headTail(content, room, () => note);
     const head = Math.floor(room * 0.7), tail = room - head;
     return content.slice(0, head) + note + content.slice(content.length - tail);
   }
@@ -302,7 +307,7 @@
         const r = results[i];
         if (give >= r.content.length || r.parkedPath) continue;
         let p = null;
-        try { p = await capCtx.parkOutput(r.content, { tool: nameOf.get(r.callId) || 'tool', reason: 'turn-output-budget' }); }
+        try { p = await capCtx.parkOutput(r.content, Object.assign({ tool: nameOf.get(r.callId) || 'tool', reason: 'turn-output-budget' }, provenanceOf(r))); }
         catch (e) { failNote('loop.turnBudget.park', e); p = null; }
         if (p && p.path) results[i] = Object.assign({}, r, { parkedPath: String(p.path) });
       }
@@ -386,6 +391,15 @@
   // a HOST refusal's own reason (registry.js refusalReason) rides its tool_result, so the tool's line says why instead
   // of a bare "✗ error" (run-paths-polish P2); the host scrubs host paths out of it before it is shown (index.js loopEmit)
   const refusalOf = r => (r && r.isError && typeof r.reason === 'string' && r.reason ? { reason: r.reason } : {});
+  /* PROVENANCE RIDES THE RESULT (W1.7). A later elision may park this body (history-edit elideToolResult), and a park
+     must know what the registry knew: words quoted from another session are never written to a workspace file, and a
+     relayed taint names the file untrusted. Additive and only when present, so every other result is unchanged. */
+  const provenanceOf = r => {
+    const out = {};
+    if (r && Array.isArray(r.quotedStreams) && r.quotedStreams.length) out.quotedStreams = r.quotedStreams.slice();
+    if (r && typeof r.taintedBy === 'string' && r.taintedBy) out.taintedBy = r.taintedBy;
+    return out;
+  };
 
   /* A HIDDEN TOOL'S ERROR IS NOT NEWS FOR THE COMMANDER (rc walk 2026-10-14). The Task Brief tools draw no chip, so a model that
      narrated fixing one ("Let me fix that—sources needs to be an array:", "Let me correct that:") put a sentence in COMMS about
@@ -427,7 +441,7 @@
         return { c, r, ms: Math.max(0, (meta.clock ? meta.clock.now() : 0) - t0) };
       }));
       for (const s of settled) {
-        results.push({ callId: s.c.id, isError: !!s.r.isError, ok: !!s.r.ok, content: s.r.content, summary: s.r.summary || (s.r.isError ? 'error' : 'ok'), control: s.r.control || null, images: s.r.images || null, parkedPath: s.r.parkedPath || null, ...(s.r.outputElided > 0 ? { outputElided: s.r.outputElided } : {}), ...(s.r.quietRepair ? { quietRepair: true } : {}) });
+        results.push({ callId: s.c.id, isError: !!s.r.isError, ok: !!s.r.ok, content: s.r.content, summary: s.r.summary || (s.r.isError ? 'error' : 'ok'), control: s.r.control || null, images: s.r.images || null, parkedPath: s.r.parkedPath || null, ...(s.r.outputElided > 0 ? { outputElided: s.r.outputElided } : {}), ...(s.r.quietRepair ? { quietRepair: true } : {}), ...provenanceOf(s.r) });
         if (meta.hiddenTools && meta.hiddenTools.has(s.c.name)) continue;
         emit('agent.tool_result', {
           agentId: meta.agentId, runId: meta.runId, callId: s.c.id, ok: !!s.r.ok,
@@ -472,7 +486,7 @@
       }
       r = quietHiddenError(c, r || { ok: false, isError: true, content: 'tool returned nothing', summary: 'error' }, meta);
       const t1 = meta.clock ? meta.clock.now() : 0;
-      results.push({ callId: c.id, isError: !!r.isError, ok: !!r.ok, content: r.content, summary: r.summary || (r.isError ? 'error' : 'ok'), control: r.control || null, images: r.images || null, parkedPath: r.parkedPath || null, ...(r.outputElided > 0 ? { outputElided: r.outputElided } : {}), ...(r.quietRepair ? { quietRepair: true } : {}) });
+      results.push({ callId: c.id, isError: !!r.isError, ok: !!r.ok, content: r.content, summary: r.summary || (r.isError ? 'error' : 'ok'), control: r.control || null, images: r.images || null, parkedPath: r.parkedPath || null, ...(r.outputElided > 0 ? { outputElided: r.outputElided } : {}), ...(r.quietRepair ? { quietRepair: true } : {}), ...provenanceOf(r) });
       if (r.control && r.control.final) finalControl = r.control;
       if (r.control && r.control.stopTools) stopToolsControl = r.control;
       if (!hidden) emit('agent.tool_result', {
@@ -1289,6 +1303,18 @@
     const _tis = limits.toolImageStep;
     const TOOL_IMAGE_STEP = (typeof _tis === 'number' && _tis >= 0) ? Math.floor(_tis) : 4;
     const screenshotMeta = (typeof WeakMap === 'function') ? new WeakMap() : null;   // capture turn -> { tools, turn }
+    // tool message -> what a later elision needs to give its body a handle (history-edit elideToolResult): the file the
+    // host already parked the output to, and the provenance a park of the body must carry
+    const toolOrigin = (typeof WeakMap === 'function') ? new WeakMap() : null;
+    /* THE REQUEST VIEW (history-edit makeRequestView): on a provider that binds thinking to its prefix, the blocks an
+       edit invalidated are deleted from their turns (once, in place), and so is every block the run's first request
+       would replay (a recovered history: the view never saw the prefix it was made on); every other provider gets
+       `wireMessages()` untouched. */
+    const requestView = HistoryEdit ? HistoryEdit.makeRequestView() : null;
+    const bindsThinking = () => {
+      if (!provider || typeof provider.bindsThinking !== 'function') return false;
+      try { return provider.bindsThinking(model) === true; } catch (e) { failNote('loop.bindsThinking', e); return false; }
+    };
     // What the provider is sent, and what the context meter measures: `messages` with stale screen captures replaced by
     // placeholders (a view — never an edit). Asked of the CURRENT provider each time (a fallback can change it): one that
     // holds the run's history itself (claude-cli's persistent child) is sent every capture as it was, up to
@@ -1787,23 +1813,42 @@
        model CONFABULATE what the results had said — 20 of 30 values invented. The first lines of a tool result
        are where its fact usually sits (path, status line, the matched text), so the elision keeps ELIDE_HEAD
        chars of it and the marker says exactly what was dropped. ~60 tokens per result; still a 10-50x shrink. */
-    const ELIDE_HEAD = 240;
-    const ELIDED = '[tool result elided at compaction — ';
-    const isElided = (m) => m && m.role === 'tool' && typeof m.content === 'string' && m.content.indexOf(ELIDED) === 0;
-    function elideTools(older) {
+    /* THE STUB KEEPS A HANDLE (W1.7). The stub is built by history-edit elideToolResult — the one builder, shared with
+       cross-run replay — and names a saved file whose fs.read gives the elided bytes back: where the host parked the
+       output before cutting it, or a park of the exact body made by the commit pass. Never the source it came from: a
+       file read earlier may have been edited since, and fs.read's page follows the live window. A body the head keeps
+       whole is left as it is: its stub could only add bytes. */
+    async function elideTools(older, park) {
       const names = new Map();
       let elided = 0;
-      const out = older.map(m => {
+      const out = [];
+      for (const m of older) {
         if (m && m.role === 'assistant' && Array.isArray(m.tool_calls)) for (const c of m.tool_calls) names.set(c && c.id, (c && c.function && c.function.name) || 'tool');
-        if (!m || m.role !== 'tool' || isElided(m)) return m;
-        const body = typeof m.content === 'string' ? m.content : JSON.stringify(m.content || '');
-        const name = names.get(m.tool_call_id) || 'tool';
+        if (!m || m.role !== 'tool' || HistoryEdit.isElided(m)) { out.push(m); continue; }
+        /* no origin = a body this run did not produce (a resumed history): nothing says whose words it quotes or what
+           tainted it, so it is never parked and keeps the old wording */
+        const origin = toolOrigin ? toolOrigin.get(m) : null;
+        const stub = await HistoryEdit.elideToolResult(m.content, {
+          name: names.get(m.tool_call_id) || 'tool',
+          parkedPath: origin ? origin.parkedPath : null, parkMeta: origin ? origin.parkMeta : null, park: origin ? park : null
+        });
+        if (!stub) { out.push(m); continue; }
         elided++;
-        const head = body.length > ELIDE_HEAD ? body.slice(0, ELIDE_HEAD).replace(/\s+$/, '') + '…' : body;
-        return Object.assign({}, m, { content: ELIDED + name + ', ' + Buffer.byteLength(body, 'utf8') + ' bytes; first ' + Math.min(ELIDE_HEAD, body.length) + ' chars kept below; re-run the tool for the full output]' + String.fromCharCode(10) + head });
-      });
+        out.push(Object.assign({}, m, { content: stub.content }));
+      }
       return { older: out, elided };
     }
+    /* THE MEASURING PASS PRICES THE STUB THE COMMIT WRITES (W1.7). A saved stub names its file, so the dry pass (which
+       must leave no file behind) hands elideToolResult a parker that writes nothing and answers with a stand-in name at
+       least as long as the host's in its usual shapes (index.js capCtx.parkOutput: [untrusted-]<tool>-<run id>-<seq>
+       under .output, placed where this run reads it). The trial is then measured on stubs as long as the committed
+       ones, and the commit re-measures what it wrote for agent.compact. */
+    const standInPark = async (text, meta) => {
+      const rel = '.output/untrusted-' + String((meta && meta.tool) || 'tool').replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 40)
+        + '-' + String(runId).replace(/[^A-Za-z0-9_-]/g, '') + '-0000.txt';
+      try { return { path: (capCtx && capCtx.paths && typeof capCtx.paths.placeJail === 'function' && capCtx.paths.placeJail(rel)) || rel }; }
+      catch (_) { return { path: rel }; }
+    };
     /* An elided copy STANDS IN for its original, so it inherits the original's host-attached identity markers:
        non-enumerable own symbol keys, which Object.assign above does not copy. The one that matters is
        transcriptstore.js's PERSISTED marker — with it the run-end drain treats the copy as already recorded (its
@@ -1954,7 +1999,18 @@
       const summaryNote = (text) => ({ role: 'system', content: '<conversation_summary>\n' + fidelity.joinSummary(text, userSection()) + '\n</conversation_summary>' });
       // ---- micro tier: free; measured on a copy; committed only if it clears the threshold on its own ----
       if (microCompaction && threshold > 0) {
-        const micro = elideTools(plan.older);
+        /* a park that fails leaves that stub on the old wording, and says so. The host parker (index.js) swallows its own
+           errors and answers null; elideToolResult never asks it to save quoted words (its one refusal), so a null or a
+           missing path here is a failed write, noted like a throw. */
+        const parker = capCtx && typeof capCtx.parkOutput === 'function'
+          ? async (text, meta) => {
+            let p = null;
+            try { p = await capCtx.parkOutput(text, meta); } catch (e) { failNote('loop.historyEdit.park', e); return null; }
+            if (!p || !p.path) failNote('loop.historyEdit.park', 'the host parker saved nothing for a ' + String((meta && meta.tool) || 'tool') + ' result at elision; its stub keeps the old wording');
+            return p;
+          }
+          : null;
+        const micro = await elideTools(plan.older, parker ? standInPark : null);   // the dry pass: measures only, parks nothing
         if (micro.elided > 0) {
           // the micro tier folds no user message: the previous note (its carried section included) stays as it was
           const trial = appendTodo(prefix.concat(prevNote ? [prevNote] : [], micro.older, plan.tail));
@@ -1979,10 +2035,18 @@
             if (summarize && typeof summarize.drain === 'function') {
               try { summarize.drain(plan.older); } catch (e) { failNote('loop.compaction.microDrain', e); return false; }
             }
-            carryMarkers(plan.older, micro.older);   // the drained originals' persisted marker rides onto the elided copies
-            messages.length = 0; for (const mm of trial) messages.push(mm);
+            /* THE COMMIT PASS parks what no other handle covers (the dry pass above only measured, on stand-in names). The
+               same results are elided in the same order; agent.compact reports the numbers measured on what is actually
+               committed (a park that failed leaves its stub shorter, with the old wording). */
+            const done = parker ? await elideTools(plan.older, parker) : micro;
+            const swap = new Map();
+            micro.older.forEach((m, k) => { if (m !== done.older[k]) swap.set(m, done.older[k]); });
+            const committed = swap.size ? trial.map(m => swap.get(m) || m) : trial;
+            carryMarkers(plan.older, done.older);   // the drained originals' persisted marker rides onto the elided copies
+            messages.length = 0; for (const mm of committed) messages.push(mm);
             usageReading = null;
-            emit('agent.compact', { agentId, runId, beforeTokens, afterTokens, removed: Math.max(0, beforeTokens - afterTokens), reason: 'micro', elided: micro.elided });
+            const committedTokens = committed === trial ? afterTokens : context.estimateMessages(committed);
+            emit('agent.compact', { agentId, runId, beforeTokens, afterTokens: committedTokens, removed: Math.max(0, beforeTokens - committedTokens), reason: 'micro', elided: done.elided });
             return true;
           }
         }
@@ -2378,13 +2442,20 @@
         let sawStreamEvent = false;   // any event from this attempt's stream: provider.retry `stage` + the waiting phase
         let streamClosed = false;     // the provider's stream ran to its own end (not cut off by a cancel)
         let billedPerCall = true;     // false once the adapter says this call bills nothing per call (a subscription sign-in)
+        let unboundDrop = null;       // the API dropped replayed thinking for a prefix change the view did not make (done.bindingDropped)
         /* The wait this attempt opens ends at the first visible output (a streamed token) or when the attempt
            settles. A retried attempt announces itself with an immediate sinceMs:0 beat, so a "retry in 30s"
            line is replaced the moment the retry actually goes out instead of lingering until the next tick. */
         const waiting = startWaiting('first_byte', retrySent);
         retrySent = false;
         try {
-          const req = { model, messages: wireMessages(), tools, signal, stream: true };   // stale screen captures -> placeholders
+          // stale screen captures -> placeholders; then the thinking any history edit invalidated is stripped (binding models)
+          const view = requestView ? requestView.messages(wireMessages(), { tools, binds: bindsThinking() }) : null;
+          // a strip is recorded where the API's own drops were (providers.anthropic.thinking_dropped): a strip on every turn shows
+          if (view && view.stripped > 0) failNote('loop.historyEdit.thinkingStripped', view.unproven
+            ? 'the run\'s first request on ' + String(model) + ' replays the thinking of ' + view.stripped + ' turn(s) it never saw produced (a recovered history: its tools, system prompt or turns may differ from when that thinking was made); those blocks were removed before the request'
+            : 'a history edit at message ' + view.editAt + ' unbound the thinking of ' + view.stripped + ' earlier turn(s) on ' + String(model) + '; those blocks were removed before the request');
+          const req = { model, messages: view ? view.messages : wireMessages(), tools, signal, stream: true };
           if (typeof o.isTask === 'boolean') req.isTask = o.isTask;
           if (o.runId) req.runId = o.runId;   // run attribution: only a profile that names a runIdHeader sends it (starnet)
           if (o.cacheSystemPrefix) req.cacheSystemPrefix = o.cacheSystemPrefix;
@@ -2421,12 +2492,20 @@
             else if (ev.type === 'tool_start') { acc.toolCalls[ev.index] = { id: ev.id, name: ev.name, args: '' }; waiting.resume('streaming'); }
             else if (ev.type === 'tool_args') { if (acc.toolCalls[ev.index]) acc.toolCalls[ev.index].args += (ev.chunk || ''); waiting.resume('streaming'); }
             else if (ev.type === 'usage') { usage = ev.usage; noteGeneration(usage && usage.generation_id); if (cost) emit('cost.estimate', Object.assign({ agentId, runId }, cost.estimate(usage, model))); }
-            else if (ev.type === 'done') { lastFinishReason = ev.finishReason; sawTruncation = !!ev.truncated; }   // A3: remember WHY the turn stopped
+            else if (ev.type === 'done') { lastFinishReason = ev.finishReason; sawTruncation = !!ev.truncated; if (ev.bindingDropped) unboundDrop = ev.bindingDropped; }   // A3: remember WHY the turn stopped
             // 'tool_done' needs no action here
           }
           streamClosed = !signal.aborted;
         } catch (e) { streamErr = e; }
         finally { waiting.stop(); }
+        /* THE BACKSTOP (history-edit view.unbound): a prefix change the view did not make still reached the API, which
+           dropped the first stale block and every later one, for this request only: kept, they would be dropped again on
+           every request. They go now, from the first dropped block's turn, with this response's own. */
+        if (unboundDrop && requestView) {
+          const lost = requestView.unbound(messages, unboundDrop.first);
+          acc.reasoning = [];
+          failNote('loop.historyEdit.unbound', 'the API dropped ' + unboundDrop.blocks + ' replayed thinking block(s) on ' + String(model) + ' for a prefix change the request view did not make; the thinking of ' + lost + ' earlier turn(s) and of this response was removed, so the next request replays none of it');
+        }
         // a call that bills nothing per call (claude-cli on a subscription sign-in) cost nothing when cut: never a floor
         if (signal.aborted && sawStreamEvent && !streamClosed && billedPerCall) streamCut = true;
         if (!streamErr) {
@@ -3066,7 +3145,9 @@
       for (const r of results) {
         // a merged duplicate has no result of its own: the kept call's result says the copies were not dispatched
         const merged = mergedDupes.get(r.callId) || 0;
-        messages.push(toolResultMsg(r.callId, r.isError, merged ? String(r.content == null ? '' : r.content) + duplicateNote(merged) : r.content));
+        const resultMsg = toolResultMsg(r.callId, r.isError, merged ? String(r.content == null ? '' : r.content) + duplicateNote(merged) : r.content);
+        if (toolOrigin) toolOrigin.set(resultMsg, { parkedPath: r.parkedPath || null, parkMeta: provenanceOf(r) });
+        messages.push(resultMsg);
       }
       for (const call of calls) {
         const receipt = results.find(r => r.callId === call.id);

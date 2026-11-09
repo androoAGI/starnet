@@ -44,6 +44,7 @@
 const { makeGenerationReceipt } = require('./providers/provider.js');
 
 const fidelity = require('./compaction-fidelity.js');
+const HistoryEdit = require('./history-edit.js');   // the one history-edit resolver: a fold's own request writes no cache
 
 const DEFAULT_CHUNK_CHARS = 48000;
 const DEFAULT_MAX_CHUNKS = 12;
@@ -200,10 +201,12 @@ function makeSummarizer(deps) {
     let usd = 0, tokens = 0, produced = false, rejected = null; const unpriced = [];
 
     async function attempt(useModel, userMsg, hasPrev) {
-      const req = { model: useModel, stream: true, signal, messages: [
+      // A FOLD CHUNK IS NEVER READ AGAIN (W1.7): no cache write (history-edit foldRequest -> neverReread, as the aux meter's
+      // one-shots). Each chunk's prefix is unique to it, so the anchors only ever paid the write premium (1.25x / 2.0x).
+      const req = HistoryEdit.foldRequest({ model: useModel, stream: true, signal, messages: [
         { role: 'system', content: summaryPrompt({ prevSummary: hasPrev }) },
         { role: 'user', content: userMsg }
-      ] };
+      ] });
       const effort = auxEffortFor(sProvider, useModel);
       if (effort) req.reasoningEffort = effort;
       if (deps.runId) req.runId = deps.runId;   // run attribution (starnet proxy header; other providers ignore it)

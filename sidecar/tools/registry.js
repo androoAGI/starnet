@@ -31,6 +31,10 @@
   const DECLARED_IMPACTS = new Set(inputpolicy && inputpolicy.IMPACTS ? Object.keys(inputpolicy.IMPACTS).map(k => inputpolicy.IMPACTS[k]) : []);
   // failopen.note — the tagged SYNC swallow (per-tag count + throttled warn): a fail-open catch must never be invisible.
   const { note: failNote } = (typeof require === 'function') ? require('../failopen.js') : { note: function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); } };
+  // THE ONE 70/30 CUT (history-edit headTail, W1.7): the same cut as shell.exec, verify, MCP and the loop's turn squeeze,
+  // never splitting a surrogate pair; a browser copy without the resolver makes the same cut inline
+  const headTail = (typeof require === 'function') ? require('../history-edit.js').headTail
+    : function (s, max, noteFor) { const head = Math.floor(max * 0.7), from = s.length - (max - head); return s.slice(0, head) + noteFor(from - head) + s.slice(from); };
 
   /* CENTRAL TOOL-OUTPUT CAP (ref-parity: the reference harness's tool_output_limits). Every builtin clamps its own output today,
      which means the protection is a CONVENTION — a new tool, or an MCP server behind a new connector,
@@ -126,9 +130,8 @@
         + 'in parts. The end of the output follows ...]\n\n';
     // Carved-in: size the kept text from a first draft of the note, with slack for the dropped count gaining digits.
     const room = hostCap ? Math.max(0, hostCap - noteFor(content.length - hostCap).length - 8) : OUTPUT_MAX;
-    const head = Math.floor(room * 0.7), tail = room - head;
-    const note = noteFor(content.length - head - tail);
-    return content.slice(0, head) + note + content.slice(content.length - tail);
+    // the first 70% of the room and the last 30%, the dropped count in the note (headTail: never splits a surrogate pair)
+    return room > 0 ? headTail(content, room, noteFor) : noteFor(content.length);
   }
 
   // `images` rides ALONGSIDE content, never inside it: a tool result is a string on every wire we speak, so
