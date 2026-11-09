@@ -517,6 +517,14 @@
             return (chosen === 'once' || chosen === 'session') ? chosen : 'deny';
           })
           .catch((e) => { log('permission request failed, denying: ' + ((e && e.message) || e)); return 'deny'; })
+          .then((chosen) => {
+            /* A COMMAND'S "FOR THIS SESSION" IS SENT AS ONCE (final review B6). Only a station that confirms that answer at
+               the desk stamps a command's ask exactCommand, so sending 'session' would only make a bare station print a
+               confirmation code nobody here can type. Once is sent instead, and the log says why. */
+            if (chosen !== 'session' || !q || q.exactCommand !== true) return chosen;
+            log('"allow this exact command for this session" is confirmed in the StarNet window; allowed once instead');
+            return 'once';
+          })
           .then((decision) => callSidecar('POST', '/api/consent', { runId: runId, promptId: promptId, decision: decision }).then((r) => {
             /* FOR THE SESSION NEEDS THE DESK (fix-sec2 review 3): the station confirms a 'session' answer in the StarNet
                window, which an editor cannot. The ask is not left waiting: it is allowed once, and the log says why. */

@@ -170,7 +170,9 @@ function makeEventQueue(deps) {
     const p = (payload && typeof payload === 'object') ? payload : {};
     // remember consent-prompt descriptors so permissions_list_open can enrich the id-only snapshot rows.
     if (type === 'permission.prompt' && p.promptId != null) {
-      promptDetails.set(str(p.promptId), { tool: str(p.tool), scope: str(p.scope), argsSummary: str(p.argsSummary), agentId: str(p.agentId) });
+      const detail = { tool: str(p.tool), scope: str(p.scope), argsSummary: str(p.argsSummary), agentId: str(p.agentId) };
+      if (p.exactCommand === true) detail.exactCommand = true;   // a command (GHSA-2hpj #4): approved one at a time from a bridge
+      promptDetails.set(str(p.promptId), detail);
     }
     cursor += 1;
     const sessionKey = str(p.runId || p.streamId || p.agentId || '');
@@ -386,12 +388,15 @@ const IMPLS = {
     const prompts = (r.json && Array.isArray(r.json.prompts)) ? r.json.prompts : [];
     const approvals = prompts.map(p => {
       const d = ctx.queue.promptDetail(p.promptId) || {};
-      return {
+      const row = {
         id: str(p.runId) + '|' + str(p.promptId),
         runId: str(p.runId), promptId: str(p.promptId),
         agentId: str(p.agentId || d.agentId),
         tool: str(d.tool), scope: str(d.scope), argsSummary: str(d.argsSummary)
       };
+      // additive (GHSA-2hpj #4): a command is approved one at a time, so a client is told it takes allow-once or deny
+      if (p.exactCommand === true || d.exactCommand === true) Object.assign(row, { exactCommand: true, decisions: ['allow-once', 'deny'] });
+      return row;
     });
     return { count: approvals.length, approvals: approvals };
   },
@@ -407,6 +412,16 @@ const IMPLS = {
     const runId = id.slice(0, bar);
     const promptId = id.slice(bar + 1);
     if (!runId || !promptId) return { error: 'Invalid approval id (expected "runId|promptId"): ' + id };
+    /* A COMMAND SEEN ON THE STREAM IS SENT AS ONCE (final review B6): its allow-always could only ever approve this call,
+       so the bridge never sends a standing answer for it (nothing for the station to refuse, no code printed for it). */
+    const command = (ctx.queue.promptDetail(promptId) || {}).exactCommand === true;
+    if (command && decision === 'allow-always') {
+      const once = await ctx.callSidecar('POST', '/api/consent', { runId: runId, promptId: promptId, decision: 'once' });
+      if (!once.ok) return sidecarDown(ctx, once);
+      if (once.status !== 200) return badStatus('/api/consent', once);
+      return { resolved: true, id: id, decision: 'allow-once', mapped: 'once', requested: decision,
+        note: 'Allowed once. A command is approved one at a time: the next command asks again.' };
+    }
     const mapped = decision === 'allow-once' ? 'once' : decision === 'allow-always' ? 'always' : 'deny';
     let r = await ctx.callSidecar('POST', '/api/consent', { runId: runId, promptId: promptId, decision: mapped });
     if (!r.ok) return sidecarDown(ctx, r);

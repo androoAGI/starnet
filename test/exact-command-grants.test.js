@@ -214,6 +214,25 @@ const sh = (cmd, extra) => ({ name: 'shell.exec', args: Object.assign({ cmd }, e
     const res = await bridge.callTool('permissions_respond', { id: 'r1|p1', decision: 'allow-always' });
     const text = JSON.stringify(res);
     A.ok(sent.length === 1 && sent[0] === 'always' && /allow-once/.test(text) && /one at a time/.test(text), 'MCP allow-always on a command reports allow-once: ' + text.slice(0, 160));
+    // final review B6: a command the bridge saw on the stream is sent as once (no standing answer reaches the station), and
+    // its open row says it takes allow-once or deny
+    {
+      const seen = [];
+      const queue = require('../sidecar/mcp/bridge-core.js').makeEventQueue({});
+      const b2 = makeBridge({ queue, callSidecar: async (m, p, body) => {
+        if (p === '/api/state/snapshot') return { ok: true, status: 200, json: { prompts: [{ runId: 'r1', promptId: 'p9', agentId: 'a1' }, { runId: 'r1', promptId: 'p8', agentId: 'a1' }] } };
+        seen.push(body.decision); return { ok: true, status: 200, json: { ok: true, decision: body.decision } };
+      } });
+      queue.push('permission.prompt', { promptId: 'p9', runId: 'r1', tool: 'shell.exec', scope: 'execute', argsSummary: '{"cmd":"npm test"}', exactCommand: true });
+      queue.push('permission.prompt', { promptId: 'p8', runId: 'r1', tool: 'fs.write', scope: 'write', argsSummary: 'a.md' });
+      const open = await b2.callTool('permissions_list_open', {});
+      const cmdRow = open.approvals.find(a => a.promptId === 'p9'), fileRow = open.approvals.find(a => a.promptId === 'p8');
+      A.ok(cmdRow.exactCommand === true && cmdRow.decisions.join(',') === 'allow-once,deny' && !('exactCommand' in fileRow) && !('decisions' in fileRow), 'MCP: an open command says it takes allow-once or deny (additive); a file write is unchanged');
+      const r2 = await b2.callTool('permissions_respond', { id: 'r1|p9', decision: 'allow-always' });
+      A.ok(seen.join(',') === 'once' && r2.decision === 'allow-once' && /one at a time/.test(r2.note), 'MCP: allow-always on a command it saw is sent as once, and said so: ' + JSON.stringify(seen));
+      await b2.callTool('permissions_respond', { id: 'r1|p8', decision: 'allow-always' });
+      A.eq(seen, ['once', 'always'], 'MCP: allow-always on any other ask is sent as before');
+    }
 
     // ACP: the session option names the exact command
     const acp = require('../sidecar/acp/core.js')._internals;
