@@ -183,7 +183,11 @@ function fakeLedgerFull(o) {
   const blk = strictAll.check('r1', 'a', 0, 0);
   A.eq(blk && blk.code, 'spend_history_unavailable', 'default: every governed scope is strict -> uncertain history refuses paid dispatch');
   const softDay = makeBudget({ caps: { day: 25 }, ledger: uncertain, clock: { now: () => 0 }, strictScope: s => s !== 'day' });
-  A.eq(softDay.check('r2', 'a', 0, 0), null, 'only the SOFT shipped day rail governs -> uncertain history does not brick the run');
+  // GHSA-2hpj #8: only the SOFT shipped day rail governs -> work nobody watches pauses; a watched run is not bricked
+  const pausedRun = softDay.check('r2u', 'a', 0, 0);
+  A.eq(pausedRun && [pausedRun.code, pausedRun.paused, pausedRun.scope], ['spend_history_unavailable', true, 'day'], 'soft rail + uncertain history: unattended work pauses');
+  A.ok(begun.indexOf('r2u') < 0, 'a paused run records no dispatch receipt');
+  A.eq(softDay.check('r2', 'a', 0, 0, null, null, { attended: true }), null, 'only the SOFT shipped day rail governs -> a watched run is not bricked');
   A.ok(begun.indexOf('r2') >= 0, 'the dispatch receipt is still recorded on the soft path');
   A.eq(softDay.status(0).day.usd, null, 'status still reports the day spend as UNKNOWN (never a guessed $0)');
   const mixed = makeBudget({ caps: { day: 25, global: 100 }, ledger: uncertain, clock: { now: () => 0 }, strictScope: s => s !== 'day' });

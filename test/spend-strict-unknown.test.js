@@ -42,7 +42,13 @@ function setup(receipt, caps, strictScope, knownUsd) {
   }
   for (const receipt of cases) {
     const { B } = setup(receipt, { day: 25 }, () => false, 26);
-    A.eq(B.check('soft-next', 'agent', 0, NOW), null, receipt.runId + ': shipped soft-only rail remains unenforced while history unknown');
+    // GHSA-2hpj #8: the shipped soft rail no longer goes unenforced while history is unknown
+    const paused = B.check('soft-next', 'agent', 0, NOW);
+    A.eq(paused && [paused.paused, paused.unknown, paused.code, paused.scope], [true, true, 'spend_history_unavailable', 'day'], receipt.runId + ': shipped soft rail pauses unattended work while history unknown');
+    A.ok(paused && /COUNT AS|enter its charge/.test(paused.exit), receipt.runId + ': the pause names explicit settlement');
+    const watched = B.check('soft-watched', 'agent', 0, NOW, null, null, { attended: true });
+    A.ok(watched && watched.scope === 'day' && !watched.unknown && watched.usd >= 26 && /COUNT AS|enter its charge/.test(watched.exit), receipt.runId + ': a watched run counts the $26 on record and stops at the shipped cap: ' + JSON.stringify(watched));
+    A.eq(setup(receipt, { day: 25 }, () => false).B.check('soft-under', 'agent', 0, NOW, null, null, { attended: true }), null, receipt.runId + ': a watched run under the floor-counted cap proceeds');
     A.eq(B.resume('day'), null, receipt.runId + ': soft RESUME cannot attest an uncertain charge either');
     A.eq(setup(receipt, {}, () => true).B.check('uncapped', 'agent', 0, NOW), null, receipt.runId + ': no chosen pool means no history refusal');
   }

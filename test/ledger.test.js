@@ -173,7 +173,9 @@ const clock = { now: () => t };
   A.eq([roomy && roomy.scope, roomy && roomy.code, roomy && roomy.countAsUsd], ['day', 'spend_history_unavailable', 0.75], 'even a roomy chosen cap refuses until the unknown charge is explicitly settled');
   const tight = makeBudget({ ledger: L, clock, caps: { day: 0.5 } }).check('blocked', 'owner', 0);
   A.eq([tight && tight.scope, tight && tight.code, !!(tight && tight.unknown)], ['day', 'spend_history_unavailable', true], 'a tighter cap reports uncertain history, never a guessed ordinary cap stop');
-  A.eq(makeBudget({ ledger: L, clock, caps: { day: 5 }, strictScope: () => false }).check(null, 'owner', 0), null, 'the shipped soft-cap policy is unchanged');
+  // GHSA-2hpj #8: the shipped soft cap pauses unwatched work over unknown history, and counts a floor for watched work
+  A.eq(makeBudget({ ledger: L, clock, caps: { day: 5 }, strictScope: () => false }).check(null, 'owner', 0).paused, true, 'the shipped soft cap pauses unattended work');
+  A.eq(makeBudget({ ledger: L, clock, caps: { day: 5 }, strictScope: () => false }).check(null, 'owner', 0, undefined, null, null, { attended: true }), null, 'the shipped soft cap lets a watched run proceed under its floor');
   A.eq(makeBudget({ ledger: L, clock, caps: {} }).check(null, 'owner', 0), null, 'unconfigured quotas remain opt-in');
   const settled = L.settleUnsettled('ended', 0.2);
   A.eq([settled.usd, settled.agentId, settled.model, settled.ts, settled.attested, settled.attestedAs], [0.2, 'owner', 'example/model', expected.ts, true, 'entered'], 'existing settlement path records only the owner-supplied amount with original provenance');

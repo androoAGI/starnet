@@ -1,6 +1,7 @@
 'use strict';
 /* Recovery estimates stay available, while DECISIONS 2026-09-23 remains authoritative:
-   chosen caps refuse uncertain history; only explicit settlement clears it. Soft-only and unlimited work proceed.
+   chosen caps refuse uncertain history; only explicit settlement clears it. Unlimited work proceeds; the shipped soft
+   rail pauses unwatched work and counts watched work against a floor (GHSA-2hpj #8).
    Parser, receipt identity, assumption provenance and one-click booking remain covered here. */
 const assert = require('node:assert/strict');
 const vm = require('node:vm'), crypto = require('node:crypto');
@@ -105,22 +106,33 @@ for (const receipt of [{ runId: 'old-capped', agentId: 'agent', ts: NOW - 3 * DA
   assert.equal(globalB.resume('day'), null, 'an old receipt cannot be waived by day RESUME');
   const day = makeBudget({ caps: { day: 25 }, ledger: ledgerWith([prior], [{ runId: 'now-open', agentId: 'scout', ts: NOW - 60000 }]), clock, strictScope: chosen });
   assert.match(day.check('r', 'nova', 0, NOW).exit, /set PER DAY to 0/, 'inside the window: the day pool refuses, naming PER DAY');
-  // the shipped soft rail nobody chose is not enforced over it (as before): it never bricks a run, and reads as unknown
+  // the shipped soft rail nobody chose (GHSA-2hpj #8): unwatched work pauses, naming its exit; a watched run keeps counting
+  // (the open item at its COUNT AS figure) and is not bricked; the pool still reads as unknown
   const soft = makeBudget({ caps: { day: 25 }, ledger: ledgerWith([prior], [{ runId: 'now-open', agentId: 'scout', ts: NOW - 60000 }]), clock, strictScope: () => false });
-  assert.equal(soft.check('r', 'nova', 0, NOW), null);
+  const softPause = soft.check('r', 'nova', 0, NOW);
+  assert.deepEqual([softPause.paused, softPause.unknown, softPause.code, softPause.cause, softPause.scope, softPause.countAsUsd], [true, true, 'spend_history_unavailable', 'unsettled', 'day', 2]);
+  assert.equal(softPause.exit, 'press COUNT AS $2.00 or enter its charge in SETTINGS › SPENDING LIMITS, or set PER DAY to 0');
+  assert.equal(soft.check('r', 'nova', 0, NOW, null, null, { attended: true }), null, 'a watched run under the floor-counted cap proceeds');
   assert.equal(soft.status(NOW).day.usd, null, 'a pool that contains an item with no bound reads as unknown, never a guessed figure');
   assert.deepEqual(soft.status(NOW).unknown, { items: 1, unbounded: 1, countedUsd: 0 });
   // a broken classifier fails closed: every governed pool counts as chosen
   assert.equal(makeBudget({ caps: { global: 100 }, ledger: open, clock, strictScope: () => { throw new Error('boom'); } }).check('r', 'nova', 0, NOW).cause, 'unsettled');
 }
 {
-  // An estimate never authors an ordinary cap stop: chosen remains strict, shipped-soft remains unenforced.
+  // An estimate never waives a cap: chosen remains strict; the shipped soft rail pauses unwatched work and, for a watched
+  // run, counts the open item at its COUNT AS figure as a FLOOR (GHSA-2hpj #8) - never as headroom.
   const counted = () => ledgerWith([{ runId: 'p', agentId: 'agent', usd: 0.95, ts: NOW - 60000 }], [tornLine]);
   for (const strictScope of [chosen, () => false]) {
     const B = makeBudget({ caps: { day: 2.5 }, ledger: counted(), clock, strictScope });
     const stop = B.check('r', 'agent', 0, NOW);
     if (strictScope === chosen) assert.equal(stop.code, 'spend_history_unavailable');
-    else assert.equal(stop, null);
+    else {
+      assert.equal(stop.paused, true, 'unwatched: paused');
+      const watched = B.check('w', 'agent', 0, NOW, null, null, { attended: true });
+      assert.deepEqual([watched.scope, watched.cap, watched.unknownUsd, !!watched.unknown], ['day', 2.5, 2, false], 'watched: $0.95 recorded + the torn line at its $2 COUNT AS passes the $2.50 cap');
+      assert.ok(Math.abs(watched.usd - 2.95) < 1e-9, 'the floor-counted figure: ' + watched.usd);
+      assert.match(watched.exit, /^press COUNT AS \$2\.00 or enter its charge in SETTINGS › SPENDING LIMITS, or set PER DAY to 0$/, 'its way on is settling (RESUME is closed)');
+    }
     assert.equal(B.resume('day'), null, 'headroom is not settlement');
   }
 }
@@ -161,19 +173,25 @@ for (const receipt of [{ runId: 'old-capped', agentId: 'agent', ts: NOW - 3 * DA
 // ---- through the governor and the loop, as runOnceCore wires runBudget: no refusal without its exit, no stop RESUME can't clear ----
 (async () => {
   const BillingClass = require('../sidecar/billing-class.js');   // the one governor (spend-governor S2)
-  function loopUnder(budget) {
+  function loopUnder(budget, attended) {
     const governor = BillingClass.makeGovernor({ budget, classOfProvider: () => 'metered' });
     return async runId => {
       let calls = 0; const events = [];
       const provider = { priceOf: () => ({ in: 0, out: 0 }), contextLimit: () => 0, stream: async function* () { calls++; yield { type: 'text', delta: 'done' }; yield { type: 'done', finishReason: 'stop' }; } };
       const res = await runAgentLoop({ messages: [{ role: 'user', content: 'x' }], provider, emit: (name, payload) => events.push({ name, payload }),
         cost: makeCostEngine({ priceOf: () => ({ in: 0, out: 0 }) }), model: 'm', agentId: 'agent', runId,
-        budget: { check: spent => governor.admit('run', { providerId: 'openrouter', agentId: 'agent', runId, spentUsd: spent }) } });
+        budget: { check: spent => governor.admit('run', { providerId: 'openrouter', agentId: 'agent', runId, spentUsd: spent, attended }) } });
       return { res, calls, events, error: (events.find(e => e.name === 'agent.run.error') || {}).payload, end: (events.find(e => e.name === 'agent.run.end') || {}).payload };
     };
   }
-  const proceeds = await loopUnder(makeBudget({ caps: { day: 25 }, ledger: ledgerWith([prior], [tornLine]), clock, strictScope: () => false }))('r-soft');
-  assert.deepEqual([proceeds.calls, proceeds.res.reason, proceeds.error], [1, 'done', undefined], 'the shipped soft rail proceeds with unknown history');
+  // GHSA-2hpj #8: the shipped soft rail pauses a run nobody watches (before any paid call, naming the exit), and a watched
+  // run proceeds against the floor ($0.50 + the torn line at $2, under $25)
+  const pausedLoop = await loopUnder(makeBudget({ caps: { day: 25 }, ledger: ledgerWith([prior], [tornLine]), clock, strictScope: () => false }))('r-soft');
+  assert.deepEqual([pausedLoop.calls, pausedLoop.res.reason, pausedLoop.res.failureCode], [0, 'error', 'spend_history_unavailable'], 'the shipped soft rail pauses unattended work with unknown history');
+  assert.equal(pausedLoop.error.message, 'A line in the spend record is damaged, so StarNet pauses unattended work (routines, lines, background workers) while the daily spending limit can’t be checked. ' +
+    'Press COUNT AS $2.00 or enter its charge in SETTINGS › SPENDING LIMITS, or set PER DAY to 0.');
+  const proceeds = await loopUnder(makeBudget({ caps: { day: 25 }, ledger: ledgerWith([prior], [tornLine]), clock, strictScope: () => false }), true)('r-soft-watched');
+  assert.deepEqual([proceeds.calls, proceeds.res.reason, proceeds.error], [1, 'done', undefined], 'a watched run proceeds under the floor-counted shipped rail');
 
   const strictLedger = ledgerWith([{ runId: 'p', agentId: 'agent', usd: 0.95, ts: NOW - 60000 }], [tornLine]);
   const capped = makeBudget({ caps: { day: 2.5 }, ledger: strictLedger, clock, strictScope: chosen });
@@ -199,5 +217,5 @@ for (const receipt of [{ runId: 'old-capped', agentId: 'agent', ts: NOW - 3 * DA
   assert.match(friendlyError(unread.error.message).userMessage, /set PER DAY to 0/, 'the headline keeps that exit too');
   const thrown = await loopUnder({ check() { throw new Error('ledger gone'); } })('r-thrown');
   assert.match(thrown.error.message, /^The spending check failed, so the spending limits you set can’t be checked\. Restart StarNet; SETTINGS › SPENDING LIMITS shows what the spend record holds\.$/, 'a check that throws names its own exit: ' + thrown.error.message);
-  console.log('unknown spend state: chosen caps stay strict, soft-only proceeds, estimates remain recovery information, explicit settlement clears uncertainty, write/read/check exits named PASS');
+  console.log('unknown spend state: chosen caps stay strict, the soft rail pauses unwatched work and floor-counts watched work, estimates remain recovery information, explicit settlement clears uncertainty, write/read/check exits named PASS');
 })().catch(e => { console.error(e); process.exitCode = 1; });

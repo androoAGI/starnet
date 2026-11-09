@@ -29,6 +29,8 @@ mod sidecar_startup;
 mod terminal_session;
 mod webview_recovery;
 mod window_visibility;
+// GHSA-2hpj #10: the update's own platform signer, checked before the updater installs it (VerifiedUpdate below)
+mod update_verify;
 
 use std::collections::BTreeMap;
 use std::ffi::OsStr;
@@ -4915,7 +4917,7 @@ async fn starnet_update_install(
     };
 
     let mut started = false;
-    let install_result = update
+    let install_result = VerifiedUpdate(&update)
         .download_and_install(
             |chunk_length, content_length| {
                 if !started {
@@ -4939,6 +4941,37 @@ async fn starnet_update_install(
 
     let _ = on_event.send(UpdateInstallEvent::Installing);
     app.restart()
+}
+
+/// THE UPDATE'S OWN SIGNER (GHSA-2hpj-9wm7-rvg5 #10). The pending update, downloaded and minisign-checked by the plugin
+/// (Update::download), then checked against the platform signer the release train signs every build with
+/// (update_verify.rs: codesign + a Developer ID requirement pinned to StarNet's team on macOS, Authenticode + the
+/// release's publisher on Windows) before the plugin installs those SAME bytes (Update::install). Shaped like
+/// Update::download_and_install so the install command reads the same; its error is the sentence the Update Center
+/// shows, and nothing has been installed or moved when it returns one.
+struct VerifiedUpdate<'a>(&'a Update);
+
+impl VerifiedUpdate<'_> {
+    async fn download_and_install<C: FnMut(usize, Option<u64>), D: FnOnce()>(
+        &self,
+        on_chunk: C,
+        on_download_finish: D,
+    ) -> Result<(), String> {
+        let bytes = self
+            .0
+            .download(on_chunk, on_download_finish)
+            .await
+            .map_err(|e| e.to_string())?;
+        // codesign / PowerShell take seconds: off the async runtime
+        let bytes = tauri::async_runtime::spawn_blocking(move || {
+            update_verify::verify_update_bytes(&bytes).map(|()| bytes)
+        })
+        .await
+        .map_err(|e| {
+            format!("the code signature check could not finish ({e}). Nothing was installed.")
+        })??;
+        self.0.install(&bytes).map_err(|e| e.to_string())
+    }
 }
 
 /// P1.5 build provenance: the app version + the git commit/dirty state this binary was compiled from (stamped by

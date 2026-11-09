@@ -25,7 +25,9 @@ assert.equal(unknown.code, 'spend_history_unavailable'); assert.equal(unknown.un
 const tight = makeBudget({ ledger, caps: { day: 0.09 }, clock: { now: () => 42 } }).check(null, 'owner', 0);
 assert.ok(tight && tight.scope === 'day' && tight.unknown, 'a lower chosen cap also refuses unknown spend: ' + JSON.stringify(tight));
 const soft = makeBudget({ ledger, caps: { day: 25 }, strictScope: () => false, clock: { now: () => 42 } });
-assert.equal(soft.check(null, 'owner', 0), null, 'shipped soft-only policy remains permissive but truthful');
+// GHSA-2hpj #8: the shipped soft-only policy pauses unwatched work; EVALUATE is a press (attended), counted against a floor
+assert.equal(soft.check(null, 'owner', 0).paused, true, 'shipped soft-only policy pauses unattended work');
+assert.equal(soft.check(null, 'owner', 0, undefined, null, null, { attended: true }), null, 'a watched press proceeds, truthful about history');
 assert.equal(soft.status().accounting.complete, false);
 const reopened = makeLedger({ io, clock: { now: () => 43 } });
 assert.equal(reopened.health().complete, false);

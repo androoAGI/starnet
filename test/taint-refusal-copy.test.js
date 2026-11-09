@@ -22,7 +22,8 @@ A.ok(from > 0 && to > from, 'index.js still has the refusal block between the po
 const block = src.slice(from, to);
 const taintPolicy = require('../sidecar/taint.js');
 const refusal = new Function('postTaint', 'execution', 'taintAtStart', 'taintHandedIn', 'inheritedTaint', 'taintSource', 'o', 'c',
-  'effectSurface', 'effectPrompt', 'isUnverifiedTaint', 'taintPolicy', 'liveTool', block + '\nreturn null;');
+  // untrustedEntryRun + taintScope (GHSA-2hpj #6, the API continuation hint): not passed here, so no hint is added
+  'effectSurface', 'effectPrompt', 'isUnverifiedTaint', 'taintPolicy', 'liveTool', 'untrustedEntryRun', 'taintScope', block + '\nreturn null;');
 
 const ask = () => 'deny';
 function refuse(s) {

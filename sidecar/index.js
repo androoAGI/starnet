@@ -15608,7 +15608,7 @@ async function stationOneShot(prompt, tag, failLead) {
   if (!cfg || cfg.ok === false || !cfg.model || (!cfg.configured && !cfg.key)) return { ok: false, status: 409, error: (cfg && cfg.error) || 'no model is set for the station — pick one in COMMS first' };
   const providerId = normalizeProvider(cfg.provider);
   // by the station model's payer: a ChatGPT plan spends no dollars, so no dollar cap refuses it; a throw refuses with its exit
-  const blocked = governor.admit('oneshot', { providerId, agentId: 'agent' });
+  const blocked = governor.admit('oneshot', { providerId, agentId: 'agent', attended: true });   // a press: the Commander is there
   if (blocked) return { ok: false, status: 409, error: blocked.gate === 'check' ? 'the station’s spending limits can’t be checked: ' + blocked.why + ' — ' + blocked.exit + ', then ask again'
     : blocked.unknown ? 'spend history is unavailable, so the station’s spending limits can’t be checked — see SETTINGS › SPENDING LIMITS, then ask again'
     : 'the station\'s spending cap is reached — raise it or resume spending, then ask again' };
@@ -22568,10 +22568,11 @@ async function handleSkillCandidateAction(req, res) {
       const runCase = SkillEvaluationRunner.makeAgentLoopCaseRunner({ provider, model: cfg.model, unmetered, cost: makeCostEngine({ priceOf: provider.priceOf }), clock: { now: () => Date.now() },
         runIdPrefix: evalPrefix, limits: { maxIters: 8, maxCostUsd: lim.perRunUsd, grace: false },
         scrub: PromptScrub.scrubStored,   // the skill under evaluation is stored exact; it reaches the model scrubbed
-        authorize: async () => !controller.signal.aborted && accounting.canContinue() && !governor.admit('skill-evaluation', { providerId, agentId }),
+        // EVALUATE is the Commander's press (attended: the soft rail counts its floor instead of pausing it, GHSA-2hpj #8)
+        authorize: async () => !controller.signal.aborted && accounting.canContinue() && !governor.admit('skill-evaluation', { providerId, agentId, attended: true }),
         beforeRun: accounting.beforeRun,
         beforeStream: ({ runId, spentUsd }) => !controller.signal.aborted && accounting.canContinue(spentUsd) &&
-          !governor.admit('skill-evaluation', { providerId, agentId, runId, spentUsd }),
+          !governor.admit('skill-evaluation', { providerId, agentId, runId, spentUsd, attended: true }),
         onStream: accounting.onStream,
         onRun: accounting.onRun
       });
@@ -23712,6 +23713,16 @@ async function runOnceCore(o) {
   const pathPrompt = o.pathPrompt;   // NS-5: the live "work in <root>? always/once/no" channel (browser runs only); undefined for headless/autonomous → path-trust hard-denies a new root
   const summon = o.summon;   // the live team.summon round-trip closure (browser runs only); undefined for headless/workers → tool degrades gracefully
   const trigger = o.trigger || 'directive';
+  /* WHO IS WATCHING, for the spend rail (GHSA-2hpj #8, budget.js). While spend history is unknown the shipped soft day rail
+     pauses work nobody is watching and counts a floor for work someone is. Watched: the desk's live run (an interactive
+     surface with a card channel, the phone's included), the owner's own channel message (a Telegram owner DM: never a
+     routine, a line hop or a worker), and a worker whose lead is watched (the lead's host-minted connectorAuthority says so,
+     read at each check, so a worker outliving its lead's run stops counting as watched once that run is cancelled). A
+     routine (Run Now too), a line, a loop, the night shift and a worker of any of them are not. Host-minted inputs only. */
+  const spendAttended = () => !isRoutineTrigger(trigger) && (
+    (surface === 'interactive' && typeof prompt === 'function')
+    || (!o.delegatedBy && ownerTrusted && !workflowLine)
+    || (!!o.delegatedBy && typeof o.connectorAuthority?.attended === 'function' && o.connectorAuthority.attended() === true));
   // P1 (WIRING_AUDIT slice 2): a server-initiated run (telegram/routed/manual-cron) has NO browser-local copy of its
   // lifecycle, so the station floor never lights for it. When a caller opts in via o.broadcast, ALSO mirror the
   // run-lifecycle events to the floor over SSE. Gated on the explicit flag — NOT on trigger — so the hero's
@@ -24090,7 +24101,7 @@ async function runOnceCore(o) {
     readView: () => (typeof spendView.read === 'function' ? spendView.read() : null),
     pendingUsd: () => pendingMediaCosts.reduce((t, c) => t + (Number(c.usd) || 0), 0),
     mediaUsd: () => mediaUsd,
-    crossRun: spent => governor.admit('media', { runId, agentId, spentUsd: spent, emit, receiptMeta: runReceiptMeta }),
+    crossRun: spent => governor.admit('media', { runId, agentId, spentUsd: spent, emit, receiptMeta: runReceiptMeta, attended: spendAttended() }),
     onCheckError: e => failNote('image.spend-check', e) });
   let auxVisionProvider = null;
   // the run's PRIMARY provider: the catalog the studio route's pinned vision model (`model` below) came from. Bound with
@@ -24903,6 +24914,8 @@ async function runOnceCore(o) {
       withholdHostPower: hostPowerWithheld,
       untrustedEntry: untrustedEntryRun,   // host-minted: a worker of a payload-started run keeps the taint lock under Full Access
       withholdTaste: tasteWithheld,        // host-minted: a worker of a non-owner/group run never receives the Commander's taste
+      // GHSA-2hpj #8: a worker's spend counts as watched only while this (its lead's) run is (spendAttended above)
+      attended: () => !signal?.aborted && spendAttended(),
       taintedBy: () => execution.rowTaint() || (typeof o.connectorAuthority?.taintedBy === 'function' ? o.connectorAuthority.taintedBy() : null)   // rowTaint: a worker inherits the page a lead read after its attachment, not just the attachment (which decays)
     },
     // HOOKS reach the tool boundary through the dispatch ctx. registry.js consults them AFTER the authority,
@@ -25311,7 +25324,7 @@ async function runOnceCore(o) {
   // set. nextCallUsd is the most the call about to go out can cost (loop.js: its prompt plus the most output it can
   // bill — the model's output ceiling or a reported window's room — at catalog prices): the pool reserves it while the
   // call is in flight.
-  const runBudget = { check: (spentThisRun, nextCallUsd) => governor.admit('run', { providerId: activeProviderId, agentId, runId, spentUsd: spentThisRun, emit, receiptMeta: runReceiptMeta,
+  const runBudget = { check: (spentThisRun, nextCallUsd) => governor.admit('run', { providerId: activeProviderId, agentId, runId, spentUsd: spentThisRun, emit, receiptMeta: runReceiptMeta, attended: spendAttended(),
     pool: { admit: () => spendPool.admit(runId, spentThisRun, nextCallUsd), withdraw: () => spendPool.withdraw(runId) } }) };
 
   // a task needs tool calls — refuse a model we KNOW can't call tools, up front, with an actionable message
@@ -25572,9 +25585,13 @@ async function runOnceCore(o) {
       // A delegated worker runs surface 'autonomous' with no run prompt (orchestration.js): unless THIS call reached a
       // live confirmation (a connector call forwarded to a watched lead's prompt), there is no approval to offer it.
       const offerApproval = !o.delegatedBy || (effectSurface === 'interactive' && typeof effectPrompt === 'function');
+      // GHSA-2hpj #6: an API run's continuation is now one method under one folder; a refused request hears what still goes
+      // through, so the model can stay inside it instead of giving up the API
+      const apiStillOpen = (!inheritedTaint && !untrustedEntryRun && String(c.name || '').replace(/\./g, '_') === 'web_request')
+        ? taintPolicy.continuationHint(taintScope) : '';
       return {
         ok: false, isError: true, summary: 'untrusted-content-lockout',
-        content: 'BLOCKED: ' + taintPolicy.lockoutLead(liveTool, c) + ' ' + taintCause + ' '
+        content: 'BLOCKED: ' + taintPolicy.lockoutLead(liveTool, c) + ' ' + taintCause + ' ' + (apiStillOpen ? apiStillOpen + ' ' : '')
           + 'Unattended runs give up terminal, credentialed-request, and connector/unknown-external powers; a watched '
           + 'run needs a fresh confirmation for this exact call. For the Commander: '
           + (offerApproval ? 'a watched chat can ask to approve this exact call, or ' : '')

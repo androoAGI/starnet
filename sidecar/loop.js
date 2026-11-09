@@ -2158,7 +2158,11 @@
             : b.cause === 'check' ? 'The spending check failed'
             : 'Spend history could not be read';
           const exit = String(b.exit || 'see SETTINGS › SPENDING LIMITS');
-          const message = what + ', so the spending limits you set can’t be checked. ' + exit.charAt(0).toUpperCase() + exit.slice(1) + '.';
+          // GHSA-2hpj #8: the shipped daily limit nobody chose pauses unattended work (budget.js paused) rather than refusing a
+          // limit "you set": say that, and keep "can’t be checked." before the way out (friendlyerror.js reads the exit after it)
+          const message = b.paused === true
+            ? what + ', so StarNet pauses unattended work (routines, lines, background workers) while the daily spending limit can’t be checked. ' + exit.charAt(0).toUpperCase() + exit.slice(1) + '.'
+            : what + ', so the spending limits you set can’t be checked. ' + exit.charAt(0).toUpperCase() + exit.slice(1) + '.';
           emit('agent.run.error', { agentId, runId, message, transient: false, failureCode: 'spend_history_unavailable' });
           return end('error', { failureStage: 'budget', failureCode: 'spend_history_unavailable' });
         }
