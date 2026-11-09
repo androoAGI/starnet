@@ -87,11 +87,14 @@ function toolResult(requests, callId) {
   } });
   try {
     await fixture.start();
-    const roster = await fixture.json('POST', '/api/roster', { agents: [
+    // raising the lead to Full Access is confirmed at the desk (GHSA-2hpj #1): a push without the desk's yes keeps it
+    // ask-first, and its team_dispatch then waits on a card nobody here answers
+    const roster = await fixture.deskJson('POST', '/api/roster', { agents: [
       { agentId: 'lead-1', name: 'LEAD', model: 'test/model', provider: 'openrouter', approvalMode: 'full' },
       { agentId: 'worker-1', system: WORKER_MARK + ' — you are a worker.', name: 'WORKER', model: 'test/model', provider: 'openrouter', approvalMode: 'ask' }
-    ] });
+    ], raise: ['lead-1'] });
     A.eq(roster.status, 200, 'the lead (Full Access) and the worker (ask) are on the roster');
+    A.ok(!(roster.body && roster.body.clamped), 'the desk confirmed the lead\'s raise: ' + JSON.stringify(roster.body));
 
     /* ---- 1. inherited: the lead's chat holds the Commander's attachment ---- */
     const up = await fixture.json('POST', '/api/attachments', { agent: 'lead-1', name: 'pixel.png', dataUrl: 'data:image/png;base64,' + PNG_B64 });
