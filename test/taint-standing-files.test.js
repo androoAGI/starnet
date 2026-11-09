@@ -78,6 +78,28 @@ const projectbless = require('../sidecar/projectbless.js');
   A.ok(keyed.length >= 8, 'detectCheckCommand keys on files: ' + keyed.join(', '));
   for (const k of keyed) A.ok(_internals.STANDING_AUTORUN.indexOf(k) >= 0, 'the loop\'s derived check keys on ' + k + ': it is an auto-run file here');
 
+  // review2 #12: a tainted write's card carries the exact file and what the run read, for orders files and any other file
+  asked.length = 0;
+  await g(path.join(project, 'AGENTS.md'), { tainted: () => 'web.fetch https://pages.example/notes', prompt: say('once') });
+  await g(path.join(home, 'notes.txt'), { tainted: () => 'connector docs-search', unrestrictedHost: true, prompt: say('once') });
+  A.ok(asked.length === 2 && asked.every(m => m.tainted === true), 'both tainted asks say they are tainted: ' + JSON.stringify(asked));
+  A.eq(asked[0].path, path.join(project, 'AGENTS.md'), 'the orders file\'s card names the exact file');
+  A.eq(asked[0].taintedBy, 'web.fetch https://pages.example/notes', 'and what the run read');
+  A.eq(asked[1].path, path.join(home, 'notes.txt'), 'an ordinary tainted write outside names the exact file, not only its folder');
+  A.eq(asked[1].taintedBy, 'connector docs-search', 'and what the run read');
+  asked.length = 0;
+  await g(path.join(home, 'plain.txt'), { scope: 'read', tainted: () => 'x', prompt: say('once') });
+  A.ok(asked.length === 1 && asked[0].tainted !== true && !asked[0].taintedBy, 'a read\'s card is the ordinary folder card');
+  const promptSrc = A.fnBody(IDX, 'function promptPathTrust(');
+  A.ok(/file: String\(i\.path/.test(promptSrc) && /taintedBy: String\(i\.taintedBy/.test(promptSrc) && /argsSummary: String\(proposedRoot/.test(promptSrc),
+    'the desk run\'s path card gets the file and the source; argsSummary stays the folder (an ALWAYS anchors to it)');
+  A.ok(/if \(fields && fields\.file\) Object\.assign\(row, \{ file: fields\.file, taintedBy:/.test(IDX), 'the prompt row carries them to the page');
+  A.ok(/tainted: \(\) => execution\.taintedBy\(\) \|\| \(typeof o\.connectorAuthority\?\.taintedBy === 'function' && o\.connectorAuthority\.taintedBy\(\)\) \|\| ''/.test(IDX),
+    'the guard is handed the source itself');
+  const CHAT = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'chat.js'), 'utf8');
+  A.ok(/if \(t === 'path\.trust' && ev\.file\) return 'change ' \+ ev\.file/.test(CHAT) && /this run read ' \+ \(ev\.taintedBy \|\| 'outside content'\)/.test(CHAT),
+    'the card reads "change <file> ... (this run read <source> ...)"');
+
   fs.rmSync(base, { recursive: true, force: true });
   A.report('taint-standing-files.test');
 })().catch(e => { console.error(e); process.exit(1); });

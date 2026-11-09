@@ -191,9 +191,14 @@
          LaunchAgent, ~/.bashrc or StarNet's own data (a routine's terminal grant) with no prompt. So a tainted WRITE
          gets no host-wide pass: its own workspace and the trusted projects still flow; anything else asks a watched run
          for this one access (never a standing grant), and is refused to an unattended one. Reads are unchanged. */
-      let taintedWrite = false;
+      // o.tainted() may name the source (review2 #12: the card says what the run read); any truthy answer is taint
+      let taintedWrite = false, taintSource = '';
       if (scope === 'write' && o.tainted != null) {
-        try { taintedWrite = typeof o.tainted === 'function' ? !!o.tainted() : o.tainted === true; } catch (_) { taintedWrite = true; }
+        try {
+          const t = typeof o.tainted === 'function' ? o.tainted() : (o.tainted === true);
+          taintedWrite = !!t;
+          taintSource = typeof t === 'string' ? t.slice(0, 300) : '';
+        } catch (_) { taintedWrite = true; }
       }
       // WHO caused this I/O, for recency metadata only (never an authority input): an explicit host-minted flag wins,
       // otherwise a watched interactive run is the user's and everything else is the agent's.
@@ -236,7 +241,7 @@
       if (standing) {
         if (surface !== 'interactive' || !prompt)
           throw new Error('this run read outside content, so it cannot write ' + standing + ' without asking: ' + norm);
-        const said = await prompt(P.dirname(norm), { path: norm, scope: 'write', standing: standing });
+        const said = await prompt(P.dirname(norm), { path: norm, scope: 'write', standing: standing, tainted: true, taintedBy: taintSource });
         if (!/^(?:once|session|always|full)$/.test(String(said || ''))) throw new Error('access to ' + norm + ' was denied');
         standingYes = true;
       }
@@ -316,7 +321,8 @@
          one prompt that widens the agent's filesystem reach. The PROMPT still names the path the Commander
          recognizes; only the recorded key is canonical. */
       if (standingYes) return { base: proposedReal, abs: norm, oneShot: true };   // asked once above, for this access
-      const decision = await prompt(proposed, { path: norm, scope: scope });
+      // review2 #12: a tainted write's card names the exact file and the source, not only the folder
+      const decision = await prompt(proposed, taintedWrite ? { path: norm, scope: scope, tainted: true, taintedBy: taintSource } : { path: norm, scope: scope });
       // a tainted write: any yes allows this one access and records nothing (a standing grant made after the taint
       // would outlive it)
       if (taintedWrite) {

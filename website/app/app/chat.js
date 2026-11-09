@@ -4251,6 +4251,9 @@ const Chat = (() => {
     }
     // NS-5 conversational path trust: a file was referenced OUTSIDE the agent's workspace — "Always" blesses
     // the whole project folder for future reads (revocable in Permissions); argsSummary is the proposed root.
+    // review2 #12: a write by a run that read outside content names the exact file, why it matters, and what the run read
+    if (t === 'path.trust' && ev.file) return 'change ' + ev.file + (ev.standing ? ' — ' + ev.standing : '')
+      + ' (this run read ' + (ev.taintedBy || 'outside content') + ', so this write asks first)';
     if (t === 'path.trust') return 'work with files in ' + (ev.argsSummary || 'a project folder') + ' (reads; "Always" or "Full access" trusts it for later)';
     // ATTENDED BROWSER LOGIN: two-phase takeover. Phase 1 asks to open a visible Chrome window the COMMANDER
     // drives; phase 2 holds the run until they click Done. Password honesty is part of the card copy.

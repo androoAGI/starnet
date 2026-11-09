@@ -22871,6 +22871,8 @@ async function handleRun(req, res) {
       emitPrompt: (promptId) => {
         askId = promptId;
         const row = { promptId, agentId, tool: (fields && fields.tool) || 'tool', scope: (fields && fields.scope) || 'write', argsSummary: (fields && fields.argsSummary) || '' };
+        // review2 #12 (additive): a tainted path card's exact file, what the run read, and why the file matters
+        if (fields && fields.file) Object.assign(row, { file: fields.file, taintedBy: fields.taintedBy || '', standing: fields.standing || '' });
         if (by) Object.assign(row, { workerAgentId: by.agentId, workerRunId: by.runId, workerStreamId: by.streamId, askedAt: Date.now() });
         // additive: the run that holds the answer slot + the conversation that handed the work off (a page that never
         // saw this lead's stream, or reloaded since, files the ask under that conversation and answers with this runId)
@@ -22962,7 +22964,12 @@ async function handleRun(req, res) {
       : { answered: false });
   }
   function promptPathTrust(proposedRoot, info) {
-    return askHuman({ tool: 'path.trust', scope: (info && info.scope) || 'read', argsSummary: String(proposedRoot || '') });
+    const i = info || {};
+    /* review2 #12: a write by a run that read outside content names the exact file and what the run read (argsSummary
+       stays the folder: a standing answer anchors the conversation to it). */
+    const tainted = i.tainted === true
+      ? { file: String(i.path || '').slice(0, 1000), taintedBy: String(i.taintedBy || '').slice(0, 300), standing: String(i.standing || '').slice(0, 200) } : {};
+    return askHuman(Object.assign({ tool: 'path.trust', scope: i.scope || 'read', argsSummary: String(proposedRoot || '') }, tainted));
   }
 
   // THE LIVE SUMMON CHANNEL (mirrors promptConsent): the orchestrator's team.summon tool calls ctx.summon(spec);
@@ -24213,7 +24220,8 @@ async function runOnceCore(o) {
     unrestrictedHost: unrestrictedHostNow(),
     // fix-sec2 review 5: once the run read outside content (its own latch, or one it inherited), a write gets no
     // host-wide pass: outside its workspace and the trusted projects it asks a watched run, and an unattended one is refused
-    tainted: () => !!(execution.taintedBy() || (typeof o.connectorAuthority?.taintedBy === 'function' && o.connectorAuthority.taintedBy()))
+    // review2 #12: the source itself (truthy = tainted), so the path card can say what the run read
+    tainted: () => execution.taintedBy() || (typeof o.connectorAuthority?.taintedBy === 'function' && o.connectorAuthority.taintedBy()) || ''
   });
   /* ONE PATH OBJECT PER RUN (run-paths lane, sidecar/run-paths.js). Every tool reads ctx.paths, so a relative path means
      the same folder to fs.*, shell, terminal, verify, media and browser.upload, and every receipt names a path the next
