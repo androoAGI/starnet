@@ -1,6 +1,7 @@
 /* sidecar/cost.js — token/cost accounting.
    estimate(usage, model)  -> { usd, tokens }                      (live, during stream)
    reconcile(usage, model) -> { usd, tokensIn, tokensOut, reasoningTokens, cachedTokens, cacheWriteTokens }  (authoritative)
+   cacheRates(model)       -> { read, write, published } | null    (the route's cache prices, fresh-input units)
    resolveUsage(usage)     -> { uncachedIn, cacheRead, cacheWrite, cacheWrite5m?, cacheWrite1h?, out, reasoning } | null
                                                                                          (the ONE count resolver)
    writeSplit(cc, write)   -> { ephemeral_5m_input_tokens, ephemeral_1h_input_tokens } | null   (a reported tier split)
@@ -155,6 +156,16 @@
           catalogPriced: !!price,
           unpriced: !providerCost && !price && (tokensIn + tokensOut > 0)
         };
+      },
+      /* THE ROUTE'S CACHE PRICES (W2.1 batched ageing weighs a batch with them): what reading and writing one cached
+         prompt token costs next to a fresh one, from the very catalog row that prices the call (W1.13: `write` is the
+         dearest tier the cache switch asks for). null = unpriced (a sign-in, a local model, a cold catalog): nothing to
+         weigh. published: false = the row names no cache rates, so the call books them at 1.0x (NO_CACHE) and the
+         prices here say nothing about the route's real cache. */
+      cacheRates(model) {
+        const p = catalogPrice(model);
+        if (!p) return null;
+        return { read: p.cache.read, write: p.cache.write, published: p.cache !== NO_CACHE };
       }
     };
   }

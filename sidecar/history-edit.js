@@ -50,6 +50,8 @@
       only the head: a build or test log ends where the error is, and that end was the part thrown away. The same 64k
       now holds the first 70% and the last 30%, with the gap marked in place. This is THE 70/30 cut: the registry's
       clampOutput and the loop's turn squeeze cut through it too, so none of those cuts splits a surrogate pair.
+   5. OLD RESULTS AND SUCCESSFUL WRITE ARGUMENTS AGE IN BATCHES, IN THE REQUEST VIEW ONLY (makeAgeing, W2.1). Off unless
+      the host turns it on (STARNET_BATCHED_AGEING). One more edit kind through 1. and 2.: see BATCHED AGEING below.
 
    Pure apart from the injected parker and the request view's in-place strip (1.); no clock; UMD so loop.js can load it
    wherever it loads. */
@@ -101,6 +103,7 @@
     }
     return n;
   }
+  const pathCall = p => 'fs.read ' + JSON.stringify({ path: p });
   function stubText(text, name, handle) {
     const head = text.length > ELIDE_HEAD ? text.slice(0, ELIDE_HEAD).replace(/\s+$/, '') + '…' : text;
     const how = !handle ? 're-run the tool for the full output'
@@ -126,7 +129,6 @@
     const text = typeof body === 'string' ? body : JSON.stringify(body == null ? '' : body);
     if (text.length <= ELIDE_HEAD) return null;
     const name = String(o.name || 'tool');
-    const pathCall = p => 'fs.read ' + JSON.stringify({ path: p });
     let handle = null;
     if (o.parkedPath) handle = { via: 'parked', path: String(o.parkedPath), call: pathCall(String(o.parkedPath)) };
     const meta = o.parkMeta || {};
@@ -163,11 +165,16 @@
     return key;
   }
   // Deletes the thinking of every assistant turn at or after `from`, in place (text and calls stay); returns how many.
-  function stripFrom(list, from) {
+  // ownerOf(m): the message an aged copy stands in for (5.), whose thinking goes too, so the strip stays durable.
+  function stripFrom(list, from, ownerOf) {
     let n = 0;
     for (let i = Math.max(0, from); i < list.length; i++) {
       const m = list[i];
-      if (m && m.role === 'assistant' && Array.isArray(m.reasoning) && m.reasoning.length) { delete m.reasoning; n++; }
+      if (m && m.role === 'assistant' && Array.isArray(m.reasoning) && m.reasoning.length) {
+        delete m.reasoning; n++;
+        const owner = ownerOf ? ownerOf(m) : null;
+        if (owner && owner !== m) delete owner.reasoning;
+      }
     }
     return n;
   }
@@ -182,8 +189,11 @@
      unbound(list, first) -> the turns whose blocks it deleted: the backstop (1. above). `first` is the first block the
      API dropped for prefix_binding_mismatch (its signature; a redacted block's data); the blocks go from the turn that
      holds it through the newest, or all of them when no turn does. Thinking is not part of a wire key, so the view's
-     baseline is untouched: the next request is append-only and replays what is left. */
-  function makeRequestView() {
+     baseline is untouched: the next request is append-only and replays what is left.
+     opts.ownerOf(copy) -> the message an aged copy in `list` stands in for (makeAgeing originalOf): a strip deletes
+     that original's blocks too. */
+  function makeRequestView(opts) {
+    const ownerOf = opts && typeof opts.ownerOf === 'function' ? opts.ownerOf : null;
     let last = null;
     function messages(list, o) {
       const src = Array.isArray(list) ? list : [];
@@ -197,7 +207,7 @@
         const n = Math.min(last.keys.length, keys.length);
         for (let i = 0; i < n; i++) if (last.keys[i] !== keys[i]) { editAt = i; break; }
       }
-      const stripped = editAt >= 0 ? stripFrom(src, editAt) : 0;
+      const stripped = editAt >= 0 ? stripFrom(src, editAt, ownerOf) : 0;
       last = { keys, tools };
       return { messages: src, editAt, stripped, unproven };
     }
@@ -211,6 +221,243 @@
     return { messages, unbound };
   }
 
-  return { makeRequestView, elideToolResult, foldRequest, headTail, isElided, ELIDED, ELIDE_HEAD, HEAD_SHARE,
-    _internals: { wireKey, hashOf, stubText, utf8Bytes, stripFrom } };
+  // ---------------------------------------------------------------- 5. batched ageing
+  /* BATCHED AGEING (W2.1, cost audit 2026-11-08). A long run sends every old tool result and every file it wrote on
+     every request; at cache-read prices that is most of its input bill. Ageing one result per turn changed the prefix on
+     every request and re-wrote the cache from there each time (measured: +28% to +175%), so old bodies age in BATCHES,
+     only when a batch pays for itself, and only in what is SENT:
+       · the newest AGE_KEEP_TURNS tool turns always ride whole (measured: 4 beat 6 and 8);
+       · a batch waits until the tool turns behind them hold AGE_BATCH_CHARS characters a stub would free, across at least
+         AGE_MIN_TURNS tool turns, so two requests in a row never both change the prefix;
+       · a run projected at AGE_SHORT_RUN requests or fewer is never aged (the measured break-even): the projection is
+         the requests made so far plus as many again (a run tends to last about as long again as it has run), never past
+         the run's turn ceiling;
+       · THE PAYBACK: a batch ages only when  R x F x r  >  T x (w - r).  R: the projected remaining requests; F: what the
+         batch takes out of every later request; T: the request from the first aged message to its end, the part the
+         next request writes instead of reading (all of it on a provider that holds the run's history); r and w: the
+         route's cache read and write price in fresh-input units (the cost engine's cacheRates, W1.13). F and T by the
+         loop's own ruler. An unpriced route (a sign-in, a local model) has nothing to weigh and never ages; a priced one
+         that publishes no cache rates is weighed at AGE_ASSUMED_RATES.
+     WHAT AGES: a tool result, through elideToolResult (2.: the micro tier's stub, wording and handle); and the long
+     string arguments of a write that SUCCEEDED (WRITE_ARGS), as an ARG_ELIDED stub naming a saved copy of the exact
+     argument. Only a body a handle covers ages, and only when its stub at least halves it: words quoted from another
+     session, a body this run did not produce (a resumed history), a body no UTF-8 file can hold and a park that failed
+     ride whole, and are never tried again.
+     IN THE VIEW ONLY: `messages` is never touched. view(list) swaps each aged message for its copy (the list itself
+     while nothing has aged, so a run that never ages sends byte-identical requests); the transcript, the run journal and
+     every fold keep the full bodies. A copy is made once and reused, so the prefix stays cached between batches; it
+     mirrors its original's thinking as it is now (a failover or the backstop strips the original), and the request
+     view (1.) strips the thinking a batch unbinds from the copy AND its original (originalOf). */
+  const AGE_KEEP_TURNS = 4;
+  const AGE_BATCH_CHARS = 60000;
+  const AGE_MIN_TURNS = 2;
+  const AGE_SHORT_RUN = 24;
+  const AGE_ASSUMED_RATES = Object.freeze({ read: 0.10, write: 1.25 });   // Anthropic's 5-minute tier: the cached routes' usual write premium
+  // the writes whose long string arguments age once the call succeeded (wire names), and which arguments
+  const WRITE_ARGS = Object.freeze({ fs_write: ['content'], fs_append: ['content'], fs_edit: ['find', 'replace'], fs_patch: ['patch'] });
+  const ARG_ELIDED = '[argument elided at compaction — ';
+  // a handle as long as the host's usual one (index.js parkOutput: .output/<tool>-<run id>-<seq>.txt): a stub is priced
+  // before its park, which only the batch itself makes
+  const STAND_IN = { via: 'saved', call: pathCall('.output/' + 'x'.repeat(48) + '.txt') };
+  const wireName = n => String(n == null ? '' : n).replace(/\./g, '_').toLowerCase();
+  function argStubText(text, call) { return ARG_ELIDED + utf8Bytes(text) + ' bytes; the whole argument is saved: read it with ' + call + ']'; }
+  // one message's characters on the wire (content and call arguments): the ruler when the loop has none
+  function charsOf(m) {
+    if (!m || typeof m !== 'object') return 0;
+    let n = typeof m.content === 'string' ? m.content.length : JSON.stringify(m.content == null ? '' : m.content).length;
+    if (Array.isArray(m.tool_calls)) for (const c of m.tool_calls) n += String((c && c.function && c.function.arguments) || '').length;
+    return n;
+  }
+  /* A copy STANDS IN for its original, so it inherits the original's host-attached identity markers: non-enumerable own
+     symbol keys (a turn kind, transcriptstore.js's persisted marker), which Object.assign does not copy. */
+  function inheritMarkers(from, to) {
+    if (!from || !to || from === to || typeof from !== 'object' || typeof to !== 'object') return to;
+    for (const sym of Object.getOwnPropertySymbols(from)) {
+      const d = Object.getOwnPropertyDescriptor(from, sym);
+      if (d && !d.enumerable && !Object.prototype.hasOwnProperty.call(to, sym)) Object.defineProperty(to, sym, d);
+    }
+    return to;
+  }
+  /* makeAgeing({ originOf }) -> { plan, view, agedOf, originalOf }   one per run.
+     originOf(toolMessage) -> { parkedPath, parkMeta, ok } | null: what the loop knows of a result it produced (null: a
+       body this run did not produce, which never ages).
+     plan(list, ctx) -> Promise<batch | null>   before a request: ages a batch when one is due and pays (see above).
+       list: what the request would carry before ageing (screen captures already aged out: the loop's own messages);
+       ctx: { requests (made so far), maxIters, rates() -> { read, write, published } | null (the cost engine's
+       cacheRates), measure(message) -> its size by the loop's ruler, holdsHistory, park (the host parker) }.
+       batch: { editAt (the first aged message), results, args, freedChars, requests, remaining, read, write, assumed,
+       freed, suffix, saving, rewrite } — the payback's numbers, for the diagnostics line.
+     view(list) -> list with each aged message swapped for its copy; the list itself while nothing has aged.
+     agedOf(original) -> its aged copy, or null (the micro tier folds an aged result into the same stub, no second park).
+     originalOf(copy) -> the original an aged copy stands in for, or null (the request view's ownerOf). */
+  function makeAgeing(o) {
+    o = o || {};
+    const originOf = typeof o.originOf === 'function' ? o.originOf : () => null;
+    const aged = (typeof WeakMap === 'function') ? new WeakMap() : null;     // original -> its aged copy
+    const owners = (typeof WeakMap === 'function') ? new WeakMap() : null;   // aged copy -> its original
+    const never = (typeof WeakSet === 'function') ? new WeakSet() : null;    // originals that can never age
+    let any = false;
+    if (!aged || !owners || !never) return { plan: async () => null, view: list => list, agedOf: () => null, originalOf: () => null };
+    const quoted = meta => !!meta && Array.isArray(meta.quotedStreams) && meta.quotedStreams.length > 0;
+    // what one message would become, priced with a stand-in handle (nothing is parked), or null: it can never age
+    function candidate(m, names, results, park) {
+      if (typeof park !== 'function') return null;
+      if (m.role === 'tool') {
+        if (isElided(m)) return null;   // the micro tier's stub already
+        const origin = originOf(m);
+        if (!origin) return null;
+        const text = typeof m.content === 'string' ? m.content : JSON.stringify(m.content == null ? '' : m.content);
+        if (text.length <= ELIDE_HEAD) return null;
+        const parkedPath = origin.parkedPath ? String(origin.parkedPath) : null;
+        if (!parkedPath && (quoted(origin.parkMeta) || !wellFormed(text))) return null;
+        const est = stubText(text, String(names.get(m.tool_call_id) || 'tool'), parkedPath ? { via: 'parked', call: pathCall(parkedPath) } : STAND_IN);
+        if (est.length * 2 > text.length) return null;
+        return { kind: 'result', msg: m, name: String(names.get(m.tool_call_id) || 'tool'), text, origin, est: Object.assign({}, m, { content: est }) };
+      }
+      if (m.role !== 'assistant' || !Array.isArray(m.tool_calls)) return null;
+      const calls = [];
+      const estCalls = m.tool_calls.slice();
+      m.tool_calls.forEach((c, k) => {
+        const fields = (c && c.function) ? WRITE_ARGS[wireName(c.function.name)] : null;
+        if (!fields) return;
+        const res = results.get(c.id);
+        const ro = res ? originOf(res) : null;
+        if (!ro || ro.ok !== true) return;   // a write that failed changed nothing: its arguments are the record of what was tried
+        let args = null;
+        try { args = JSON.parse(String(c.function.arguments || '')); } catch (_) { return; }
+        if (!args || typeof args !== 'object' || Array.isArray(args)) return;
+        const take = [];
+        const estArgs = Object.assign({}, args);
+        for (const f of fields) {
+          const v = args[f];
+          if (typeof v !== 'string' || !wellFormed(v)) continue;
+          const s = argStubText(v, STAND_IN.call);
+          if (s.length * 2 > v.length) continue;
+          take.push(f); estArgs[f] = s;
+        }
+        if (!take.length) return;
+        calls.push({ k, call: c, args, fields: take, meta: (ro.parkMeta && ro.parkMeta.taintedBy) ? { taintedBy: ro.parkMeta.taintedBy } : {} });
+        estCalls[k] = Object.assign({}, c, { function: Object.assign({}, c.function, { arguments: JSON.stringify(estArgs) }) });
+      });
+      return calls.length ? { kind: 'args', msg: m, calls, est: Object.assign({}, m, { tool_calls: estCalls }) } : null;
+    }
+    // the messages a batch would age now: every one behind the newest AGE_KEEP_TURNS tool turns not aged yet
+    function pending(list, park) {
+      const turns = [];
+      for (let i = 0; i < list.length; i++) { const m = list[i]; if (m && m.role === 'assistant' && Array.isArray(m.tool_calls) && m.tool_calls.length) turns.push(i); }
+      if (turns.length <= AGE_KEEP_TURNS) return null;
+      const end = turns[turns.length - AGE_KEEP_TURNS];
+      const names = new Map(), results = new Map();
+      for (const m of list) {
+        if (!m || typeof m !== 'object') continue;
+        if (m.role === 'assistant' && Array.isArray(m.tool_calls)) for (const c of m.tool_calls) if (c && c.id != null) names.set(c.id, (c.function && c.function.name) || 'tool');
+        if (m.role === 'tool' && m.tool_call_id != null) results.set(m.tool_call_id, m);
+      }
+      const items = [];
+      const spanned = new Set();
+      let turn = -1, freedChars = 0;
+      for (let i = turns[0]; i < end; i++) {
+        if (i === turns[turn + 1]) turn++;
+        const m = list[i];
+        if (!m || typeof m !== 'object' || aged.has(m) || never.has(m)) continue;
+        const it = candidate(m, names, results, park);
+        if (!it) { never.add(m); continue; }
+        it.at = i;
+        items.push(it); spanned.add(turn); freedChars += charsOf(m) - charsOf(it.est);
+      }
+      return { items, turns: spanned.size, freedChars };
+    }
+    async function plan(list, ctx) {
+      ctx = ctx || {};
+      if (!Array.isArray(list)) return null;
+      const park = typeof ctx.park === 'function' ? ctx.park : null;
+      const p = pending(list, park);
+      if (!p || !p.items.length || p.freedChars < AGE_BATCH_CHARS || p.turns < AGE_MIN_TURNS) return null;
+      // THE PROJECTION: as many requests again as the run has made, never past its turn ceiling
+      const n = Math.max(0, Math.floor(Number(ctx.requests) || 0));
+      const cap = Number(ctx.maxIters);
+      const remaining = Math.min(n, (cap > 0 && isFinite(cap)) ? Math.max(0, Math.floor(cap) - n) : Infinity);
+      if (n + remaining <= AGE_SHORT_RUN) return null;
+      // THE ROUTE'S RATES
+      let rates = null;
+      try { rates = typeof ctx.rates === 'function' ? ctx.rates() : null; } catch (_) { rates = null; }
+      if (!rates || typeof rates !== 'object') return null;
+      const assumed = rates.published === false;
+      const r = assumed ? AGE_ASSUMED_RATES.read : Number(rates.read);
+      const w = assumed ? AGE_ASSUMED_RATES.write : Number(rates.write);
+      if (!(r >= 0) || !(w >= 0)) return null;
+      // THE PAYBACK, by the loop's ruler (characters when it has none)
+      const size = m => {
+        let v = 0;
+        try { v = Number(typeof ctx.measure === 'function' ? ctx.measure(m) : charsOf(m)); } catch (_) { v = charsOf(m); }
+        return v > 0 ? v : 0;
+      };
+      const est = new Map(p.items.map(it => [it.msg, it.est]));
+      let freed = 0, suffix = 0;
+      for (const it of p.items) freed += size(it.msg) - size(it.est);
+      for (let i = ctx.holdsHistory ? 0 : p.items[0].at; i < list.length; i++) { const m = list[i]; suffix += size(est.get(m) || aged.get(m) || m); }
+      const saving = remaining * freed * r, rewrite = suffix * (w - r);
+      if (!(freed > 0) || !(saving > rewrite)) return null;
+      // THE BATCH: each body parked (or its registry park named), then its copy swapped in from the next request on
+      let editAt = -1, results = 0, args = 0, freedChars = 0;
+      for (const it of p.items) {
+        let copy = null;
+        if (it.kind === 'result') {
+          const st = await elideToolResult(it.msg.content, { name: it.name, parkedPath: it.origin.parkedPath, parkMeta: it.origin.parkMeta, park });
+          if (st && st.handle) { copy = Object.assign({}, it.msg, { content: st.content }); results++; }
+        } else {
+          const calls = it.msg.tool_calls.slice();
+          let took = 0;
+          for (const c of it.calls) {
+            const next = Object.assign({}, c.args);
+            let saved = 0;
+            for (const f of c.fields) {
+              let at = null;
+              try { at = await park(c.args[f], Object.assign({}, c.meta, { tool: String((c.call.function && c.call.function.name) || 'tool'), reason: 'argument-elided-at-compaction' })); } catch (_) { at = null; }
+              if (!at || !at.path) continue;
+              next[f] = argStubText(c.args[f], pathCall(String(at.path)));
+              saved++;
+            }
+            if (!saved) continue;
+            calls[c.k] = Object.assign({}, c.call, { function: Object.assign({}, c.call.function, { arguments: JSON.stringify(next) }) });
+            took += saved;
+          }
+          if (took) { copy = Object.assign({}, it.msg, { tool_calls: calls }); args += took; }
+        }
+        if (!copy) { never.add(it.msg); continue; }
+        inheritMarkers(it.msg, copy);
+        aged.set(it.msg, copy); owners.set(copy, it.msg);
+        freedChars += charsOf(it.msg) - charsOf(copy);
+        if (editAt < 0) editAt = it.at;
+      }
+      if (editAt < 0) return null;
+      any = true;
+      return { editAt, results, args, freedChars, requests: n, remaining, read: r, write: w, assumed, freed, suffix, saving, rewrite };
+    }
+    function view(list) {
+      if (!any || !Array.isArray(list)) return list;
+      let out = null;
+      for (let i = 0; i < list.length; i++) {
+        const m = list[i];
+        const c = (m && typeof m === 'object') ? aged.get(m) : null;
+        if (!c) continue;
+        if (m.role === 'assistant') {   // the copy carries its original's thinking as it is now
+          if (Object.prototype.hasOwnProperty.call(m, 'reasoning')) { if (c.reasoning !== m.reasoning) c.reasoning = m.reasoning; }
+          else if (Object.prototype.hasOwnProperty.call(c, 'reasoning')) delete c.reasoning;
+        }
+        if (!out) out = list.slice();
+        out[i] = c;
+      }
+      return out || list;
+    }
+    return {
+      plan, view,
+      agedOf: m => (m && typeof m === 'object' && aged.get(m)) || null,
+      originalOf: c => (c && typeof c === 'object' && owners.get(c)) || null
+    };
+  }
+
+  return { makeRequestView, elideToolResult, foldRequest, headTail, isElided, makeAgeing, inheritMarkers, ELIDED, ELIDE_HEAD, HEAD_SHARE, ARG_ELIDED,
+    AGEING: { KEEP_TURNS: AGE_KEEP_TURNS, BATCH_CHARS: AGE_BATCH_CHARS, MIN_TURNS: AGE_MIN_TURNS, SHORT_RUN: AGE_SHORT_RUN, ASSUMED_RATES: AGE_ASSUMED_RATES, WRITE_ARGS },
+    _internals: { wireKey, hashOf, stubText, utf8Bytes, stripFrom, argStubText, charsOf } };
 });
