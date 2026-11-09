@@ -9,8 +9,11 @@
       through four history edits — a tool.search reveal, a stale screen capture aged out, the micro tier, a paid fold —
       and keeps working after each. Every request must report zero dropped blocks; the edit must really have happened
       on the wire; the blocks produced after it must still be replayed, and so must the blocks before it that the edit
-      left valid (nothing the API would keep is stripped). A run RECOVERED from the run journal's checkpoint after the
-      edit (index.js o.recovery) must drop nothing either: the strip is durable, never put back.
+      left valid (nothing the API would keep is stripped). The strip is durable (the journal checkpoint holds it). A run
+      RECOVERED from the run journal (index.js o.recovery: the checkpoint verbatim, the original tools, the system prompt
+      as one block) drops nothing either, whichever checkpoint it starts from — after the edit, before it (its own
+      preflight compaction edits again), or after a tool.search reveal: its first request replays none of the blocks it
+      cannot prove, and every block it produces replays intact.
    2. EVERY ELISION STUB NAMES A HANDLE THAT READS BACK BYTE-IDENTICAL. The REAL loop + registry + fs tools + the host
       parker shape (output-artifacts.js, stems like index.js capCtx.parkOutput) fold old results through the micro
       tier. The agent edits the file it read before the elision, the file is rewritten again after it, and the run's
@@ -112,7 +115,7 @@ function bindingServer(script, usageFor) {
     ev.push({ type: 'message_delta', delta: { stop_reason: toolUse ? 'tool_use' : 'end_turn' }, usage: { output_tokens: 7 } }, { type: 'message_stop' });
     return new Response(ev.map(line).concat(['']).join(NL), { status: 200, headers: { 'Content-Type': 'text/event-stream' } });
   };
-  return { fetch, posts };
+  return { fetch, posts, minted };
 }
 // The wire as a flat list of non-thinking blocks (system + tools first): an append-only request extends the previous list.
 function flat(body) {
@@ -146,6 +149,7 @@ async function runBound(o) {
     onCheckpoint: o.onCheckpoint,
     provider: makeAnthropicProvider({ fetch: up.fetch, key: 'k', reasoningEffort: 'medium' }), emit: makeEmitter(bus, () => {}),
     cost: makeCostEngine({ priceOf: () => ({ in: 1, out: 1 }) }), model: 'claude-opus-5-5', agentId: 'a', runId: 'r',
+    cacheSystemPrefix: o.cacheSystemPrefix,
     tools: [fn('fs_read', { path: { type: 'string' } }), fn('tool_search', { query: { type: 'string' } }), fn('snap'), fn('noop')],
     deferredTools: [fn('web_fetch', { url: { type: 'string' } })], toolImages: !!o.toolImages,
     context: o.context || null, summarize: o.summarize || null, microCompaction: o.microCompaction,
@@ -229,24 +233,59 @@ async function readBack(reg, ctx, call) {
       script: n => n <= 4 ? thinkTool('noop') : thinkText });
     checkBound('paid fold', fold, { requests: 5, editAt: 4, compact: 'context', lastReplays: [4] });
 
-    // (e) a recovered run: the run journal (index.js onCheckpoint -> run-journal) snapshots the turns as they stand. A run
-    // recovered from the checkpoint after the micro tier's edit (index.js o.recovery: those messages, verbatim) starts
-    // with a fresh view, so it must not find the blocks the edit invalidated still in its history
-    const snaps = [];
-    const crashed = await runBound({ context: ctx(), usageFor: usage, summarize: async () => ({ summary: 'S', usd: 0, tokens: 0 }),
-      script: n => n <= 4 ? thinkTool('noop') : thinkText,
-      onCheckpoint: ({ phase, messages }) => { snaps.push({ phase, messages: JSON.parse(JSON.stringify(messages)) }); } });
-    const afterEdit = snaps.filter(s => s.phase === 'tool_results')[3];   // turn 4's results: the edit and request 4 are behind it
-    A.ok(!!afterEdit && crashed.up.posts.length === 5, 'recovery: a journal checkpoint exists after the edited request');
-    if (afterEdit) {
+    /* (e)-(g) A RECOVERED RUN, as index.js builds one: the run journal's checkpoint (onCheckpoint -> run-journal) taken
+       verbatim (o.recovery), the run's ORIGINAL tools (a tool.search reveal is not re-applied) and the system prompt sent
+       as ONE block (a recovery passes no cacheSystemPrefix; the source run split it in two). Its view has no last request,
+       so it can prove none of the blocks it replays: whatever the checkpoint, its first request replays none of them and
+       nothing is dropped on any request; every block the recovered run produces replays intact. */
+    const SYS = 'You are a station agent.';
+    const splitStart = () => [{ role: 'system', content: SYS + NL + NL + '<run_context>conversation 7</run_context>' }, { role: 'user', content: 'do the task' }];
+    const blocksIn = (up, msgs) => msgs.filter(m => m && m.role === 'assistant' && Array.isArray(m.reasoning) && m.reasoning.length).map(m => m.reasoning.map(b => up.minted.get(b.signature) || 0));
+    // source(n) scripts the crashed run; the recovered run then makes two small tool turns and finishes
+    async function crashAndRecover(label, o, pick) {
+      const s = { phase: 'source', base: 0 };
+      const script = (n, body) => s.phase === 'source' ? o.source(n, body) : (n - s.base <= 2 ? thinkTool('fs_read', { path: 'x' + (n - s.base) }) : thinkText);
+      const snaps = [];
+      const crashed = await runBound(Object.assign(o.run(), { script, messages: splitStart(), cacheSystemPrefix: SYS,
+        onCheckpoint: ({ phase, messages }) => { snaps.push({ phase, messages: JSON.parse(JSON.stringify(messages)) }); } }));
+      const snap = pick(snaps.filter(x => x.phase === 'tool_results'));
+      A.ok(!!snap, label + ': the journal checkpoint the recovery starts from exists');
+      if (!snap) return null;
+      s.phase = 'recovered'; s.base = crashed.up.posts.length;
       const from = crashed.up.posts.length;
-      const recovered = await runBound({ up: crashed.up, messages: afterEdit.messages, context: ctx(), usageFor: usage,
-        summarize: async () => ({ summary: 'S', usd: 0, tokens: 0 }) });
-      const tail = crashed.up.posts.slice(from);
-      A.eq(recovered.res.reason, 'done', 'recovery: the recovered run finishes');
-      A.ok(tail.length >= 1, 'recovery: the recovered run made its request');
-      A.eq(tail.map(p => p.dropped), tail.map(() => 0), 'recovery: NO thinking block dropped on the recovered run (the strip was durable)');
-      A.eq(tail.length ? tail[0].replayed : null, [1, 4], 'recovery: it replays exactly the blocks still bound — 1 (before the edit) and 4 (after it)');
+      // index.js hands the loop a fresh copy of the checkpoint (JSON round trip); the loop works on that array in place
+      const recovered = await runBound(Object.assign(o.run(), { up: crashed.up, messages: JSON.parse(JSON.stringify(snap.messages)) }));
+      const head = crashed.up.posts.slice(0, from), tail = crashed.up.posts.slice(from);
+      A.eq(recovered.res.reason, 'done', label + ': the recovered run finishes');
+      A.eq(tail.length, 3, label + ': the recovered run made all its requests');
+      A.ok(head.every(p => Array.isArray(p.body.system) && p.body.system.length === 2) && tail.every(p => Array.isArray(p.body.system) && p.body.system.length === 1),
+        label + ': the source run sent its system prompt as two blocks, the recovered run as one (index.js: no cache prefix on a recovery)');
+      A.eq(tail.map(p => p.dropped), tail.map(() => 0), label + ': NO thinking block dropped on any request of the recovered run');
+      A.eq(tail[0] && tail[0].replayed, [], label + ': its first request replays none of the checkpoint\'s blocks (no last view to prove them against)');
+      A.eq(tail[2] && tail[2].replayed, [from + 1, from + 2], label + ': every block the recovered run produced replays intact');
+      return { crashed, recovered, snap, tail, from };
+    }
+    const noopSource = n => n <= 4 ? thinkTool('noop') : thinkText;
+    const microRun = () => ({ context: ctx(), usageFor: usage, summarize: async () => ({ summary: 'S', usd: 0, tokens: 0 }) });
+    // (e) from the checkpoint AFTER the micro tier's edit (turn 4's results): the journal holds the edit's strip (durable),
+    // so it carries blocks 1 and 4 only
+    const e = await crashAndRecover('recovery after the edit', { source: noopSource, run: microRun }, tr => tr[3]);
+    if (e) A.eq(blocksIn(e.crashed.up, e.snap.messages), [[1], [4]], 'recovery after the edit: the journal checkpoint holds the strip (blocks 2 and 3 are gone from it, 1 and 4 kept)');
+    // (f) from the checkpoint BEFORE the edit (turn 3's results: the station stopped while request 4 streamed): the
+    // recovered run's own preflight micro tier makes the same edit again, to a view with no last request
+    const f = await crashAndRecover('recovery before the edit', { source: noopSource, run: microRun }, tr => tr[2]);
+    if (f) {
+      A.eq(blocksIn(f.crashed.up, f.snap.messages), [[1], [2], [3]], 'recovery before the edit: the checkpoint carries blocks 1-3 (no edit yet)');
+      A.ok(f.recovered.seq.some(x => x.name === 'agent.compact' && x.payload.reason === 'micro'), 'recovery before the edit: the recovered run\'s micro tier made the edit again');
+    }
+    // (g) from a checkpoint after a tool.search reveal (turn 3's results): block 3 was made with web_fetch advertised, and
+    // the recovered run starts from the original tools
+    const revealSource = n => n === 1 ? thinkTool('fs_read', { path: 'a' }) : n === 2 ? thinkTool('tool_search', { query: 'web' }) : n <= 4 ? thinkTool('fs_read', { path: 'b' + n }) : thinkText;
+    const g = await crashAndRecover('recovery after a reveal', { source: revealSource, run: () => ({}) }, tr => tr[2]);
+    if (g) {
+      const names = p => (p.body.tools || []).map(t => t.name);
+      A.eq(blocksIn(g.crashed.up, g.snap.messages), [[3]], 'recovery after a reveal: the checkpoint carries block 3, made with web_fetch advertised');
+      A.ok(names(g.crashed.up.posts[2]).indexOf('web_fetch') >= 0 && g.tail.every(p => names(p).indexOf('web_fetch') < 0), 'recovery after a reveal: the source run advertised web_fetch from request 3, the recovered run does not');
     }
   }
 

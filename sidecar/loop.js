@@ -1263,7 +1263,9 @@
     // host already parked the output to, and the provenance a park of the body must carry
     const toolOrigin = (typeof WeakMap === 'function') ? new WeakMap() : null;
     /* THE REQUEST VIEW (history-edit makeRequestView): on a provider that binds thinking to its prefix, the blocks an
-       edit invalidated are deleted from their turns (once, in place); every other provider gets `wireMessages()` untouched. */
+       edit invalidated are deleted from their turns (once, in place), and so is every block the run's first request
+       would replay (a recovered history: the view never saw the prefix it was made on); every other provider gets
+       `wireMessages()` untouched. */
     const requestView = HistoryEdit ? HistoryEdit.makeRequestView() : null;
     const bindsThinking = () => {
       if (!provider || typeof provider.bindsThinking !== 'function') return false;
@@ -2387,7 +2389,9 @@
           // stale screen captures -> placeholders; then the thinking any history edit invalidated is stripped (binding models)
           const view = requestView ? requestView.messages(wireMessages(), { tools, binds: bindsThinking() }) : null;
           // a strip is recorded where the API's own drops were (providers.anthropic.thinking_dropped): a strip on every turn shows
-          if (view && view.stripped > 0) failNote('loop.historyEdit.thinkingStripped', 'a history edit at message ' + view.editAt + ' unbound the thinking of ' + view.stripped + ' earlier turn(s) on ' + String(model) + '; those blocks were removed before the request');
+          if (view && view.stripped > 0) failNote('loop.historyEdit.thinkingStripped', view.unproven
+            ? 'the run\'s first request on ' + String(model) + ' replays the thinking of ' + view.stripped + ' turn(s) it never saw produced (a recovered history: its tools, system prompt or turns may differ from when that thinking was made); those blocks were removed before the request'
+            : 'a history edit at message ' + view.editAt + ' unbound the thinking of ' + view.stripped + ' earlier turn(s) on ' + String(model) + '; those blocks were removed before the request');
           const req = { model, messages: view ? view.messages : wireMessages(), tools, signal, stream: true };
           if (typeof o.isTask === 'boolean') req.isTask = o.isTask;
           if (o.runId) req.runId = o.runId;   // run attribution: only a profile that names a runIdHeader sends it (starnet)

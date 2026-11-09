@@ -124,8 +124,11 @@ const firstLine = s => String(s).split('\n')[0];
     A.ok(offOut.messages === offList && offOut.editAt === -1 && offOut.stripped === 0, 'view: a non-binding provider gets the list itself');
 
     const view = makeRequestView();
+    const r0 = view.messages([sys, u0], { tools, binds: true });
+    A.eq([r0.editAt, r0.stripped, r0.unproven], [0, 0, true], 'view: a run\'s first request has no last view to compare with (and a fresh run replays nothing)');
     const r1 = view.messages([sys, u0, a1, t1], { tools, binds: true });
-    A.ok(r1.messages.length === 4 && r1.editAt === -1 && r1.stripped === 0, 'view: the first request is nobody\'s edit');
+    A.ok(r1.messages.length === 4 && r1.editAt === -1 && r1.stripped === 0 && r1.unproven === false, 'view: the block produced on the first request is the view\'s own: the next request keeps it');
+    A.ok(Array.isArray(a1.reasoning) && a1.reasoning.length === 1, 'view: and it goes out intact');
     const l2 = [sys, u0, a1, t1, a2, t2];
     const r2 = view.messages(l2, { tools, binds: true });
     A.ok(r2.messages === l2 && r2.editAt === -1 && r2.stripped === 0, 'view: an append-only request is the list itself');
@@ -165,10 +168,29 @@ const firstLine = s => String(s).split('\n')[0];
     const shrink = v2.messages([sys, u0, a1, t1], { tools, binds: true });
     A.eq([shrink.editAt, shrink.stripped], [-1, 0], 'view: dropping messages off the end changes no block\'s prefix');
 
-    // a provider switch that stops binding resets the view; nothing is carried into a later binding stretch
+    // a provider switch that stops binding resets the view; nothing is carried into a later binding stretch, so what
+    // that stretch replays is unproven and goes
     v2.messages([sys, u0], { tools, binds: false });
-    const again = v2.messages([sys, u0, a1], { tools, binds: true });
-    A.eq([again.editAt, again.stripped], [-1, 0], 'view: a non-binding request clears the baseline');
+    const a9 = asst('nine', 9);
+    const again = v2.messages([sys, u0, a9], { tools, binds: true });
+    A.eq([again.editAt, again.stripped, again.unproven], [0, 1, true], 'view: a non-binding request clears the baseline; the next binding request proves nothing it replays');
+    A.ok(!('reasoning' in a9) && a9.content === 'nine', 'view: so the block it carried is stripped (text kept)');
+
+    // A RECOVERED HISTORY (index.js o.recovery: a journal checkpoint, verbatim). Its blocks were made under a prefix this
+    // run does not rebuild (the tools a reveal grew, the system prompt's shape, a preflight edit): the first binding request
+    // strips every one, even those an edit never touched; the blocks the recovered run produces replay intact.
+    const rv = makeRequestView();
+    const ra1 = asst('one', 1), ra2 = asst('two', 2), rt1 = { role: 'tool', tool_call_id: 'c1', content: 'R1' }, rt2 = { role: 'tool', tool_call_id: 'c2', content: 'R2' };
+    const rl = [sys, u0, ra1, rt1, ra2, rt2];
+    const rr = rv.messages(rl, { tools, binds: true });
+    A.eq([rr.editAt, rr.stripped, rr.unproven], [0, 2, true], 'view: a run\'s first request strips every block it replays (a recovered history)');
+    A.ok(rr.messages === rl && !('reasoning' in ra1) && !('reasoning' in ra2) && ra1.content === 'one' && ra2.content === 'two', 'view: in place, the turns\' text kept');
+    const ra3 = asst('three', 3), rt3 = { role: 'tool', tool_call_id: 'c3', content: 'R3' };
+    const rr2 = rv.messages(rl.concat([ra3, rt3]), { tools, binds: true });
+    A.eq([rr2.editAt, rr2.stripped, rr2.unproven], [-1, 0, false], 'view: the recovered run\'s own next request is append-only');
+    A.ok(Array.isArray(ra3.reasoning) && ra3.reasoning.length === 1, 'view: and the block the recovered run produced replays intact');
+    const offFirst = makeRequestView().messages([sys, u0, asst('x', 7)], { tools, binds: false });
+    A.ok(offFirst.stripped === 0 && offFirst.unproven === false && 'reasoning' in offFirst.messages[2], 'view: a first request on a provider that does not bind strips nothing');
   }
 
   A.report('history-edit.test');

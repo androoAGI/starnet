@@ -19,6 +19,14 @@
       block produced after it replay intact: zero drops after an edit. One deliberate over-strip: when the first
       changed message is itself an assistant turn rewritten in place (only collapseContinuation does that), its own
       blocks go too, because whether they still bind depends on where they sat inside the turn.
+      A BLOCK THE VIEW CANNOT PROVE GOES. "Valid" is only ever proven against a request this view handed out, so a
+      run's first binding request proves no block it replays. A run that starts with blocks is in practice a recovered
+      one (index.js o.recovery: a journal checkpoint, verbatim; the transcript store and the page keep no thinking),
+      and its blocks were minted under a prefix it does not rebuild: the tools a tool.search reveal grew (reveals are
+      not re-applied), the system prompt in another shape (a recovery sends it as one block, with no cache prefix), and
+      any edit between the checkpoint and the request (the recovered run's own preflight compaction). So every
+      replayed block goes on that request — removing them all is always valid, the API's own strip-every-block
+      recovery — and every block from then on is the view's own and replays intact.
    2. AN ELIDED BODY KEEPS A HANDLE (elideToolResult: the ONE stub/handle builder; W1.8 cross-run replay reuses it).
       The micro tier's stub kept 240 chars and said "re-run the tool": a write-free re-run is not always possible, and a
       re-run of a command is not the same bytes. The stub now names a saved file that gives the elided bytes back: the
@@ -150,40 +158,44 @@
     if (keyMemo) keyMemo.set(m, { content: m.content, len, calls: m.tool_calls, role: m.role, id: m.tool_call_id, cid: m.call_id, name: m.name, key });
     return key;
   }
-  /* makeRequestView() -> { messages(list, { tools, binds }) -> { messages, editAt, stripped } }   one per run.
+  // Deletes the thinking of every assistant turn at or after `from`, in place (text and calls stay); returns how many.
+  function stripFrom(list, from) {
+    let n = 0;
+    for (let i = Math.max(0, from); i < list.length; i++) {
+      const m = list[i];
+      if (m && m.role === 'assistant' && Array.isArray(m.reasoning) && m.reasoning.length) { delete m.reasoning; n++; }
+    }
+    return n;
+  }
+  /* makeRequestView() -> { messages(list, { tools, binds }) -> { messages, editAt, stripped, unproven } }   one per run.
      list: what the loop would send (screen captures already aged out); its assistant turns are the loop's own message
      objects. binds: the provider binds thinking to its prefix for this model (provider.bindsThinking). On a binding
      request the blocks an edit invalidated are DELETED from their turns, in place (see 1. above), and the list itself
-     is returned. editAt: the first changed message since the last view (0 = the tools changed; -1 = append-only).
-     stripped: the turns whose blocks this call deleted. */
+     is returned. editAt: the first message whose prefix changed since the last view (0 = the tools changed, or there is
+     no last view; -1 = append-only). unproven: there was no last view (the run's first binding request, or the first
+     after a stretch that did not bind), so no replayed block was proven and every one went. stripped: the turns whose
+     blocks this call deleted. */
   function makeRequestView() {
     let last = null;
     function messages(list, o) {
       const src = Array.isArray(list) ? list : [];
-      if (!o || o.binds !== true) { last = null; return { messages: src, editAt: -1, stripped: 0 }; }
+      if (!o || o.binds !== true) { last = null; return { messages: src, editAt: -1, stripped: 0, unproven: false }; }
       const keys = src.map(wireKey);
       const tools = hashOf(JSON.stringify(o.tools || null));
+      const unproven = !last;
       let editAt = -1;
-      if (last) {
-        if (last.tools !== tools) editAt = 0;
-        else {
-          const n = Math.min(last.keys.length, keys.length);
-          for (let i = 0; i < n; i++) if (last.keys[i] !== keys[i]) { editAt = i; break; }
-        }
+      if (unproven || last.tools !== tools) editAt = 0;
+      else {
+        const n = Math.min(last.keys.length, keys.length);
+        for (let i = 0; i < n; i++) if (last.keys[i] !== keys[i]) { editAt = i; break; }
       }
-      let stripped = 0;
-      if (editAt >= 0) {
-        for (let i = editAt; i < src.length; i++) {
-          const m = src[i];
-          if (m && m.role === 'assistant' && Array.isArray(m.reasoning) && m.reasoning.length) { delete m.reasoning; stripped++; }
-        }
-      }
+      const stripped = editAt >= 0 ? stripFrom(src, editAt) : 0;
       last = { keys, tools };
-      return { messages: src, editAt, stripped };
+      return { messages: src, editAt, stripped, unproven };
     }
     return { messages };
   }
 
   return { makeRequestView, elideToolResult, foldRequest, headTail, isElided, ELIDED, ELIDE_HEAD, HEAD_SHARE,
-    _internals: { wireKey, hashOf, stubText, utf8Bytes } };
+    _internals: { wireKey, hashOf, stubText, utf8Bytes, stripFrom } };
 });
