@@ -100,6 +100,10 @@ function station(opts) {
     telegramStatus: { connected: false, state: 'connecting' }, discordStatus: { connected: false, state: 'connecting' }, genericStatus: {},
     issueTelegramOwnerPairing: () => ({ ok: true, code: 'PAIR', expiresAt: 0 }),
     withOwnerPairing: (id, out) => out,
+    // review2 #1: a bot with no owner asks the desk for its owner code before anything is saved; this desk says yes
+    // (the provider switch is what these rows read, not the desk: the desk-gate tests hold that question)
+    ownerPairingPass: (req, res, action, scope) => Object.freeze({ deskSaidYes: true, action: String(action), scope: String(scope || '') }),
+    CHANNEL_OWNER_LABEL: { telegram: 'Telegram', discord: 'Discord', slack: 'Slack' },
     parseSlackTokens: () => ({ botToken: 'xoxb-1', appToken: 'xapp-1' }),
     // read only by the OPTIONAL helpers (the connect gate proves the roster agent's own pair)
     agentRoster: new Map([['agent', agent]]),

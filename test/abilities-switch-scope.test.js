@@ -27,7 +27,9 @@ A.ok(/Harness\.api\.get\('\/api\/toolsets\?agent=' \+ encodeURIComponent\(tsAgen
 const post = (CONN.match(/Harness\.api\.post\('\/api\/toolsets\/'[^;]+;/) || [''])[0];
 A.ok(post && !/agent/i.test(post), 'the switch POST carries no agent');
 const toggle = SC.slice(SC.indexOf('async function handleToolsetToggle'), SC.indexOf('/* ---- /api/connectors'));
-A.ok(toggle.length > 0 && !/agent/i.test(toggle), 'the toggle handler never reads an agent');
+// its code, not its whole-line comments (the desk confirmation's note says the switch reaches "every agent")
+const toggleCode = toggle.replace(/^\s*\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+A.ok(toggle.length > 0 && !/agent/i.test(toggleCode), 'the toggle handler never reads an agent');
 A.ok(/if \(body\.enabled\) delete toolsetDisabled\[id\]; else toolsetDisabled\[id\] = false;/.test(toggle), 'it writes the one station-wide toolsetDisabled map, keyed by ability only');
 // (authority-census: runOnceCore hands the map to the one projection, capability/project-tools.js, which resolves with it)
 A.ok(/resolveTools\(agentId, station, undefined, \{ disabledCaps: unrestricted \? new Set\(\) : facts\.disabledCaps \}\)/.test(SC)

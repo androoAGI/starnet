@@ -65,10 +65,10 @@ async function bypassAsk(call, tok) {
     const child = spawn(process.execPath, [path.join(__dirname, '..', 'sidecar', 'index.js')], { env, stdio: ['ignore', 'pipe', fd] });
     let exited = false; child.on('close', () => { exited = true; });
     let outBuf = '';
-    await new Promise((res, rej) => {
-      const t = setTimeout(() => rej(new Error('boot timeout')), 150000);
-      child.stdout.on('data', d => { outBuf += d.toString(); if (/Open in your browser:\s+http:\/\/127\.0\.0\.1:\d+/.test(outBuf)) { clearTimeout(t); res(); } });
-      child.on('close', c => { clearTimeout(t); rej(new Error('exited ' + c + '\n' + outBuf.slice(-2000))); });
+    await new Promise((resolve, reject) => {
+      const t = setTimeout(() => reject(new Error('boot timeout')), 150000);
+      child.stdout.on('data', d => { outBuf += d.toString(); if (/Open in your browser:\s+http:\/\/127\.0\.0\.1:\d+/.test(outBuf)) { clearTimeout(t); resolve(); } });
+      child.on('close', c => { clearTimeout(t); reject(new Error('exited ' + c + '\n' + outBuf.slice(-2000))); });
     });
     try {
       const B = 'http://' + HOST + ':' + port;

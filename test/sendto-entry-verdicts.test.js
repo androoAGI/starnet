@@ -387,7 +387,10 @@ function world(opts) {
     A.eq((idxSrc.match(/^\s*hostPowerKept: true,/gm) || []).length, 2, 'index.js stamps hostPowerKept on exactly the two routine seeds (scheduled advanceChain + Run Now) — a routine never withholds host power');
     const hubSrc = fs.readFileSync(path.join(root, 'sidecar', 'channels', 'hub.js'), 'utf8');
     A.eq((hubSrc.match(/entryTrusted: lineEntryUntrusted \? undefined : true,/g) || []).length, 1, 'the hub stamps entryTrusted once, from the verdict its runs carry');
-    A.eq((hubSrc.match(/hostPowerKept: \(runChannelSender === true && runChannelSenderOwner !== true\) \? undefined : true,/g) || []).length, 1, '…and hostPowerKept once, by run-origin\'s own withheld test');
+    // run-origin's hostPowerWithheldFor: a non-owner sender, or (final review #1) the owner on a config the desk has not
+    // bound (ownerBound false is the run's channelOwnerUnbound)
+    A.eq((hubSrc.match(/hostPowerKept: \(\(runChannelSender === true && runChannelSenderOwner !== true\) \|\| !ownerBound\) \? undefined : true,/g) || []).length, 1, '…and hostPowerKept once, by run-origin\'s own withheld test');
+    A.ok(/channelOwnerUnbound: ownerBound \? undefined : true,/.test(hubSrc), '…whose unbound-owner half is the channelOwnerUnbound the same message\'s run carries');
     const chainSrc = fs.readFileSync(path.join(root, 'sidecar', 'routing', 'chain.js'), 'utf8');
     A.ok(/if \(s\.entryTrusted === true\) rec\.entryTrusted = true;\s*\n\s*if \(s\.hostPowerKept === true\) rec\.hostPowerKept = true;/.test(chainSrc), 'chain.js carries them only as a literal true');
     const hoSrc = fs.readFileSync(path.join(root, 'sidecar', 'routing', 'handoff-runner.js'), 'utf8');

@@ -404,10 +404,13 @@ async function readoutPlaced(root, scenario, sctx, opts) {
     slash: { dispatch: () => ({ ok: true, directive: { type: 'server', action: 'tools', args: {} } }) },
     slashOptions: (placed) => ({ placed }),
     slashActions: { run: async (action, args, c) => { seen.placed = c.placed; return { ok: true, text: '' }; } },
-    userExecRefusal: () => '', runUserExec: async () => ({ ok: false, text: '' })
+    userExecRefusal: () => '', runUserExec: async () => ({ ok: false, text: '' }),
+    workshopOf: () => null   // the census agent holds no away-workshop grant (slashAwayGrant reads it)
   };
   vm.createContext(ctx);
-  const body = topLevelFunctionIn(text, 'placedTypesFrom') + '\n' + fn + '\nrunSlashForChannel("/tools", sctx);';
+  // review2 #9: the readout refuses "/away on" from a chat through slashAwayGrant; a tree that has it runs its own cut
+  const awayGate = /\nfunction slashAwayGrant\(/.test(text) ? topLevelFunctionIn(text, 'slashAwayGrant') + '\n' : '';
+  const body = topLevelFunctionIn(text, 'placedTypesFrom') + '\n' + awayGate + fn + '\nrunSlashForChannel("/tools", sctx);';
   await new vm.Script(body, { filename: 'census-readout.js' }).runInContext(ctx);
   return { placed: Array.from(new Set(seen.placed || [])).sort(), failNotes };
 }

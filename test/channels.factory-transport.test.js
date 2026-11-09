@@ -26,7 +26,8 @@ const KINDS = ['telegram', 'telegram-bot', 'discord', 'slack', 'matrix', 'signal
 const FUNCTIONS = ['runWireEnv', 'runWireFor', 'channelRunConfigFor', 'stationHubRunConfig',
   'channelHubSecrets', 'makeHubDeps', 'makeAdapterOpts', 'startTelegram', 'stopTelegram',
   'telegramBotRecords', 'makeBotScopedStore', 'startTelegramBot', 'stopTelegramBot',
-  'startDiscord', 'stopDiscord', 'channelPersona', 'startGenericChannel', 'stopGenericChannel', 'stopChannel'];
+  'startDiscord', 'stopDiscord', 'channelPersona', 'startGenericChannel', 'stopGenericChannel', 'stopChannel',
+  'channelOwnerCardFree'];   // final review #1: makeHubDeps hands each hub the host's card-free verdict for an owner's DM
 const text = Bags.hostSource();
 // Older controls predate the factories and shared stop; their starters still execute unchanged.
 const hostCode = FUNCTIONS.map(name => Bags.topLevel(text, name)).filter(Boolean).join('\n');
@@ -151,7 +152,9 @@ function station(kind, root) {
     redact: value => value, chanEmit: (name, data) => events.push({ name, data }), media: { transcribeForMime() {} }, attachments: { saveAttachment() {} },
     scrubOutbound: String, guardOutbound: adapter => Scrub.guardOutbound(adapter, String),
     channelAskConsent() {}, channelResolveConsent() {}, channelConsentOutcome() {},
-    activeItem: new Map(), bumpQueue: () => 0, QUEUE_CAP: 20
+    activeItem: new Map(), bumpQueue: () => 0, QUEUE_CAP: 20,
+    // channelOwnerCardFree reads the station's Full Access posture: none here (no FULL BYPASS, no Full Access agent)
+    FULL_ACCESS: false, masterBypassOn: () => false
   };
   vm.createContext(context);
   vm.runInContext(hostCode, context);
