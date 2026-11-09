@@ -33,7 +33,7 @@ function closeWindowGracefully(pid) {
 
 import * as require_cp from 'node:child_process';
 import { openSync } from 'node:fs';
-import { mkdtempSync, mkdirSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 const WT = new URL('../../lib/', import.meta.url).href;
@@ -164,6 +164,24 @@ try {
   const cdp = await connectCDP(cdpPort);
   const diag = collectDiagnostics(cdp);
   await cdp.send('Page.enable'); await cdp.send('Runtime.enable');
+  /* THE DESK (GHSA-2hpj; sidecar/deskproof.js). This is a BARE station (no desktop shell), so a change only the desk may make,
+     quitting included (fix-sec2 review2 #11), comes back with the station's desk challenge, and the page asks for the six-digit
+     code the station printed on its own console (harness.js deskConfirmation, window.prompt). The person at the desk reads it
+     there; this proof reads it from the station's log, which is that console, and types it into the page's prompt. Any other
+     dialog is left alone, as before. Under the desktop app the shell quits with its own key and the page never posts this. */
+  const deskCodeFor = label => {
+    let log = ''; try { log = readFileSync(join(OUT, 'sidecar.log'), 'utf8'); } catch (_) { return ''; }
+    const all = [...log.matchAll(/Type code (\d{6}) in the StarNet page that asks for confirmation ([A-Z0-9]{1,6})\./g)].filter(m => m[2] === label);
+    return all.length ? all[all.length - 1][1] : '';
+  };
+  cdp.on('Page.javascriptDialogOpening', async p => {
+    const label = p && p.type === 'prompt' ? /\(confirmation ([A-Z0-9]{1,6})\)/.exec(String(p.message || '')) : null;
+    if (!label) return;
+    let code = '';
+    for (let i = 0; !code && i < 40; i++) { code = deskCodeFor(label[1]); if (!code) await sleep(150); }
+    console.log('desk: the page asks for confirmation ' + label[1] + (code ? '; typing the code the station printed' : '; the station printed no code for it'));
+    await cdp.send('Page.handleJavaScriptDialog', code ? { accept: true, promptText: code } : { accept: false }).catch(() => {});
+  });
   await cdp.send('Page.navigate', { url });
   ok('in-game', await waitDevReady(cdp, evalJS, { url, tries: 60 }));
   await sleep(4000);
@@ -340,8 +358,9 @@ try {
     await type('127.0.0.1:' + site.port);
     await until(() => view().then(v => v.station.open ? 1 : null), 60000, 500);
     ok('before quitting, the shared Chrome window is running', mine().length >= 1, mine().map(r => r.pid).join(','));
+    // asked at the desk on a bare station: the page's fetch wrapper prompts for the code and replays (the dialog handler above)
     const q = await evalJS(cdp, "fetch('/api/lifecycle/quit',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'}).then(r=>r.status).catch(e=>'ERR '+e.message)");
-    ok('the app can ask the station to shut down cleanly', q === 202, String(q));
+    ok('the app can ask the station to shut down cleanly, confirmed at the desk', q === 202, String(q));
     const gone = await until(async () => mine().length === 0 ? 1 : null, 20000, 500);
     ok('after quitting, the shared Chrome window is gone (not left open and broken)', !!gone, mine().map(r => r.pid).join(','));
   }
