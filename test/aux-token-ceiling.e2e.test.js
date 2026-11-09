@@ -91,12 +91,16 @@ async function governorLine(f, agentId, from) {
   }
   throw new Error('no [aux-governor] line for ' + agentId + ':\n' + f.output().slice(from).slice(-1500));
 }
-async function childrenDone(f, before, expectChild) {
+async function childrenDone(f, before, expectChild, expectReview) {
   let lastRows = -1;
   for (const until = Date.now() + 20000; Date.now() < until;) {
     const l = log(), started = l.filter(c => c.ev === 'start').length, ended = l.filter(c => c.ev === 'end').length, rows = rowsOf(f).length;
-    const passStarted = !expectChild || starts().slice(before).some(c => !c.main);
-    if (passStarted && started === ended && rows === lastRows) return;
+    const mine = starts().slice(before);
+    const passStarted = !expectChild || mine.some(c => !c.main);
+    // the admitted skill review (a tool loop: it keeps its cache) waits its turn in the route's admission lane behind the
+    // toolless passes, so a quiet moment between them is not the end: under load that gap outlasted a poll (review r1)
+    const reviewStarted = !expectReview || mine.some(c => !c.main && !c.cacheOff);
+    if (passStarted && reviewStarted && started === ended && rows === lastRows) return;
     lastRows = rows;
     await sleep(300);
   }
@@ -115,7 +119,8 @@ async function run(f, agentId, extra, words) {
   const events = raw.trim().split('\n').filter(Boolean).map(l => JSON.parse(l));
   const line = await governorLine(f, agentId, from);
   const spent = Number((line.match(/ spent=(\d+)/) || [])[1] || 0);
-  await childrenDone(f, before, !extra && spent > 0);
+  const reviewSpent = / spent=\d+\[[^\]]*\bskill-review\b/.test(line);
+  await childrenDone(f, before, !extra && spent > 0, !extra && reviewSpent);
   return { reason: (events.findLast(e => e.name === 'agent.run.end') || { payload: {} }).payload.reason, line, spawned: starts().slice(before) };
 }
 
