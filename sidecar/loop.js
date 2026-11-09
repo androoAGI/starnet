@@ -697,20 +697,26 @@
        · HOW IT ENDED — the host's own receipt (the last [exit …] marker, else the "exit N (…)" summary).
      Never evidence: a pipe, chain or subshell (the exit code is not the file's), inline code (-e, -c, -m), a background
      start (no exit yet), or no receipt at all. A run of a changed file that exits non-zero or is KILLED did NOT pass.
-     EVIDENCE HAS A RANK (review round 1: a clean `node src/app.js` erased a failed `npm test`). A check of the whole change
-     (verify_run, a test/build/lint command) speaks for every changed file; a run speaks for its own file. A failing
-     whole-change check stands until a whole-change check passes: a clean run of one file replaces neither it nor the
-     file's debt. A failing run of a file stands until that file runs clean or a whole-change check passes. makeVosLedger
+     EVIDENCE HAS A RANK, IN WHATEVER ORDER IT ARRIVES (review round 1: a clean `node src/app.js` erased a failed `npm test`
+     run before it; round 2: it hid a failed one run after it). A check of the whole change (verify_run, a test/build/lint
+     command) speaks for every changed file; a run speaks for its own file. Only a passing whole-change check lets the
+     ledger forget: a file a run proved stays proven BY A RUN, so a later failing whole-change check, or a later failing run
+     of that same file, puts it back on the list. A failing whole-change check stands until a whole-change check passes: a
+     clean run of one file replaces neither it nor the file's debt. A failing run of a file stands until that file runs
+     clean or a whole-change check passes. A patch file is the patch check's: a passing `git apply --check` proves it, and a
+     failing project check (which does not run an unapplied patch) neither keeps it owed nor puts it back. makeVosLedger
      holds these rules; nudgePremise words what it holds. */
+  // inline: the code is not a file (abort); value: a flag that takes the next token; chdir: the interpreter moves to another
+  // folder before it opens the script, so the script no longer resolves against ranIn (abort: which file ran is unknown)
   const VOS_INTERPRETERS = {
     node: { inline: /^(?:-e|--eval|-p|--print|-i|--interactive|-c|--check|--test|-v|--version|-h|--help)$/, value: /^(?:-r|--require|--import|--loader|--experimental-loader|-C|--conditions)$/ },
     python: { inline: /^(?:-c|-m|-i|-h|--help|-V|--version)$/, value: /^(?:-W|-X)$/ },
     bash: { inline: /^(?:-c|-s|-i)$/, value: /^(?:-o|\+o)$/ },
-    ruby: { inline: /^(?:-e|-i|-h|--help|-v|--version)$/, value: /^(?:-r|-I)$/ },
+    ruby: { inline: /^(?:-e|-i|-h|--help|-v|--version)$/, value: /^(?:-r|-I)$/, chdir: /^-[Cx]/ },
     php: { inline: /^(?:-r|-a|-h|-v)$/, value: /^(?:-c|-d)$/ },
     deno: { sub: 'run', inline: /^$/, value: /^$/ },
-    bun: { sub: 'run?', inline: /^(?:-e|--eval|-p|--print)$/, value: /^$/ },
-    go: { sub: 'run', inline: /^$/, value: /^$/ }
+    bun: { sub: 'run?', inline: /^(?:-e|--eval|-p|--print)$/, value: /^$/, chdir: /^--cwd(?:=|$)/ },
+    go: { sub: 'run', inline: /^$/, value: /^$/, chdir: /^-C/ }
   };
   VOS_INTERPRETERS.python3 = VOS_INTERPRETERS.py = VOS_INTERPRETERS.python;
   VOS_INTERPRETERS.sh = VOS_INTERPRETERS.bash;
@@ -734,7 +740,7 @@
     for (; i < tokens.length; i++) {
       const t = tokens[i];
       if (!/^[-+]/.test(t) || t === '-') break;
-      if (spec.inline.test(t.split('=')[0])) return null;
+      if (spec.inline.test(t.split('=')[0]) || (spec.chdir && spec.chdir.test(t))) return null;
       if (spec.value.test(t)) i++;
     }
     const script = tokens[i] || '';
@@ -781,10 +787,12 @@
   }
   // a shell / verify call RAN when it succeeded or carries the host's exit receipt (a KILLED command is an error that ran)
   const vosRan = result => !!result && ((result.ok && !result.isError) || !!lastExitMarker(String(result.content == null ? '' : result.content)));
-  // what the ledger keeps about a command that ran but is not a check of the changed code (the verify premise names it)
-  function vosRanNote(args, result) {
-    const cmd = clip(String((args && (args.command || args.cmd || args.script)) || 'shell_exec'), 60);
-    if (args && args.background === true) return { cmd, exit: '', background: true };
+  /* what the ledger keeps about a command that ran (the verify premise names it for the code it is no check of), or null
+     when it did not run: a background start ran only when the shell's own receipt says so ('bg started …'), never when
+     the shell refused it ('bg refused': too many background processes) or could not make one ('unavailable'). */
+  function vosRanNote(label, args, result) {
+    const cmd = clip(String(label || 'shell_exec'), 60);
+    if (args && args.background === true) return /^\s*bg started\b/i.test(String(result && result.summary != null ? result.summary : '')) ? { cmd, exit: '', background: true } : null;
     const marker = lastExitMarker(String(result && result.content != null ? result.content : ''));
     if (marker) return { cmd, exit: marker.code, killed: /KILLED|TIMED\s*OUT/i.test(marker.rest) };
     const sm = /^\s*exit\s+(\S+)/i.exec(String(result && result.summary != null ? result.summary : ''));
@@ -795,19 +803,28 @@
        change(path)               a code path was changed (as the model named it)
        check(scope, passed, cmd)  a whole-change check ran: scope 'all', or 'patch' (git apply --check: patch files only)
        run(paths, passed, cmd)    a run of these changed paths ended, passed or not (the host's receipt)
-       ran(note)                  a command ran that is no check of the code still owed ({ cmd, exit, killed?, background? })
+       ran(note)                  a command ran ({ cmd, exit, killed?, background? }); the premise lists it only while no
+                                  failure stands, so only for code it is no check of (a file it proved is no longer owed)
        facts()                    -> { failedCheck, passedSince, ran, ranEarlier }: nudgePremise's input
-     A failing check is kept per scope ('all', 'patch', each changed file) and leaves only by evidence that supersedes it:
-     a passing check of the same scope or of the whole change. When nothing is left to prove the ledger forgets all of it,
-     exactly as a passing check always cleared the whole set and its failure. */
+     A changed path is OWED, PROVEN BY A RUN of it since its last change, or FORGOTTEN (a whole-change check passed since its
+     last change, or a patch check proved the patch file). A failing check is kept per scope ('all', 'patch', each changed
+     file) and leaves only by evidence that supersedes it: a passing check of the same scope or of the whole change. Before
+     a failure is kept it re-arms what it speaks for: a failing whole-change check puts every run-proven file back on the
+     list, a failing run its own file — whatever order the evidence came in (review round 2). When nothing is owed the
+     failures are forgotten (none speaks for an owed file), exactly as a passing check always cleared the whole set and its
+     failure; the run proofs are kept, so a later failure still re-arms them. Only a passing whole-change check forgets
+     those too. */
   const VOS_RAN_SHOWN = 3;   // the premise names the last 3 commands that ran, then "and N earlier"
   function makeVosLedger() {
-    const unverified = new Set();   // changed code paths not proven since
-    const changed = new Set();      // every code path this run changed (a run of one already proven is not "some other command")
+    const unverified = new Set();   // changed code paths owed a proof
+    const changed = new Set();      // every code path this run changed (which changed file a run ran is decided against it)
+    const provenByRun = new Set();  // changed paths proven only by a clean run of them since they changed: a later failure re-arms them
     const failedCheck = { all: null, patch: null };   // a failing whole-change / patch check that still stands: { cmd, seq }
     const failedRun = new Map();    // a changed path -> its failing run that still stands: { cmd, seq }
     const ranList = [];
     let ranEarlier = 0, seq = 0, passSeq = 0;
+    // a failure speaks for these paths: one only a run proved is owed again
+    function rearm(paths) { for (const p of paths) if (provenByRun.delete(p)) unverified.add(p); }
     function settle() {
       for (const p of Array.from(failedRun.keys())) if (!unverified.has(p)) failedRun.delete(p);
       if (unverified.size) return;
@@ -818,19 +835,26 @@
       get size() { return unverified.size; },
       paths: () => Array.from(unverified),
       changedPaths: () => Array.from(changed),
-      change(p) { unverified.add(p); changed.add(p); },
+      change(p) { unverified.add(p); changed.add(p); provenByRun.delete(p); },
       check(scope, passed, cmd) {
         const key = scope === 'patch' ? 'patch' : 'all';
-        if (!passed) { if (unverified.size) failedCheck[key] = { cmd, seq: ++seq }; return; }
-        if (key === 'all') unverified.clear();
+        if (!passed) {
+          if (key === 'all') rearm(Array.from(provenByRun));   // the whole change failed: a clean run of one file no longer proves it
+          if (unverified.size) failedCheck[key] = { cmd, seq: ++seq };
+          return;
+        }
+        if (key === 'all') { unverified.clear(); provenByRun.clear(); }
         else { for (const p of Array.from(unverified)) if (VOS_PATCH_PATH_RE.test(p)) unverified.delete(p); failedCheck.patch = null; passSeq = ++seq; }
         settle();
       },
       run(paths, passed, cmd) {
-        const owed = (paths || []).filter(p => unverified.has(p));
-        if (!owed.length) return;   // a file already proven: it proves nothing about the code still owed
+        paths = (paths || []).filter(p => changed.has(p));
+        if (!passed) rearm(paths);   // the same file failed after a run of it passed: the later run speaks
+        const owed = paths.filter(p => unverified.has(p));
+        // nothing owed: a whole-change check passed since the change (a run does not outrank it), or a run already proved it
+        if (!owed.length) return;
         if (!passed) { const s = ++seq; for (const p of owed) failedRun.set(p, { cmd, seq: s }); return; }
-        for (const p of owed) { failedRun.delete(p); if (!failedCheck.all) unverified.delete(p); }
+        for (const p of owed) { failedRun.delete(p); if (!failedCheck.all) { unverified.delete(p); provenByRun.add(p); } }
         passSeq = ++seq;
         settle();
       },
@@ -853,9 +877,11 @@
   /* THE ONE PREMISE RESOLVER. kind 'verify_before_done' reads makeVosLedger().facts(); kind 'failure_recovery' reads
      { failed, held, search } (the recovery ledger). Every sentence it returns is a ledger fact:
        · a failed check is named as failed. "The last check … and no passing check has run since" only while nothing has
-         passed since it; once a run of some file passed after it (which never replaces it), "a check … did NOT pass and has
-         not passed since" — both halves still true;
-       · a command that ran is named, never denied; "without running anything" is said only when nothing ran;
+         passed since it; once something passed after it that does not replace it (a run of some file, a patch check),
+         "a check … did NOT pass and has not passed since" — both halves still true;
+       · a command that ran is named, never denied (every command the loop saw run is kept, a run of a changed file too:
+         while no failure stands, the files it proved are no longer owed, so it is listed only for the code it is no
+         check of); "without running anything" is said only when no command ran since the oldest change still owed;
        · a call the brief gate held is held, never failed, and it — not the whole batch — did not run. */
   function nudgePremise(kind, f) {
     f = f || {};
@@ -3329,7 +3355,8 @@
       // LOOP TRUTH (W1.11): a shell/verify call that carries the host's exit receipt RAN even when its result is an error
       // (a KILLED check is a check that did not pass, never "nothing ran"). What each call proves is decided here and kept
       // by the ledger (makeVosLedger): a check speaks for the whole change, a run for the changed file the host proves it
-      // ran, and any other command that ran is kept so the premise can name it.
+      // ran, and EVERY command that ran is also kept, so the premise names it for the code it is no check of (review round
+      // 2: a clean `node main.js` left the changed lib.js told it was "ending without running anything").
       if (VOS_MAX > 0) {
         const okById = {}, resultById = {};
         for (const r of results) { okById[r.callId] = !!r.ok && !r.isError; resultById[r.callId] = r; }
@@ -3337,21 +3364,24 @@
           const k = vosKey(c.name), r = resultById[c.id], args = c.args || {};
           const ranWithReceipt = (VOS_VERIFIERS.has(k) || k === 'shell_exec') && vosRan(r);
           if (!okById[c.id] && !ranWithReceipt) continue;
+          const cmdRaw = k === 'shell_exec' ? ((args.command || args.cmd || args.script) || k) : (args.cmd || k);
           // `summarize` is shadowed in this scope by the compaction summarizer (o.summarize) — use clip().
-          const cmdText = clip(k === 'shell_exec' ? ((args.command || args.cmd || args.script) || k) : (args.cmd || k), 80);
+          const cmdText = clip(cmdRaw, 80);
           // a check started in the background has no verdict yet: it is a command that ran, never a pass
           if (VOS_VERIFIERS.has(k) || (k === 'shell_exec' && args.background !== true && vosIsCheckCommand(args))) {
             vos.check(k === 'shell_exec' && vosIsPatchOnlyCheck(args) ? 'patch' : 'all', vosCheckPassed(c, r), cmdText);
+            vos.ran(vosRanNote(cmdRaw, args, r));   // named only for code it is no check of (a patch check, for the code)
             continue;
           }
           if (k === 'shell_exec') {
-            const note = vosRanNote(args, r);
+            const note = vosRanNote(cmdRaw, args, r);
+            if (!note) continue;   // a background start the shell refused or could not make: nothing ran
             const target = args.background === true ? null : vosInterpreterTarget(args);
             const runsOf = target ? vos.changedPaths().filter(p => vosRunsPath(target.script, p, r && r.ranIn, vosBase, target.exe)) : [];
-            // a run of a changed file with the host's receipt of how it ended is that file's check; one without a receipt
-            // proves nothing, and is named as a command that ran
+            // a run of a changed file with the host's receipt of how it ended is that file's evidence (the ledger ranks it);
+            // one without a receipt proves nothing. Either way it ran, and is named for the files it proves nothing about.
             if (runsOf.length && (note.killed || note.exit !== '')) vos.run(runsOf, vosExitZero(r), cmdText);
-            else vos.ran(note);
+            vos.ran(note);
             continue;
           }
           if (VOS_MUTATORS.has(k)) { const p = vosPathOf(args); if (vosIsCodePath(p) && !(o.standaloneWorkspace === true && VOS_PAGE_RE.test(p))) vos.change(p); }

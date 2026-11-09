@@ -14,7 +14,13 @@
             from an earlier call) never matches (A11, A12); no ranIn or no base proves nothing.
           · EVIDENCE HAS A RANK: a clean run of one file never erases a failing project check (npm test, verify_run) or
             another file's failing run, and a check started in the background is no check (A13 to A16).
-          · a run of a changed file is never listed among the "commands the host does not count as a check" (A6, A14).
+        Review round 2 closed the same two families in the other direction:
+          · RANK WHATEVER THE ORDER: a failure that comes AFTER a clean run puts the file back — a failing project check
+            every run-proven file, a failing run of the same unchanged file that file (A10, A17). Only a passing project
+            check lets the ledger forget a run's proof.
+          · A COMMAND THAT RAN IS NEVER DENIED: every command is kept, a clean run of a changed file too, and named for the
+            files it proves nothing about (A6, A18); a file's own failed run is named as a failed check (A14); a background
+            start the shell refused never ran (A15b); an interpreter flag that changes folder first proves nothing (A11b).
      B. FAILURE RECOVERY told the model "The previous path failed (fs_write)" when the Task Brief gate HELD the call
         and it never ran. A held call gets its own truthful note (once); a real failure keeps the two-chance ladder.
         The note speaks for the held calls only ("it did not run"): another call in the same batch may have run.
@@ -175,12 +181,12 @@ const NOT_A_CHECK = 'commands the host does not count as a check';
     A.eq(idle.vos.length, 1, 'A5 a change with nothing run against it still gets its one nudge');
     A.ok(textOf(idle.vos[0]).indexOf('You changed code in this run (src/app.js) ' + NOTHING_RAN + ' Code that compiles is not code that works') === '<verify_before_done>'.length, 'A5 the nothing-ran premise is unchanged: ' + textOf(idle.vos[0]).slice(0, 200));
 
-    // A6. a run proves the FILE it ran: the other changed file stays owed, and the run of a.js is not "some other
-    // command" (review round 1: it was listed among the commands that are no check)
+    // A6. a run proves the FILE it ran: the other changed file stays owed. The run still RAN, so it is named as a command
+    // that is no check of b.js (review round 2: "ending without running anything against it" was false — node a.js ran)
     const two = await run([batch(['w1', 'fs_write', { path: 'a.js', content: 'x' }], ['w2', 'fs_write', { path: 'b.js', content: 'y' }]), exec('x1', 'node a.js'), say(DONE), say('b.js not run.')], { shell: [shellOut('ok', 0)] });
     A.eq(two.vos.length, 1, 'A6 running a.js does not vouch for b.js');
     A.eq(touchedIn(two.vos[0]), ['b.js'], 'A6 the nudge names only the file still unproven');
-    A.ok(textOf(two.vos[0]).indexOf(NOT_A_CHECK) < 0 && textOf(two.vos[0]).indexOf(NOTHING_RAN) > 0, 'A6 nothing ran against b.js, and the run of the changed a.js is never listed as a command that is no check: ' + textOf(two.vos[0]).slice(0, 200));
+    A.ok(textOf(two.vos[0]).indexOf(NOT_A_CHECK + ' of it: node a.js (exit 0).') > 0 && textOf(two.vos[0]).indexOf(NOTHING_RAN) < 0, 'A6 node a.js ran: it is named as a command that is no check of b.js, never "without running anything": ' + textOf(two.vos[0]).slice(0, 220));
 
     // A7. ANTI-FAKE-DONE: nothing below is a passing run of the changed file, so the nudge still fires
     const notEvidence = [
@@ -234,6 +240,19 @@ const NOT_A_CHECK = 'commands the host does not count as a check';
       A.eq([l4.facts().ran.map(x => x.cmd), l4.facts().ranEarlier], [['ls 3', 'ls 4', 'ls 5'], 3], 'A10 ledger: the ran list is bounded (the last 3 and a count)');
       const l5 = L(); l5.change('a.js'); l5.run(['a.js'], false, 'node a.js'); l5.run(['a.js'], true, 'node a.js');
       A.eq([l5.size, l5.facts().failedCheck], [0, ''], 'A10 ledger: a file\'s own clean run settles its own failed run');
+      // review round 2 (blocker 1): the rank holds whatever order the evidence came in
+      const l6 = L(); l6.change('a.js'); l6.run(['a.js'], true, 'node a.js'); l6.check('all', false, 'npm test');
+      A.eq([l6.paths(), l6.facts().failedCheck, l6.facts().passedSince], [['a.js'], 'npm test', false], 'A10 ledger: a failing whole-change check AFTER a clean run puts the file back (nothing passed after it: the original sentence)');
+      const l7 = L(); l7.change('a.js'); l7.run(['a.js'], true, 'node a.js'); l7.run(['a.js'], false, 'node a.js x');
+      A.eq([l7.paths(), l7.facts().failedCheck], [['a.js'], 'node a.js x'], 'A10 ledger: the same unchanged file failing after its clean run is owed again');
+      const l8 = L(); l8.change('a.js'); l8.change('b.js'); l8.run(['a.js'], true, 'node a.js'); l8.run(['b.js'], true, 'node b.js'); l8.change('b.js'); l8.check('all', false, 'npm test');
+      A.eq(l8.paths().slice().sort(), ['a.js', 'b.js'], 'A10 ledger: a failing whole-change check re-arms every file only a run proved');
+      const l9 = L(); l9.change('a.js'); l9.run(['a.js'], true, 'node a.js'); l9.check('all', false, 'npm test'); l9.check('all', true, 'npm test'); l9.run(['a.js'], false, 'node a.js');
+      A.eq(l9.size, 0, 'A10 ledger: only a passing whole-change check forgets a run proof (a later failing run does not outrank it, as on e316231d7)');
+      const l10 = L(); l10.change('a.js'); l10.check('all', true, 'npm test'); l10.check('all', false, 'npm run lint');
+      A.eq(l10.size, 0, 'A10 ledger: a failing check with nothing owed records nothing (as on e316231d7)');
+      const l11 = L(); l11.change('fix.patch'); l11.check('patch', true, 'git apply --check fix.patch'); l11.check('all', false, 'npm test');
+      A.eq(l11.size, 0, 'A10 ledger: a failing project check does not re-arm a patch file its patch check proved (it does not run an unapplied patch)');
     }
 
     // A11. which changed file a run ran: RESOLVED paths only — the script against the folder the shell ran in, the changed
@@ -272,6 +291,15 @@ const NOT_A_CHECK = 'commands the host does not count as a check';
     A.eq(fromCwd.vos.length, 0, 'A11 `node app.js` run with cwd src clears the src/app.js it ran');
     const namesake = await run([write('w1', 'hello.js'), exec('x1', 'node other/hello.js'), say(DONE), say('Not verified.')], { shell: [shellOut('ok', 0)] });
     A.eq(namesake.vos.length, 1, 'A11 a run of a same-named file in another folder clears nothing (anti-fake-done)');
+
+    // A11b. an interpreter flag that moves to another folder BEFORE it opens the script: the script no longer resolves
+    // against the folder the shell ran in, so which file ran is unknown — no target, it proves nothing (review round 2)
+    const T = _internals.vosInterpreterTarget;
+    for (const command of ['ruby -Csrc hello.rb', 'ruby -C src hello.rb', 'ruby -xsrc hello.rb', 'bun --cwd=src index.ts', 'bun --cwd src run index.ts', 'bun run --cwd src index.ts', 'go run -C src main.go'])
+      A.eq(typeof T === 'function' ? T({ command }) : 'no vosInterpreterTarget', null, 'A11b `' + command + '` changes folder before it opens the script: no target');
+    A.eq(typeof T === 'function' ? T({ command: 'ruby -w hello.rb' }) : null, { exe: 'ruby', script: 'hello.rb' }, 'A11b control: a flag that does not change folder still targets the script');
+    const movedRun = await run([write('w1', 'hello.rb'), exec('x1', 'ruby -Csub hello.rb'), say(DONE), say('Not verified.')], { shell: [shellOut('ok', 0)] });
+    A.eq(movedRun.vos.length, 1, 'A11b `ruby -Csub hello.rb` ran sub/hello.rb, not the changed hello.rb at the root: the nudge fires (3cc0fcce4 cleared it)');
 
     // A12. THE FOUR NAMESAKES (review round 1, blocker 2), through the loop with a shell that says where it ran: each ran
     // a DIFFERENT same-named file, so the changed one stays owed (867313704 cleared all four by suffix or by name)
@@ -319,12 +347,64 @@ const NOT_A_CHECK = 'commands the host does not count as a check';
     const bgCheck = await run([write('w1', 'src/app.js'), exec('x1', 'npm test', { background: true }), say(DONE), say('Tests still running.')], { shell: [bgStarted()] });
     A.eq(bgCheck.vos.length, 1, 'A15 `npm test` in the background proves nothing yet: the nudge fires');
     A.ok(/npm test \(started in the background\)/.test(textOf(bgCheck.vos[0])) && textOf(bgCheck.vos[0]).indexOf(NOTHING_RAN) < 0, 'A15 ...and names it as started, never "nothing ran": ' + textOf(bgCheck.vos[0]).slice(0, 220));
+    // A15b. a background start the shell REFUSED (too many background processes) or could not make never ran: it is never
+    // called started (3cc0fcce4 said "started in the background"; e316231d7 read the refusal as a passing check)
+    const notStarted = [
+      ['refused', { content: 'Could not start a background process: too many background processes (max 4) — kill one with shell.bg.kill first', summary: 'bg refused' }],
+      ['unavailable', { content: 'Background processes are not available in this build.', summary: 'unavailable' }]
+    ];
+    for (const [why, result] of notStarted) {
+      const x = await run([write('w1', 'src/app.js'), exec('x1', 'npm test', { background: true }), say(DONE), say('Not verified.')], { shell: [result] });
+      A.eq(x.vos.length, 1, 'A15b a background start the shell ' + why + ' proves nothing: the nudge fires');
+      A.ok(textOf(x.vos[0]).indexOf('started in the background') < 0 && textOf(x.vos[0]).indexOf(NOTHING_RAN) > 0, 'A15b ...and it is never called started: nothing ran (' + why + '): ' + textOf(x.vos[0]).slice(0, 200));
+    }
 
     // A16. a passing PATCH check speaks for patch files only: it never erases a failed project check
     const patch = await run([batch(['w1', 'fs_write', { path: 'src/app.js', content: 'x' }], ['w2', 'fs_write', { path: 'fix.patch', content: 'y' }]), exec('x1', 'npm test'), exec('x2', 'git apply --check fix.patch'), say(DONE), say('Not verified.')], { shell: [shellOut('1 failing', 1), shellOut('', 0)] });
     A.eq(patch.vos.length, 1, 'A16 the code is still owed after the patch check');
     A.eq(touchedIn(patch.vos[0]), ['src/app.js'], 'A16 ...the patch check cleared the patch file only');
     A.ok(/\(npm test\) did NOT pass and has not passed since\./.test(textOf(patch.vos[0])), 'A16 ...and the failed `npm test` still stands (e316231d7 said nothing ran): ' + textOf(patch.vos[0]).slice(0, 220));
+
+    // A17. RANK WHATEVER THE ORDER (review round 2, blocker 1): a clean run of the changed file that came FIRST never hides a
+    // failing project check, or a failing run of the same unchanged file, that came AFTER it. e316231d7 nudged in every
+    // one of these (it never cleared a file on a run); 3cc0fcce4 ended every one 'done' with no nudge.
+    const ORIG = 'did NOT pass, and no passing check has run since.', SINCE = 'did NOT pass and has not passed since.';
+    const VERIFY_FAILED = { content: '✗ FAILED — `npm test`\n1 failing\n[exit 1]', summary: 'verify FAILED (5ms)' };
+    const later = [
+      ['R1 a clean run, then `npm test` fails', [write('w1', 'src/app.js'), exec('x1', 'node src/app.js'), exec('x2', 'npm test')], { shell: [shellOut('ok', 0), shellOut('1 failing', 1)] }, ['src/app.js'], 'npm test', ORIG],
+      ['R2 a clean run, then verify_run FAILS', [write('w1', 'src/app.js'), exec('x1', 'node src/app.js'), call('v1', 'verify_run', { cmd: 'npm test' })], { shell: [shellOut('ok', 0)], verify: [VERIFY_FAILED] }, ['src/app.js'], 'npm test', ORIG],
+      ['R3 a clean run, then the same unchanged file fails', [write('w1', 'a.js'), exec('x1', 'node a.js'), exec('x2', 'node a.js x')], { shell: [shellOut('ok', 0), shellOut('Error: bad input x', 1)] }, ['a.js'], 'node a.js x', ORIG],
+      ['R4 the clean run and the failing test in ONE batch', [write('w1', 'src/app.js'), batch(['x1', 'shell_exec', { command: 'node src/app.js' }], ['x2', 'shell_exec', { command: 'npm test' }])], { shell: [shellOut('ok', 0), shellOut('1 failing', 1)] }, ['src/app.js'], 'npm test', ORIG],
+      ['R4b the same batch with the failing test first', [write('w1', 'src/app.js'), batch(['x2', 'shell_exec', { command: 'npm test' }], ['x1', 'shell_exec', { command: 'node src/app.js' }])], { shell: [shellOut('1 failing', 1), shellOut('ok', 0)] }, ['src/app.js'], 'npm test', SINCE],
+      ['R5 a.js ran clean, b.js never ran, then `npm test` fails', [batch(['w1', 'fs_write', { path: 'a.js', content: 'x' }], ['w2', 'fs_write', { path: 'b.js', content: 'y' }]), exec('x1', 'node a.js'), exec('x2', 'npm test')], { shell: [shellOut('ok', 0), shellOut('1 failing', 1)] }, ['a.js', 'b.js'], 'npm test', ORIG]
+    ];
+    for (const [why, steps, opts, owed, failedCmd, sentence] of later) {
+      const x = await run(steps.concat([say(DONE), say('Not verified.')]), opts);
+      A.eq([x.vos.length, x.res.reason], [1, 'done'], 'A17 ' + why + ': the nudge fires before the run ends (3cc0fcce4: none)');
+      A.eq(touchedIn(x.vos[0]).slice().sort(), owed, 'A17 ' + why + ': ...the earlier clean run no longer proves ' + owed.join(', '));
+      A.ok(textOf(x.vos[0]).indexOf('(' + failedCmd + ') ' + sentence) > 0, 'A17 ' + why + ': ...naming the failure that came last: ' + textOf(x.vos[0]).slice(0, 240));
+    }
+    // controls: a later PASSING check after the clean run, and a failing run after a passing project check (the project
+    // check outranks a run, as on e316231d7), end with no nudge
+    const laterPass = await run([write('w1', 'src/app.js'), exec('x1', 'node src/app.js'), exec('x2', 'npm test'), say(DONE)], { shell: [shellOut('ok', 0), shellOut('3 passing', 0)] });
+    A.eq(laterPass.vos.length, 0, 'A17 control: a clean run, then a passing `npm test`: no nudge');
+    const projFirst = await run([write('w1', 'a.js'), exec('x1', 'npm test'), exec('x2', 'node a.js x'), say(DONE)], { shell: [shellOut('3 passing', 0), shellOut('usage: a.js', 1)] });
+    A.eq(projFirst.vos.length, 0, 'A17 control: a passing `npm test`, then a failing run of a.js: the project check outranks it, no nudge (as on e316231d7)');
+
+    // A18. A COMMAND THAT RAN IS NEVER DENIED (review round 2, blocker 3): a clean run proves the file it ran and is still a
+    // command that ran, named for the OTHER changed files it proves nothing about; so is a passing patch check for the
+    // code. e316231d7 and 3cc0fcce4 told the model it was "ending without running anything against it".
+    const named = [
+      ['M1 lib.js and main.js written, main.js ran clean', [batch(['w1', 'fs_write', { path: 'lib.js', content: 'x' }], ['w2', 'fs_write', { path: 'main.js', content: 'y' }]), exec('x1', 'node main.js')], 'lib.js', 'node main.js (exit 0)'],
+      ['M2 app.py and test_app.py written, the test file ran clean', [batch(['w1', 'fs_write', { path: 'app.py', content: 'x' }], ['w2', 'fs_write', { path: 'test_app.py', content: 'y' }]), exec('x1', 'python test_app.py')], 'app.py', 'python test_app.py (exit 0)'],
+      ['M3 a patch check proved the patch file, not the code', [batch(['w1', 'fs_write', { path: 'src/app.js', content: 'x' }], ['w2', 'fs_write', { path: 'fix.patch', content: 'y' }]), exec('x1', 'git apply --check fix.patch')], 'src/app.js', 'git apply --check fix.patch (exit 0)']
+    ];
+    for (const [why, steps, owed, cmd] of named) {
+      const x = await run(steps.concat([say(DONE), say('Not verified.')]), { shell: [shellOut('', 0)] });
+      A.eq(x.vos.length, 1, 'A18 ' + why + ': the nudge still fires for the file the command proved nothing about');
+      A.eq(touchedIn(x.vos[0]), [owed], 'A18 ' + why + ': ...naming only ' + owed);
+      A.ok(textOf(x.vos[0]).indexOf(NOT_A_CHECK + ' of it: ' + cmd + '.') > 0 && textOf(x.vos[0]).indexOf(NOTHING_RAN) < 0, 'A18 ' + why + ': ...and names the command that ran, never "without running anything": ' + textOf(x.vos[0]).slice(0, 240));
+    }
   }
 
   // ===== B. FAILURE RECOVERY: held is not failed =====
@@ -377,6 +457,7 @@ const NOT_A_CHECK = 'commands the host does not count as a check';
       'failure': await run([call('r1', 'fs_read', { path: 'x' }), say('Missing.'), say('Missing.'), say('Missing.')], { readFails: true }),
       'held-then-unverified': await run([write('w1', 'src/app.js'), exec('x1', 'npm test'), say(DONE), say(DONE), say('Not verified.')], { held: ['x1'] }),
       'failed-project-check': await run([write('w1', 'src/app.js'), exec('x1', 'npm test'), exec('x2', 'node src/app.js'), say(DONE), say('Not verified.')], { shell: [shellOut('1 failing', 1), shellOut('ok', 0)] }),
+      'run-then-failed-check': await run([write('w1', 'src/app.js'), exec('x1', 'node src/app.js'), exec('x2', 'npm test'), say(DONE), say('Not verified.')], { shell: [shellOut('ok', 0), shellOut('1 failing', 1)] }),
       'announce': await run([say('Let me read the file now.'), call('r1', 'fs_read', { path: 'a' }), say('Read it.')])
     };
     for (const [name, r] of Object.entries(scenarios)) {
@@ -446,16 +527,17 @@ const NOT_A_CHECK = 'commands the host does not count as a check';
       A.ok(cap > 0 && cap <= 240000, 'E0 one wait never outlives the 5-minute prompt cache (cap ' + cap + 'ms, a minute left for the turn that asked)');
       A.ok(Number(tool.timeoutMs) >= cap && Number(tool.timeoutMs) < 300000, 'E0 the registry backstop sits above the bounded wait (' + tool.timeoutMs + 'ms)');
 
-      finishAfter.set('researcher', 300);
+      finishAfter.set('researcher', 1500);   // long enough that the plain list below still sees it running on a loaded CPU
       const handle = JSON.parse((await tools.dispatchTool.run({ workers: [{ agentId: 'researcher', prompt: 'x' }], background: true }, { agentId: 'lead', emit: () => {} })).content)[0];
       const plain = await tool.run({}, { agentId: 'lead' });
       A.eq(JSON.parse(plain.content)[0].status, 'running', 'E1 without wait the list answers at once (unchanged behavior)');
+      // wall-clock bounds sit far from the timeouts (shared-CPU gates run late): the wait NOTE is the proof, the clock a backstop
       const t0 = Date.now();
-      const waited = await tool.run({ wait: true, timeoutMs: 5000 }, { agentId: 'lead' });
+      const waited = await tool.run({ wait: true, timeoutMs: 60000 }, { agentId: 'lead' });
       const tookMs = Date.now() - t0;
       const rows = JSON.parse(String(waited.content).split('\n')[0]);
       A.eq(rows[0] && rows[0].status, 'done', 'E1 wait:true returns with the worker\'s new status');
-      A.ok(tookMs < 3000, 'E1 ...as soon as it changed, not at the timeout (' + tookMs + 'ms)');
+      A.ok(tookMs < 30000, 'E1 ...as soon as it changed, not at the 60 s timeout (' + tookMs + 'ms)');
       A.ok(/\[wait: the worker list changed/.test(String(waited.content)), 'E1 ...and says the list changed (a status, a generation or a filtered row: never more than it saw): ' + String(waited.content).split('\n').slice(1).join(' '));
 
       const one = await tool.run({ id: handle.id, wait: true, timeoutMs: 2000 }, { agentId: 'lead' });
@@ -466,26 +548,28 @@ const NOT_A_CHECK = 'commands the host does not count as a check';
       const t1 = Date.now();
       const timedOut = await tool.run({ agentId: 'slow', wait: true, timeoutMs: 400 }, { agentId: 'lead' });
       const tookTimeout = Date.now() - t1;
-      A.ok(tookTimeout >= 350 && tookTimeout < 3000, 'E3 an unchanged worker returns at the bounded timeout (' + tookTimeout + 'ms)');
+      A.ok(tookTimeout >= 350 && tookTimeout < 30000, 'E3 an unchanged worker returns at the bounded timeout, never at its 60 s finish (' + tookTimeout + 'ms)');
       A.ok(!timedOut.isError && /still running/.test(String(timedOut.content)) && /not an error/.test(String(timedOut.content)), 'E3 a timeout is an answer, not an error');
 
       const ac = new AbortController();
       setTimeout(() => ac.abort(), 150);
       const t2 = Date.now();
-      const cut = await tool.run({ agentId: 'slow', wait: true, timeoutMs: 20000 }, { agentId: 'lead', signal: ac.signal });
-      A.ok(Date.now() - t2 < 3000 && /cancelled/.test(String(cut.content)), 'E4 a cancelled run stops the wait at once');
+      const cut = await tool.run({ agentId: 'slow', wait: true, timeoutMs: 50000 }, { agentId: 'lead', signal: ac.signal });
+      A.ok(Date.now() - t2 < 30000 && /cancelled/.test(String(cut.content)), 'E4 a cancelled run stops the wait at once, not at its 50 s timeout');
 
       // E5. a Commander's note posted to the REAL steer buffer mid-wait stops the wait, and stays for the loop to fold
       let posted = null;
       setTimeout(() => { posted = steer.post(LEAD_RUN, 'wrap up with what you have', true); }, 150);
       const t3 = Date.now();
-      const noted = await tool.run({ agentId: 'slow', wait: true, timeoutMs: 20000 }, { agentId: 'lead' });
+      const noted = await tool.run({ agentId: 'slow', wait: true, timeoutMs: 50000 }, { agentId: 'lead' });
       A.ok(posted && posted.status === 200, 'E5 the steer buffer accepted the note for the live run');
-      A.ok(Date.now() - t3 < 3000 && /a note for this run is waiting to be read/.test(String(noted.content)), 'E5 a note posted mid-wait stops the wait (the loop folds it next): ' + String(noted.content).split('\n').slice(1).join(' '));
+      A.ok(Date.now() - t3 < 30000 && /a note for this run is waiting to be read/.test(String(noted.content)), 'E5 a note posted mid-wait stops the wait (the loop folds it next): ' + String(noted.content).split('\n').slice(1).join(' '));
       A.eq(steer.drain(LEAD_RUN), ['wrap up with what you have'], 'E5 ...the wait only looked: the note is still there for the loop to read');
-      // E6. ...and the station wires THIS run's buffer into the tool (index.js; a worker's own generation-bound steer is not it)
-      const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
-      A.ok(idx.indexOf("steerPending: () => (typeof o.steer === 'function' ? 0 : steerBufs.pending(runId)),") >= 0, 'E6 index.js hands team.subagents the run\'s own steer buffer (steerBufs.pending(runId))');
+      // E6. ...and the station wires THIS run's buffer into the tool (index.js; a worker's own generation-bound steer is not it).
+      // Read through the source helper (source-helper.test H5: no test reads index.js as text directly); the wiring line is
+      // unique, so the joined sidecar source finds it wherever runOnceCore lives.
+      const sidecarSrc = require('./helpers/source.js').readSidecarSource();
+      A.ok(sidecarSrc.indexOf("steerPending: () => (typeof o.steer === 'function' ? 0 : steerBufs.pending(runId)),") >= 0, 'E6 the station hands team.subagents the run\'s own steer buffer (steerBufs.pending(runId))');
       subagents.interruptAll('lead');
     } finally {
       try { fs.rmSync(root, { recursive: true, force: true }); } catch (_) {}

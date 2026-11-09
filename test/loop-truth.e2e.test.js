@@ -10,14 +10,21 @@
      heldend    write note.txt before the brief (the gate holds it), answer     -> ONE recovery note that says held, counted
      cdrun      write sub/hello.js, `cd sub`, `node hello.js`, answer           -> the kept `cd` is where it ran: no nudge
      absname    write hello.js and <workspace>\src\hello.js by its absolute path, `node hello.js` at the root, answer
-                                                                                 -> the root namesake ran, src\hello.js is owed
+                                                                                 -> the root namesake ran, src\hello.js is owed,
+                                                                                    and the premise names that root run
      failproj   write src/app.js, `node tests/missing.js` (a check, fails), `node src/app.js` (passes), answer
                                                                                  -> the failed check stands: one nudge naming it
+     runthentest  write src/app.js, `node src/app.js` (passes), `node tests/missing.js` (a check, fails), answer
+                                                                                 -> the later failure re-arms the file: one nudge
+     runtwice   write a.js, `node a.js` (passes), `node a.js x` (the same unchanged file, fails), answer
+                                                                                 -> the later run speaks: one nudge naming it
 
    Each scenario's main-call count is the cost the lane is about: wjrun was 4 calls on e316231d7 (a false
    "ending without running anything" bought the 4th). absname and failproj are review round 1's blockers 2 and 1 on the
-   real station: 867313704 ended both with no nudge (a fake done). Every main call's prompt size (request bytes / 4) is
-   printed as a `measure:` line, so the same rig on another commit prices the difference. */
+   real station: 867313704 ended both with no nudge (a fake done). runthentest and runtwice are review round 2's blocker
+   1 (the same evidence in the other order): 3cc0fcce4 ended both with no nudge; e316231d7 nudged in both. Every main
+   call's prompt size (request bytes / 4) is printed as a `measure:` line, so the same rig on another commit prices the
+   difference. */
 'use strict';
 const http = require('node:http');
 const path = require('node:path');
@@ -51,7 +58,9 @@ const PLANS = {
         { name: 'fs_write', args: { path: path.join(dir, 'src', 'hello.js'), content: 'console.log("the changed file");\n' } }] : null;
     },
     [shell('node hello.js')]],
-  SCEN_FAILPROJ: [[BRIEF, { name: 'fs_write', args: { path: 'src/app.js', content: 'module.exports = 1;\n' } }], [shell('node tests/missing.js')], [shell('node src/app.js')]]
+  SCEN_FAILPROJ: [[BRIEF, { name: 'fs_write', args: { path: 'src/app.js', content: 'module.exports = 1;\n' } }], [shell('node tests/missing.js')], [shell('node src/app.js')]],
+  SCEN_RUNTHENTEST: [[BRIEF, { name: 'fs_write', args: { path: 'src/app.js', content: 'module.exports = 1;\nconsole.log("app ok");\n' } }], [shell('node src/app.js')], [shell('node tests/missing.js')]],
+  SCEN_RUNTWICE: [[BRIEF, { name: 'fs_write', args: { path: 'a.js', content: 'if (process.argv[2]) throw new Error("bad input " + process.argv[2]);\nconsole.log("ok");\n' } }], [shell('node a.js')], [shell('node a.js x')]]
 };
 
 function startUpstream() {
@@ -176,6 +185,8 @@ const touchedOf = t => { const m = /You changed code in this run \(([^)]*)\)/.ex
     A.eq(anVos.length, 1, 'absname: the changed absolute src\\hello.js never ran, so the nudge fires (867313704 cleared it: the suffix matched)');
     const anOwed = touchedOf(anVos[0]);
     A.ok(anOwed.length === 1 && path.isAbsolute(anOwed[0]) && /[\\/]src[\\/]hello\.js$/.test(anOwed[0]), 'absname: ...naming only the absolute src\\hello.js still owed: ' + JSON.stringify(anOwed));
+    // review round 2, blocker 3: the root run RAN — it is named as a command that is no check of src\hello.js, never denied
+    A.ok(anVos.length === 1 && /and are ending after running only commands the host does not count as a check of it: node hello\.js \(exit 0\)\./.test(anVos[0]) && anVos[0].indexOf('without running anything') < 0, 'absname: ...and names the root `node hello.js` that ran, never "without running anything" (3cc0fcce4 and e316231d7 denied it): ' + JSON.stringify(String(anVos[0] || '').slice(0, 300)));
     A.eq(an.row && an.row.nudges, { verify_before_done: 1 }, 'absname: the run row counts it');
 
     // ---- blocker 1: a failed check stands after a clean run of the changed file ----
@@ -186,6 +197,24 @@ const touchedOf = t => { const m = /You changed code in this run \(([^)]*)\)/.ex
     A.eq(fpVos.length, 1, 'failproj: a passing `node src/app.js` never erases the failed check: the nudge fires (867313704: none)');
     A.ok(fpVos.length === 1 && /\(node tests\/missing\.js\) did NOT pass and has not passed since\./.test(fpVos[0]), 'failproj: ...naming the failed check: ' + JSON.stringify(String(fpVos[0] || '').slice(0, 260)));
     A.eq(fp.row && fp.row.nudges, { verify_before_done: 1 }, 'failproj: the run row counts it');
+
+    // ---- review round 2, blocker 1: the same evidence in the other order — a failure AFTER a clean run re-arms the file ----
+    const rt = await scenario('SCEN_RUNTHENTEST', 'Create src/app.js, run it, then run its tests');
+    const rtTail = rt.main.length >= 4 ? rt.main[3].toolResults.slice(-2).map(t => t.trim()) : [];
+    A.ok(rtTail.length === 2 && /app ok/.test(rtTail[0]) && /\[exit 0\]$/.test(rtTail[0]) && /\[exit 1\]$/.test(rtTail[1]), 'runthentest: the real `node src/app.js` exited 0, then the real `node tests/missing.js` exited 1: ' + JSON.stringify(rtTail.map(t => t.slice(-80))));
+    const rtVos = rt.tagged('verify_before_done');
+    A.eq(rtVos.length, 1, 'runthentest: the failing check after the clean run puts src/app.js back: the nudge fires (3cc0fcce4: none)');
+    A.ok(rtVos.length === 1 && /\(src\/app\.js\) and are ending although the last check you ran against it \(node tests\/missing\.js\) did NOT pass, and no passing check has run since\./.test(rtVos[0]), 'runthentest: ...naming the later failed check, with the original sentence: ' + JSON.stringify(String(rtVos[0] || '').slice(0, 260)));
+    A.eq([rt.main.length, rt.end.reason], [5, 'done'], 'runthentest: write, run, check, answer, nudged answer = 5 model calls (e316231d7 made 5 too)');
+    A.eq(rt.row && rt.row.nudges, { verify_before_done: 1 }, 'runthentest: the run row counts it');
+
+    const tw = await scenario('SCEN_RUNTWICE', 'Create a.js, run it, then run it with an argument');
+    const twTail = tw.main.length >= 4 ? tw.main[3].toolResults.slice(-2).map(t => t.trim()) : [];
+    A.ok(twTail.length === 2 && /\[exit 0\]$/.test(twTail[0]) && /bad input x/.test(twTail[1]) && /\[exit 1\]$/.test(twTail[1]), 'runtwice: the real `node a.js` exited 0, then `node a.js x` threw and exited 1: ' + JSON.stringify(twTail.map(t => t.slice(-80))));
+    const twVos = tw.tagged('verify_before_done');
+    A.eq(twVos.length, 1, 'runtwice: the same unchanged file failing after its clean run is owed again: the nudge fires (3cc0fcce4: none)');
+    A.ok(twVos.length === 1 && /\(a\.js\) and are ending although the last check you ran against it \(node a\.js x\) did NOT pass, and no passing check has run since\./.test(twVos[0]), 'runtwice: ...naming the later run: ' + JSON.stringify(String(twVos[0] || '').slice(0, 260)));
+    A.eq(tw.row && tw.row.nudges, { verify_before_done: 1 }, 'runtwice: the run row counts it');
   } finally {
     await fixture.dispose();
     await new Promise(r => up.server.close(r));
