@@ -489,6 +489,7 @@ test/update-snapshot-framing.test.js
 test/update-snapshot-prune.test.js
 test/update-drain-wiring.test.js
 test/updates-install.test.js
+test/update-signer-check.test.js
 test/update-drain-newest-save.test.js
 test/update-drain-conflict.test.js
 test/update-center-truth.test.js
