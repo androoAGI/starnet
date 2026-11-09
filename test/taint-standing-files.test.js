@@ -107,6 +107,44 @@ const projectbless = require('../sidecar/projectbless.js');
   A.ok(/if \(t === 'path\.trust' && ev\.file\) return 'change ' \+ ev\.file/.test(CHAT) && /this run read ' \+ \(ev\.taintedBy \|\| 'outside content'\)/.test(CHAT),
     'the card reads "change <file> ... (this run read <source> ...)"');
 
+  /* final review #7: a granted routine script's digest covers its own bytes; what it loads beside it is guarded at the
+     write. A tainted write of loadable code in the script's folder (any depth, anything under node_modules/__pycache__),
+     or in a node_modules between it and its routine's folder, asks a watched run and is refused unattended. Data flows. */
+  {
+    const scripts = path.join(own, 'scripts');
+    const reason = 'code beside routine "Daily" script, which runs with nobody watching';
+    let folders = [{ dir: scripts, reason }, { dir: path.join(own, 'node_modules'), reason }];
+    const gp = makePathTrust({ fsp: fs.promises, pathMod: path, workspaceRoot: workspaces, roots: () => [project],
+      bless: async () => true, now: () => 1, guardedFolders: () => folders });
+    const gg = (p, o) => gp.guard(p, Object.assign({ agentId: 'nova', surface: 'interactive', scope: 'write' }, o));
+    const no = async (p, o) => { try { await gg(p, o); return ''; } catch (e) { return String(e.message || e); } };
+    fs.mkdirSync(path.join(scripts, 'lib'), { recursive: true });
+    const code = [path.join(scripts, 'helper.js'), path.join(scripts, 'json.py'), path.join(scripts, 'lib', 'deep.mjs'), path.join(scripts, 'Helper.JS.'),
+      path.join(scripts, 'node_modules', 'left-pad', 'lib', 'data.bin'), path.join(scripts, '__pycache__', 'helper.cpython-312.pyc'),
+      path.join(own, 'node_modules', 'pkg', 'index.js'), path.join(scripts, 'lib.ps1')];
+    for (const f of code) {
+      const name = path.relative(base, f);
+      asked.length = 0;
+      const ok = await gg(f, { tainted: true, prompt: say('always') });
+      A.ok(ok && asked.length === 1 && /routine "Daily"/.test(String(asked[0].standing || '')), '#7 ' + name + ': a tainted write asks a watched run, naming the routine');
+      A.ok(/read outside content/.test(await no(f, { tainted: true, surface: 'autonomous' })), '#7 ' + name + ': an unattended tainted write is refused');
+      asked.length = 0;
+      A.ok(!!(await gg(f, { tainted: false, prompt: say('deny') })) && asked.length === 0, '#7 ' + name + ': an untainted write is unchanged');
+    }
+    asked.length = 0;
+    for (const f of [path.join(scripts, 'report.md'), path.join(scripts, 'out.csv'), path.join(scripts, 'lib', 'notes.txt'), path.join(own, 'other', 'helper.js'), path.join(own, 'node_modules.txt')]) {
+      A.ok(!!(await gg(f, { tainted: true, prompt: say('deny') })), '#7 ' + path.relative(base, f) + ': data beside the script, and code elsewhere, still flow');
+    }
+    A.eq(asked.length, 0, '#7: and nothing asked');
+    folders = null;
+    A.ok(!!(await gg(path.join(scripts, 'report.md'), { tainted: true, prompt: say('deny') })), '#7: no list guards nothing more');
+    const IDXs = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+    A.ok(/guardedFolders: \(\) => routineScriptFolders\(\)/.test(IDXs), '#7: the station hands pathtrust its granted scripts\' folders');
+    const rsf = A.fnBody(IDXs, 'function routineScriptFolders(');
+    A.ok(/unattendedGrants\.length/.test(rsf) && /path\.dirname\(abs\)/.test(rsf) && /'node_modules'/.test(rsf), '#7: the folder of each granted script, and the node_modules up to its routine\'s folder');
+    A.ok(/asks before it writes code beside it/.test(IDXs) && !/only this file is checked/.test(IDXs), '#7: the desk words say what is checked');
+  }
+
   fs.rmSync(base, { recursive: true, force: true });
   A.report('taint-standing-files.test');
 })().catch(e => { console.error(e); process.exit(1); });

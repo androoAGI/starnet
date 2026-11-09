@@ -36,6 +36,8 @@
                   not override ownership beneath this root.
      now        : injected clock.
      maxWalk    : ancestor-walk cap for git-root detection (default 40).
+     guardedFolders: () => [{ dir, reason }] — folders whose files run with nobody watching (a granted routine script's
+                  folder: final review #7). A tainted write inside one asks a watched run and is refused unattended.
 
    guard(absPath, { scope, surface, prompt, agentId }) -> { base, abs }   // throws on any deny
      scope   : 'read' | 'write' (write only reaches here AFTER the broker's own scope consent).
@@ -124,6 +126,7 @@
     const bless = typeof deps.bless === 'function' ? deps.bless : null;
     const touch = typeof deps.touch === 'function' ? deps.touch : (() => {});
     const isGitRepoOf = typeof deps.isGitRepoOf === 'function' ? deps.isGitRepoOf : (async () => false);
+    const guardedFolders = typeof deps.guardedFolders === 'function' ? deps.guardedFolders : (() => []);
     const workspaceRoot = deps.workspaceRoot ? P.resolve(String(deps.workspaceRoot)) : '';
     const now = typeof deps.now === 'function' ? deps.now : (() => null);
     const MAX_WALK = Number(deps.maxWalk) > 0 ? Number(deps.maxWalk) : 40;
@@ -135,6 +138,29 @@
       let a = P.resolve(abs), b = P.resolve(base);
       if (winish) { a = a.toLowerCase(); b = b.toLowerCase(); }
       return a === b || a.indexOf(b + P.sep) === 0;
+    }
+    /* A GRANTED SCRIPT'S FOLDER (final review #7, 2026-11-08). A routine's script runs with its grants and nobody watching,
+       and the station checks the script's own bytes before each run (index.js cronScriptDigest); what it loads beside it
+       (helper.js, a json.py that shadows Python's, a package in its node_modules) was not checked, and a run that read
+       outside content could rewrite those in its own workspace with no card. So a tainted write of a file that can be
+       loaded as code inside such a folder (any depth; anything at all under a node_modules or __pycache__ there) is a
+       standing file: a watched run asks for this one access, an unattended one is refused. Data (a report, notes, a CSV)
+       still flows, so a routine whose script sits at its workspace's root keeps writing its results. A failing list
+       guards nothing more, and never throws here (the write keeps every other check). */
+    const LOADABLE = /\.(?:js|cjs|mjs|ts|cts|mts|jsx|tsx|node|py|pyw|pyc|pyo|pyd|pth|sh|bash|zsh|ps1|psm1|psd1|bat|cmd|vbs|wsf|dll|so|dylib|exe)$/i;
+    function guardedFolderReason(abs) {
+      let list = [];
+      try { list = guardedFolders() || []; } catch (_) { list = []; }
+      for (const g of (Array.isArray(list) ? list : [])) {
+        const dir = g && typeof g.dir === 'string' ? g.dir : '';
+        if (!dir || !pathInside(abs, dir)) continue;
+        const rel = P.relative(P.resolve(dir), P.resolve(abs));
+        const parts = rel.split(/[\\/]+/).filter(Boolean).map(s => s.replace(/:.*$/, '').replace(/[. ]+$/, '').toLowerCase());
+        const name = parts[parts.length - 1] || '';
+        if (g.whole === true || LOADABLE.test(name) || parts.slice(0, -1).some(s => s === 'node_modules' || s === '__pycache__'))
+          return String((g && g.reason) || 'a file beside a script that runs unattended').slice(0, 200);
+      }
+      return '';
     }
     async function realpathOrSelf(p) {
       try { return await fsp.realpath(p); }
@@ -236,7 +262,7 @@
 
       // review2 #8: a tainted write to a file that becomes orders or runs by itself asks first, even in its own
       // workspace or a trusted project (above standingFileReason). A yes allows this one access and records nothing.
-      const standing = taintedWrite ? (standingFileReason(norm) || standingFileReason(real)) : '';
+      const standing = taintedWrite ? (standingFileReason(norm) || standingFileReason(real) || guardedFolderReason(norm) || guardedFolderReason(real)) : '';
       let standingYes = false;
       if (standing) {
         if (surface !== 'interactive' || !prompt)

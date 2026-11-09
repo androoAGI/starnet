@@ -5054,7 +5054,9 @@ const pathTrustCore = makePathTrust({
   // touches are simply not recency evidence; meta.user comes from runPathTrust (interactive or owner-trusted DM).
   touch: (rootReal, abs, meta) => { if (!meta || meta.user !== true) return; try { projectsStore.touch(rootReal, Date.now()); } catch (_) {} },
   isGitRepoOf: projectIsGitRepo,
-  now: () => Date.now()
+  now: () => Date.now(),
+  // final review #7: a tainted write of loadable code beside a granted routine script asks (watched) or is refused
+  guardedFolders: () => routineScriptFolders()
 });
 // NS-5c: the ADD-a-project route's bless core — the SAME blessProjectRoot() the conversational prompt calls,
 // wrapped in the identical hardlines + git-root proposal. Reuses pathTrustCore's detectRoot/normalizeRoot/
@@ -6674,8 +6676,8 @@ function cronScriptSpec(job) {
    adding a grant, keeping grants through an edit, ALLOW THIS VERSION) and refuses to run a script whose bytes differ:
    nothing runs, and the routine says why. Chosen over refusing tainted writes to such files because a digest catches every
    writer (a tainted run, an earlier run that was steered, another program, a sync tool), not only the one we thought of.
-   Only the named file is checked: a script that loads other files from a folder agents can write is only as safe as that
-   folder (said in the desk words too). */
+   Only the named file is digested; what it loads from its folder is guarded at the write (routineScriptFolders below,
+   final review #7), and the desk words say both. */
 function cronScriptDigest(job) {
   if (!job || !job.script) return '';
   try {
@@ -6683,6 +6685,34 @@ function cronScriptDigest(job) {
     const abs = fs.realpathSync(path.resolve(cwd, String(job.script).trim()));
     return 'sha256:' + crypto.createHash('sha256').update(fs.readFileSync(abs)).digest('hex');
   } catch (e) { return ''; }   // unreadable: matches no recorded digest, so it does not run
+}
+/* WHAT A GRANTED SCRIPT LOADS (final review #7, 2026-11-08). The digest above covers the script's own bytes; the files it
+   loads from its folder (a helper module, a json.py that shadows Python's, a package in node_modules) are guarded at the
+   write instead: a run that read outside content does not write loadable code there without asking (pathtrust
+   guardedFolders). The script's folder, and the node_modules of each folder between it and its routine's folder (Node
+   looks up the folders for a package). Computed on each tainted write, from the routines as they are now. */
+function routineScriptFolders() {
+  const out = [];
+  for (const j of (Array.isArray(cronJobs) ? cronJobs : [])) {
+    if (!j || !j.script || !Array.isArray(j.unattendedGrants) || !j.unattendedGrants.length) continue;
+    try {
+      const cwd = fs.realpathSync(j.workdir ? String(j.workdir).trim() : executionEnvironment.ensureWorkspace(j.agentId));
+      const abs = fs.realpathSync(path.resolve(cwd, String(j.script).trim()));
+      const reason = 'code beside routine "' + String(j.name || j.id || '').slice(0, 60) + '" script, which runs with nobody watching';
+      let dir = path.dirname(abs);
+      out.push({ dir, reason });
+      const inside = d => { const r = path.relative(cwd, d); return r === '' || (!!r && !r.startsWith('..') && !path.isAbsolute(r)); };
+      while (inside(dir) && path.dirname(dir) !== dir) {
+        const up = path.dirname(dir);
+        if (!inside(up)) break;
+        out.push({ dir: path.join(up, 'node_modules'), reason });
+        dir = up;
+      }
+    } catch (e) {   // a script that is not there has nothing beside it to guard; the run checks it (cronScriptSpec)
+      if (!e || e.code !== 'ENOENT') failNote('cron.script-folders', e);
+    }
+  }
+  return out;
 }
 function cronScriptStale(job) {
   const grants = Array.isArray(job && job.unattendedGrants) ? job.unattendedGrants : [];
@@ -18885,7 +18915,7 @@ function routineGrantWords(spec, grants, changed) {
   const rec = agentRoster.get(String(s.agentId || ''));
   // what it will run, in its own words, so the yes is given for something the person read (review2 #2, #3)
   const task = s.script
-    ? 'the script ' + String(s.script) + ' (only this file is checked before each run):\n' + cronScriptExcerpt(s) + (s.noAgent === true ? '' : '\n\nthen: ' + String(s.prompt || ''))
+    ? 'the script ' + String(s.script) + ' (this file is checked before each run, and a run that read outside content asks before it writes code beside it):\n' + cronScriptExcerpt(s) + (s.noAgent === true ? '' : '\n\nthen: ' + String(s.prompt || ''))
     : String(s.prompt || '');
   return { name: deskProofMod.cutPoints(String(s.name || 'untitled'), 60), agentName: deskProofMod.cutPoints(String((rec && rec.name) || s.agentId || 'an agent'), 40),
     grants: grants.map(g => ROUTINE_GRANT_WORDS[g] || g).join(' and '), task: deskProofMod.cutPoints(task, 400), changed: changed === true };
