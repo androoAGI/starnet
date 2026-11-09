@@ -192,10 +192,11 @@ function hermetic(profile) {
       A.ok(before.err.indexOf('· ' + projReal + ' is not a trusted project, so ') >= 0 && /works in its own workspace/.test(before.err), 'started in a project the station does not trust: -p says so, naming the project: ' + before.err.slice(0, 400));
       A.ok(seen.length > 0 && !seen.some(s => /PROJECT FOLDER/.test(s.sys)), 'and the agent is told of no project folder');
       A.ok(!fs.existsSync(path.join(proj, 'project-note.md')) && fs.existsSync(path.join(fixture.workspace, 'agent', 'project-note.md')), 'its write landed in its own workspace, not the folder');
-      // trusted the way the dashboard's y (and the app's PROJECTS rail) does it
-      const b = await post(fixture, '/api/projects/bless', { path: projReal });
-      A.ok(b.status === 200 && b.json && b.json.ok && b.json.root, 'the station trusts the project: ' + JSON.stringify(b.json));
-      const root = b.json && b.json.root;
+      // trusted the way the dashboard's y (and the app's PROJECTS rail) does it: confirmed at the desk (GHSA-2hpj #1) with the
+      // code this station printed on its console, as the person at it types it
+      const b = await fixture.deskJson('POST', '/api/projects/bless', { path: projReal });
+      A.ok(b.status === 200 && b.body && b.body.ok && b.body.root, 'the station trusts the project: ' + JSON.stringify(b.body));
+      const root = b.body && b.body.root;
       seen.length = 0;
       const after = await cli(['-p', 'write the project note', '--port', port, '--yes'], env, 60000, path.join(proj, 'src'));
       A.eq(after.code, 0, 'the run in the trusted project exits 0: ' + after.err.slice(-300));

@@ -255,7 +255,13 @@ const UNATTENDED_FILES = [['the night shift', 'autonomy.ledger.jsonl'], ['the qu
       ['POST', '/api/config/reset', { section: 'roster' }]
     ];
     for (const [m, route, body] of routes) {
-      const r = await s.j(m, route, body);
+      // raising an agent to FULL with no page is the desk's call (GHSA-2hpj #1): refused on the key alone, then confirmed with
+      // the code this bare station printed, as the person at its terminal would (bin/lib/dashboard.js /yolo)
+      if (route === '/api/agent/approval') {
+        const refused = await s.j(m, route, body);
+        A.eq([refused.status, refused.body && refused.body.code], [403, 'desk_confirm_required'], m + ' ' + route + ' (full) asks at the desk first');
+      }
+      const r = route === '/api/agent/approval' ? await desk.confirm(await s.j(m, route, body), h => s.j(m, route, body, h)) : await s.j(m, route, body);
       A.ok(r.status < 500, m + ' ' + route + ' answers on a station-less workspace (' + r.status + ')');
       if (route === '/api/roster') A.eq([r.body && r.body.ok, r.body && r.body.held], [true, true], 'WAKE\'s crew push is taken and held, not written (' + JSON.stringify(r.body) + ')');
       if (route.startsWith('/api/agent/')) A.eq([r.status, r.body && r.body.via], [200, 'roster'], m + ' ' + route + ' reaches the roster\'s write path (' + JSON.stringify(r.body) + ')');

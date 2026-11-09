@@ -13,7 +13,11 @@
      B. /yolo off with no page open writes "ask" into the app's save too (the field the page hydrates and pushes back
         when it opens), so FULL ACCESS does not silently return; when the save cannot take it (damaged, missing, a newer
         StarNet's) the roster still asks first and the reply says the save did not take it — never refused while /yolo
-        on would be allowed; /yolo on stays roster-only. Part of test:http. */
+        on would be allowed; /yolo on stays roster-only, and with no app open it is confirmed at the desk (GHSA-2hpj #1:
+        the code a bare station prints, as `starnet`'s /yolo confirms it, bin/lib/dashboard.js). Part of test:http.
+   The page's own roster pushes go through its fetch wrapper, which confirms a raise at the desk (frontend/app/harness.js
+   deskConfirmation), so the pushes here do the same (fixture.deskJson). A raise relayed to an open page is rate limited
+   (fix-sec2 review 7: one per 30 s, three per 10 minutes), so A2 first meets that limit and then waits it out. */
 const A = require('./_assert.js');
 const http = require('http');
 const fs = require('fs');
@@ -59,12 +63,18 @@ const ENV = { STARNET_REMOTE_RELAY: 'off', SKYNET_REMOTE_RELAY: 'off',
     const rosterFile = path.join(fixture.workspace, 'agent.roster.json');
     const onDisk = id => { try { return (JSON.parse(fs.readFileSync(rosterFile, 'utf8')).agents || []).find(a => a.agentId === id) || null; } catch (_) { return null; } };
     const runtime = async id => ((await fixture.json('GET', '/api/runtime/agent')).body.agents || []).find(a => a.agentId === id) || null;
-    const push = agents => fixture.json('POST', '/api/roster', { agents, updatedAt: Date.now() });
+    // the page's push: it names the agents it puts on Full Access (raise) or a wider profile (raiseProfile, the dossier's
+    // picker), as app.js pushRoster does, and its fetch wrapper confirms that at the desk and replays it once. A push that
+    // names no raise is held ask-first by the station (clamped), which would leave this test's setup not what it says.
+    const push = agents => fixture.deskJson('POST', '/api/roster', { agents, updatedAt: Date.now(),
+      raise: agents.filter(a => a.approvalMode === 'full').map(a => a.agentId),
+      raiseProfile: agents.filter(a => ['station-gear', 'safe-cell'].indexOf(a.executionProfile) < 0).map(a => a.agentId) });
     const timed = async (method, route, body) => { const t0 = Date.now(); const r = await fixture.json(method, route, body); r.ms = Date.now() - t0; return r; };
 
     /* ---- 0. a node client on the feed (the MCP bridge) is not an open app ---------------------------------------------- */
     {
       await push([row('agent', 'HERO', 'station-gear'), row('rook', 'ROOK', 'station-gear', { approvalMode: 'full' })]);
+      A.eq((await runtime('rook')).approvalMode, 'full', 'set up: the page put rook on Full Access (confirmed at the desk)');
       const asked = [];
       const mcp = listen(fixture, c => asked.push(c), false);
       await sleep(400);
@@ -82,6 +92,7 @@ const ENV = { STARNET_REMOTE_RELAY: 'off', SKYNET_REMOTE_RELAY: 'off',
       await sleep(200);
     }
 
+    let relayedAt = 0;   // when A1 relayed its raise to the page (the rate limit's clock)
     /* ---- A1. a page pushes a newer roster for the agent in the window, then never acks ------------------------------ */
     {
       await push([row('agent', 'HERO', 'station-gear'), row('rook', 'ROOK-V1', 'trusted-project')]);
@@ -94,6 +105,7 @@ const ENV = { STARNET_REMOTE_RELAY: 'off', SKYNET_REMOTE_RELAY: 'off',
       });
       await sleep(400);
       A.eq(p.status(), 200, 'the page signs in with an SSE ticket');
+      relayedAt = Date.now();
       const y = await fixture.json('POST', '/api/agent/approval', { agentId: 'rook', mode: 'full' });
       p.close();
       A.eq(y.status, 409, 'a connected page that never answers: 409, no second write — ' + JSON.stringify(y.body));
@@ -110,6 +122,12 @@ const ENV = { STARNET_REMOTE_RELAY: 'off', SKYNET_REMOTE_RELAY: 'off',
       let seen = 0;
       const p = page(fixture, () => { if (!seen++) push([row('agent', 'HERO', 'station-gear'), row('rook', 'ROOK', 'station-gear')]); });
       await sleep(400);
+      // review 7: a second raise relayed to the window within 30 s of A1's is refused before the window is asked...
+      const tooSoon = await fixture.json('POST', '/api/agent/approval', { agentId: 'scout', mode: 'full' });
+      A.eq([tooSoon.status, tooSoon.body && tooSoon.body.code, seen], [429, 'rate_limited', 0], 'a raise relayed to the window again within 30 s: 429, and the window is not asked — ' + JSON.stringify(tooSoon.body));
+      // ...so the Commander waits it out, and the next one is relayed
+      const waitOut = relayedAt + 31000 - Date.now();
+      if (waitOut > 0) await sleep(waitOut);
       const y = await fixture.json('POST', '/api/agent/approval', { agentId: 'scout', mode: 'full' });
       p.close();
       A.eq([y.status, y.body && y.body.gone], [409, true], 'deleted in the window: 409, and the reply says it is gone from the roster');
@@ -158,8 +176,12 @@ const ENV = { STARNET_REMOTE_RELAY: 'off', SKYNET_REMOTE_RELAY: 'off',
       A.eq((await runtime('rook')).approvalMode, 'ask', 'and still after a restart');
       const again = await fixture.json('POST', '/api/agent/approval', { agentId: 'rook', mode: 'ask' });
       A.eq(again.body && again.body.save, 'agrees', 'a second /yolo off finds the save already agrees (no write)');
-      // /yolo on stays roster-only: the app's own (safer) saved setting applies again when it opens
-      const on = await fixture.json('POST', '/api/agent/approval', { agentId: 'rook', mode: 'full' });
+      // /yolo on stays roster-only: the app's own (safer) saved setting applies again when it opens. With no app open,
+      // giving Full Access is the desk's call (GHSA-2hpj #1): the key alone is refused, and the code the station printed
+      // (what `starnet`'s /yolo reads over IPC, or the person types as /yolo on <code>) lets it through
+      const onRefused = await fixture.json('POST', '/api/agent/approval', { agentId: 'rook', mode: 'full' });
+      A.eq([onRefused.status, onRefused.body && onRefused.body.code, (await runtime('rook')).approvalMode], [403, 'desk_confirm_required', 'ask'], '/yolo on with no page asks at the desk first, and nothing changes before it says yes');
+      const on = await fixture.deskJson('POST', '/api/agent/approval', { agentId: 'rook', mode: 'full' });
       A.eq([on.status, on.body && on.body.via, on.body && on.body.save], [200, 'roster', undefined], '/yolo on with no page: roster only');
       const after2 = (await fixture.json('GET', '/api/save?agent=agent')).body.save || {};
       A.eq(((after2.agents || []).find(a => a && a.id === 'rook') || {}).approvalMode, 'ask', 'and the save is left as the app last saved it');
@@ -190,7 +212,7 @@ const ENV = { STARNET_REMOTE_RELAY: 'off', SKYNET_REMOTE_RELAY: 'off',
     fs.writeFileSync(path.join(degraded.workspace, 'agent.roster.json'), JSON.stringify({ version: 1, updatedAt: Date.now() - 1000, agents: [row('agent', 'HERO', 'station-gear'), row('rook', 'ROOK', 'station-gear')] }));
     await degraded.start();
     const runtime = async id => ((await degraded.json('GET', '/api/runtime/agent')).body.agents || []).find(a => a.agentId === id) || null;
-    const on = await degraded.json('POST', '/api/agent/approval', { agentId: 'rook', mode: 'full' });
+    const on = await degraded.deskJson('POST', '/api/agent/approval', { agentId: 'rook', mode: 'full' });   // confirmed at the desk
     A.eq([on.status, (await runtime('rook')).approvalMode], [200, 'full'], 'degraded: /yolo on lands on the roster');
     const off = await degraded.json('POST', '/api/agent/approval', { agentId: 'rook', mode: 'ask' });
     A.eq([off.status, off.body && off.body.save, (await runtime('rook')).approvalMode], [200, 'not-saved', 'ask'], 'degraded: /yolo off lands too (it was refused while /yolo on went through), and says the save did not take it — ' + JSON.stringify(off.body));

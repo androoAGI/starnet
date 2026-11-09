@@ -26,6 +26,9 @@ const path = require('path');
 const os = require('os');
 const { bootToken } = require('./_httpToken.js');
 const { allocatePort, BIND_REFUSED } = require('./helpers/ports.js');
+const { makeDeskCodeReader } = require('./helpers/desk-code.js');
+// the desk codes each booted station prints on its own console, read as the person at it reads them (GHSA-2hpj #1)
+const desk = makeDeskCodeReader();
 
 const HOST = '127.0.0.1';
 const INDEX = path.resolve(__dirname, '..', 'sidecar', 'index.js');
@@ -47,7 +50,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
         else reject(new Error('no free port'));
       }
     };
-    child.stdout.on('data', onData); child.stderr.on('data', onData);
+    child.stdout.on('data', onData); child.stderr.on('data', onData); child.stderr.on('data', d => desk.feed(d));
     child.on('error', e => { if (!settled) { settled = true; reject(e); } });
     child.on('close', code => { if (!settled) { settled = true; reject(new Error('sidecar exited before it was up (' + code + ')' + ':\n' + out)); } });
     setTimeout(() => { if (!settled) { settled = true; try { child.kill(); } catch (_) {} reject(new Error('boot timeout; output:\n' + out)); } }, 30000).unref();
@@ -62,13 +65,16 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
   let child = booted.child; let port = booted.port; let getOut = booted.out;
   const B = () => 'http://' + HOST + ':' + port;
   let apiToken = await bootToken(B(), B());
-  const j = async (m, p, body) => {
-    const headers = { 'Content-Type': 'application/json', Origin: B() };
+  const j = async (m, p, body, extra) => {
+    const headers = Object.assign({ 'Content-Type': 'application/json', Origin: B() }, extra || {});
     if (apiToken) headers['X-StarNet-Token'] = apiToken;
     const r = await fetch(B() + p, { method: m, headers, body: body ? JSON.stringify(body) : undefined });
     const t = await r.text(); let v; try { v = JSON.parse(t); } catch (_) { v = t; }
     return { status: r.status, body: v };
   };
+  // the same request, and when the station answers with its desk challenge (review2 #9: a dial raise to building grants the
+  // away workshop when it was never decided), again with the code it printed, as the person at its console would type it
+  const jDesk = async (m, p, body) => desk.confirm(await j(m, p, body), h => j(m, p, body, h));
   const jNoToken = async (m, p) => {
     const r = await fetch(B() + p, { method: m, headers: { Origin: B() } });
     return { status: r.status };
@@ -150,7 +156,12 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
 
     // ---- NIGHT-SHIFT HALT TRUTHFULNESS: an armed-but-HALTED shift is not armed work ----
     // Arm the night shift by raising the dial (posture write arms the timer with no restart)…
-    const posture = await j('POST', '/api/autonomy/posture', { posture: { initiative: 'leash', reach: 'sandbox', leashPerDay: 2 } });
+    // a raise to building grants the never-decided away workshop, so the page key alone is refused (review2 #9)...
+    const unconfirmedPosture = await j('POST', '/api/autonomy/posture', { posture: { initiative: 'leash', reach: 'sandbox', leashPerDay: 2 } });
+    A.eq([unconfirmedPosture.status, unconfirmedPosture.body && unconfirmedPosture.body.code], [403, 'desk_confirm_required'], 'a dial raise to building asks at the desk first');
+    A.eq((await j('GET', '/api/lifecycle/armed')).body.categories.nightshift.armed, false, '...and arms nothing before the desk says yes');
+    // ...and the person at the station confirms it with the code it printed
+    const posture = await jDesk('POST', '/api/autonomy/posture', { posture: { initiative: 'leash', reach: 'sandbox', leashPerDay: 2 } });
     A.eq(posture.status, 200, 'POST /api/autonomy/posture (initiative:leash) -> 200');
     const nsOn = await j('GET', '/api/lifecycle/armed');
     A.eq(nsOn.body.categories.nightshift.armed, true, 'raised dial: nightshift.armed:true (timer live)');
@@ -200,7 +211,7 @@ function boot(port, workspaces, attemptsLeft, extraEnv) {
     A.eq(afterBeliefsSync.body.categories.routines.halted, true, 'beliefs-only page-load sync preserves the routines E-STOP');
     A.eq(afterBeliefsSync.body.categories.nightshift.halted, true, 'beliefs-only page-load sync preserves the night-shift E-STOP');
     A.eq(afterBeliefsSync.body.armed, false, 'beliefs-only page-load sync cannot silently resume background work');
-    const postureMirror = await j('POST', '/api/autonomy/posture', { posture: { initiative: 'leash', reach: 'sandbox', leashPerDay: 2 }, resumeHalt: false });
+    const postureMirror = await jDesk('POST', '/api/autonomy/posture', { posture: { initiative: 'leash', reach: 'sandbox', leashPerDay: 2 }, resumeHalt: false });
     A.eq(postureMirror.body.postureWritten, true, 'boot mirror may refresh the server posture');
     A.eq(postureMirror.body.resumeRequested, false, 'boot mirror explicitly denies resume consent');
     const afterPostureMirror = await j('GET', '/api/lifecycle/armed');
