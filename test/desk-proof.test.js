@@ -257,7 +257,19 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
   A.ok(/if \(typeof o\.confirm === 'function' && !\(await o\.confirm\(proposedReal\)\)\)[\s\S]{0,200}const isGit = await isGitRepoOf\(proposedReal\);\s*const ok = await bless\(proposedReal/.test(read('sidecar/projectbless.js')), 'blessPath asks the desk for the real root after every check and before the grant');
   before('function handleCronCreate(', /grants\.length && !deskGate\(req, res, 'routine-grants'/, /createCronJobFromSpec\(body, \{ grantsConfirmed: grants\.length > 0 \}\)/, 'a routine with an unattended grant asks first');
   A.ok(/if \(!\(opts && opts\.grantsConfirmed === true\)\) body = Object\.assign\(\{\}, body, \{ unattendedGrants: \[\] \}\);/.test(A.fnBody(IDX, 'async function createCronJobFromSpec(')), 'every other create path makes a routine with no unattended grant');
-  before('function handleCronUpdate(', /if \(added\.length\) \{[\s\S]{0,400}deskGate\(req, res, 'routine-grants'/, /await withCronWrite\(jobs => \{\s*const current = cronStore\.getJob\(jobs, id\);/, 'adding a grant to a routine asks first (removing never does)');
+  before('function handleCronUpdate(', /if \(confirm\.length\) \{[\s\S]{0,400}deskGate\(req, res, 'routine-grants'/, /await withCronWrite\(jobs => \{\s*const current = cronStore\.getJob\(jobs, id\);/, 'adding a grant to a routine asks first (removing never does)');
+  {
+    // review2 #2: an edit that changes what a granted routine runs keeps its grants only with the desk's yes for the new routine
+    const upd = A.fnBody(IDX, 'function handleCronUpdate(');
+    A.ok(/const rewrite = cronStore\.grantsRevokedByEdit\(current, patch\)\.length > 0;\s*const confirm = \(rewrite && keepGrants\) \? \[\.\.\.wanted\]\.sort\(\) : added;/.test(upd), 'keeping grants through a rewrite confirms every grant it keeps');
+    A.ok(/const revoked = cronStore\.grantsRevokedByEdit\(current, patch\);[\s\S]{0,400}const keep = base\.filter\(g => revoked\.indexOf\(g\) < 0 \|\| confirmed\.has\(g\)\);/.test(upd), 'under the lock, a rewrite drops every grant the desk did not just confirm');
+    A.ok(/routineGrantScope\(spec, confirm\), routineGrantWords\(spec, confirm, rewrite\)/.test(upd), 'the yes is scoped to the routine as it will run, and says it changed');
+    const scope = A.fnBody(IDX, 'function routineGrantScope(');
+    for (const f of ['prompt', 'script', 'workdir', 'agentId', 'noAgent', 'enabledToolsets', 'skills', 'contextFrom', 'runsLine']) A.ok(scope.indexOf('s.' + f) > 0, 'the desk scope covers ' + f);
+    A.ok(/if \(cronStore\.grantsRevokedByEdit\(cronStore\.getJob\(jobs, id\), patch\)\.length\) patch\.unattendedGrants = \[\];/.test(IDX), 'an app\'s schedule save that rewrites the task drops the grants, whoever saves it');
+    const fe = read('frontend/app/windows/routines.js');
+    A.ok(/holds \? \{ id, patch, keepGrants: true \} : \{ id, patch \}/.test(fe) && /response\.code === 'desk_confirm_required' \|\| response\.code === 'desk_only'/.test(fe), 'the edit form asks to keep a granted routine\'s permissions, and can save without them when the desk says no');
+  }
   {
     const roster = A.fnBody(IDX, 'async function handleRoster(');
     A.ok(roster.indexOf("deskGate(req, res, 'execution-profile'") > 0 && roster.indexOf("deskGate(req, res, 'execution-profile'") < roster.indexOf('replaceAgentRoster(incomingRows)'), 'a wider execution profile asks first');

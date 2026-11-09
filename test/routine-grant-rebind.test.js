@@ -21,6 +21,17 @@ A.eq(cronStore.grantsRevokedByAgentEdit(granted, { name: 'renamed', schedule: 'e
 A.eq(cronStore.grantsRevokedByAgentEdit(Object.assign({}, granted, { unattendedGrants: [] }), { prompt: 'x' }), [], 'an ungranted routine has nothing to revoke');
 A.eq(cronStore.grantsRevokedByAgentEdit(null, { prompt: 'x' }), [], 'a missing job revokes nothing (the store reports not-found)');
 
+// ---- 1b. review2 #2: a grant covers everything the routine RUNS, whoever edits it ----
+{
+  const g = Object.assign({}, granted, { script: 'build.js', noAgent: false, agentId: 'agent', workdir: '', enabledToolsets: ['web'], skills: ['deploy'], contextFrom: ['up1'], runsLine: false });
+  const runs = { prompt: 'other', script: 'payload.js', noAgent: true, agentId: 'other_agent', workdir: 'C:/elsewhere', enabledToolsets: ['web', 'shell'], skills: [], contextFrom: ['up2'], runsLine: true };
+  A.eq(Object.keys(runs).sort(), cronStore.RUN_FIELDS.slice().sort(), 'every field that changes what a routine runs is named');
+  for (const k of Object.keys(runs)) A.eq(cronStore.grantsRevokedByEdit(g, { [k]: runs[k] }), ['workbench', 'connectors'], 'changing ' + k + ' revokes every grant');
+  for (const k of Object.keys(runs)) A.eq(cronStore.grantsRevokedByEdit(g, { [k]: g[k] }), [], 'resubmitting the same ' + k + ' revokes nothing');
+  A.eq(cronStore.grantsRevokedByEdit(g, { name: 'renamed', schedule: 'every 2h', model: 'x/y', provider: 'openrouter', deliver: 'origin' }), [], 'a rename, a new schedule, model or delivery keeps the grant');
+  A.eq(cronStore.grantsRevokedByAgentEdit(g, { script: 'payload.js' }), ['workbench', 'connectors'], 'the agent-edit name covers the same fields');
+}
+
 // ---- 2. the store applies the drop when told to ----
 {
   const jobs = [cronStore.makeJob({ id: 'nightly', name: 'nightly-build', prompt: granted.prompt, schedule: { kind: 'interval', everyMs: 3600000, display: 'every 1h' }, agentId: 'agent', unattendedGrants: ['workbench'] }, { id: 'nightly', now: 1000 })];

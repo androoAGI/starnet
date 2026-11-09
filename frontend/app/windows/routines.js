@@ -668,11 +668,20 @@
         cancelBtn.disabled = true;
         errorEl.hidden = true;
         try {
-          const response = await Harness.api.post('/api/cron/update', { id, patch });
+          // WHAT IT WAS ALLOWED FOR (fix-sec2, review2 #2): a routine's unattended permissions were given for what it
+          // runs. A new task or a new agent keeps them only with a yes at the desk; when that is declined, the change can
+          // still be saved without them (taking a permission away never needs the desk).
+          const holds = Array.isArray(job.unattendedGrants) && job.unattendedGrants.length > 0 && ('prompt' in patch || 'agentId' in patch);
+          let response = await Harness.api.post('/api/cron/update', holds ? { id, patch, keepGrants: true } : { id, patch });
+          if (holds && !response.ok && (response.code === 'desk_confirm_required' || response.code === 'desk_only')
+              && window.confirm('Save the changed routine without its unattended permissions?\n\nIt keeps running on its schedule, but no longer does what it was allowed to do with nobody watching.')) {
+            response = await Harness.api.post('/api/cron/update', { id, patch });
+          }
           const result = response.j;
           if (!response.ok) throw new Error('changes were not saved: ' + Harness.api.why(response));
           if (!result.job || Object.keys(patch).some(k => result.job[k] !== patch[k])) throw new Error('could not verify the saved changes');
-          notify('routine updated', 'good'); sfx('click'); closeEdit(); refresh();
+          const dropped = Array.isArray(result.grantsDropped) ? result.grantsDropped : [];
+          notify(dropped.length ? 'routine updated — it no longer works unattended, because what it runs changed' : 'routine updated', 'good'); sfx('click'); closeEdit(); refresh();
         } catch (e) {
           errorEl.textContent = (e && e.message) || 'could not reach the station — changes were not saved';
           errorEl.hidden = false; sfx('bad');

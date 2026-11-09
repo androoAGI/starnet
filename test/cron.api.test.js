@@ -267,6 +267,30 @@ function boot(port, workspaces, attemptsLeft) {
     A.eq(continued && continued.content, '✦ Script health\n\nscript-only result', 'the published row is exactly what the chat received');
     const scriptTranscript = await j('GET', '/api/transcript?agent=cron_brief&stream=' + encodeURIComponent('cron-' + scriptJob.lastRunId) + '&limit=20');
     A.ok((scriptTranscript.body.turns || []).some(t => t.role === 'assistant' && t.content === 'script-only result'), 'script-only output is recoverable in its continuable cron session');
+
+    // ---- review2 #2: the desk's yes was for what the routine runs; an edit that changes that keeps it only with a new yes ----
+    {
+      const gid = scriptCreate.body.job.id;
+      fs.writeFileSync(path.join(agentWs, 'other.js'), 'console.log("other result")\n', 'utf8');
+      const jobNow = async () => (await j('GET', '/api/cron')).body.jobs.find(x => x.id === gid);
+      const renamed = await j('POST', '/api/cron/update', { id: gid, patch: { name: 'Script health (renamed)' } }, {});
+      A.eq(renamed.status, 200, 'a rename asks nothing');
+      A.eq(renamed.body.job.unattendedGrants, ['workbench'], 'and keeps the grant');
+      const keepAsked = await j('POST', '/api/cron/update', { id: gid, patch: { script: 'other.js' }, keepGrants: true }, {});
+      A.eq(keepAsked.status, 403, 'keeping a grant through a new script asks at the desk');
+      A.eq(keepAsked.body && keepAsked.body.code, 'desk_confirm_required', 'with the desk challenge');
+      A.ok(/is changing what it runs[\s\S]*other\.js/.test(String((keepAsked.body.deskConfirm || {}).summary || '')), 'the question says what it will run now');
+      A.eq((await jobNow()).script, 'health.js', 'nothing changed before the desk said yes');
+      const kept = await j('POST', '/api/cron/update', { id: gid, patch: { script: 'other.js' }, keepGrants: true });
+      A.eq(kept.status, 200, 'the desk said yes: the new script is saved');
+      A.eq(kept.body.job.unattendedGrants, ['workbench'], 'and keeps its grant');
+      A.ok(!kept.body.grantsDropped, 'nothing dropped');
+      const plain = await j('POST', '/api/cron/update', { id: gid, patch: { script: 'health.js' } }, {});
+      A.eq(plain.status, 200, 'an edit that changes what it runs, without asking to keep the grant, saves without asking');
+      A.eq(plain.body.job.unattendedGrants, [], 'and the routine loses its grant');
+      A.eq(plain.body.grantsDropped, ['workbench'], 'and says which grants it lost');
+      A.eq((await jobNow()).unattendedGrants, [], 'durably');
+    }
     await j('POST', '/api/cron/remove', { id: scriptCreate.body.job.id });
 
     // ---- persistence: the routine survives a fresh boot on the same workspace ----

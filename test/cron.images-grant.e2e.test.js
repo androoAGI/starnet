@@ -81,7 +81,7 @@ async function startModel() {
     A.ok(!JSON.stringify(perms.body.grants || []).includes('studio'), 'and holds no standing studio grant');
 
     async function routine(name, prompt, extra) {
-      const r = await sidecar.json('POST', '/api/cron', Object.assign({ name, prompt, schedule: 'every 1h', agentId: 'agent', model: 'test/model', provider: 'openrouter' }, extra || {}));
+      const r = await sidecar.deskJson('POST', '/api/cron', Object.assign({ name, prompt, schedule: 'every 1h', agentId: 'agent', model: 'test/model', provider: 'openrouter' }, extra || {}));
       A.eq(r.status, 200, name + ': routine created' + (r.body && r.body.error ? ' (' + r.body.error + ')' : ''));
       return r.body.job;
     }
@@ -121,11 +121,11 @@ async function startModel() {
     A.ok(/▣ ALLOW IMAGES on this routine in AUTOMATE › SCHEDULES/.test(refused), 'the refusal names the switch that exists');
 
     /* ---- 3. the row grant adds to what the routine holds NOW, and survives a restart ---- */
-    const conn = await sidecar.json('POST', '/api/cron/update', { id: plain.id, patch: { unattendedGrants: ['connectors'] } });
+    const conn = await sidecar.deskJson('POST', '/api/cron/update', { id: plain.id, patch: { unattendedGrants: ['connectors'] } });
     A.eq(conn.body && conn.body.job && conn.body.job.unattendedGrants, ['connectors'], 'setup: the routine was given connected tools');
     const revoked = await sidecar.json('POST', '/api/cron/update', { id: plain.id, patch: { unattendedGrants: [] } });
     A.eq(revoked.body && revoked.body.job && revoked.body.job.unattendedGrants, [], 'setup: then revoked (a row drawn before this still shows connected tools)');
-    const allowed = await sidecar.json('POST', '/api/cron/update', { id: plain.id, patch: {}, addGrants: ['studio'] });
+    const allowed = await sidecar.deskJson('POST', '/api/cron/update', { id: plain.id, patch: {}, addGrants: ['studio'] });
     A.eq(allowed.status, 200, 'ALLOW IMAGES saves');
     A.eq(allowed.body && allowed.body.job && allowed.body.job.unattendedGrants, ['studio'], 'images were added to the CURRENT grants — the revoked one did not come back');
     const junk = await sidecar.json('POST', '/api/cron/update', { id: plain.id, patch: {}, addGrants: ['root', 'studio'] });

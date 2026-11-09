@@ -5336,9 +5336,10 @@ const apps = makeApps({
       if (!scan.ok) return { ok: false, error: scan.error };
       let schedule;
       try { schedule = parseCronScheduleOr400(p.schedule, Date.now(), (cur.schedule && cur.schedule.tz) || undefined); } catch (e) { return { ok: false, error: e.message }; }
-      // GRANTS BIND TO THE APPROVED INSTRUCTION (routine.manage does the same): a crew app.schedule that rewrites a granted
-      // routine's task drops its unattended workbench/connector grants — the Commander re-grants from SCHEDULES (QA 2026-10-02)
-      try { await withCronWrite((jobs) => { const patch = { schedule, prompt: p.prompt, name: p.name }; if (p.byAgent && cronStore.grantsRevokedByAgentEdit(cronStore.getJob(jobs, id), patch).length) patch.unattendedGrants = []; return cronStore.updateJob(jobs, id, patch, { now: Date.now(), defaultTz: CRON_HOST_TZ }); }); }
+      // GRANTS BIND TO THE APPROVED INSTRUCTION (routine.manage does the same): an app.schedule that rewrites a granted
+      // routine's task drops its unattended grants — the Commander re-grants from SCHEDULES (QA 2026-10-02). Since review2 #2
+      // that holds for the app window's own SAVE too, not only the crew's: this path has no desk confirmation to keep them.
+      try { await withCronWrite((jobs) => { const patch = { schedule, prompt: p.prompt, name: p.name }; if (cronStore.grantsRevokedByEdit(cronStore.getJob(jobs, id), patch).length) patch.unattendedGrants = []; return cronStore.updateJob(jobs, id, patch, { now: Date.now(), defaultTz: CRON_HOST_TZ }); }); }
       catch (e) { return { ok: false, error: (e && e.message) || String(e) }; }
       return { ok: true, job: cronStore.getJob(cronJobs, id) };
     },
@@ -16847,8 +16848,9 @@ function deskWords(action, d) {
     // fix-sec2, review 3, 6 and 7
     case 'consent-session': return { title: 'StarNet — allow for this session', verb: 'Allow for this session',
       summary: 'Allow ' + who + ' to ' + (o.tool ? 'use "' + o.tool + '"' : 'do this') + (o.scope ? ' (' + o.scope + ')' : '') + ' without asking, for the rest of this session?\n\nEvery later request of this kind in the session is allowed, not only this one.' };
-    case 'routine-grants': return { title: 'StarNet — let a routine work unattended', verb: 'Allow unattended',
-      summary: 'Let the routine "' + o.name + '" (' + o.agentName + ') ' + o.grants + ' with nobody watching, every time it runs?\n\nIt keeps this until you remove it in Routines.' };
+    case 'routine-grants': return { title: 'StarNet — let a routine work unattended', verb: o.changed ? 'Keep allowing' : 'Allow unattended',
+      summary: (o.changed ? 'The routine "' + o.name + '" (' + o.agentName + ') is changing what it runs. Keep letting it ' : 'Let the routine "' + o.name + '" (' + o.agentName + ') ')
+        + o.grants + ' with nobody watching, every time it runs?' + (o.task ? '\n\nWhat it runs: ' + o.task : '') + '\n\nIt keeps this until you remove it in Routines.' };
     case 'telegram-owner-pair': return { title: 'StarNet — pair a Telegram owner', verb: 'Make a pairing code',
       summary: (o.connecting ? 'Connect this station’s Telegram bot and make' : 'Make') + ' a one-time code that makes a Telegram account the OWNER of this station’s bot?\n\nThe owner can give your agents work from Telegram and answer their permission requests there.' };
     // review2 #1: Discord, Slack, Matrix, Signal and every agent's own Telegram bot
@@ -18473,17 +18475,23 @@ function handleCronCreate(req, res) {
    routines through the identical validation, mint gate and locked write. Returns { status, body } shaped exactly
    like the HTTP response the route used to build inline. Never throws. */
 // fix-sec2 review 3: what an unattended grant on a routine is confirmed for, and the words the desk shows
+// the desk's yes for a routine's grants is for this routine as it will run: every field cronStore.RUN_FIELDS names is in
+// the scope, so a yes given for one task, script, agent or folder never covers another (review2 #2)
 function routineGrantScope(spec, grants) {
   const s = spec || {};
+  const list = v => (Array.isArray(v) ? v.map(String) : null);
   return crypto.createHash('sha256').update(JSON.stringify([String(s.agentId || ''), grants, String(s.name || ''), String(s.prompt || ''),
-    String(s.script || ''), String(s.workdir || '')])).digest('hex');
+    String(s.script || ''), String(s.workdir || ''), s.noAgent === true, list(s.enabledToolsets), list(s.skills), list(s.contextFrom),
+    s.runsLine === true])).digest('hex');
 }
 const ROUTINE_GRANT_WORDS = { workbench: 'use the terminal (run commands on this computer)', connectors: 'use your connected accounts', studio: 'make images in the studio' };
-function routineGrantWords(spec, grants) {
+function routineGrantWords(spec, grants, changed) {
   const s = spec || {};
   const rec = agentRoster.get(String(s.agentId || ''));
+  // what it will run, in its own words, so the yes is given for something the person read (review2 #2)
+  const task = s.script ? 'the script ' + String(s.script) + (s.noAgent === true ? '' : ', then: ' + String(s.prompt || '')) : String(s.prompt || '');
   return { name: deskProofMod.cutPoints(String(s.name || 'untitled'), 60), agentName: deskProofMod.cutPoints(String((rec && rec.name) || s.agentId || 'an agent'), 40),
-    grants: grants.map(g => ROUTINE_GRANT_WORDS[g] || g).join(' and ') };
+    grants: grants.map(g => ROUTINE_GRANT_WORDS[g] || g).join(' and '), task: deskProofMod.cutPoints(task, 400), changed: changed === true };
 }
 async function createCronJobFromSpec(body, opts) {
   body = body || {};
@@ -18645,7 +18653,13 @@ function handleCronUpdate(req, res) {
        NOW, read inside the lock. The row's ▣ ALLOW IMAGES sends it. A page sending its rendered list instead could
        re-add a grant that was dropped since that row was drawn (an agent rewriting the task clears them all). */
     const addGrants = Array.isArray(body.addGrants) ? body.addGrants.map(g => String(g == null ? '' : g).trim()).filter(Boolean) : [];
-    // fix-sec2 review 3: a grant this routine does not hold yet is confirmed at the desk (removing one never asks)
+    /* fix-sec2 review 3: a grant this routine does not hold yet is confirmed at the desk (removing one never asks).
+       review2 #2: a grant was given for what the routine runs. An edit that changes that (its task, script, agent,
+       folder, toolsets, skills, upstream routines: cronStore.RUN_FIELDS) drops every grant it holds, unless the edit
+       asks to keep them (keepGrants) and the desk says yes for the routine as it will run. Before, a desk-confirmed
+       grant stayed on a routine whose prompt or script the page key had just rewritten. */
+    const keepGrants = body.keepGrants === true;
+    let confirmed = new Set();
     {
       const current = cronStore.getJob(cronJobs, id) || {};
       const held = new Set(normalizeUnattendedGrants(current.unattendedGrants));
@@ -18653,20 +18667,33 @@ function handleCronUpdate(req, res) {
         ? new Set([...normalizeUnattendedGrants(Array.isArray(patch.unattendedGrants) ? patch.unattendedGrants : (current.unattendedGrants || []))].concat([...normalizeUnattendedGrants(addGrants)]))
         : (Object.prototype.hasOwnProperty.call(patch, 'unattendedGrants') ? normalizeUnattendedGrants(patch.unattendedGrants) : held);
       const added = [...wanted].filter(g => !held.has(g)).sort();
-      if (added.length) {
+      const rewrite = cronStore.grantsRevokedByEdit(current, patch).length > 0;
+      const confirm = (rewrite && keepGrants) ? [...wanted].sort() : added;
+      if (confirm.length) {
         if (authoritySeal.held) return json(409, { ok: false, error: authoritySeal.held });   // it could not be sealed (review 4a/4d)
         const spec = Object.assign({}, current, patch);
-        if (!deskGate(req, res, 'routine-grants', id + ':' + routineGrantScope(spec, added), routineGrantWords(spec, added))) return;
+        if (!deskGate(req, res, 'routine-grants', id + ':' + routineGrantScope(spec, confirm), routineGrantWords(spec, confirm, rewrite))) return;
+        confirmed = new Set(confirm);
       }
     }
+    let grantsDropped = [];
     try {
       // G4.3: the full edit (updateJob + optional pause/resume) is ONE re-read-modify-write under the lock,
       // so it cannot clobber a concurrent advance and the pause/resume sees the just-updated job.
       await withCronWrite(jobs => {
         const current = cronStore.getJob(jobs, id);
-        const edit = addGrants.length
+        let edit = addGrants.length
           ? Object.assign({}, patch, { unattendedGrants: (Array.isArray(patch.unattendedGrants) ? patch.unattendedGrants : ((current && current.unattendedGrants) || [])).concat(addGrants) })
           : patch;
+        // review2 #2: what the edit revokes is read here, under the lock, from the routine as it is now. Only a grant the
+        // desk just confirmed for the routine as it will run survives it.
+        const revoked = cronStore.grantsRevokedByEdit(current, patch);
+        if (revoked.length) {
+          const base = [...normalizeUnattendedGrants(Array.isArray(edit.unattendedGrants) ? edit.unattendedGrants : ((current && current.unattendedGrants) || []))];
+          const keep = base.filter(g => revoked.indexOf(g) < 0 || confirmed.has(g));
+          grantsDropped = revoked.filter(g => keep.indexOf(g) < 0);
+          edit = Object.assign({}, edit, { unattendedGrants: keep });
+        }
         const candidate = Object.assign({}, current, edit);
         if (String(candidate.deliver || 'local').trim() === 'local' && candidate.attachToSession && !(candidate.origin && (candidate.origin.sessionId || candidate.origin.streamId))) throw new Error('follow-up needs a captured session origin');
         let next = cronStore.updateJob(jobs, id, edit, { now: Date.now(), defaultTz: CRON_HOST_TZ });
@@ -18679,7 +18706,7 @@ function handleCronUpdate(req, res) {
     // work NOW, not after up to maxRunMs more spend. Only after the durable write above succeeded, so a
     // failed save never kills a run the store still says is armed.
     if (enabled === false) { const lease = cronDriver.leases.get(id); if (lease && lease.ac) { try { lease.ac.abort(); } catch (e) { failNote('cron.pause.abort', e); } } }
-    json(200, { ok: true, job: cronStore.getJob(cronJobs, id) });
+    json(200, grantsDropped.length ? { ok: true, job: cronStore.getJob(cronJobs, id), grantsDropped } : { ok: true, job: cronStore.getJob(cronJobs, id) });
   }).catch(() => { try { json(400, { error: 'bad request' }); } catch (_) {} });
 }
 

@@ -898,12 +898,29 @@
 
   /* GRANTS BIND TO THE APPROVED INSTRUCTION (2026-09-23 security audit). Returns the unattended grants an AGENT
      edit must drop: rewriting a granted routine's prompt would otherwise inherit the Commander's standing
-     workbench/connectors power for an instruction the Commander never saw. Pure; the Commander's own edit path
-     (POST /api/cron/update) does not call this. */
+     workbench/connectors power for an instruction the Commander never saw. Kept as the agent-edit name of
+     grantsRevokedByEdit below, which since review2 #2 covers every field that changes what the routine runs. */
   function grantsRevokedByAgentEdit(current, patch) {
-    if (!current || !patch || !Object.prototype.hasOwnProperty.call(patch, 'prompt')) return [];
-    if (String(patch.prompt == null ? '' : patch.prompt) === String(current.prompt == null ? '' : current.prompt)) return [];
-    return normGrants(current.unattendedGrants);
+    return grantsRevokedByEdit(current, patch);
+  }
+  /* WHAT A GRANT WAS GIVEN TO (fix-sec2, review2 #2). A grant covers what the routine RUNS: its task, its script (and
+     whether it runs with no agent), which agent runs it, the folder it runs in, the toolsets and skills it carries, the
+     routines whose output it reads first, and whether it may buy a whole line. Changing any of them on a granted routine
+     revokes every grant it holds, whoever makes the change; the Commander's own edit keeps them only with the desk's yes
+     for the changed routine (POST /api/cron/update keepGrants). A rename, a new schedule, a new model or delivery target
+     leaves what it runs alone. Pure: the caller drops the grants (or asks the desk). */
+  const RUN_FIELDS = ['prompt', 'script', 'noAgent', 'agentId', 'workdir', 'enabledToolsets', 'skills', 'contextFrom', 'runsLine'];
+  function runValue(k, v) {
+    if (k === 'noAgent' || k === 'runsLine') return v === true;
+    if (k === 'enabledToolsets' || k === 'skills' || k === 'contextFrom') return Array.isArray(v) ? JSON.stringify(v.map(String)) : '';
+    return String(v == null ? '' : v);
+  }
+  function runChanged(current, patch) {
+    if (!current || !patch) return false;
+    return RUN_FIELDS.some(k => Object.prototype.hasOwnProperty.call(patch, k) && runValue(k, patch[k]) !== runValue(k, current[k]));
+  }
+  function grantsRevokedByEdit(current, patch) {
+    return runChanged(current, patch) ? normGrants(current.unattendedGrants) : [];
   }
 
   function toEnvelope(jobs, intakeReceiptFor) {
@@ -921,6 +938,8 @@
     createJob: createJob,
     updateJob: updateJob,
     grantsRevokedByAgentEdit: grantsRevokedByAgentEdit,
+    grantsRevokedByEdit: grantsRevokedByEdit,
+    RUN_FIELDS: RUN_FIELDS,
     pauseJob: pauseJob,
     resumeJob: resumeJob,
     triggerJob: triggerJob,
