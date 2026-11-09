@@ -12,6 +12,11 @@
      4. the claude-cli `haiku` alias is priced as the model it resolves to (claude-haiku-5-5 for CLI 2.1.319: its baked
         catalog maps haiku -> claude-haiku-5-5; the claude-api skill agrees), and a reply's usage names the model the CLI
         says served it.
+     5. THE SMALL MODEL COSTS LESS (review r1). The catalog prices every id (OpenRouter's per-token rows). Beside a run on
+        google/gemini-2.0-flash ($0.10/$0.40) the catalog lists the family's NEWEST small model, google/gemini-3.5-flash-lite,
+        at $0.30/$2.50 (dearer) and the older google/gemini-2.0-flash-lite at $0.075/$0.30: study and thread mining take the
+        cheaper 2.0-flash-lite and never the dearer newest one. A title on a `:free` run ($0) stays on it: a free pass never
+        moves to a paid model.
 
    ZERO network, zero real key (the fake key routes to the mock), zero paid inference. */
 'use strict';
@@ -30,6 +35,14 @@ const RUN_MODEL = 'anthropic/claude-sonnet-5.5';
 const SMALL_MODEL = 'anthropic/claude-haiku-5.5';
 const OLD_SMALL = 'anthropic/claude-haiku-4.5';
 const OTHER_MINI = 'openai/gpt-5.4-mini';
+// 5. a run whose family's newest small model costs MORE than the run; a free run
+const CHEAP_RUN = 'google/gemini-2.0-flash';
+const DEAR_SMALL = 'google/gemini-3.5-flash-lite';     // the newest flash-lite: dearer than CHEAP_RUN on both rates
+const CHEAP_SMALL = 'google/gemini-2.0-flash-lite';    // older, and cheaper than CHEAP_RUN on both rates
+const FREE_RUN = 'google/gemini-2.0-flash-exp:free';
+// per-million USD [in, out] (prices.js list rates); the mock catalog states them per token, as OpenRouter does
+const PRICES = { [RUN_MODEL]: [2, 10], [OLD_SMALL]: [1, 5], [SMALL_MODEL]: [0.10, 0.50], [OTHER_MINI]: [0.75, 4.50],
+  [CHEAP_RUN]: [0.10, 0.40], [DEAR_SMALL]: [0.30, 2.50], [CHEAP_SMALL]: [0.075, 0.30], [FREE_RUN]: [0, 0] };
 const TITLE_SYS = 'You generate a terse title for a work session. Reply with ONLY a 3 to 6 word title that names'
   + ' the concrete task or topic in the messages — never the greetings around it. Use Title Case. No'
   + ' surrounding quotes, no trailing punctuation, no preamble — output the title and nothing else.';
@@ -67,8 +80,8 @@ function startMock() {
     const server = http.createServer((req, res) => {
       if (req.url.indexOf('/models') >= 0) {
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        const m = id => ({ id, context_length: 200000, pricing: { prompt: '0.000001', completion: '0.000005' }, supported_parameters: ['tools'] });
-        res.end(JSON.stringify({ data: [m(RUN_MODEL), m(OLD_SMALL), m(SMALL_MODEL), m(OTHER_MINI)] }));
+        const m = id => ({ id, context_length: 200000, pricing: { prompt: String(PRICES[id][0] / 1e6), completion: String(PRICES[id][1] / 1e6) }, supported_parameters: ['tools'] });
+        res.end(JSON.stringify({ data: Object.keys(PRICES).map(m) }));
         return;
       }
       if (req.url.indexOf('/chat/completions') < 0) { res.writeHead(404); res.end(); return; }
@@ -197,6 +210,26 @@ async function cliAlias() {
       }
       const rec = readJsonl(path.join(fixture.workspace, '.usage', 'calls.jsonl'));
       A.ok(rec.filter(x => x.model === SMALL_MODEL).length >= 4, 'the usage receipts name the small model for the small-model calls (' + rec.filter(x => x.model === SMALL_MODEL).length + ')');
+
+      // ---- 5. the small model must cost less than the run model; a free run keeps its model ----------------------------
+      const from = calls.length;
+      await post(fixture, Object.assign(task('oneshot-a3', 'Profile the nightly ETL job and write up which stages dominate its runtime'), { model: CHEAP_RUN }));
+      await settle(mock.state);
+      const g = calls.slice(from);
+      if (process.env.ONESHOTDEBUG) g.forEach((c, i) => console.error('  A5#' + i + ' ' + c.kind + ' ' + c.model));
+      A.ok(models(g, 'main').length >= 1 && models(g, 'main').every(m => m === CHEAP_RUN), 'the gemini task ran on ' + CHEAP_RUN);
+      for (const k of ['study', 'threadmine']) {
+        const ms = models(g, k);
+        A.ok(ms.length >= 1 && ms.every(m => m === CHEAP_SMALL), k + ' on a ' + CHEAP_RUN + ' run took the CHEAPER ' + CHEAP_SMALL + ', not the newest small model (got ' + ms.join(', ') + ')');
+      }
+      A.ok(!g.some(c => c.model === DEAR_SMALL), 'no pass moved to ' + DEAR_SMALL + ', the newest small model that costs more than the run model ($0.30/$2.50 vs $0.10/$0.40)');
+      const rows5 = readJsonl(path.join(fixture.workspace, 'ledger.jsonl')).filter(x => x && x.agentId === 'oneshot-a3' && x.aux === 'study');
+      A.ok(rows5.length >= 1 && rows5.every(x => x.model === CHEAP_SMALL), 'the study ledger row names ' + CHEAP_SMALL + ' (got ' + rows5.map(x => x.model).join(', ') + ')');
+      const from2 = calls.length;
+      await post(fixture, Object.assign(title('oneshot-a3'), { model: FREE_RUN }));
+      await settle(mock.state);
+      const ft = models(calls.slice(from2), 'title');
+      A.ok(ft.length === 1 && ft[0] === FREE_RUN, 'a title on a $0 (:free) run stays on it, never a paid small model (got ' + ft.join(', ') + ')');
     } finally { await fixture.dispose(); try { mock.server.close(); } catch (_) {} }
   }
 

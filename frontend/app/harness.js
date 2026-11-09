@@ -1528,7 +1528,10 @@ const Harness = (() => {
         // XP / tasksDone / FloorStats products / the quest log / the suggestion cooldown never count the agent
         // thinking to itself (truthful-telemetry + honest-loot). The caller's own promise result is unaffected — the
         // switch below still latches runId/endReason locally from these same events.
-        const suppressBus = internal && (name === 'agent.run.start' || name === 'agent.run.end');
+        // W3.5: an internal session title's one planned retry on the run model (provider.fallback, reason oneshot_unusable)
+        // is that pass's own design, not a failover: no warn toast, REROUTE ticker or floor failover count. Its receipts and
+        // agent.cost still name both models.
+        const suppressBus = internal && (name === 'agent.run.start' || name === 'agent.run.end' || (name === 'provider.fallback' && payload.reason === 'oneshot_unusable'));
         if (!suppressBus && typeof U !== 'undefined' && U.bus) { try { U.bus.emit(name, payload); } catch (_) {} }
         switch (name) {
           // latch the LEAD's runId on the FIRST run.start only. Stage 2: a delegated worker's run.start/end/error

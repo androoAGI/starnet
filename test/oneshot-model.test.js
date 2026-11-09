@@ -2,8 +2,11 @@
    the model as it ran. Pure units + source pins; the end-to-end proof is test/oneshot-small-model.invariant.test.js.
 
    A. pick(): the family's small model, only from the catalog; the user's aux model wins; the switches; no family = run model
+   A2. the price check (review r1): where the provider prices its models the small model must cost LESS than the run model
+      (never gpt-5.4-mini for a gpt-5.6-luna run, never a newer flash-lite that costs as much as or more than an older
+      flash); a `:free` / $0 run keeps its model; unpriced routes (claude-cli, Codex) keep the family's small-tier rule
    B. call(): one retry on the run model for an error, a refusal, malformed output or an empty reply — never for a usable or
-      NONE reply, never after the pass gave up
+      NONE reply (with or without a short reason after it), never after the pass gave up
    C. guard(): the title run — a usable reply replays unchanged; an unusable one yields only its billing facts and throws an
       error errorClass files as oneshot_unusable (shouldFallback); other models pass straight through
    D. titleOf() agrees with frontend/app/chat.js cleanTitle on a corpus; the page marks its title run; the station reads it
@@ -60,6 +63,66 @@ const pick = (kind, runModel, models, extra) => OneShot.pick(kind, Object.assign
     A.eq(OneShot.KINDS.reflection, 'switch', 'reflection is behind its own switch');
   }
 
+  // ---- A2. the price check: the small model must cost less than the run model where the provider prices both ---------------
+  {
+    // a direct API's list rates (the adapters' own priceOf reads this table), and an OpenRouter-shaped catalog's
+    const listPrice = vendor => id => prices.priceOf(vendor, String(id).replace(/^[a-z-]+\//, '').replace(/:.*$/, ''));
+    const table = rows => id => (Object.prototype.hasOwnProperty.call(rows, id) ? rows[id] : null);
+    const dearer = (a, b) => a.in > b.in || a.out > b.out;
+    const GPT = ['gpt-5.6-luna', 'gpt-5.6-terra', 'gpt-5.6-sol', 'gpt-5.5', 'gpt-5.4-mini', 'gpt-5-mini'];
+    const oa = listPrice('openai');
+    A.ok(dearer(oa('gpt-5.4-mini'), oa('gpt-5.6-luna')), 'fixture: gpt-5.4-mini costs more than gpt-5.6-luna (prices.js)');
+    // GPT 5.6: luna is the family's small tier, so a luna run stays put and sol / terra move to luna
+    A.eq(pick('study', 'gpt-5.6-luna', GPT, { priceOf: oa }), { kind: 'study', model: 'gpt-5.6-luna', runModel: 'gpt-5.6-luna', small: false, why: 'already-small' }, 'a gpt-5.6-luna run stays on luna (never the dearer gpt-5.4-mini)');
+    A.eq(pick('study', 'gpt-5.6-luna', GPT).model, 'gpt-5.6-luna', '...on an unpriced route too (luna is the small tier by name)');
+    A.eq(pick('study', 'gpt-5.6-sol', GPT, { priceOf: oa }).model, 'gpt-5.6-luna', 'a gpt-5.6-sol run moves to luna');
+    A.eq(pick('study', 'gpt-5.6-terra', GPT, { priceOf: oa }).model, 'gpt-5.6-luna', 'a gpt-5.6-terra run moves to luna');
+    A.eq(pick('study', 'gpt-5.6-sol', GPT).model, 'gpt-5.6-luna', 'Codex (prices nothing): luna is the newest small model the catalog lists');
+    A.eq(pick('study', 'gpt-5.5', ['gpt-5.5', 'gpt-5.4-mini', 'gpt-5.6-luna'], { priceOf: oa }).model, 'gpt-5.6-luna', 'a gpt-5.5 run takes the newest small model that is cheaper');
+    A.eq(pick('study', 'openai/gpt-5.6-luna', ['openai/gpt-5.6-luna', 'openai/gpt-5.4-mini', 'openai/gpt-5-mini'], { priceOf: oa }).model, 'openai/gpt-5.6-luna', 'OpenRouter openai/gpt-5.6-luna stays (never openai/gpt-5.4-mini)');
+    A.eq(pick('study', 'openai/gpt-5.6-sol', ['openai/gpt-5.6-sol', 'openai/gpt-5.6-luna', 'openai/gpt-5.4-mini'], { priceOf: oa }).model, 'openai/gpt-5.6-luna', 'OpenRouter openai/gpt-5.6-sol moves to openai/gpt-5.6-luna');
+    A.eq(pick('study', 'gpt-4o', ['gpt-4o', 'gpt-4o-mini', 'gpt-4o-mini-tts'], { priceOf: oa }).model, 'gpt-4o-mini', 'an older family still takes its -mini where it is cheaper');
+    // Gemini: the newest flash-lite is no longer always the cheapest
+    const gm = listPrice('gemini');
+    A.ok(dearer(gm('gemini-3.5-flash-lite'), gm('gemini-2.0-flash')) && !dearer(gm('gemini-3.5-flash-lite'), gm('gemini-2.5-flash')) && !dearer(gm('gemini-2.5-flash'), gm('gemini-3.5-flash-lite')),
+      'fixture: gemini-3.5-flash-lite costs more than 2.0-flash and the same as 2.5-flash (prices.js)');
+    const r20 = pick('study', 'gemini-2.0-flash', ['gemini-2.0-flash', 'gemini-2.0-flash-lite', 'gemini-2.5-flash-lite', 'gemini-3.5-flash-lite'], { priceOf: gm });
+    A.eq([r20.model, r20.small], ['gemini-2.0-flash-lite', true], 'a gemini-2.0-flash run moves to 2.0-flash-lite, the one flash-lite that costs less (never 3.5-flash-lite, never the same-priced 2.5-flash-lite)');
+    const r20b = pick('study', 'gemini-2.0-flash', ['gemini-2.0-flash', 'gemini-2.5-flash-lite', 'gemini-3.5-flash-lite'], { priceOf: gm });
+    A.eq([r20b.model, r20b.small, r20b.why], ['gemini-2.0-flash', false, 'no-cheaper-small'], 'no flash-lite cheaper than gemini-2.0-flash: the run model, no retry');
+    const r25 = pick('study', 'gemini-2.5-flash', ['gemini-2.5-flash', 'gemini-2.5-flash-lite', 'gemini-3.1-flash-lite', 'gemini-3.5-flash-lite'], { priceOf: gm });
+    A.ok(r25.small && r25.model !== 'gemini-3.5-flash-lite' && !dearer(gm(r25.model), gm('gemini-2.5-flash')) && dearer(gm('gemini-2.5-flash'), gm(r25.model)), 'a gemini-2.5-flash run moves to a CHEAPER flash-lite, never the same-priced 3.5-flash-lite (got ' + r25.model + ')');
+    A.eq(r25.model, 'gemini-3.1-flash-lite', '...the newest of the cheaper ones');
+    A.eq(pick('study', 'gemini-2.5-flash', ['gemini-2.5-flash', 'gemini-3.5-flash-lite'], { priceOf: gm }).why, 'no-cheaper-small', 'the same price on both rates is not cheaper: the run model');
+    A.eq(pick('study', 'gemini-3-pro', ['gemini-3-pro', 'gemini-2.5-flash-lite', 'gemini-3.5-flash-lite'], { priceOf: gm }).model, 'gemini-3.5-flash-lite', 'a Pro run still takes the newest flash-lite (it is cheaper)');
+    // OpenRouter: the catalog's own rows price each id; a :free run costs nothing and stays
+    const OR = { 'google/gemini-2.0-flash-exp:free': { in: 0, out: 0 }, 'google/gemini-2.0-flash-001': { in: 0.10, out: 0.40 }, 'google/gemini-2.5-flash-lite': { in: 0.10, out: 0.40 },
+      'google/gemini-3.5-flash-lite': { in: 0.30, out: 2.50 }, 'openai/gpt-5.5:free': { in: 0, out: 0 }, 'openai/gpt-5.4-mini': { in: 0.75, out: 4.50 }, 'openai/gpt-5-mini': { in: 0.25, out: 2.00 },
+      'google/gemini-2.5-pro': { in: 1.25, out: 10 }, 'anthropic/claude-sonnet-5.5': { in: 2, out: 10 }, 'anthropic/claude-haiku-5.5': { in: 0.10, out: 0.50 } };
+    const orCat = Object.keys(OR);
+    for (const run of ['google/gemini-2.0-flash-exp:free', 'openai/gpt-5.5:free']) {
+      A.eq(pick('study', run, orCat, { priceOf: table(OR) }), { kind: 'study', model: run, runModel: run, small: false, why: 'free-run' }, run + ': a free run keeps its model (never a paid one)');
+      A.eq(pick('study', run, orCat).model, run, run + ': ...even when the catalog prices nothing (the :free tag says it)');
+    }
+    A.eq(pick('study', 'google/gemini-2.5-pro:free', orCat).why, 'free-run', 'a free Pro run is not moved either');
+    A.eq(pick('title', 'x/gemini-3-pro', ['x/gemini-3-pro', 'x/gemini-3.5-flash-lite'], { priceOf: table({ 'x/gemini-3-pro': { in: 0, out: 0 }, 'x/gemini-3.5-flash-lite': { in: 0.3, out: 2.5 } }) }).why, 'free-run', 'a run model priced at $0 (no :free tag) keeps its model');
+    A.eq(pick('study', 'google/gemini-2.5-pro', orCat, { priceOf: table(OR) }).model, 'google/gemini-3.5-flash-lite', 'a paid OpenRouter run still moves to its cheaper small model');
+    // the rule is "neither rate above the run's and one below": a cheaper input with a dearer output is not cheaper
+    const mixed = table({ 'v/claude-sonnet-9': { in: 1, out: 5 }, 'v/claude-haiku-9': { in: 0.5, out: 6 } });
+    A.eq(pick('study', 'v/claude-sonnet-9', ['v/claude-sonnet-9', 'v/claude-haiku-9'], { priceOf: mixed }).why, 'no-cheaper-small', 'a cheaper input but a dearer output: not taken');
+    const unpricedCand = table({ 'v/claude-sonnet-9': { in: 2, out: 10 } });
+    A.eq(pick('study', 'v/claude-sonnet-9', ['v/claude-sonnet-9', 'v/claude-haiku-9'], { priceOf: unpricedCand }).why, 'no-cheaper-small', 'beside a priced run model, a candidate the provider does not price is never assumed cheaper');
+    // a routing variant (:nitro) is priced as its base model's row; a [1m] window too
+    const nitro = pick('study', 'anthropic/claude-sonnet-5.5:nitro', orCat, { priceOf: table(OR) });
+    A.eq([nitro.model, nitro.small], ['anthropic/claude-haiku-5.5', true], 'a :nitro run is priced as its base model: the cheaper haiku');
+    // unpriced routes keep the family rule: claude-cli and Codex answer null for every id
+    const CLI = cli._internals.MODELS.map(m => m.id);
+    A.eq(pick('scout', 'claude-sonnet-5-5', CLI, { priceOf: () => null }).model, 'haiku', 'claude-cli (prices nothing): the haiku alias, as before');
+    A.eq(pick('study', 'gpt-5.5', ['gpt-5.5', 'gpt-5.4-mini'], { priceOf: () => null }).model, 'gpt-5.4-mini', 'Codex (prices nothing): the -mini, as before');
+    A.eq(pick('study', 'gemini-2.0-flash', ['gemini-2.0-flash', 'gemini-2.0-flash-lite'], { priceOf: () => { throw new Error('catalog broke'); } }).model, 'gemini-2.0-flash-lite', 'a price reader that throws is unpriced: the family rule, never a crash');
+    A.eq(OneShot._internals.split('google/gemini-2.0-flash-exp:free').tag, 'free', 'split() names the variant tag');
+  }
+
   // ---- B. call: the one retry -------------------------------------------------------------------------------------------
   {
     const plan = { kind: 'study', model: 'small', runModel: 'run', small: true };
@@ -71,10 +134,15 @@ const pick = (kind, runModel, models, extra) => OneShot.pick(kind, Object.assign
       A.eq(s.seen, ['small', 'run'], why + ': the small model first, then ONE retry on the run model');
       A.eq([r.text, r.model, r.retried], ['DIM: craft ADD likes tests', 'run', why], why + ': the run model\'s reply is the pass\'s, and the reason is named');
     }
-    for (const ok of ['NONE', '**NONE**', 'NONE.', 'DIM: craft ADD likes tests']) {
+    for (const ok of ['NONE', '**NONE**', 'NONE.', 'DIM: craft ADD likes tests',
+      // a NONE with a short reason, or quoted, is still the pass's "nothing to keep" (review r1: these cost a run-model retry)
+      'NONE - nothing durable here', 'NONE — nothing to keep', 'NONE: a one-line fix', 'NONE (a trivial run)', '`NONE`', '"NONE"', 'None.', '_NONE_', 'NONE!!', 'NONE\r\n']) {
       const s = script([ok]);
       const r = await OneShot.call(plan, s.attempt, accept);
       A.eq([s.seen, r.model, r.retried], [['small'], 'small', ''], JSON.stringify(ok) + ': a usable reply is kept, no second call');
+    }
+    for (const no of ['None of these are durable, but the Commander likes tests.', 'NONEXISTENT', 'Nothing to keep.']) {
+      A.eq(OneShot.verdict(no, accept), 'malformed', JSON.stringify(no) + ' is not a NONE (prose, or another word): malformed, so it is retried');
     }
     {
       const s = script(['garbage', 'still garbage']);
@@ -149,7 +217,16 @@ const pick = (kind, runModel, models, extra) => OneShot.pick(kind, Object.assign
     A.ok(/Harness\.chat\(\{[^\n]*internal: true, oneShot: 'title'/.test(retitle), 'maybeRetitle marks its call as the session title');
     const harness = fs.readFileSync(path.join(__dirname, '../frontend/app/harness.js'), 'utf8');
     A.ok(/if \(internal && oneShot === 'title'\) reqBody\.oneShot = 'title';/.test(harness), 'Harness.chat forwards the mark for an internal run only');
+    // a title's planned retry is no failover: the page keeps it off U.bus (no warn toast, REROUTE ticker or floor failover count)
+    const sb = /const suppressBus = (internal && \([^\n]*\));/.exec(harness);
+    A.ok(!!sb, 'fixture: harness.js suppressBus sliced');
+    const suppress = sb ? new Function('internal', 'name', 'payload', 'return ' + sb[1] + ';') : () => null;
+    A.eq(suppress(true, 'provider.fallback', { reason: 'oneshot_unusable' }), true, 'an internal title\'s retry on the run model never reaches U.bus as a failover');
+    A.eq(suppress(true, 'provider.fallback', { reason: 'overloaded' }), false, 'a real failover on an internal run still shows');
+    A.eq(suppress(false, 'provider.fallback', { reason: 'oneshot_unusable' }), false, 'a Commander\'s own run is never filtered');
+    A.eq([suppress(true, 'agent.cost', {}), suppress(true, 'agent.run.start', {}), suppress(true, 'agent.run.end', {})], [false, true, true], 'spend stays on the bus; the internal run.start/run.end filter is unchanged');
     const idx = readSidecarIndex();
+    A.ok(/priceOf: \(p && typeof p\.priceOf === 'function'\) \? \(id => p\.priceOf\(id\)\) : null/.test(idx), 'oneShotPlan hands the resolver the run provider\'s own prices');
     A.ok(/oneShot: \(internal && body && body\.oneShot === 'title'\) \? 'title' : undefined/.test(idx), 'the station reads the mark on internal runs only');
     A.ok(/if \(internal && o\.oneShot === 'title'\) \{/.test(idx) && /OneShot\.guard\(provider, titlePlan, t => !!OneShot\.titleOf\(t\)\)/.test(idx), 'runOnceCore guards the title run with the title verdict');
     A.ok(/const runKeyGone = adapter => \{ const id = runWatch\.gone\(adapter\) \|\| runWatch\.gone\(OneShot\.innerOf\(adapter\)\);/.test(idx), 'the credential watch reads through the guard');

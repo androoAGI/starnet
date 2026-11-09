@@ -13,11 +13,19 @@
          2. a kind that is not switched on keeps the run model (reflection: only with ctx.reflectionOn; every kind: not
             when ctx.smallOn === false; failure review and every other kind are not small-model passes);
          3. the SMALL model of the run model's provider family, chosen only from ctx.models (the run provider's own
-            catalog ids, never an id the catalog does not list): Claude -> haiku, GPT -> -mini, Gemini -> flash-lite.
-            The catalog's bare alias of that tier (claude-cli's `haiku`, which follows the newest Haiku) wins, else the
-            newest version; same vendor prefix only (an OpenRouter anthropic/ run never lands on openai/).
-         4. otherwise the run model: an unknown family, a family whose small model the catalog does not list, or a run
-            model that is already small.
+            catalog ids, never an id the catalog does not list): Claude -> haiku, GPT -> -mini or the 5.6 family's luna,
+            Gemini -> flash-lite. The catalog's bare alias of that tier (claude-cli's `haiku`, which follows the newest
+            Haiku) wins, else the newest version; same vendor prefix only (an OpenRouter anthropic/ run never lands on
+            openai/).
+            PRICE CHECK (review r1): the point is to spend less, so where the run provider prices its models
+            (ctx.priceOf(id) -> { in, out } per million: OpenRouter, the Anthropic, Gemini and OpenAI-compatible APIs) a
+            candidate is kept only when it is CHEAPER than the run model: neither its input nor its output rate above the
+            run's, and at least one strictly below (a newer flash-lite that costs what a 2.5 flash costs, or more than a
+            2.0 flash, is never taken). A candidate the provider does not price is never taken beside a priced run model.
+            Where nothing is priced (a subscription: claude-cli, Codex) the family's small tier is the rule.
+         4. otherwise the run model: an unknown family, a family whose small model the catalog does not list (or none
+            cheaper than the run model), a run model that is already small, or a run that costs nothing (an OpenRouter
+            `:free` variant, or a run model priced at $0): a free pass never moves to a paid one.
        small: true only for step 3. why: one word for the log line.
 
      call(plan, attempt, accept, opts) -> { text, model, retried, tries }
@@ -36,7 +44,7 @@
        chain (fallbackEntry). Requests on any other model pass straight through. innerOf(guarded) names the adapter a
        guard wraps (null for any other adapter): the run's credential watch is keyed by that adapter.
 
-     isNone(text) · titleOf(raw) · verdict(text, accept) · smallModelOf(runModel, ids) · familyOf(id)
+     isNone(text) · titleOf(raw) · verdict(text, accept) · smallModelOf(runModel, ids, priceOf) · familyOf(id)
 
    Pure: no fs, no network, no clock. */
 'use strict';
@@ -57,11 +65,12 @@ const FAMILIES = [
     small: b => /^claude-(?:haiku-\d+(?:[-.]\d+)*|\d+(?:[-.]\d+)*-haiku)(?:-\d{8})?(?:-latest)?$/i.test(b)
   },
   {
+    // the 5.6 family names its tiers sol (large), terra (mid) and luna (small); earlier families say -mini / -nano
     family: 'gpt',
     is: b => /^gpt-\d/i.test(b),
-    tier: b => /-(?:mini|nano)(?:-|$)/i.test(b) ? 'small' : 'large',
+    tier: b => /-(?:mini|nano|luna)(?:-|$)/i.test(b) ? 'small' : /-terra(?:-|$)/i.test(b) ? 'mid' : 'large',
     alias: '',
-    small: b => /^gpt-\d+(?:\.\d+)?o?-mini(?:-\d{4}-\d{2}-\d{2})?$/i.test(b)
+    small: b => /^gpt-\d+(?:\.\d+)?(?:o?-mini|-luna)(?:-\d{4}-\d{2}-\d{2})?$/i.test(b)
   },
   {
     family: 'gemini',
@@ -78,8 +87,11 @@ function split(id) {
   const prefix = at >= 0 ? s.slice(0, at + 1) : '';
   let base = at >= 0 ? s.slice(at + 1) : s;
   const variant = /:|\[[^\]]*\]$/.test(base);
-  base = base.replace(/\[[^\]]*\]$/, '').replace(/:.*$/, '');
-  return { prefix, base, variant };
+  base = base.replace(/\[[^\]]*\]$/, '');
+  const colon = base.indexOf(':');
+  const tag = colon >= 0 ? base.slice(colon + 1).trim().toLowerCase() : '';   // OpenRouter's variant: free, nitro, thinking...
+  base = base.replace(/:.*$/, '');
+  return { prefix, base, variant, tag };
 }
 function familyOf(id) {
   const { base } = split(id);
@@ -100,28 +112,50 @@ function newer(a, b) {   // > 0 when version a is newer than b
   return 0;
 }
 
-/* smallModelOf(runModel, ids) -> { model, why }: the family's small model as the catalog lists it, or model '' and why. */
-function smallModelOf(runModel, ids) {
+/* priceFact(priceOf, id) -> { in, out } (per million, both finite and >= 0) or null: the run provider's own price for an id.
+   null = unpriced (a subscription route prices nothing; a catalog may not price every id; a throwing reader is unpriced). */
+function priceFact(priceOf, id) {
+  if (typeof priceOf !== 'function' || !id) return null;
+  let p = null;
+  try { p = priceOf(id); } catch (_) { return null; }
+  if (!p || typeof p !== 'object') return null;
+  const i = Number(p.in), o = Number(p.out);
+  return (Number.isFinite(i) && Number.isFinite(o) && i >= 0 && o >= 0) ? { in: i, out: o } : null;
+}
+// a candidate is cheaper than the run model: neither rate above the run's, and at least one strictly below
+function cheaper(c, r) { return c.in <= r.in && c.out <= r.out && (c.in < r.in || c.out < r.out); }
+
+/* smallModelOf(runModel, ids, priceOf?) -> { model, why }: the family's small model as the catalog lists it (and, where the
+   provider prices both, one that costs less than the run model), or model '' and why. */
+function smallModelOf(runModel, ids, priceOf) {
   const run = split(runModel);
   const fam = familyOf(runModel);
   if (!fam) return { model: '', why: 'unknown-family' };
   if (fam.tier === 'small') return { model: '', why: 'already-small' };
+  if (run.tag === 'free') return { model: '', why: 'free-run' };   // OpenRouter's $0 variant: a free pass never moves to a paid one
+  // the run model's price: its own row, else (a routing variant such as :nitro, a [1m] window) its base model's
+  const runPrice = priceFact(priceOf, runModel) || (run.variant ? priceFact(priceOf, run.prefix + run.base) : null);
+  if (runPrice && runPrice.in === 0 && runPrice.out === 0) return { model: '', why: 'free-run' };
   const list = Array.isArray(ids) ? ids.map(str).filter(Boolean) : [];
   if (!list.length) return { model: '', why: 'no-catalog' };
-  let best = null;
+  let best = null, dearer = 0;
   for (const id of list) {
     if (id === str(runModel)) continue;
     const c = split(id);
     if (c.variant || c.prefix !== run.prefix) continue;
     const isAlias = !!fam.def.alias && c.base.toLowerCase() === fam.def.alias;
     if (!isAlias && !fam.def.small(c.base)) continue;
+    if (runPrice) {   // a priced run: only a candidate the provider prices below it (an unpriced one is never assumed cheaper)
+      const cp = priceFact(priceOf, id);
+      if (!cp || !cheaper(cp, runPrice)) { dearer++; continue; }
+    }
     const cand = { id, alias: isAlias, v: versionOf(c.base) };
     if (!best) { best = cand; continue; }
     if (cand.alias !== best.alias) { if (cand.alias) best = cand; continue; }   // the alias follows the newest release
     const d = newer(cand.v, best.v);
     if (d > 0 || (d === 0 && cand.id.length < best.id.length)) best = cand;  // a tie: the undated id
   }
-  return best ? { model: best.id, why: 'family-small' } : { model: '', why: 'no-small-in-catalog' };
+  return best ? { model: best.id, why: 'family-small' } : { model: '', why: dearer ? 'no-cheaper-small' : 'no-small-in-catalog' };
 }
 
 function plan(kind, model, runModel, small, why) { return { kind, model: str(model), runModel: str(runModel), small: !!small, why }; }
@@ -135,12 +169,15 @@ function pick(kind, ctx) {
   const mode = KINDS[k];
   if (!mode) return plan(k, runModel, runModel, false, 'not-a-small-pass');
   if (c.smallOn === false || (mode === 'switch' && c.reflectionOn !== true)) return plan(k, runModel, runModel, false, 'switch-off');
-  const s = smallModelOf(runModel, c.models);
+  const s = smallModelOf(runModel, c.models, c.priceOf);
   return s.model ? plan(k, s.model, runModel, true, s.why) : plan(k, runModel, runModel, false, s.why);
 }
 
-// a pass's explicit "nothing to keep": a line that is just NONE (markdown bold or a trailing stop allowed)
-const NONE_LINE = /^\s*\**\s*NONE\s*\**\s*[.!]?\s*$/im;
+/* a pass's explicit "nothing to keep": a line that is just NONE — in markdown emphasis, backticks or quotes, with a trailing
+   stop, or with a short reason after a dash, colon or parenthesis ("NONE - nothing durable here"). Each pass's own parser
+   finds nothing to keep in such a reply, exactly as in a bare NONE, so it is never a reason to call the run model again.
+   "None of these..." is not one: NONE must end its line or meet one of those separators. */
+const NONE_LINE = /^\s*[*_`"'“”‘’]*\s*NONE\s*[*_`"'“”‘’]*\s*(?:[.!]+|[-–—:(][^\n]*)?\s*$/im;
 function isNone(text) { return NONE_LINE.test(str(text)); }
 const REFUSAL = /\b(?:i(?:'|’)?m sorry|i am sorry|i can(?:'|’)?t|i cannot|i(?:'|’)?m unable|i am unable|as an ai)\b/i;
 // why a reply is unusable ('' = usable): empty, refusal or malformed
@@ -235,4 +272,4 @@ function guard(provider, p, accept) {
 function fallbackEntry(provider, providerId, p) { return { provider, providerId, model: p.runModel }; }
 
 module.exports = { pick, call, guard, innerOf, fallbackEntry, verdict, isNone, titleOf, smallModelOf, familyOf, KINDS,
-  _internals: { split, versionOf, newer, FAMILIES, REFUSAL, NONE_LINE } };
+  _internals: { split, versionOf, newer, priceFact, cheaper, FAMILIES, REFUSAL, NONE_LINE } };

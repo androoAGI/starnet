@@ -4067,9 +4067,14 @@ function resolveAuxModel() {
    11-08): on by default, all off with STARNET_AUX_SMALL_MODEL=0. Reflection moves there only with
    STARNET_AUX_SMALL_REFLECTION=1 (default off). The user's own aux model (resolveAuxModel) always wins, as before. The small
    model is only ever an id the run provider's own catalog lists, read here under a ceiling: a catalog that does not answer
-   in time keeps the run model. */
+   in time keeps the run model. Where the provider prices its models, the small model must also cost less than the run's
+   (oneshot-model.js PRICE CHECK, the adapter's own priceOf); a `:free` or $0 run keeps its model. */
 const ONESHOT_CATALOG_MS = 2000;
-// one read per adapter for 10 min: a run's passes share its aux adapter, and an OAuth adapter (Codex) lists live on every call
+/* one read per adapter OBJECT, held at most 10 min. A run's post-run passes share one aux adapter (PromptScrub.guardRequest
+   makes it per run) and a title run builds its own, so in practice this is one read per qualifying run and one per title.
+   What a read costs depends on the adapter: OpenRouter answers from its process-wide catalog, the Anthropic, Gemini and
+   OpenAI-compatible adapters from the process catalog cache (catalog-cache.js), claude-cli from its baked list after one
+   `claude auth status` on that adapter, and Codex with one live GET /models (no inference, no tokens). */
 const ONESHOT_CATALOG_TTL_MS = 10 * 60 * 1000;
 const oneShotCatalogs = new WeakMap();   // adapter -> { at, ids: Promise<string[]> } (an empty answer is never kept)
 function oneShotCatalog(provider, providerId) {
@@ -4094,8 +4099,11 @@ function oneShotCatalog(provider, providerId) {
 }
 // the plan for one pass: { kind, model, runModel, small, why } — o: { provider, route, runModel (else model) }
 async function oneShotPlan(kind, o) {
+  const p = o && o.provider;
   const ctx = { runModel: String((o && (o.runModel || o.model)) || ''), explicit: resolveAuxModel() || '',
-    smallOn: ENV('AUX_SMALL_MODEL') !== '0', reflectionOn: ENV('AUX_SMALL_REFLECTION') === '1' };
+    smallOn: ENV('AUX_SMALL_MODEL') !== '0', reflectionOn: ENV('AUX_SMALL_REFLECTION') === '1',
+    // the run provider's own per-million prices (null on a subscription route): the small model must cost less than the run's
+    priceOf: (p && typeof p.priceOf === 'function') ? (id => p.priceOf(id)) : null };
   const first = OneShot.pick(kind, ctx);
   if (first.why !== 'no-catalog') return first;   // decided without the catalog: the user's aux model, a switch, no family, already small
   ctx.models = await oneShotCatalog(o && o.provider, o && o.route);
@@ -24768,7 +24776,7 @@ async function runOnceCore(o) {
     fallbacks.unshift(OneShot.fallbackEntry(provider, providerId, titlePlan));   // the run's own model, first: the title's one retry
     provider = OneShot.guard(provider, titlePlan, t => !!OneShot.titleOf(t));
     model = titlePlan.model;
-    console.log('[oneshot] title: ' + titlePlan.model + ' (the run model ' + titlePlan.runModel + ' takes over once if its reply is unusable)');
+    if (DEBUG_CHANNEL_LOGS) console.log('[oneshot] title: ' + titlePlan.model + ' (the run model ' + titlePlan.runModel + ' takes over once if its reply is unusable)');   // every title: debug only
   }
   // INTERNAL self-talk (a title, session ideas, a goal plan) is reason-only aux work: it runs on the aux effort, not the
   // effort the Commander picked for their own chat (auxPassEffort). Every adapter clamps a per-request effort to what
