@@ -313,5 +313,11 @@ const IDX = read('sidecar/index.js');
     A.ok(IDX.indexOf("question = 'Give ' + parts.join(', and ') + '?';") > 0 && IDX.indexOf("nameOf(id) + ' FULL ACCESS and the ' + label(id) + ' profile'") > 0, 'B5: the roster route builds it from the agents asked for');
   }
 
+  // ---- final review B2: a restored routine store is worded as a restore ----
+  {
+    const open = A.fnBody(IDX, 'function cronOpenAuthority(');
+    A.ok(open.indexOf("(r.restored\n        ? 'cron.jobs.json came back with a restore from a recovery bundle") > 0, 'B2: a restore is said as a restore, not "changed outside StarNet"');
+  }
+
   A.report('desk-breakages.test');
 })().catch(e => { console.error(e); process.exit(1); });

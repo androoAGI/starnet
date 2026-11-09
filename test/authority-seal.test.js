@@ -841,6 +841,18 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
     const r = next.openParts('cron.jobs.json', granted, parts);
     A.eq(r.ok, [], '#4: with the marker deleted, the replayed routine store verifies nothing (no grant comes back)');
     A.ok(r.stale && r.reset, '#4: it reads as stale against the reset floor, and says the record was lost');
+    A.eq(r.restored, false, 'B2: a deleted marker is not a restore');
+    {
+      // final review B2: the same missing marker with a restore's record is a restore, and openParts says so (the
+      // station words it as one; the grants it carried still verify nothing)
+      const mkR = { value: undefined, read() { return this.value; }, write(v) { this.value = v; } };
+      let rec = { files: ['cron.jobs.json'] };
+      const restoredSt = S.makeAuthoritySeal({ key: KEY, now: () => 3500, marker: mkR, restored: { read: () => rec, drop: () => { rec = undefined; } } });
+      restoredSt.boot(list);
+      const rr = restoredSt.openParts('cron.jobs.json', granted, parts);
+      A.ok(rr.restored === true && rr.reset === false, 'B2: after a restore openParts says restored, not "changed outside StarNet"');
+      A.eq(rr.ok, [], 'B2: and a restored grant still verifies nothing here');
+    }
     A.ok(Number(mk.value.floors['cron.jobs.json']) > granted.g, '#4: the rewritten marker carries the routine store\'s new floor');
     A.ok(next.notices().some(n => n.kind === 'marker-missing' && /routines run without their unattended grants/.test(n.text)), '#4: the missing-marker notice names the routines');
     // the same for a foreign marker (another key, or edited)

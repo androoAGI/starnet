@@ -615,7 +615,8 @@ function makeAuthoritySeal(opts) {
     known.set(name, true);
     // reset: this boot lost the record of what was last taken away (the marker missing or foreign), so a stale record
     // is not necessarily an older copy put back, only one sealed before now
-    return { ok: ok, stale: g !== null && g > 0 && !fresh, reset: floorsReset && !restoredBoot };
+    // restored (final review B2): this boot took a restore's record, so the caller can say it was a restore, not a change
+    return { ok: ok, stale: g !== null && g > 0 && !fresh, reset: floorsReset && !restoredBoot, restored: restoredBoot };
   }
   function refused(name, text) {
     name = String(name);

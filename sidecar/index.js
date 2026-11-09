@@ -7979,7 +7979,10 @@ function cronOpenAuthority(raw, jobs) {
       if (typeof j.notepad === 'string' && j.notepad && !j.notepadTaint && !ok.has('notepad:' + j.id)) { next = Object.assign({}, next, { notepadTaint: CRON_NOTEPAD_UNSEALED }); notepads++; }
       return next;
     });
-    if (lost.length || notepads) authoritySeal.refused('cron.jobs.json', (r.stale && r.reset
+    // final review B2: after a restore (this computer's or another's) say so; "changed outside StarNet" was wrong there
+    if (lost.length || notepads) authoritySeal.refused('cron.jobs.json', (r.restored
+        ? 'cron.jobs.json came back with a restore from a recovery bundle, and its seal is not one this computer can check'
+        : r.stale && r.reset
         ? 'cron.jobs.json cannot be checked against the record of what was last taken away (authority-seal.json was missing or did not match)'
         : 'cron.jobs.json was changed outside StarNet' + (r.stale ? ' (an older copy was put back)' : '')) + ', so ' +
       (lost.length ? 'the routine' + (lost.length > 1 ? 's ' : ' ') + lost.slice(0, 6).join(', ') + (lost.length > 6 ? ' and ' + (lost.length - 6) + ' more' : '') + ' run' + (lost.length > 1 ? '' : 's') + ' without unattended grants (grant them again in SCHEDULES)' : '') +
