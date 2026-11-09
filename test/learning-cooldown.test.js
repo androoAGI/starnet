@@ -347,6 +347,11 @@ const LC = require('../sidecar/learning-cooldown.js');
   A.ok(rec.indexOf("return { stored: false, reason: 'personalization-paused' }") < rec.indexOf(OPEN), '...never while learning is paused (nothing learns then)');
   A.ok(rec.indexOf(OPEN) < rec.indexOf('await notebookStore.update(') && rec.indexOf(OPEN) < rec.indexOf("reason: 'nothing to learn'")
     && rec.indexOf(OPEN) < rec.indexOf("reason: 'could not save'"), '...and whatever the save keeps: a verdict that adds nothing new (a wordless CLOSE, a repeated chip) or a save that fails still opens them (verdicts always bypass)');
+  // it sits below the taste reference read (tasteref.test pins that read right under the pause check), which never throws
+  const tasteRead = sidecarTopLevelFunction('captureTasteRef');
+  A.ok(rec.indexOf('const ref = o.run ? await captureTasteRef(o.run) : null;') < rec.indexOf(OPEN)
+    && /^async function captureTasteRef\(lead\) \{\s*try \{/.test(tasteRead) && /\} catch \(e\) \{ failNote\('taste\.ref', e\); return null; \}\s*\}\s*$/.test(tasteRead),
+    '...below the taste reference read, which answers null instead of throwing, so nothing between the pause check and the open can skip it');
   for (const route of ['handleGrowthRatings', 'handleGrowthRatingCorrection', 'handleTasteKeepStyle', 'handleRoutingFixSuggest'])
     A.ok(/recordFeedbackMemory\(\{/.test(sidecarTopLevelFunction(route)), route + ' stores its like/dislike through recordFeedbackMemory (so it opens the windows)');
   A.eq((src.match(/learningCooldown\.open\(/g) || []).length, 2, 'the windows open in exactly two places: a stored like/dislike and a run\'s cue');

@@ -31473,12 +31473,13 @@ async function recordFeedbackMemory(o) {
   const agentId = String(o.agentId || 'agent');
   try {
     if (!personalizationStore.read().enabled) return { stored: false, reason: 'personalization-paused' };
-    // W1.4 FEEDBACK IS CRITICAL: every like or dislike (a verdict, its correction, KEEP THIS STYLE, a workflow's NEEDS
-    // CHANGES: this is their one write path) opens every learning window of the agent, whatever the save below keeps,
-    // until each pass's next attempt from a run that ended after it (learning-cooldown.js); a running pass never uses it
-    try { learningCooldown.open(agentId, 'feedback'); } catch (e) { failNote('learning.cooldown', e); }
     // the reference is read only for a verdict that is about to be stored (never while learning is paused)
     const ref = o.run ? await captureTasteRef(o.run) : null;
+    // W1.4 FEEDBACK IS CRITICAL: every like or dislike (a verdict, its correction, KEEP THIS STYLE, a workflow's NEEDS
+    // CHANGES: this is their one write path) opens every learning window of the agent, whatever the save below keeps,
+    // until each pass's next answered attempt from a run that ended after it (learning-cooldown.js); a running pass never
+    // uses it. Below the reference read, which never throws (captureTasteRef answers null), so the save is all it precedes.
+    try { learningCooldown.open(agentId, 'feedback'); } catch (e) { failNote('learning.cooldown', e); }
     let out = null;
     await notebookStore.update('notebook:' + agentId, (stored) => {
       const r = FeedbackMemory.apply(stored, { runId: o.runId, verdict: o.verdict, words: redact(String(o.words || '')), directive: redact(String(o.directive || '')), ref, kept: o.kept === true },
