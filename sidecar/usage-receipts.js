@@ -6,6 +6,8 @@
 
      { v:1, at, ms, provider, account, model, runId?,
        uncachedIn, cacheRead, cacheWrite, out, reasoning,      the call's own usage, through cost.resolveUsage
+       cacheWrite5m?, cacheWrite1h?,                           the write's split by cache tier, only when the provider
+                                                               reported one that adds up (W1.13: Anthropic, Claude Code)
        usageMissing?: true,                                    no usage ever arrived: the counts are UNKNOWN, never 0
        end: 'done' | 'stopped' | 'error', status?,             how the call ended (an HTTP status, never error text)
        window?: { seenAt, windows: [{ id, usedPct, resetsAt, minutes, status? }] } }   the plan-window reading this call saw

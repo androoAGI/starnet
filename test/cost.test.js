@@ -90,7 +90,9 @@ A.eq(ce.reconcile(null, 'm').tokensIn, 0, 'null usage reconcile -> 0');
 /* The rates have to actually reach cost.js through the real catalog, not just through a test stub. */
 {
   const prices = require('../sidecar/providers/prices.js');
-  A.eq(prices.priceOf('anthropic', 'claude-opus-4-5').cache, { read: 0.10, write: 1.25 }, 'anthropic prices carry cache rates');
+  // W1.13: plus the per-tier write rates (5-minute 1.25x, 1-hour 2x; claude-api skill prompt-caching.md:144) that price
+  // a write the API split by tier (cost.js writeUnits)
+  A.eq(prices.priceOf('anthropic', 'claude-opus-4-5').cache, { read: 0.10, write: 1.25, write5m: 1.25, write1h: 2.00 }, 'anthropic prices carry cache rates');
   A.eq(prices.priceOf('gemini', 'gemini-2.5-pro').cache, { read: 0.25, write: 1.00 }, 'gemini prices carry cache rates');
   A.eq(prices.priceOf('anthropic', 'nope-not-a-model'), null, 'an unmatched id is still honestly unpriced');
 }
