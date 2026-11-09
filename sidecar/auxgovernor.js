@@ -140,17 +140,41 @@
   // spent 483 reasoning tokens at the chat's 'medium' and 0 at 'none' for the same title. `allowed` is the provider's
   // own reasoningEfforts(model) list; no list, or no low tier on it, -> null = no override (the provider default).
   const AUX_EFFORT_LADDER = ['none', 'minimal', 'low'];
-  function pickAuxEffort(allowed) {
-    if (!Array.isArray(allowed)) return null;
-    for (let i = 0; i < AUX_EFFORT_LADDER.length; i++) if (allowed.indexOf(AUX_EFFORT_LADDER[i]) >= 0) return AUX_EFFORT_LADDER[i];
+  const EFFORT_ORDER = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
+  // clampEffort(want, allowed) -> the rung a request for `want` carries on a model that lists `allowed`: `want` itself when it
+  // is listed, else the nearest listed rung ABOVE it (a background call is never thinner than asked), else the nearest below.
+  // null when there is no list, or no rung of it on the ladder: no override, the provider default stands. THE ONE CLAMP every
+  // background effort goes through (pickAuxEffort, loopEffort); effortAsRan below is the adapter's heal order, for records.
+  function clampEffort(want, allowed) {
+    const at = EFFORT_ORDER.indexOf(want);
+    if (at < 0 || !Array.isArray(allowed)) return null;
+    if (allowed.indexOf(want) >= 0) return want;
+    for (let i = at + 1; i < EFFORT_ORDER.length; i++) if (allowed.indexOf(EFFORT_ORDER[i]) >= 0) return EFFORT_ORDER[i];
+    for (let i = at - 1; i >= 0; i--) if (allowed.indexOf(EFFORT_ORDER[i]) >= 0) return EFFORT_ORDER[i];
     return null;
+  }
+  function pickAuxEffort(allowed) {
+    const pick = clampEffort(AUX_EFFORT_LADDER[0], allowed);
+    return pick && AUX_EFFORT_LADDER.indexOf(pick) >= 0 ? pick : null;
+  }
+
+  // loopEffort(allowed, runEffort, want?) -> the effort a background TOOL loop (the skill review, the skill curator) runs on:
+  // `want` (LOOP_EFFORT unless the operator configured one) clamped to the rungs the provider lists for the model, and never
+  // above the run's own effort when that is a rung: a /fast run's review stays minimal. These loops are only ever lowered,
+  // never raised. They used to send no effort, so each inherited the run's (a class-high agent's review thought at high to
+  // edit a skill file). null = no list (no override: the provider default stands).
+  const LOOP_EFFORT = 'low';
+  function loopEffort(allowed, runEffort, want) {
+    const pick = clampEffort(want || LOOP_EFFORT, allowed);
+    const run = EFFORT_ORDER.indexOf(runEffort);
+    if (!pick || run < 0 || run >= EFFORT_ORDER.indexOf(pick)) return pick;
+    return clampEffort(runEffort, allowed);
   }
 
   // effortAsRan(want, allowed) -> the rung a run that asked for `want` actually ran on, read from the model's list AFTER
   // the run. A self-talk pick the endpoint refused mid-run was resent at the nearest rung it keeps — down first, then up,
   // the OpenRouter adapter's clamp — and the list now says so (test/openrouter-effort-heal.test.js). `want` itself when
   // it is still on the list, or when there is no list to read.
-  const EFFORT_ORDER = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
   function effortAsRan(want, allowed) {
     if (!want) return null;
     if (!Array.isArray(allowed) || !allowed.length || allowed.indexOf(want) >= 0) return want;
@@ -161,5 +185,5 @@
     return want;
   }
 
-  return { PRIORITY: PRIORITY.slice(), DEFAULT_BUDGET, DEFAULT_TOKEN_CEILING, MAX_TOKEN_CEILING, TOKEN_WINDOW_MS, CEILING_KINDS: CEILING_KINDS.slice(), parseTokenCeiling, tokenGate, parseBudget, rank, decide, pickAuxEffort, effortAsRan, AUX_EFFORT_LADDER: AUX_EFFORT_LADDER.slice() };
+  return { PRIORITY: PRIORITY.slice(), DEFAULT_BUDGET, DEFAULT_TOKEN_CEILING, MAX_TOKEN_CEILING, TOKEN_WINDOW_MS, CEILING_KINDS: CEILING_KINDS.slice(), parseTokenCeiling, tokenGate, parseBudget, rank, decide, pickAuxEffort, effortAsRan, clampEffort, loopEffort, LOOP_EFFORT, EFFORT_ORDER: EFFORT_ORDER.slice(), AUX_EFFORT_LADDER: AUX_EFFORT_LADDER.slice() };
 });

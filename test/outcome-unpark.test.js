@@ -220,7 +220,7 @@ async function postLoop(kind, opts) {
     'runFailureReview', 'runBackgroundSkillReview', 'verdictReview', 'failReviewingNow', 'skillReviewingNow', 'auxProvider', '_auxFailModel', '_auxFailEffort',
     '_auxSkillModel', 'cost', 'providerUnmetered', 'learningEvidence', 'finalCompletionEvidence', 'loadedSkills', 'managedSkills', 'swallow', 'activeProviderId',
     'TurnDirective', 'directive', 'redact', 'liveServiceKeys', 'runTranscript', 'retryDirective', '_keyGone',   // the packet's directive and credential-presence gate are owned by the surrounding run
-    'automaticAux', 'skillNudge', 'persistSkillNudge', 'forgetRegistry', 'TurnKinds'];
+    'automaticAux', 'skillNudge', 'persistSkillNudge', 'forgetRegistry', 'TurnKinds', 'reasoningEffort'];   // reasoningEffort: the run's own effort, under which the review loop runs
   const auxRun = new Function(...AUX_NAMES, slice("if (_auxSpend.has('failure-review')) {", "if (_auxSpend.has('study')) {") +
     slice("if (_auxSpend.has('skill-review')) {", "if (_auxSpend.has('skill-curator')) {"));
   const aux = (result, o, spend) => {
@@ -233,7 +233,7 @@ async function postLoop(kind, opts) {
       new Set(), new Set(), {}, 'm', null, 'm', {}, false, {}, {}, [], [], () => () => {}, 'route-1',
       require('../sidecar/turn-directive.js'), null, t => t, () => [], { directiveRow: () => null }, null, false,
       (route, kind, agent, run, work) => work(), new Map(), () => {},
-      { admit: () => true }, require('../frontend/app/turnkinds.js'));
+      { admit: () => true }, require('../frontend/app/turnkinds.js'), 'high');
     return got;
   };
   const late = aux({ reason: 'done' }, { lateError: LATE }, ['failure-review']);
@@ -246,6 +246,7 @@ async function postLoop(kind, opts) {
   A.eq(okAux.skill && [okAux.skill.reason, okAux.skill.outcome], ['done', 'succeeded'], 'aux inputs / succeeded: the skill review carries the outcome beside done');
   A.eq(okAux.skill && okAux.skill.route, 'route-1', 'aux inputs: the skill review keeps its route');
   A.eq(okAux.stash && okAux.stash.route, 'route-1', 'aux inputs: and so does the verdict-review packet');
+  A.eq([okAux.skill && okAux.skill.runEffort, okAux.stash && okAux.stash.runEffort], ['high', 'high'], 'aux inputs: the skill review and the verdict-review packet carry the run\'s effort (their loop runs at or below it)');
 
   // runFailureReview hands Failreview.review the outcome; runBackgroundSkillReview hands the skill reviewer's prompt the outcome
   const indexFns = { failure: sidecarTopLevelFunction('runFailureReview'), skill: sidecarTopLevelFunction('runBackgroundSkillReview') };

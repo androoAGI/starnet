@@ -166,6 +166,9 @@
         ...(str(e.provider).trim() ? { provider: str(e.provider).trim().slice(0, 40) } : {}),   // (additive) the route a housekeeping pass ran on: the aux token ceiling counts per route
         ...(e.subscription === true ? { subscription: true } : {}),   // (additive) a $0 subscription call: it drew on a sign-in's usage window
         ...(str(e.aux).trim() ? { aux: str(e.aux).trim().slice(0, 40) } : {}),   // (additive) a housekeeping call's spend (reflection, study…), not a run
+        // (additive) the reasoning effort the calls RAN on, as the provider was given it ('cli-default': the Claude CLI got no
+        // --effort and ran on its own default). Absent when the booker cannot know it, never a guess.
+        ...(str(e.reasoningEffort).trim() ? { reasoningEffort: str(e.reasoningEffort).trim().slice(0, 20) } : {}),
         ts: num(e.ts) || clock.now()
       };
       // settleUnsettled, not a meter: the Commander settled this run. attestedAs says HOW — 'entered' (they typed the
@@ -352,8 +355,10 @@
     o = o || {};
     const ledger = o.ledger, kind = str(o.kind).trim() || 'aux', route = str(o.provider).trim();
     const rowClass = typeof o.rowClass === 'function' ? o.rowClass : null;
+    // effortOf(provider, req) -> the effort a streamed call ran on (the host's one answer, read after the call); the row names it
+    const effortOf = typeof o.effortOf === 'function' ? o.effortOf : null;
     const generationReceipt = makeGenerationReceipt();
-    let calls = 0, missing = 0, unpriced = false, subscription = false, usd = 0, tokens = 0, cachedTokens = 0;
+    let calls = 0, missing = 0, unpriced = false, subscription = false, usd = 0, tokens = 0, cachedTokens = 0, effort = '';
     function add(usage, cost, model, noteGeneration) {
       (noteGeneration || generationReceipt.begin())(usage && usage.generation_id);
       calls++;
@@ -378,7 +383,10 @@
             else if (ev && ev.type === 'generation') noteGeneration(ev.id);
             else if (ev && ev.type === 'usage') usage = ev.usage;
           }
-        } finally { add(usage, cost, req && req.model, noteGeneration); }
+        } finally {
+          add(usage, cost, req && req.model, noteGeneration);
+          if (effortOf) { try { effort = str(effortOf(provider, req) || '') || effort; } catch (_) { effort = ''; } }   // unreadable = unnamed, never a guess
+        }
         return out;
       },
       book(row) {
@@ -389,9 +397,9 @@
         if (!knownClass(billingClass)) billingClass = null;
         const unmetered = billingClass ? !BillingClass.POLICY[billingClass].ledgerMetered : !!row.unmetered;
         const entry = ledger.record({ runId: row.runId, agentId: row.agentId, turns: num(row.turns), usd, tokens, cachedTokens, model: row.model, ...(billingClass ? { billingClass } : {}), unmetered,
-          unpriced: !unmetered && unpriced, usageMissing: !unmetered && missing > 0, subscription, provider: route, aux: kind, ...generationReceipt.fields() });
+          unpriced: !unmetered && unpriced, usageMissing: !unmetered && missing > 0, subscription, provider: route, aux: kind, reasoningEffort: effort, ...generationReceipt.fields() });
         generationReceipt.reset();
-        calls = 0; missing = 0; unpriced = false; subscription = false; usd = 0; tokens = 0; cachedTokens = 0;   // booked once: a second book() adds no copy
+        calls = 0; missing = 0; unpriced = false; subscription = false; usd = 0; tokens = 0; cachedTokens = 0; effort = '';   // booked once: a second book() adds no copy
         return entry;
       },
       calls() { return calls; },

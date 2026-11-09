@@ -177,6 +177,7 @@ const {
   attachRequestScrub
 } = require('./providers/factory.js');
 const { makeCatalogCache, runWindow: catalogRunWindow } = require('./providers/catalog-cache.js');
+const { effortAsSent: cliEffortAsSent } = require('./providers/claude-cli.js');   // what the Claude CLI was given for an effort (effortAsRun)
 const { promptTierCeiling } = require('./providers/prices.js');
 /* RESTRICTED GOOGLE DATA NEVER RIDES THE STARNET RELAY (mcp/google-relay-guard.js). Every provider this process
    builds for StarNet Managed ('starnet' — the one StarNet-operated path model traffic can take) streams through
@@ -1454,7 +1455,8 @@ const ledger = makeLedger({ io: ledgerIo, clock: { now: () => Date.now() }, next
 const mediaDayGate = makeMediaDayGate({ read: () => ledger.unknownImageWindow(), limit: Number(ENV('IMAGE_UNKNOWN_COST_DAY_MAX')) });
 // every housekeeping pass meters its model calls through ONE of these and books them, $0 subscription calls too (ledger.js);
 // its row names its payer by the pass's route (billing-class.js auxRowClass)
-const auxSpend = (kind, route) => { const r = auxRoute(route); return makeAuxMeter({ ledger, kind, provider: r, rowClass: r ? signedIn => billing.auxRowClass(r, signedIn) : null }); };
+const auxSpend = (kind, route) => { const r = auxRoute(route); return makeAuxMeter({ ledger, kind, provider: r, rowClass: r ? signedIn => billing.auxRowClass(r, signedIn) : null,
+  effortOf: (provider, req) => effortAsRun(r, provider, req && req.model, req && req.reasoningEffort, null) }); };   // the row names the effort the call ran on
 // the passes that run the full agent loop (skill review, curator) book its result instead: any turn or usage = a row,
 // $0 included, with the loop's own floors (an unpriced model, a stream cut before usage) on a metered route only
 function auxLoopRan(result) { return !!result && !!(result.turns || result.usd || result.tokens); }
@@ -4099,6 +4101,27 @@ function providerEfforts(provider, model) {
   if (!provider || typeof provider.reasoningEfforts !== 'function') return null;
   try { return provider.reasoningEfforts(model); } catch (e) { failNote('aux.effort', e); return null; }
 }
+/* auxLoopEffort — the effort for the station's background TOOL loops (the skill review, the skill curator), `o` = the
+   loop's inputs (route, runEffort). sent: 'low', or the configured STARNET_AUX_EFFORT, clamped to the rungs the provider
+   lists for the loop's model and never above the run's own effort (AuxGovernor.loopEffort, the one clamp auxPassEffort also
+   goes through); undefined = no list: no override. ran(): the effort the loop's row records, read after the loop (a
+   mid-loop heal moved it; effortAsRun). */
+function auxLoopEffort(o, provider, model) {
+  const configured = String(ENV('AUX_EFFORT') || '').trim();
+  const sent = AuxGovernor.loopEffort(providerEfforts(provider, model), o && o.runEffort, configured ? normalizeReasoningEffort(configured) : undefined) || undefined;
+  return { sent, ran: () => effortAsRun(o && o.route, provider, model, sent, o && o.runEffort) };
+}
+/* effortAsRun — THE answer to "what effort did this call run on", for every record that names one (a run record, a ledger
+   row). claude-cli is given an effort only per request (--effort): a call that carried none ran on the CLI's own default and
+   is recorded 'cli-default' (claude-cli.js effortAsSent), never the level the station was set to. Any other adapter ran on
+   the per-request effort when one was sent, re-read against the model's list after the call (a refused rung was resent at
+   the nearest one kept: AuxGovernor.effortAsRan), else on the effort it was built with (`built`; null = the caller cannot
+   know it, and a record leaves the field out rather than guess). */
+function effortAsRun(providerId, provider, model, sent, built) {
+  if (auxRoute(providerId) === 'claude-cli') return cliEffortAsSent(sent);
+  if (sent) return AuxGovernor.effortAsRan(sent, providerEfforts(provider, model));
+  return built || null;
+}
 
 /* ---- HYBRID RECALL — the embedding lane (memory-compound lane) ----------------------------------------------
    BM25 alone can never surface "registry pushes rate-limit" for a task phrased "uploads keep getting throttled":
@@ -4593,10 +4616,12 @@ async function rehydrateReviewJob(job) {
   const cfg = sampleRunConfigFor(job.agentId || 'agent');
   if (!cfg || cfg.ok === false || !cfg.model || (!cfg.configured && !cfg.key)) throw new Error('no model configured for ' + (job.agentId || 'agent'));
   const providerId = normalizeProvider(cfg.provider);
-  const provider = await providerForRunConfig(cfg, resolveReasoningEffort(providerId, cfg.reasoningEffort));
+  const runEffort = resolveReasoningEffort(providerId, cfg.reasoningEffort);
+  const provider = await providerForRunConfig(cfg, runEffort);
   return Object.assign({}, job, {
     provider, route: providerId, cost: makeCostEngine({ priceOf: provider.priceOf }),
     model: auxSkillModel(provider, cfg.model),   // the CURRENT config's model: the parked one may belong to a provider since switched away from
+    runEffort,   // the effort that provider is built with: the review loop runs at or below it (auxLoopEffort)
     unmetered: !billing.policyOf(providerId).ledgerMetered
   });
 }
@@ -4613,6 +4638,7 @@ async function runBackgroundSkillReview(o) {
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, SKILL_REVIEW_TIMEOUT_MS);
   const reviewRunId = String(runId || 'run') + '_skill_review_' + crypto.randomUUID();
+  const effort = auxLoopEffort(o, provider, model);   // low, clamped to this model's rungs, never above the run's
   let result = null, changedSkillbase = false;   // a pass that staged/edited a skill did its work, whatever stopped it
   try {
     const registry = makeRegistry();
@@ -4672,14 +4698,14 @@ async function runBackgroundSkillReview(o) {
       provider, emit: () => {}, cost, tools: toolDefs, dispatch, capCtx,
       limits: { maxIters: 6, maxCostUsd: SKILL_REVIEW_MAX_COST_USD, grace: false },
       signal: ac.signal, clock: { now: () => Date.now() },
-      agentId, runId: reviewRunId, model, trigger: 'event'
+      agentId, runId: reviewRunId, model, trigger: 'event', reasoningEffort: effort.sent
     });
   } catch (e) { console.warn('[skills] background review failed:', (e && e.message) || e); throw e; }
   finally {
     clearTimeout(timer);
     if (auxLoopRan(result)) {
       const { billingClass, unmetered } = auxLoopRow(o, result);
-      try { ledger.record({ runId: reviewRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, cachedTokens: result.cachedTokens || 0, model: model || '', aux: 'skill-review', provider: auxRoute(o && o.route), ...auxLoopFloors(result, unmetered), billingClass, unmetered }); } catch (_) {}   // model: the spend row names what it spent on, like every other aux row
+      try { ledger.record({ runId: reviewRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, cachedTokens: result.cachedTokens || 0, model: model || '', reasoningEffort: effort.ran(), aux: 'skill-review', provider: auxRoute(o && o.route), ...auxLoopFloors(result, unmetered), billingClass, unmetered }); } catch (_) {}   // model: the spend row names what it spent on, like every other aux row
     }
   }
   // false asks verdictreview to retry: only a pass that failed before it changed the skillbase (a budget/turn-ceiling/
@@ -4713,6 +4739,7 @@ async function runSkillCurator(o) {
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, SKILL_REVIEW_TIMEOUT_MS);
   const curatorRunId = String(runId || 'run') + '_skill_curator';
+  const effort = auxLoopEffort(o, provider, model);
   let result = null;
   try {
     const registry = makeRegistry();
@@ -4734,14 +4761,14 @@ async function runSkillCurator(o) {
       provider, emit: () => {}, cost, tools: toolDefs, dispatch, capCtx,
       limits: { maxIters: 10, maxCostUsd: SKILL_CURATOR_MAX_COST_USD, grace: false },
       signal: ac.signal, clock: { now: () => Date.now() },
-      agentId, runId: curatorRunId, model, trigger: 'event'
+      agentId, runId: curatorRunId, model, trigger: 'event', reasoningEffort: effort.sent
     });
   } catch (e) { console.warn('[skills] curator failed:', (e && e.message) || e); }
   finally {
     clearTimeout(timer);
     if (auxLoopRan(result)) {
       const { billingClass, unmetered } = auxLoopRow(o, result);
-      try { ledger.record({ runId: curatorRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, cachedTokens: result.cachedTokens || 0, model: model || '', aux: 'skill-curator', provider: auxRoute(o && o.route), ...auxLoopFloors(result, unmetered), billingClass, unmetered }); } catch (_) {}
+      try { ledger.record({ runId: curatorRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, cachedTokens: result.cachedTokens || 0, model: model || '', reasoningEffort: effort.ran(), aux: 'skill-curator', provider: auxRoute(o && o.route), ...auxLoopFloors(result, unmetered), billingClass, unmetered }); } catch (_) {}
     }
   }
 }
@@ -11424,6 +11451,8 @@ async function runQuestRefreshCycle(why, admittedProviderId) {
       { role: 'system', content: 'You are the station\'s quest master. Follow the format exactly; ground every claim in the provided evidence.' },
       { role: 'user', content: directive }
     ] };
+    const questEffort = auxPassEffort(provider, model);   // a strict-format plan is aux work: the aux effort, like every post-run pass
+    if (questEffort) req.reasoningEffort = questEffort;
     const out = await spend.stream(provider, req, cost);
     if (!refreshAdmitted()) { questRefreshNote({ ...refreshStamp, outcome: 'skipped', reason: 'a session this pass read was deleted while it planned' }); return; }
 
@@ -24383,9 +24412,10 @@ async function runOnceCore(o) {
   // outputOnly repair is an external caller's own request, so it is o.internal here, not `internal`).
   // An internal run marked o.keepEffort (work the Commander reads, the goal judge, the wake preflight) keeps their effort.
   const internalEffort = o.internal && !o.keepEffort ? auxPassEffort(provider, model) : null;
-  // …and the effort it RAN on, read after the run: a pick the endpoint refused was resent at the nearest rung it keeps
+  // …and the effort it RAN on, read after the run (effortAsRun): a claude-cli run that sent none ran on the CLI's own default
+  // ('cli-default', never the dial's level), and a pick an HTTP endpoint refused was resent at the nearest rung it keeps
   // (OpenRouter learns the refusal), so the record names that rung, never the refused one.
-  const internalEffortRan = () => internalEffort ? AuxGovernor.effortAsRan(internalEffort, providerEfforts(provider, model)) : null;
+  const effortRan = () => effortAsRun(activeProviderId, provider, model, internalEffort, reasoningEffort);
 
   // ---- context auto-compaction: fold older turns into a summary once the live prompt passes 65% of the model's
   //      window, so a long run shrinks instead of overflowing. The summarizer is ONE model call over the older
@@ -26401,7 +26431,7 @@ async function runOnceCore(o) {
     const rowBillingClass = billing.bookedClass(rowClass, mediaFlags.unmetered);   // paid images make a plan run's row metered
     const cutSpendUnknown = usageMissing && !(finalUsd > 0) && !(finalTokens > 0);
     const entryEndedAt = lineEntryInvocations.has(o) ? Date.now() : null;
-    try { ledger.record({ runId, agentId, turns: finalTurns, usd: finalUsd, tokens: finalTokens, cachedTokens: finalCachedTokens, model: finalModel, billingClass: rowBillingClass, unmetered: mediaFlags.unmetered, unpriced: mediaFlags.unpriced, usageMissing, ...generationFields(result) }); } catch (_) {}
+    try { ledger.record({ runId, agentId, turns: finalTurns, usd: finalUsd, tokens: finalTokens, cachedTokens: finalCachedTokens, model: finalModel, billingClass: rowBillingClass, unmetered: mediaFlags.unmetered, unpriced: mediaFlags.unpriced, usageMissing, ...generationFields(result), reasoningEffort: effortRan() }); } catch (_) {}
     // the shared PER RUN pool takes this run's final spend before the run that started it reads the result (d3a76db3)
     spendPool.settle(runId, runUnmetered ? 0 : finalUsd);
     // managed-credit SETTLE: reconcile the reservation to the real spend — refund the unused headroom to the
@@ -26426,7 +26456,7 @@ async function runOnceCore(o) {
       }
       try { if (o.streamId && kinds.directiveKind !== 'station') { const files = TurnDelivery.fileRows(transcriptStore, { streamId: o.streamId, agentId, runId, turnId: runStartExtra.turnId, root: o.projectRoot || '', artifacts: execution.artifactList(), note: deliverableNotes.get(runId), quotes: execution.quotes(), taint: execution.rowTaint() || (typeof o.connectorAuthority?.taintedBy === 'function' ? o.connectorAuthority.taintedBy() : null) }); if (files.skipped.length) failNote('turn.files.skipped', new Error(files.skipped.length + ' artifact(s) not published as file rows: ' + files.skipped.map(s => s.why).join(','))); } } catch (e) { failNote('turn.files', e); }   // the run's files, as rows of their own (turn identity commit 10): get, never take, and a failure here skips nothing below (runStore.record, the final drain)
       const runEndedAt = entryEndedAt === null ? Date.now() : entryEndedAt;
-      runStore.record({ runId, parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '', agentId, provider: activeProviderId, wireSource: runWire.source, reason: ((result && result.reason) || 'error'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, cachedTokens: finalCachedTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.syntheticTrigger ? '' : (o.sessionPrompt || ''), deliveryText, dispatchDelivery: o.dispatchDelivery, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort: internalEffortRan() || reasoningEffort, unmetered: mediaFlags.unmetered, unpriced: mediaFlags.unpriced, usageMissing, spendUnknown: cutSpendUnknown, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), cancelledWhile: (result && result.cancelledWhile) || null, completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface, ownerDirective, recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '', handoffEdited: o.handoffEdited === true, stepTest: o.stepTest === true, lineId: o.lineId || '', dockId: o.dockId || '', cronJobId: isRoutineTrigger(trigger) ? String(o.cronJobId || '') : '', pageClosed: pageClosedRuns.get(runId) || null, steerNotes: steerBufs.ledgerOf(runId), wordless: TurnDirective.labelOnly(directive), taintedBy: execution.taintedBy() || '', rowTaintedBy: execution.rowTaint() || '' });   // wordless: the directive was only the label of its files. taintedBy stays the FIRST source (the relay, the refusal wording); rowTaintedBy is the stamp that durable rows written after the run carry (dispatch-delivery). Execution terminal stays separate from the neutral Task Brief outcome used by progression; recoveryOf links a continuation to the interrupted run it resumed
+      runStore.record({ runId, parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '', agentId, provider: activeProviderId, wireSource: runWire.source, reason: ((result && result.reason) || 'error'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, cachedTokens: finalCachedTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.syntheticTrigger ? '' : (o.sessionPrompt || ''), deliveryText, dispatchDelivery: o.dispatchDelivery, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort: effortRan(), unmetered: mediaFlags.unmetered, unpriced: mediaFlags.unpriced, usageMissing, spendUnknown: cutSpendUnknown, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), cancelledWhile: (result && result.cancelledWhile) || null, completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface, ownerDirective, recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '', handoffEdited: o.handoffEdited === true, stepTest: o.stepTest === true, lineId: o.lineId || '', dockId: o.dockId || '', cronJobId: isRoutineTrigger(trigger) ? String(o.cronJobId || '') : '', pageClosed: pageClosedRuns.get(runId) || null, steerNotes: steerBufs.ledgerOf(runId), wordless: TurnDirective.labelOnly(directive), taintedBy: execution.taintedBy() || '', rowTaintedBy: execution.rowTaint() || '' });   // wordless: the directive was only the label of its files. taintedBy stays the FIRST source (the relay, the refusal wording); rowTaintedBy is the stamp that durable rows written after the run carry (dispatch-delivery). Execution terminal stays separate from the neutral Task Brief outcome used by progression; recoveryOf links a continuation to the interrupted run it resumed
 
       // P0.1/H1.1: persist the full DIALOGUE (not just the outcome) — a durable server-side transcript for EVERY
       // run, incl. headless ones (cron/Telegram/delegated). Append the triggering user directive, then EVERY new
@@ -26716,7 +26746,7 @@ async function runOnceCore(o) {
     automaticAux(activeProviderId, 'skill-review', agentId, runId, () => {
       // Only an admitted review consumes its due nudge; a queued pass stopped by the ceiling stays due.
       skillNudge.set(agentId, 0); persistSkillNudge();
-      return runBackgroundSkillReview({ agentId, runId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: _leadOc.reason, outcome: _leadOc.outcome, projectRoot: o.projectRoot || '', route: activeProviderId, provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered });
+      return runBackgroundSkillReview({ agentId, runId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: _leadOc.reason, outcome: _leadOc.outcome, projectRoot: o.projectRoot || '', route: activeProviderId, provider: auxProvider, model: _auxSkillModel, runEffort: reasoningEffort, cost, loadedSkills, managedSkills, unmetered: providerUnmetered });
     }).catch(swallow('aux.skillreview.envelope')).finally(() => { skillReviewingNow.delete(agentId); });
   }
   if (ENV('SKILL_REVIEW') !== '0' && (_auxDone || _auxFail || _leadOc.outcome === 'cut_short') && isTask && !internal && !_keyGone) {
@@ -26727,10 +26757,10 @@ async function runOnceCore(o) {
     // Parked even when the nudge review above already fired: that pass ran before the verdict existed and is
     // blind to it. The verdict pass is the one that knows the work fell short. Bounded LRU + TTL in verdictreview.js;
     // `great` never spends it; taken once; one extra aux pass per rated-short run, a Commander-initiated signal.
-    if (forgetRegistry.admit(Object.assign({ streamId: o.streamId || '', runId, at: Date.now() }, TurnKinds.quoteStamp(execution.quotes())))) verdictReview.stash(runId, { agentId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: _leadOc.reason, outcome: _leadOc.outcome, projectRoot: o.projectRoot || '', route: activeProviderId, provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered, failed: !_auxDone, directive: TurnDirective.packet(directive, { redact, keys: liveServiceKeys(), row: runTranscript.directiveRow() || retryDirective }), streamId: o.streamId || '' });
+    if (forgetRegistry.admit(Object.assign({ streamId: o.streamId || '', runId, at: Date.now() }, TurnKinds.quoteStamp(execution.quotes())))) verdictReview.stash(runId, { agentId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: _leadOc.reason, outcome: _leadOc.outcome, projectRoot: o.projectRoot || '', route: activeProviderId, provider: auxProvider, model: _auxSkillModel, runEffort: reasoningEffort, cost, loadedSkills, managedSkills, unmetered: providerUnmetered, failed: !_auxDone, directive: TurnDirective.packet(directive, { redact, keys: liveServiceKeys(), row: runTranscript.directiveRow() || retryDirective }), streamId: o.streamId || '' });
   }
   if (_auxSpend.has('skill-curator')) {
-    automaticAux(activeProviderId, 'skill-curator', agentId, runId, () => runSkillCurator({ agentId, runId, route: activeProviderId, provider, model: _auxSkillModel, cost, unmetered: providerUnmetered })).catch(swallow('aux.skillcurator.envelope'));
+    automaticAux(activeProviderId, 'skill-curator', agentId, runId, () => runSkillCurator({ agentId, runId, route: activeProviderId, provider, model: _auxSkillModel, runEffort: reasoningEffort, cost, unmetered: providerUnmetered })).catch(swallow('aux.skillcurator.envelope'));
   }
 
   // TRUTHFUL TELEMETRY: when the governor holds the ceiling, record WHICH passes yielded. A deferral is NOT an
@@ -26749,7 +26779,7 @@ async function runOnceCore(o) {
   if (result) {
     if (!result.artifacts) { try { result.artifacts = execution.artifactList(); } catch (_) {} }
     result.model = result.model || model;
-    result.reasoningEffort = internalEffortRan() || reasoningEffort;   // the effort this run actually ran on (self-talk rides the aux effort)
+    result.reasoningEffort = effortRan();   // the effort this run actually ran on (self-talk rides the aux effort; claude-cli's own default is 'cli-default')
     result.toolsOk = execution.toolsOk();
     result.toolTrace = execution.toolTraceList();
     result.startedAt = runStartedAt;

@@ -63,6 +63,13 @@
   ];
   const contextOf = id => { const m = MODELS.find(x => x.id === String(id || '')); return (m && m.context) || (/\[1m\]$/i.test(String(id || '')) ? 1000000 : DEFAULT_CONTEXT); };
   const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
+  // The CLI is given an effort only per request: a level it offers rides as --effort (cliArgs), anything else sends no flag.
+  const effortOf = req => { const e = String((req && req.reasoningEffort) || '').trim().toLowerCase(); return EFFORTS.indexOf(e) >= 0 ? e : ''; };
+  /* effortAsSent(perRequest) -> what the CLI was given for a request carrying that effort: the level, or CLI_DEFAULT_EFFORT when
+     it got no --effort and ran on its own default (a main run: the station's effort dial is not wired to the CLI). Every
+     station record that names a claude-cli call's effort reads this, so a record and the argv can never disagree. */
+  const CLI_DEFAULT_EFFORT = 'cli-default';
+  function effortAsSent(perRequest) { return effortOf({ reasoningEffort: perRequest }) || CLI_DEFAULT_EFFORT; }
   const CALL_OPEN = '<tool_call>';
   const CALL_CLOSE = '</tool_call>';
   const NO_TOOLS_ARGS = [
@@ -798,7 +805,6 @@
       }));
     }
 
-    const effortOf = req => { const e = String(req.reasoningEffort || '').trim().toLowerCase(); return EFFORTS.indexOf(e) >= 0 ? e : ''; };
     function cliArgs(cmd, req, sysFile) {
       // stdin is always stream-json user messages: one block per transcript entry keeps the prompt cache hitting
       const args = cmd.pre.concat(['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--input-format', 'stream-json'], NO_TOOLS_ARGS);
@@ -1470,5 +1476,5 @@
     };
   }
 
-  return { makeClaudeCliProvider, makeCliHost, _internals: { buildPrompt, makeCallSplitter, parseCall, invokeCall, estimateUsd, toolsPrompt, MODELS } };
+  return { makeClaudeCliProvider, makeCliHost, effortAsSent, CLI_DEFAULT_EFFORT, _internals: { buildPrompt, makeCallSplitter, parseCall, invokeCall, estimateUsd, toolsPrompt, MODELS } };
 });

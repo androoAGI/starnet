@@ -45,6 +45,27 @@ A.eq(G.effortAsRan('none', ['none', 'minimal', 'low']), 'none', 'an accepted pic
 A.eq(G.effortAsRan('none', []), 'none', 'no list: the pick as asked');
 A.eq(G.effortAsRan(null, ['low']), null, 'no pick: nothing to record');
 
+// ---- THE ONE CLAMP (W1.5): a background effort is the asked rung, else the nearest one above, else below ----
+A.eq(G.clampEffort('low', ['low', 'medium', 'high']), 'low', 'a listed rung is itself');
+A.eq(G.clampEffort('low', ['minimal', 'medium', 'high']), 'medium', 'an unlisted rung clamps UP first: never thinner than asked');
+A.eq(G.clampEffort('low', ['none', 'minimal']), 'minimal', 'nothing above: the nearest below');
+A.eq(G.clampEffort('low', []), null, 'an empty list: no override');
+A.eq(G.clampEffort('low', null), null, 'no list: no override');
+A.eq(G.clampEffort('turbo', ['low']), null, 'an unknown ask: no override');
+A.eq(G.clampEffort('low', ['HIGH', 'Low']), null, 'only exact effort ids count');
+// pickAuxEffort is that clamp from the bottom, kept at or below low (its asserts above are unchanged)
+A.ok(/clampEffort\(AUX_EFFORT_LADDER\[0\], allowed\)/.test(fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'auxgovernor.js'), 'utf8')), 'pickAuxEffort goes through clampEffort');
+// ---- the background TOOL loops (skill review, curator): low, clamped, never above the run's effort ----
+A.eq(G.LOOP_EFFORT, 'low', 'the loop effort is low');
+A.eq(G.loopEffort(['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'], 'high'), 'low', 'a high run\'s review runs low');
+A.eq(G.loopEffort(['low', 'medium', 'high', 'xhigh', 'max'], 'cli-default'), 'low', 'claude-cli (its rungs start at low): low, whatever the run got');
+A.eq(G.loopEffort(['none', 'minimal', 'low', 'medium', 'high'], 'minimal'), 'minimal', 'a /fast run\'s review stays minimal: a loop is only ever lowered');
+A.eq(G.loopEffort(['none', 'minimal', 'low', 'medium', 'high'], 'none'), 'none', 'a run with no thinking: its loop has none either');
+A.eq(G.loopEffort(['medium', 'high'], 'high'), 'medium', 'no low rung: the nearest above it (the lowest the model has)');
+A.eq(G.loopEffort(['medium', 'high'], 'minimal'), 'medium', 'below every rung: the model\'s lowest, never nothing');
+A.eq(G.loopEffort(['low', 'medium', 'high'], 'high', 'medium'), 'medium', 'a configured STARNET_AUX_EFFORT is the ask');
+A.eq(G.loopEffort(null, 'high'), null, 'no list: no override (the provider default)');
+
 // ---- the composition root wires it (source locks) ----
 const idx = readSidecarSource();
 const fnSrc = A.fnBody(idx, 'function auxPassEffort(');
@@ -55,9 +76,13 @@ A.ok(/providerEfforts\(provider, model\)/.test(fnSrc) && /AuxGovernor\.pickAuxEf
 A.ok(/const _auxEffort = _auxDone \? auxPassEffort\(provider, _auxModel\) : null;/.test(idx), 'reflection · study · thread-mine · scout ride auxPassEffort');
 A.ok(/const _auxFailEffort = _auxFail \? auxPassEffort\(provider, _auxFailModel\) : null;/.test(idx), 'failure review rides auxPassEffort');
 A.ok(/reasoningEffort: internalEffort \|\| undefined,/.test(idx), 'and hands it to the loop (absent for every other run)');
-A.ok(/const internalEffortRan = \(\) => internalEffort \? AuxGovernor\.effortAsRan\(internalEffort, providerEfforts\(provider, model\)\) : null;/.test(idx),
-  'after the run, the internal effort is re-read against the model\'s list (a mid-run heal moved it)');
-A.ok(/reasoningEffort: internalEffortRan\(\) \|\| reasoningEffort, unmetered:/.test(idx) && /result\.reasoningEffort = internalEffortRan\(\) \|\| reasoningEffort;/.test(idx),
+// (effort truth, W1.12) the record reads ONE resolver: what the provider was given, read after the run
+A.ok(/const effortRan = \(\) => effortAsRun\(activeProviderId, provider, model, internalEffort, reasoningEffort\);/.test(idx),
+  'after the run, the effort is re-read through effortAsRun (a mid-run heal moved it; claude-cli without one ran on its default)');
+const asRun = A.fnBody(idx, 'function effortAsRun(');
+A.ok(/return cliEffortAsSent\(sent\)/.test(asRun) && /AuxGovernor\.effortAsRan\(sent, providerEfforts\(provider, model\)\)/.test(asRun) && /return built \|\| null;/.test(asRun),
+  'effortAsRun: claude-cli = what its argv carried; any other adapter = the per-request effort as healed, else the one it was built with');
+A.ok(/reasoningEffort: effortRan\(\), unmetered:/.test(idx) && /result\.reasoningEffort = effortRan\(\);/.test(idx),
   'the run record and the result carry the effort the run ran on');
 A.ok(!/internalEffort \|\| reasoningEffort/.test(idx), 'no record keeps the pre-heal pick');
 // …except an internal run whose reply IS work the Commander reads (the autopilot's desk draft + its self-critique):
@@ -85,6 +110,18 @@ A.ok(/auxEffortFor: auxReasoningEffort,/.test(idx), 'compaction keeps auxReasoni
 // the measured session's skill-review spend row carried no model ("(unknown)" in the breakdown): every aux spend row names it
 A.ok(/ledger\.record\(\{ runId: reviewRunId, [^}]*model: model \|\| '',/.test(idx), 'the skill review spend row names the model it spent on');
 A.ok(/ledger\.record\(\{ runId: curatorRunId, [^}]*model: model \|\| '',/.test(idx), 'the skill curator spend row names the model it spent on');
+// (W1.5) both loops run on the one loop effort and their rows name the effort as it ran
+for (const fn of ['async function runBackgroundSkillReview(', 'async function runSkillCurator(']) {
+  const src = A.fnBody(idx, fn);
+  A.ok(/const effort = auxLoopEffort\(o, provider, model\);/.test(src) && /trigger: 'event', reasoningEffort: effort\.sent\n/.test(src)
+    && /ledger\.record\(\{[^}]*model: model \|\| '', reasoningEffort: effort\.ran\(\), /.test(src), fn + ' runs on auxLoopEffort and records it as it ran');
+}
+const loopFx = A.fnBody(idx, 'function auxLoopEffort(');
+A.ok(/AuxGovernor\.loopEffort\(providerEfforts\(provider, model\), o && o\.runEffort,/.test(loopFx)
+  && /ran: \(\) => effortAsRun\(o && o\.route, provider, model, sent, o && o\.runEffort\)/.test(loopFx),
+  'auxLoopEffort reads the provider\'s rungs for the loop model, and its row reads effortAsRun after the loop');
+A.ok((idx.match(/runEffort: reasoningEffort, cost,/g) || []).length === 3, 'the review, the verdict stash and the curator carry the run\'s effort');
+A.ok(/const questEffort = auxPassEffort\(provider, model\);[^\n]*\n\s*if \(questEffort\) req\.reasoningEffort = questEffort;/.test(A.fnBody(idx, 'async function runQuestRefreshCycle(')), 'the quest refresh rides the aux effort');
 
 // ---- the loop carries a per-run effort onto every request; absent = byte-identical ----
 const { runAgentLoop } = require('../sidecar/loop.js');
