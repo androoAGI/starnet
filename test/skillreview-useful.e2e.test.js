@@ -16,8 +16,8 @@
         the skill it proposes waits for the Commander's approval: a pending candidate, never an active skill;
      I5 a thumbs-down VERDICT on a clean run fires exactly 1 review, the verdict's own, with the verdict in its prompt
         (base: 2, the nudge's review first, blind to the verdict);
-     I6 the clean run's kept count: the same agent's next run, a short one (under the bar on its own) with a tool error,
-        reviews (base: 0, the clean run had spent the count).
+     I6 the clean run's kept count survives a sidecar restart (skill.nudge.json), and the same agent's next run, a short
+        one (under the bar on its own) with a tool error, reviews (base: 0, the clean run had spent the count).
    Zero network, zero real key (the fake key routes to the mock). Prints the measured counts on one line. */
 'use strict';
 
@@ -211,7 +211,9 @@ function nudgeCount(fixture, agentId) {
     A.eq(counts.verdict, 1, 'I5 a thumbs-down on a clean 12-turn run fires exactly one skill review (run end ' + rated.reviews.length + ', verdict ' + verdictReviews.length + ')');
     A.ok(verdictReviews.length === 1 && verdictReviews[0].prompt.indexOf('COMMANDER VERDICT ON THIS RUN') >= 0, 'I5 the one review is the verdict\'s, with the verdict in its prompt');
 
-    // ---- I6 the kept count: the clean agent's next run, 2 turns with a tool error, reviews ----
+    // ---- I6 the kept count survives a restart, and the clean agent's next run, a short one with a tool error, reviews ----
+    await fixture.restart();
+    A.eq(nudgeCount(fixture, 'rw-clean'), 10, 'I6 the count the clean run kept survives a sidecar restart (skill.nudge.json)');
     const short = await drive(fixture, mock, 'rw-clean', 'short', 'Read my notes file and tell me what it says.');
     A.ok(short.turns > 0 && short.turns < 10, 'fixture: the follow-up run is short, under the bar of 10 on its own (' + short.turns + ' turns)');
     counts.carried = short.reviews.length;
