@@ -1794,3 +1794,4 @@ test/reflect.dedup-only.test.js
 test/aux-cache-policy.test.js
 test/aux-admission.test.js
 test/history-edit.test.js
+test/history-edit.invariant.test.js
