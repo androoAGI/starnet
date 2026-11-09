@@ -5,15 +5,20 @@
    next one"). A pass that kept nothing (the model's NONE, or every line floored or deduped) therefore fired again on
    the very next run: four quick tool runs paid eight one-shot passes, reflection and study after every run, for
    nothing. That choice is reversed here, on purpose:
-     - every ATTEMPT (a model call went out) stamps its pass's window, whatever it kept;
+     - every ATTEMPT (a model call went out) stamps its pass's window, whatever it kept, and a call that FAILED too (an
+       HTTP error, a 429, a usage limit, the timeout): it went out, and a timeout is billed for its prompt, so a route
+       that keeps failing is tried once per window instead of at every run-end;
      - reflection backs off after consecutive replies that kept nothing: its window x1, x4, x10 (the default 3 min
-       becomes 3, then 12, then 30 min); a kept proposal resets the streak;
+       becomes 3, then 12, then 30 min); a kept proposal resets the streak. The ladder multiplies whatever window is
+       configured and has no ceiling of its own (a 60 min window becomes 10 h after three NONE replies);
      - FEEDBACK ALWAYS GETS THROUGH: every like or dislike (a thumbs verdict, the correction after it, KEEP THIS
        STYLE, a workflow's NEEDS CHANGES: the host's one feedback write path, whatever it saves) and an explicit
        preference or correction cue in the Commander's own latest words (CUE) open every learning window of that
-       agent, until each pass's next attempt that could have read it;
+       agent, until each pass's next attempt that could have read it AND got an answer: a call that failed never read
+       anything, so it uses nothing up and the pass's next attempt still skips its window;
      - failure review also skips its window for a NEW failure class (outcome, stage, code): a different way of
-       failing is a different lesson (a W1.4 extension beyond the cues and verdicts).
+       failing is a different lesson (a W1.4 extension beyond the cues and verdicts). A class stays new until a review
+       of it gets an answer.
    A window of 0 (TIME BETWEEN SUGGESTIONS 0) stays 0: the backoff multiplies the configured window, never adds to it.
 
    ORDER, NOT THE CLOCK. Feedback is a token stamped with an ORDER number. A run's end takes the current order
@@ -115,19 +120,23 @@ function make(opts) {
 
   /* one ATTEMPT of a pass has ended. r: { runId: the run it learned from, replied: the model answered, produced: a
      proposal survived, failureClass: the class a failure review read }. Returns whether the host arms the pass's
-     window: false when the attempt's run ended before its agent was forgotten (deleted or reset), or for a pass outside
-     the family. A call that failed (no reply) leaves the NONE streak as it is. */
+     window: true for every attempt, a failed call included; false when the attempt's run ended before its agent was
+     forgotten (deleted or reset), or for a pass outside the family. Only an ANSWERED attempt learned anything, so only
+     an answer uses up a feedback token, counts toward the NONE streak and marks a failure class reviewed: a call that
+     failed (an HTTP error, a 429, a usage limit, the timeout) keeps the token for the pass's next attempt and leaves
+     the class new. */
   function noted(kind, agentId, r) {
     if (!isKind(kind)) return false;
     const id = String(agentId), o = r || {};
     const key = String(o.runId == null ? '' : o.runId);
     const at = runs.has(key) ? runs.get(key) : -1;   // -1: a run this policy never saw end reads nothing new
     if (forgotten.has(id) && at < forgotten.get(id)) return false;
+    if (o.replied !== true && o.produced !== true) return true;   // no answer: nothing was read, so nothing is used up
     const t = tokens.get(id), tok = t && t.get(kind);
     if (tok && at >= tok.order) { t.delete(kind); if (!t.size) tokens.delete(id); }
     if (kind === 'reflection') {
       if (o.produced === true) streaks.delete(id);
-      else if (o.replied === true) streaks.set(id, (streaks.get(id) || 0) + 1);
+      else streaks.set(id, (streaks.get(id) || 0) + 1);
     }
     if (kind === 'failure-review' && o.failureClass) {
       const seen = classes.get(id) || new Map();

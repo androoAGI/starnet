@@ -4542,8 +4542,9 @@ async function runThreadMine(o) {
    each run*'s finally — and the policy lives in ONE module (learning-cooldown.js): reflection backs off after replies
    that kept nothing (its window x1, x4, x10), and feedback always gets through — a like or dislike (the one feedback
    write path, recordFeedbackMemory) or a cue in the Commander's own latest words opens every window of that agent until each
-   pass's next attempt from a run that ended after it (a pass already running when the feedback came never uses it
-   up), and a failure review also skips its window for a failure class it has not reviewed within its window. The
+   pass's next ANSWERED attempt from a run that ended after it (a pass already running when the feedback came never uses it
+   up, and neither does a call that failed: it arms the window, but the next attempt still skips it), and a failure
+   review also skips its window for a failure class it has not reviewed (with an answer) within its window. The
    stamps stay here, where the routes and resets already read them; the configured windows are the same live knobs
    (memoryConfig, THREAD_MINE_COOLDOWN_MS). A window of 0 stays 0. */
 const learningCooldown = LearningCooldown.make({ now: () => Date.now() });
@@ -4561,8 +4562,9 @@ function learningPassDue(kind, agentId, ctx) {
   if (why) console.log('[learning] ' + kind + ' may spend inside its window: agent=' + agentId + ' (' + why + ')');
   return !!why;
 }
-// one ATTEMPT of a learning pass ended (its meter counted a call): the policy folds what it got, then the window is
-// armed — unless the attempt's run ended before its agent was deleted or reset (a pass that outlived its agent)
+// one ATTEMPT of a learning pass ended (its meter counted a call, a failed one too): the policy folds what it got (only an
+// answer uses feedback up), then the window is armed — unless the attempt's run ended before its agent was deleted or
+// reset (a pass that outlived its agent)
 function noteLearningAttempt(kind, agentId, r) {
   if (!learningCooldown.noted(kind, agentId, r)) return;
   const at = Date.now();

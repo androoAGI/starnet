@@ -5,14 +5,15 @@
    The family now closes in ONE place: sidecar/learning-cooldown.js holds the policy (NONE backoff, feedback tokens,
    new-failure-class bypass, run-end and forget order) and sidecar/index.js reads it through learningPassDue (every
    gate) and noteLearningAttempt (every pass's finally, on an attempt whose meter counted a model call). This file proves:
-     1. the pure policy (scale ladder, cue words, feedback tokens spent only by an attempt from a run that ended after
-        them, failure classes, forget, and that a pass outliving its agent arms nothing);
+     1. the pure policy (scale ladder, cue words, feedback tokens spent only by an ANSWERED attempt from a run that ended
+        after them, failure classes reviewed only by an answer, forget, and that a pass outliving its agent arms nothing);
      2. the composition root's real learningPassDue / noteLearningAttempt, run on a fake clock: four quick NONE runs
-        attempt each pass once, a cue still reflects, a verdict landing mid-pass survives it, a window of 0 stays 0,
-        study's stamp is persisted, and a reset mid-pass leaves no stamp;
+        attempt each pass once, a cue still reflects, a verdict landing mid-pass survives it, a verdict survives a call
+        that failed (review r2), a window of 0 stays 0, study's stamp is persisted, and a reset mid-pass leaves no stamp;
      3. the family invariant over index.js: no window is armed anywhere else, every gate reads the resolver, every pass
-        notes its attempt (with its run) before its meter is booked, a run's end takes its order after its cue, the one
-        feedback write path opens the windows (and every like/dislike surface goes through it), resets forget.
+        notes its attempt (with its run) before its meter is booked, a run's end takes its order after its cue and before
+        its row exists, the one feedback write path opens the windows (and every like/dislike surface goes through it),
+        and both forget paths clear every pass's stamp and in-flight guard before they forget the policy state.
    The live proofs (real sidecar, mock provider, counted calls) are test/learning-cooldown.e2e.test.js and, for the
    orderings, test/learning-cooldown.race.e2e.test.js. */
 'use strict';
@@ -104,6 +105,28 @@ const LC = require('../sidecar/learning-cooldown.js');
   A.eq([q.bypass('reflection', 'c', {}), q.bypass('study', 'c', {})], ['cue', 'cue'], 'cue: a pass held back at the cue run keeps the token: run A\'s passes ending later never spend it');
   q.ended('rC'); q.noted('reflection', 'c', { runId: 'rC', replied: true });
   A.eq(q.pending('c'), ['failure-review', 'study'], 'cue: run C\'s reflection spends its token; the passes that have not attempted since keep theirs');
+
+  // THE FAILED ATTEMPT (review r2 blocker): a call that errored or timed out never answered, so it read nothing and uses nothing up
+  const e = LC.make({ now: () => t });
+  e.ended('re1'); e.open('e', 'feedback'); e.ended('re2');                 // a verdict on run 1, then run 2 ends
+  A.eq(e.noted('reflection', 'e', { runId: 're2', replied: false, produced: false }), true, 'failed: an attempt whose call failed still arms its window (it went out; a timeout is billed for its prompt)');
+  A.eq(e.bypass('reflection', 'e', {}), 'feedback', 'failed: ...but keeps the verdict: the model never answered, so it never read it');
+  A.eq(e.streak('e'), 0, 'failed: ...and counts no NONE');
+  e.ended('re3');
+  e.noted('reflection', 'e', { runId: 're3', replied: true });
+  A.eq([e.bypass('reflection', 'e', {}), e.streak('e')], ['', 1], 'failed: the next ANSWERED attempt uses the verdict up (and its NONE counts)');
+  e.open('e', 'cue'); e.ended('re4');
+  e.noted('study', 'e', { runId: 're4', replied: false });
+  e.noted('study', 'e', { runId: 're4' });                                 // a caller that names no answer: the safe side
+  A.eq(e.bypass('study', 'e', {}), 'cue', 'failed: a cue survives a failed call of any pass (study)');
+  e.noted('study', 'e', { runId: 're4', produced: true });
+  A.eq(e.bypass('study', 'e', {}), '', 'failed: a kept proposal is an answer');
+  const CLS2 = 'failed|tool|exit_code';
+  A.eq(e.bypass('failure-review', 'x', { failureClass: CLS2, windowMs: 300000 }), 'new-failure-class', 'fixture: a class never reviewed');
+  e.noted('failure-review', 'x', { replied: false, failureClass: CLS2 });
+  A.eq(e.bypass('failure-review', 'x', { failureClass: CLS2, windowMs: 300000 }), 'new-failure-class', 'failed: a failure review whose call failed leaves its class NEW (it was never reviewed)');
+  e.noted('failure-review', 'x', { replied: true, failureClass: CLS2 });
+  A.eq(e.bypass('failure-review', 'x', { failureClass: CLS2, windowMs: 300000 }), '', 'failed: an answered review marks it reviewed');
 
   // newer feedback that lands during an attempt that read older feedback survives that attempt
   q.open('n', 'cue'); q.ended('rn1'); q.open('n', 'feedback');
@@ -225,6 +248,28 @@ const LC = require('../sidecar/learning-cooldown.js');
   v.advance(1000); v.policy.ended('rv3');
   A.ok(!v.learningPassDue('reflection', 'v'), '...once: run 2\'s attempt spent it');
   A.ok(!v.learningPassDue('scout', 'v'), 'the resolver answers only for the four learning passes');
+
+  // a call that FAILED (review r2 blocker): it arms its window, but uses up no verdict and reviews no failure class
+  const x = build(Object.assign({}, DEFAULTS), 1200000);
+  x.policy.ended('rx1'); x.noteLearningAttempt('reflection', 'x', { runId: 'rx1', replied: true });   // run 1: NONE, window armed
+  x.advance(1000); x.policy.open('x', 'feedback'); x.policy.ended('rx2');                             // a verdict, then run 2 ends
+  A.ok(x.learningPassDue('reflection', 'x'), 'fixture: run 2 reflects inside the window because of the verdict');
+  const armedAt = x.maps.lastReflectAt.get('x');
+  x.advance(1000); x.noteLearningAttempt('reflection', 'x', { runId: 'rx2', replied: false, produced: false });   // ...and its call fails
+  A.ok(x.maps.lastReflectAt.get('x') > armedAt, 'a failed attempt arms its window too (it went out)');
+  x.advance(1000); x.policy.ended('rx3');
+  A.ok(x.learningPassDue('reflection', 'x'), 'the run after a FAILED attempt still reflects inside the window: the verdict was never read, so it was not used up');
+  x.noteLearningAttempt('reflection', 'x', { runId: 'rx3', replied: true });
+  x.advance(1000); x.policy.ended('rx4');
+  A.ok(!x.learningPassDue('reflection', 'x'), '...once: the answered attempt used it up');
+  x.noteLearningAttempt('failure-review', 'y', { runId: 'rx4', replied: false, failureClass: CLS });
+  A.ok(x.maps.lastFailReviewAt.has('y'), 'fixture: the failed review armed its window');
+  x.advance(1000);
+  A.ok(x.learningPassDue('failure-review', 'y', { failureClass: CLS }), 'a failure review whose call failed leaves its class unreviewed: the next failure of that class inside the window is still reviewed');
+  A.ok(x.logs.some(l => /\[learning\] failure-review may spend inside its window: agent=y \(new-failure-class\)/.test(l)), '...as a new failure class (the sidecar log says so)');
+  x.noteLearningAttempt('failure-review', 'y', { runId: 'rx4', replied: true, failureClass: CLS });
+  x.advance(1000);
+  A.ok(!x.learningPassDue('failure-review', 'y', { failureClass: CLS }), '...and an answered review marks it reviewed');
 
   // a reset while a pass runs: the pass ends after it and arms nothing (base: a productive pass re-stamped; W1.4 r1: any)
   const g = build(Object.assign({}, DEFAULTS), 1200000);
