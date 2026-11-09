@@ -141,6 +141,7 @@ test/nightshift-halt-no-fake-draft.e2e.test.js
 test/nightshift-budget.e2e.test.js
 test/nightshift-presence.e2e.test.js
 test/nightshift-floor-visibility.e2e.test.js
+test/nightshift-futile-beat.e2e.test.js
 test/threads.e2e.test.js
 test/cron.session-transcript.e2e.test.js
 test/channels.telegram.e2e.test.js

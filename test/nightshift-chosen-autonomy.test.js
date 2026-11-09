@@ -62,7 +62,7 @@ for (const header of ['async function runNightshiftBeat(', 'async function runNi
 
 // one host: the real commanderPosture + precheck + readiness view over stubbed capability reads (a provider IS wired;
 // budget is clear) and an injected recent-user-run count (the context-pack evidence; a fresh station has none).
-function makeHost(runs) {
+function makeHost(runs, futile) {
   const ctx = vm.createContext({
     Autopilot, Autonomy,
     fs: { mkdirSync() {} }, saveResilient() {}, loadResilient() { return null }, failNote() {},
@@ -74,7 +74,9 @@ function makeHost(runs) {
     cronProviderFor: () => 'openrouter', cronModelFor: () => 'test/model', cronHasCredential: () => true, cronKeyFor: () => 'k',
     nightshiftUserRunCount: () => runs,
     // the held-floor gate reads the agent's room and the saved-floor hold: a fresh station has neither (held-floor behaviour is routing.held-floor-away.e2e)
-    workshopOf: () => null, routingHold: () => null
+    workshopOf: () => null, routingHold: () => null,
+    // the futile-beat skip (W1.6): nothing remembered unless a case hands one in (its own proof: unattended-admission + nightshift-futile-beat.e2e)
+    futileBeatHold: () => futile || null
   });
   return vm.runInContext(postureSrc + ';\n' + precheckSrc + '\n' + viewSrc + '\n({ commanderPosture, nightshiftPrecheck, nightshiftReadinessView })', ctx);
 }
@@ -207,6 +209,23 @@ for (const [label, weight] of [['confirmed synthesis', 'synth'], ['own words', '
   A.ok(!/areas|of 4|\b4\b|a few/.test(text), 'readinessText carries no area count and no usage ladder');
   A.eq(NR.readinessPlain(view), 'I’ll start once you tell me in your own words what you want help with, or I’ve seen one of your runs.', 'the plain hold names one answer or one run, never "a few of your runs"');
   A.ok(!/a few|few real tasks/.test(NR.bindingPhrase('readiness')), 'the readiness binding phrase asks for one answer or one task, not "a few"');
+}
+
+/* ===== 3b. the futile-beat skip (W1.6) is the LAST pre-spend question: a station that could act, whose last beat only
+   re-proposed a build still waiting on the verdict, declines before the leash is spent and names that build; a station
+   that could not act anyway names the reason that binds first ===== */
+{
+  const hold = { ok: false, reason: 'awaiting-verdict', why: { title: 'Continue: Release checklist tool', runId: 'r2' } };
+  const host = makeHost(1, hold);
+  host.commanderPosture.set(Autonomy.applyPreset(Autonomy.fresh(), 'build'), { known: [], beliefs: {} });
+  A.eq(host.nightshiftPrecheck(), hold, 'a ready station whose last beat was futile is held, naming the build it waits on');
+  const d = driverFor(host);
+  const r = d.driver.applyTick(NOW);
+  A.eq([r.fired, r.binding, d.beats(), d.state().beatsUsedToday], [false, 'awaiting-verdict', 0, 0], 'the held tick declines BEFORE spending any leash, and no beat runs');
+  A.ok(d.ledger.length === 1 && d.ledger[0].preSpend === true && d.ledger[0].why && d.ledger[0].why.title === hold.why.title, 'one pre-spend decline row names the build');
+  const cold = makeHost(0, hold);
+  cold.commanderPosture.set(Autonomy.applyPreset(Autonomy.fresh(), 'build'), { known: [], beliefs: {} });
+  A.eq(cold.nightshiftPrecheck(), { ok: false, reason: 'readiness' }, 'a station that could not act anyway names readiness, not the held build');
 }
 
 /* ===== 4. ONE recent user run grounds acting on its own (empty dossier) ===== */

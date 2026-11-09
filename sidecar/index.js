@@ -378,6 +378,7 @@ const nightshift = require('./nightshift.js');            // NS-1: pure planner 
 const LocalDay = require('./localday.js');
 const PriorWork = require('./priorwork.js');              // the night shift's memory of earlier builds + the near-duplicate veto                // the LOCAL calendar-day key (leash/focus/tonight) — offset injected below
 const { makeNightshiftDriver } = require('./nightshift-driver.js'); // NS-1: the restart-safe idle-autonomy tick driver
+const UnattendedAdmission = require('./unattended-admission.js');   // W1.6: the futile-beat skip (hold a beat that would re-propose an undecided build)
 const contextpack = require('./contextpack.js');          // NS-2: pure recency-weighted context pack for the propose step
 const AwayBriefing = require('./away-briefing.js');   // THE ONE RETURN REPORT: every unattended outcome folded into one briefing
 const nightfocus = require('./nightfocus.js');            // NS-5b: pure single-priority FOCUS resolver (evidence-ranked, steer-aware)
@@ -8496,6 +8497,103 @@ function ledgerPriorWorkVeto(agentId, vet) {
         continuedTitles: vet.continued.map(c => c.title + ' -> ' + c.of + ' (' + c.runId + ')').join(' | ').slice(0, 400) || undefined } });
   } catch (e) { failNote('nightshift.ledger.dup-veto', e); }
 }
+/* ---- THE FUTILE-BEAT SKIP (cost fix W1.6) — the rule lives in sidecar/unattended-admission.js; this is the host's half.
+   A build beat that ended 'duplicate-backlog' against a BUILT, undecided backlog item is remembered with the fingerprint
+   of what it read (futileBeatFingerprint). The pre-spend gate (nightshiftPrecheck) then holds every later beat as
+   'awaiting-verdict' — no model call, no leash unit — while that fingerprint is unchanged and the item still waits on
+   the Commander's verdict in the live backlog. Any change re-admits at once; a beat the Commander fires by hand never
+   asks. Persisted, so a restart does not buy one more futile beat. Ids and a hash only, no session text. */
+const NIGHTSHIFT_STUCK_FILE = path.join(WORKSPACES, 'nightshift.stuck.json');
+function loadNightshiftStuck() {
+  try { const o = loadResilient(NIGHTSHIFT_STUCK_FILE, 'nightshift-stuck'); return (o && o.stuck && typeof o.stuck === 'object' && !Array.isArray(o.stuck)) ? o.stuck : {}; }
+  catch (_) { return {}; }
+}
+let nightshiftStuck = loadNightshiftStuck();   // agentId -> { fp, runId, backlogId, at }
+
+// what a project focus's scan reads that a cheap read can prove: a git project's HEAD commit (a commit, checkout or pull
+// moves it), read from .git without spawning git; a project that is not a git repo shows the scan only its top-level names.
+// An uncommitted edit alone does not move it (the scan's `git status` is a spawn per call, too heavy for every tick).
+// A file that is absent reads as '' — absence is an answer here (no gitfile, no loose ref), not a failure to report.
+function readSmallText(p) {
+  try { return fs.readFileSync(p, 'utf8'); } catch (_) { return ''; }
+}
+function projectHeadOf(root) {
+  let gitDir = path.join(root, '.git');
+  const link = /^gitdir:\s*(.+?)\s*$/m.exec(readSmallText(gitDir));   // a linked worktree: .git is a file naming its git dir
+  if (link) gitDir = path.resolve(root, link[1]);
+  const head = readSmallText(path.join(gitDir, 'HEAD')).trim();
+  if (head) {
+    const ref = /^ref:\s*(\S+)/.exec(head);
+    if (!ref) return head.slice(0, 64);   // detached
+    const commonDir = readSmallText(path.join(gitDir, 'commondir')).trim();
+    const common = commonDir ? path.resolve(gitDir, commonDir) : gitDir;
+    for (const dir of [gitDir, common]) { const sha = readSmallText(path.join(dir, ref[1])).trim(); if (sha) return sha.slice(0, 64); }
+    const line = readSmallText(path.join(common, 'packed-refs')).split(/\r?\n/).find(l => l.endsWith(' ' + ref[1]));
+    return line ? line.split(' ')[0].slice(0, 64) : ref[1];
+  }
+  try { return fs.readdirSync(root).filter(n => !/^\.(git|env)/.test(n)).sort().slice(0, 60).join('/'); } catch (_) { return ''; }
+}
+
+/* everything a build beat reads that the Commander, or the world, can change — as ONE fingerprint, read the same way at
+   the beat's start and at each pre-spend check while a futile beat is remembered. It reads the context pack's INPUTS,
+   never its text (day tags and relative ages there change with the clock alone), and never builds the pack (the 10-19
+   idle-CPU rule for the precheck). Every part is a store read the host already holds in RAM or a small file:
+     work + backlog — the prior-work list the beat's veto runs on and the raw queue its dedup runs on (a verdict, a new task,
+                      a build landing or being picked up all move them); activity — the newest owner runs (a new message);
+     context        — goal, dossier beliefs, open threads; focus — the declared focus and the steer; project — a project
+                      focus's HEAD commit (projectHeadOf); posture + engine — the dial's rungs and the model it would call.
+   The beat's own side effects stay out: its runs are internal streams and its refused queue writes nothing.
+   Returns null when a read throws: an unproven reading never holds a beat. */
+function futileBeatFingerprint(agentId) {
+  try {
+    const str = v => (v == null ? '' : String(v));
+    const focus = (nightFocusState && nightFocusState.focus) || null;
+    const steer = (nightFocusState && nightFocusState.steer) || null;
+    const owner = [];
+    for (const r of runStore.list(null, { limit: 400 }) || []) {
+      if (owner.length >= 20) break;
+      if (r && runView('nightshift', r) && !isInternalRun(r)) owner.push([str(r.runId), Number(r.ts) || 0]);
+    }
+    const snap = commanderPosture.beliefs() || {};
+    const beliefs = {};
+    for (const dim of Object.keys(snap.beliefs || {})) beliefs[dim] = (snap.beliefs[dim] || []).map(b => str(b && b.text));
+    const sum = commanderPosture.summary() || {};
+    return UnattendedAdmission.fingerprint({
+      work: nightPriorWork(agentId, focus).map(p => [p.status, p.runId, p.backlogId || '', p.title]),
+      backlog: workshopStore.backlogOf(agentId).map(b => [str(b.id), str(b.title).toLowerCase().replace(/\s+/g, ' ').trim(), str(b.builtRunId), str(b.buildingRunId)]).sort(),
+      activity: owner,
+      context: { goal: commanderGoals.get() || null, known: snap.known || [], beliefs, threads: threadsStore.list({ state: 'open' }).map(t => [t.id, t.updatedAt]) },
+      focus: [str(focus && focus.kind), str(focus && focus.ref), str(steer && steer.ref)],
+      project: (focus && focus.kind === 'project' && focus.ref) ? [str(focus.ref), !!isBlessedRoot(focus.ref), isBlessedRoot(focus.ref) ? projectHeadOf(focus.ref) : ''] : null,
+      posture: [str(sum.initiative), str(sum.reach)],
+      engine: [str(cronProviderFor({ agentId })), str(cronModelFor({ agentId }))]
+    });
+  } catch (e) { failNote('nightshift.futile.fingerprint', e); return null; }
+}
+
+// the pre-spend question (nightshiftPrecheck, and status through it): would this agent's next beat be the futile one
+// again? -> the precheck's stand-down { ok:false, reason:'awaiting-verdict', why:{ title, runId } } naming the build it
+// would collide with, read from the LIVE backlog — or null to admit. Reads nothing unless a futile beat is remembered.
+function futileBeatHold(agentId) {
+  const stuck = nightshiftStuck[agentId];
+  if (!stuck) return null;
+  const item = workshopStore.backlogOf(agentId).find(b => b && b.builtRunId && b.builtRunId === stuck.runId);
+  const d = UnattendedAdmission.decide({ stuck, fp: futileBeatFingerprint(agentId), waiting: item ? { title: item.title, runId: item.builtRunId } : null });
+  return d.admit ? null : { ok: false, reason: d.binding, why: d.why };
+}
+
+// after a build beat: remember it when it ended on the dead end against an undecided build, forget it on any other end
+// (a delivery, another stand-down, a throw). `seen` is the fingerprint read before the beat read anything.
+function settleFutileBeat(agentId, seen, result) {
+  const next = UnattendedAdmission.settle({ fp: seen }, result, Date.now());
+  if (!next && !nightshiftStuck[agentId]) return;
+  const all = Object.assign({}, nightshiftStuck);
+  if (next) all[agentId] = next; else delete all[agentId];
+  nightshiftStuck = all;
+  try { fs.mkdirSync(WORKSPACES, { recursive: true }); saveResilient(NIGHTSHIFT_STUCK_FILE, { v: 1, stuck: all }); }
+  catch (e) { failNote('nightshift.futile.save', e); }
+}
+
 // copy an earlier build's disk-proven files into a continuation's run dir (both jail-resolved inside the agent's own
 // workspace; deliverable.json is never copied — the new run writes its own). Bounded: <=40 files, <=2MB each, <=8MB.
 async function seedContinueDir(agentId, fromRunId, toRunId) {
@@ -8547,6 +8645,11 @@ function autonomyLedgerAppend(entry) {
   // edge-triggered declines (driver): the PREVIOUS logged reason held for heldTicks more identical ticks after it was
   // written — the information the old one-row-per-tick log carried, now in one number instead of thousands of rows.
   if (Number.isFinite(e.heldTicks) && e.heldTicks > 0) { detail.heldTicks = Math.floor(e.heldTicks); if (e.heldBinding != null) detail.heldBinding = String(e.heldBinding); }
+  // W1.6: a beat held by the futile-beat skip names the build it waits on, as the live backlog holds it (futileBeatHold)
+  if (e.binding === UnattendedAdmission.AWAITING_VERDICT && e.why) {
+    if (e.why.title) detail.waitingOn = String(e.why.title);
+    if (e.why.runId) detail.waitingRunId = String(e.why.runId);
+  }
   if (e.kind === 'outcome') {
     detail.phase = 'outcome'; detail.delivered = !!e.delivered;
     if (e.title) detail.title = e.title; if (e.archetype) detail.archetype = e.archetype;
@@ -9670,6 +9773,10 @@ function nightshiftPrecheck() {
     const rd = Autopilot.readiness(summary, beliefsByDim, Date.now(), { activityCount });
     const eligible = Autopilot.eligibleArchetypes(rd.usableDims, { activityGrounded: rd.groundedBy === 'activity' });
     if (rd.tier !== 'hot' || !eligible.length) return { ok: false, reason: 'readiness' };
+    // THE FUTILE-BEAT SKIP (W1.6): the last beat re-proposed a build still waiting on the Commander's verdict, and nothing
+    // it read has changed since — this one would spend its call and its leash unit to end the same way. Held before the spend.
+    const futile = futileBeatHold(NIGHTSHIFT_AGENT);
+    if (futile) return futile;
     return { ok: true };
   } catch (_) { return { ok: false, reason: 'precheck-error' }; }
 }
@@ -9712,7 +9819,12 @@ async function runNightshiftBeat(opts) {
   // writes through the SAME consent broker — without it the run would default-deny every write, so we require it.
   const posture = (commanderPosture.summary() || {});
   if (posture.buildsUnattended && workshopOf(agentId)) {
-    return runNightshiftActShift(Object.assign({}, opts, { agentId }));
+    // W1.6: what this beat is about to read, fingerprinted before it reads it; how it ended decides whether the next
+    // beat is held as futile (settleFutileBeat) — on every path that runs a build beat, scheduled or fired by hand
+    const seen = futileBeatFingerprint(agentId);
+    let result = null;
+    try { result = await runNightshiftActShift(Object.assign({}, opts, { agentId })); return result; }
+    finally { settleFutileBeat(agentId, seen, result); }
   }
   // HONEST DEGRADE (2026-07-13): the dial permits real building but the away-workshop grant is missing, so this
   // beat runs as a reason-only draft. Record that in the decision ledger — the old silent fall-through is exactly
@@ -9945,6 +10057,10 @@ async function runNightshiftActShift(opts) {
   catch (_) { /* a queue hiccup (e.g. a title the Commander earlier discarded) → stand down honestly */ return { delivered: false, reason: 'queue-refused' }; }
   // a title already lined up (or discarded) is NOT a new item: building anyway produced an orphan run whose
   // markBuilt found no backlog row, so it never reached the desk. Stand down instead of duplicating the work.
+  // W1.6: when the title is taken by a BUILT item, that build is still waiting on the Commander's verdict — name it, so
+  // the futile-beat skip holds the next beats on it instead of re-proposing it every beat (settleFutileBeat).
+  const waitingOn = (queued && queued.reason === 'duplicate' && queued.item && queued.item.builtRunId) ? { runId: String(queued.item.builtRunId), backlogId: String(queued.item.id || '') } : null;
+  if (waitingOn) return { delivered: false, reason: 'duplicate-backlog', waitingOn };
   if (!queued || queued.reason !== 'added') return { delivered: false, reason: 'duplicate-backlog' };
   await workshopStore.claimNext(agentId, runId, isRunLive).catch(swallow('workshop.claim', null));   // stamp buildingRunId (zombie-reap aware)
 
@@ -27341,6 +27457,9 @@ function handleNightshiftStatus(req, res) {
     lastBeatAt: rolled.lastBeatAt || 0,
     nextEligibleAt: decision ? decision.nextEligibleAt : ((rolled.lastBeatAt || 0) + NIGHTSHIFT_BEAT_MS),
     binding: decision ? decision.binding : 'unknown',
+    // W1.6: while the futile-beat skip holds, the build it waits on — read from the live backlog by the same precheck
+    // the tick runs (null whenever nothing is awaited: the hold is never asserted without that undecided build)
+    waitingOn: (decision && decision.binding === UnattendedAdmission.AWAITING_VERDICT && decision.why) ? { title: String(decision.why.title || ''), runId: String(decision.why.runId || '') } : null,
     inFlight: (() => { try { return nightshiftDriver.runInFlight(); } catch (_) { return false; } })(),
     // NS-5b: the declared night FOCUS (single priority) + its cited evidence, so the morning report can LEAD with
     // "priority: <focus> — because <evidence>". Null when no focus has been declared (nothing to cite → improv).
