@@ -236,7 +236,10 @@ function craft(base, mutate) {
       'cron.jobs.json': { version: 1, jobs: [
         { id: 'sends', name: 'Sends', enabled: true, state: 'idle', finalization: { runId: 'r1', state: 'pending' } },
         { id: 'backlog', enabled: true, state: 'idle', deliveryBacklog: [{ runId: 'r2', state: 'pending' }] },
-        { id: 'settled', enabled: true, state: 'idle', finalization: { runId: 'r3', state: 'delivered' } }] },
+        { id: 'settled', enabled: true, state: 'idle', finalization: { runId: 'r3', state: 'delivered' } },
+        // final review #6: grants the Commander gave at a desk (this one or another), with what bound them
+        { id: 'granted', name: 'Nightly tidy', enabled: true, state: 'idle', script: 'tidy.js', unattendedGrants: ['workbench'], scriptDigest: 'sha256:' + 'a'.repeat(64), grantDrive: 'd1:m:-' },
+        { id: 'grantedsends', name: 'Daily script', enabled: true, state: 'idle', unattendedGrants: ['workbench', 'connectors'], grantDrive: 'd1:m:-', finalization: { runId: 'r4', state: 'pending' } }] },
       'overseer.json': { version: 1, value: { threads: [], reviews: [{ id: 'rep1', status: 'pending', workerRunIds: ['w1'] }, { id: 'rep2', status: 'done' }] } },
       'connectors/state.json': { version: 2, configs: [{ id: 'on', name: 'On', url: 'https://mcp.example/a', enabled: true }, { id: 'unsaid', name: 'U', url: 'https://mcp.example/b', headers: { Authorization: 'canary' } }, { id: 'off', name: 'Off', enabled: false }], oauth: { byId: {}, clients: {} } },
       'channels/secrets.json': { signal: { enabled: true, endpoint: 'http://127.0.0.1:1/', account: '+1' }, telegram: { enabled: true, token: 'canary' }, slack: { enabled: false }, telegramBots: { b1: { username: 'x' }, b2: { enabled: false } }, notifyAutonomous: true }
@@ -264,6 +267,14 @@ function craft(base, mutate) {
       }
       A.eq(job.sends.finalization.state, 'pending', label + 'its result is kept for the resume');
       A.ok(job.settled.enabled === true && !has('routine', 'settled'), label + 'one with nothing to send is left to cron.armed.json');
+      for (const id of ['granted', 'grantedsends']) {
+        A.eq(job[id].unattendedGrants, [], label + 'final review #6: unattended grants of a routine do not travel: ' + id);
+        A.ok(!('scriptDigest' in job[id]) && !('grantDrive' in job[id]), label + 'nor what bound them: ' + id);
+        const row = rows.find(x => x.kind === 'approval' && x.id === 'routine:' + id);
+        A.ok(row && /unattended grants/.test(row.reason) && /confirm at the desk/.test(row.reason), label + 'each is listed to grant again at the desk: ' + id);
+      }
+      A.ok(job.granted.enabled === true && job.granted.script === 'tidy.js', label + 'the routine itself is kept as it was');
+      A.ok(job.grantedsends.enabled === false && has('routine', 'grantedsends'), label + 'and one with an unsent result is still paused and listed');
       const reports = read('overseer.json').value.reviews;
       A.eq(reports[0].status, 'interrupted', label + 'a queued report does not run');
       A.eq(reports[0].workerRunIds, ['w1'], label + 'and still covers its worker, so the tick does not queue it again');

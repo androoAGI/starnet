@@ -366,10 +366,24 @@ function quietStore(rel, raw) {
     // the state cron-store.deliveriesHeld already keeps such a result in until a person resumes it.
     const waiting = j => (Array.isArray(j.deliveryBacklog) ? j.deliveryBacklog : []).concat(j.finalization ? [j.finalization] : []).some(f => f && f.state === 'pending');
     doc.jobs = doc.jobs.map((j, i) => {
-      if (!isObj(j) || !waiting(j) || (j.enabled === false && j.state === 'paused')) return j;
+      if (!isObj(j)) return j;
+      let out = j;
+      /* A ROUTINE'S UNATTENDED GRANTS DO NOT TRAVEL (final review #6, 2026-11-08). They are the Commander's yes at this
+         station's desk, bound to the routine's model, script and settings here; a bundle saying so (an older StarNet's, a
+         hand-edited one, or this computer's own) was never that yes. Each comes back without them, listed, and is granted
+         again in SCHEDULES, confirmed at the desk. What bound them (the script's digest, the model it was given for) goes too. */
+      const grants = Array.isArray(j.unattendedGrants) ? j.unattendedGrants.filter(g => typeof g === 'string' && g) : [];
+      if (grants.length || j.scriptDigest !== undefined || j.grantDrive !== undefined) {
+        const id = safeId(j.id, 'routine-' + i);
+        if (grants.length) rows.push({ kind: 'approval', id: 'routine:' + id, reason: 'Routine "' + name(j, id) + '" runs without its unattended grants (' + grants.slice(0, 4).join(', ').slice(0, 80) + ') after a restore. Grant them again in SCHEDULES if you want them (StarNet asks you to confirm at the desk).', fields: ['unattendedGrants'] });
+        out = Object.assign({}, out, { unattendedGrants: [] });
+        delete out.scriptDigest;
+        delete out.grantDrive;
+      }
+      if (!waiting(out) || (out.enabled === false && out.state === 'paused')) return out;
       const id = safeId(j.id, 'routine-' + i);
       rows.push({ kind: 'routine', id, reason: 'Routine "' + name(j, id) + '" has a result that was not sent. It is paused so nothing goes out after a restore. Resume it in SCHEDULES to send it.', fields: ['enabled'] });
-      return Object.assign({}, j, { enabled: false, state: 'paused', disabledReason: 'paused', disabledAt: null });
+      return Object.assign({}, out, { enabled: false, state: 'paused', disabledReason: 'paused', disabledAt: null });
     });
   } else if (p === 'subagents.json') {
     if (!Array.isArray(doc.records)) return untouched;
