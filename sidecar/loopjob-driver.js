@@ -22,9 +22,10 @@
      deps.isHalted()        -> bool                // the durable station E-STOP
      deps.concurrencyFree(agentId) -> bool         // the agent's run mutex
      deps.agentExists(agentId)     -> bool         // a loop whose agent was deleted must STOP, never fire
-     deps.precheck({loop})  -> {ok,reason}|bool    // OPTIONAL purely-local readiness (credential, workdir still
+     deps.precheck({loop})  -> {ok,reason,why?}|bool  // OPTIONAL purely-local readiness (credential, workdir still
                                                    //   blessed). A stand-down no model call could have avoided
                                                    //   must not cost money — nightshift's NS-2 cold-leash fix.
+                                                   //   `why` (primitives) rides the stand-down's ledger detail (W3.1).
      deps.identityForAgent(agentId, loop) -> {system?, model?} | null
      deps.providerForLoop(loop, ident)    -> string
      deps.getKey(provider, loop)          -> string
@@ -629,7 +630,7 @@
           // dormant loop would otherwise write a row every 20s tick forever and drown the real decisions. Even
           // these three are edge-triggered (noteStandDown): a loop held for hours writes one row an hour, not 180.
           if (d.binding === 'concurrency' || d.binding === 'precheck' || d.binding === 'budget') {
-            noteStandDown('skip', loop, nowMs, { reason: d.binding, binding: d.binding, detail: { note: d.detail || '' } });
+            noteStandDown('skip', loop, nowMs, { reason: d.binding, binding: d.binding, detail: Object.assign({}, d.why || {}, { note: d.detail || '' }) });
           }
           skipped++;
           continue;

@@ -263,8 +263,8 @@
       },
       {
         "path": "frontend/app/autonomystore.js",
-        "bytes": 8491,
-        "sha256": "7642595a957e1c557d2e099a9437533e62e85813052b5c54c0619b23bea5b8f2"
+        "bytes": 8970,
+        "sha256": "4b1e7fef4aab30ae714335be10fb77dffb376e1ecaa04544fb963296cff29e58"
       },
       {
         "path": "frontend/app/autopilot.js",
@@ -753,8 +753,8 @@
       },
       {
         "path": "frontend/app/nightreport.js",
-        "bytes": 31134,
-        "sha256": "ffa65bc35787f74d305e74ebf74ea904046490963f7aa953749e623b116cfc72"
+        "bytes": 36507,
+        "sha256": "25686897caf4c7d1995beac4d67f249343854424896c24af8705eb40af107c1c"
       },
       {
         "path": "frontend/app/nightreportstore.js",
@@ -1248,8 +1248,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 1004863,
-        "sha256": "a267fd64f8ea21268f62fbb51495c45f33abac2572d5fa1d8fbe53348a5663ca"
+        "bytes": 1005053,
+        "sha256": "a11892472e5d6498d45f460ceee29ff1b323bebce8069efe599ef959830f8d31"
       },
       {
         "path": "frontend/app/steering-message.js",
@@ -1473,8 +1473,8 @@
       },
       {
         "path": "frontend/app/windows/routines.js",
-        "bytes": 83842,
-        "sha256": "25d967c8b5c9a1aefb02f0262125b6ef9156d7c647ab8d228ecd811a4ce854a3"
+        "bytes": 84973,
+        "sha256": "863ed7f2283b4638b972d2a073d330bc051d692300504bec33fb17a0df7a9d92"
       },
       {
         "path": "frontend/app/windows/trophies.js",

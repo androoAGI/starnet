@@ -207,9 +207,20 @@
     function spendLine(j) {
       if (!j.lastRunAt) return '';
       const usd = Number(j.lastUsd);
-      if (!isFinite(usd)) return '';
+      if (!isFinite(usd)) return perFireLine(j);
       const txt = usd >= 0.01 ? ('$' + usd.toFixed(2)) : usd > 0 ? ('$' + usd.toFixed(4)) : '$0';
-      return ' · <span class="mc-spend" title="' + (j.runsLine === true ? 'what the whole line spent on its last run (entry + every hop)' : 'what the last run spent') + '">' + txt + (j.runsLine === true ? ' line' : '') + '</span>';
+      return ' · <span class="mc-spend" title="' + (j.runsLine === true ? 'what the whole line spent on its last run (entry + every hop)' : 'what the last run spent') + '">' + txt + (j.runsLine === true ? ' line' : '') + '</span>' + perFireLine(j);   // W3.1: tokens per fire, beside the spend
+    }
+    /* TOKENS PER FIRE (cost fix W3.1) — what one SCHEDULED fire of this routine used, weighted the way the unattended rail counts
+       it (fresh input + cache writes + output + a tenth of the cache reads), averaged over its newest fires: GET /api/cron `tokensPerFire`.
+       Absent until a scheduled fire is recorded (RUN NOW, or a fire you asked for from a message, is your own run, never one of them);
+       a fire's work line and a SEND TO it ships count with it. */
+    function perFireLine(j) {
+      const t = j.tokensPerFire, n = t ? Number(t.tokens) : 0;
+      if (!(n > 0)) return '';
+      const k = n >= 1e6 ? (Math.round(n / 1e5) / 10) + 'M' : n >= 1e3 ? Math.round(n / 1e3) + 'k' : String(Math.round(n));
+      const of = Number(t.starts) > 0 ? Number(t.starts) : 1;
+      return ' · <span class="mc-spend" title="weighted tokens one scheduled fire used (fresh input + cache writes + output + a tenth of cache reads), averaged over its last ' + of + ' fire' + (of === 1 ? '' : 's') + '">~' + k + ' weighted tokens a fire</span>';
     }
     // TYPED OUTCOMES: a run that did not succeed reads as the outcome the station recorded for it (RunOutcome.line: "the reply
     // was cut short", "failed (rate_limit)"), never its bare end reason — a provider-cut reply ends 'done' and read "✕ done"

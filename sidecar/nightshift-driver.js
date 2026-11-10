@@ -73,14 +73,15 @@
     let currentAbort = null;               // the in-flight beat's AbortController (for the E-STOP hook)
     let lastDecline = null;                // { key, binding, at, held } — the last LOGGED decline (edge-trigger memory)
 
-    // a precheck's `why`: at most four primitive fields (strings clipped), or null — never a nested object in a ledger row
+    // a precheck's `why`: at most eight primitive fields (strings clipped), or null — never a nested object in a ledger row.
+    // (W3.1: the window reserve names seven — provider, sign-in, window, %, reset, when read, source.)
     function whyOf(v) {
       if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
       const out = {};
       let n = 0;
       for (const k of Object.keys(v)) {
         const val = v[k];
-        if (n >= 4 || val == null || typeof val === 'object' || typeof val === 'function') continue;
+        if (n >= 8 || val == null || typeof val === 'object' || typeof val === 'function') continue;
         out[String(k).slice(0, 40)] = typeof val === 'string' ? val.slice(0, 200) : val;
         n++;
       }
