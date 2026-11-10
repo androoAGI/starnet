@@ -26997,6 +26997,9 @@ async function runOnceCore(o) {
       billingClassOf: runBilling.classify,   // each attempt's payer (billing-class.js); a provider fallback carries its own
       budget: runBudget, context: ctxMgr, summarize, onFold: persistFold, fallbacks, initialFallback,   // onFold: a paid fold's summary is kept before the loop goes on (persistFold above)
       microCompaction: !/^(0|false|off|no)$/i.test(String(ENV('COMPACT_MICRO') || '').trim()),   // free elision tier before any paid fold (off: STARNET_COMPACT_MICRO=0)
+      // W2.1 batched ageing: old tool results and successful write arguments leave the request view in batches that pay
+      // for themselves (history-edit makeAgeing). OFF until an A/B on real models passes (on: STARNET_BATCHED_AGEING=1)
+      batchedAgeing: /^(1|true|yes|on)$/i.test(String(ENV('BATCHED_AGEING') || '').trim()),
       // P0.2 credential rotation: the live key + a hook the loop calls as it rotates away from a failed one,
       // so a rate-limit/auth/billing key gets a cooldown (credPool) and isn't tried first next run.
       // activePrimaryKey, NOT runKey: when the run's own key was still cooling we STARTED on a warm pool key,

@@ -1,6 +1,8 @@
 /* sidecar/cost.js — token/cost accounting.
    estimate(usage, model)  -> { usd, tokens }                      (live, during stream)
    reconcile(usage, model) -> { usd, tokensIn, tokensOut, reasoningTokens, cachedTokens, cacheWriteTokens }  (authoritative)
+   cacheRates(model)       -> { read, write, published } | null    (the route's cache prices, fresh-input units: the
+                                                                   model's documented ones where prices.js has them)
    resolveUsage(usage)     -> { uncachedIn, cacheRead, cacheWrite, cacheWrite5m?, cacheWrite1h?, out, reasoning } | null
                                                                                          (the ONE count resolver)
    writeSplit(cc, write)   -> { ephemeral_5m_input_tokens, ephemeral_1h_input_tokens } | null   (a reported tier split)
@@ -74,6 +76,20 @@
   // A family whose cache rates are not published prices cached tokens exactly like fresh ones — the
   // pre-caching behaviour, and the direction that can only ever OVER-report a spend seatbelt.
   const NO_CACHE = { read: 1, write: 1 };
+
+  /* A model's documented cache rates (prices.js cacheRatesOf), for cacheRates alone; billing never asks. Loaded on first
+     use, so requiring cost.js never loads the price table (whose operator overrides are read once, at its load). */
+  let cacheRatesOf;
+  function documentedCache(model) {
+    if (cacheRatesOf === undefined) {
+      cacheRatesOf = null;
+      try { const p = typeof require === 'function' ? require('./providers/prices.js') : null; if (p && typeof p.cacheRatesOf === 'function') cacheRatesOf = p.cacheRatesOf; } catch (_) { cacheRatesOf = null; }
+    }
+    if (!cacheRatesOf) return null;
+    let d = null;
+    try { d = cacheRatesOf(model); } catch (_) { return null; }
+    return (d && Number(d.read) >= 0 && Number(d.write) >= 0) ? { read: Number(d.read), write: Number(d.write) } : null;
+  }
 
   function makeCostEngine(opts) {
     opts = opts || {};
@@ -155,6 +171,22 @@
           catalogPriced: !!price,
           unpriced: !providerCost && !price && (tokensIn + tokensOut > 0)
         };
+      },
+      /* THE ROUTE'S CACHE PRICES (W2.1 batched ageing weighs a batch with them): what reading and writing one cached
+         prompt token costs next to a fresh one. The model's DOCUMENTED rates where the price table has them (prices.js
+         cacheRatesOf: a Claude model on any route, its own read and the dearest write tier the cache switch asks for),
+         never the billing row's: billing prices Claude Opus 5.5's reads (0.05x) and Fable 5.1's (0.025x) at the family's
+         0.10x, which over-reports a spend (its safe direction) and would over-credit a saving (the W2.1 review billed a
+         fresh run's batches at Opus 5.5's read: 17.8% dearer than ageing off). Any other model: the catalog row that
+         prices the call (W1.13: `write` is the dearest tier the cache switch asks for). null = unpriced (a sign-in, a
+         local model, a cold catalog): nothing to weigh. published: false = nothing here documents the route's cache (the
+         row names no cache rates and books them at 1.0x, NO_CACHE): the rates say nothing about it. */
+      cacheRates(model) {
+        const p = catalogPrice(model);
+        if (!p) return null;
+        const doc = documentedCache(model);
+        if (doc) return { read: doc.read, write: doc.write, published: true };
+        return { read: p.cache.read, write: p.cache.write, published: p.cache !== NO_CACHE };
       }
     };
   }

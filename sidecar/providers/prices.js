@@ -60,14 +60,20 @@
 })(typeof globalThis !== 'undefined' ? globalThis : this, function (cacheTtl) {
   'use strict';
 
-  // [pattern, { in, out }] — USD per MILLION tokens. Order matters: specific before family fallback.
+  // [pattern, { in, out, cacheRead? }] — USD per MILLION tokens. Order matters: specific before family fallback.
+  // cacheRead: the model's DOCUMENTED cache-read ratio, only where it is not the family's (CACHE below). Billing never reads
+  // it (the family rate over-reports these reads: the seatbelt's safe direction); cacheRatesOf below does.
   const ANTHROPIC = [
     // Claude 5 family (claude-api skill reference, 2026-06-24; models.dev 2026-08-21 concurs). The 5.5 rows and Sonnet 5
-    // re-checked 2026-10-08 against the claude-api skill "Current Models" table (cached 2026-10-06).
-    [/^claude-fable-5/i,             { in: 10.00, out: 50.00 }],  // fable 5 / 5.1 (5.1 cache reads are 0.025x: the family 0.10x over-reports them)
+    // re-checked 2026-10-08 against the claude-api skill "Current Models" table (cached 2026-10-06). Cache reads re-checked
+    // 2026-11-09 (shared/prompt-caching.md:144, shared/model-migration.md:1695 and :2040): $0.25/MTok on Fable 5.1 and
+    // Mythos 5.1 (0.025x), $0.20/MTok on Opus 5.5 (0.05x), 0.1x on every other model; Fable 5 / Mythos 5 read at $1/MTok.
+    [/^claude-fable-5[-.]1/i,        { in: 10.00, out: 50.00, cacheRead: 0.025 }],  // fable 5.1
+    [/^claude-fable-5/i,             { in: 10.00, out: 50.00 }],  // fable 5
+    [/^claude-mythos-5[-.]1/i,       { in: 10.00, out: 50.00, cacheRead: 0.025 }],  // Project Glasswing — Fable 5.1's rates (skill ref)
     [/^claude-mythos-5/i,            { in: 10.00, out: 50.00 }],  // Project Glasswing — same rate as Fable 5 (skill ref)
     [/^claude-mythos/i,              { in: 10.00, out: 50.00 }],  // mythos-preview: priced at the Fable/Mythos 5 rate (unverified id)
-    [/^claude-opus-5[-.]5/i,         { in: 4.00, out: 20.00 }],   // opus 5.5 (cache reads 0.05x: the family 0.10x over-reports them)
+    [/^claude-opus-5[-.]5/i,         { in: 4.00, out: 20.00, cacheRead: 0.05 }],    // opus 5.5
     [/^claude-opus-5/i,              { in: 5.00, out: 25.00 }],
     [/^claude-sonnet-5/i,            { in: 2.00, out: 10.00 }],   // sonnet 5 and 5.5 share a rate ("at the same prices", skill ref)
     [/^claude-opus-4-[5678]/i,       { in: 5.00, out: 25.00 }],   // opus 4.5 / 4.6 / 4.7 / 4.8 share a rate
@@ -317,6 +323,30 @@
     return CACHE[family] || NO_CACHE;
   }
 
+  /* cacheRatesOf(id) -> { read, write } | null   THE CACHE RATES A MODEL IS DOCUMENTED TO BILL, WHEREVER IT IS SERVED
+     (W2.1 review). Billing prices a cache read at its FAMILY's rate (CACHE above): Anthropic's 0.10x over-reports the
+     Fable 5.1 / Mythos 5.1 (0.025x) and Opus 5.5 (0.05x) reads, the safe direction for a spend seatbelt. Whatever WEIGHS a
+     read against a write (batched ageing's payback, history-edit.js) needs the opposite bound: a read priced above the
+     model's own rate credits every later request with a saving it does not make. So it asks here, never the billing row:
+       · a Claude model (a bare id of the anthropic table above; 'anthropic/claude-opus-5-5' through OpenRouter or the
+         managed route is 'claude-opus-5-5') -> read: its row's documented cacheRead, else the family's 0.10x ("every
+         other model at 0.1x"); write: the dearest tier the cache switch asks for (cacheOf: 1.25x, 2.0x once 1-hour anchors
+         are requested). The same rates on every route: OpenRouter's catalog carries no cache rates, and the dearer write
+         and the model's own read can only make a re-write weigh more and a saving less.
+       · any other id -> null: its route's own rates are what there is to weigh.
+     Matched on the bare id, as promptTierTokens is: the documented rates are a property of the model wherever it is
+     billed. An operator price override rebases in/out, never these. */
+  function cacheRatesOf(id) {
+    const key = String(id == null ? '' : id).trim().split('/').pop();
+    if (!/^claude-/i.test(key)) return null;
+    for (const [re, price] of ANTHROPIC) {
+      if (!re.test(key)) continue;
+      const fam = cacheOf('anthropic');
+      return { read: price.cacheRead != null ? price.cacheRead : fam.read, write: fam.write };
+    }
+    return null;
+  }
+
   // Operator overrides, parsed ONCE and tolerant of garbage — a typo in the env must never wedge a run
   // (same discipline as SKYNET_ANTHROPIC_MAX_TOKENS in anthropic.js). Longest matching key wins, so a full
   // model id beats a family prefix.
@@ -417,5 +447,5 @@
     return promptTierTokens(id);
   }
 
-  return { priceOf, pricingBlock, setLiveLookup, promptTierTokens, promptTierCeiling, _internals: { ANTHROPIC, GEMINI, OPENAI, XAI, GROQ, MISTRAL, DEEPSEEK, TOGETHER, FIREWORKS, TABLES, CACHE, OVERRIDES, PROMPT_TIERS, BILLED_COST_ROUTES } };
+  return { priceOf, pricingBlock, setLiveLookup, promptTierTokens, promptTierCeiling, cacheRatesOf, _internals: { ANTHROPIC, GEMINI, OPENAI, XAI, GROQ, MISTRAL, DEEPSEEK, TOGETHER, FIREWORKS, TABLES, CACHE, OVERRIDES, PROMPT_TIERS, BILLED_COST_ROUTES } };
 });

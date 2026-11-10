@@ -1814,3 +1814,5 @@ test/aux-admission.test.js
 test/history-edit.test.js
 test/history-edit.invariant.test.js
 test/cross-run-replay.test.js
+test/batched-ageing.test.js
+test/batched-ageing.invariant.test.js

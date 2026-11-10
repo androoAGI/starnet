@@ -456,6 +456,10 @@
     // Prompt-cache breakpoints for an endpoint that relays to a cache_control-honoring backend (the managed proxy ->
     // OpenRouter): (messages, model, cacheSystemPrefix) -> messages. Absent = the body is byte-identical to before.
     const cacheControl = typeof opts.cacheControl === 'function' ? opts.cacheControl : null;
+    // ...and where those breakpoints let a read land after a history edit (W2.1, history-edit.js readFloor): the stamper's
+    // own answer (openrouter.cacheAnchorsFor), null without one: an endpoint's automatic prefix caching, if any
+    const cacheAnchorsOf = (cacheControl && typeof opts.cacheAnchors === 'function') ? opts.cacheAnchors : null;
+    function cacheAnchors(model) { return cacheAnchorsOf ? cacheAnchorsOf(model) : null; }
     // OUTPUT CEILING (2026-09-15, issue #17): this adapter never capped output, so an endpoint with no ceiling of
     // its own (Ollama) ran to end-of-sequence — a 3B local model typed for ten minutes. Off unless the PROFILE opts
     // in (factory: profile.maxOutputTokens) or the caller passes max_tokens explicitly; hosted endpoints that
@@ -1557,7 +1561,7 @@
 
     // localRuntime names the Ollama server this instance talks to, so the loop never fails a local out-of-memory
     // over to another model on the same server.
-    return { stream, listModels, verifyCredential, warmCatalog, contextLimit, outputLimit, priceOf, supportsTools, supportsImages, reasoningEfforts, effortAsSent, endpointFacts: endpointFactsOf, localRuntime: nativeBase || undefined };
+    return { stream, listModels, verifyCredential, warmCatalog, contextLimit, outputLimit, priceOf, supportsTools, supportsImages, reasoningEfforts, effortAsSent, cacheAnchors, endpointFacts: endpointFactsOf, localRuntime: nativeBase || undefined };
   }
 
   return { makeOpenAICompatibleProvider, _internals: { normalizeModel, reportedWindow, cleanBaseUrl, responseErrorDetail, safeErrorField, makeArgsTracker, clampToDeclared, canonicalEffort, paramNamed, supportedEffortsFrom, toolsForceNone, replayReasoningContent } };
