@@ -12199,7 +12199,7 @@ const Chat = (() => {
     const before = Object.assign({}, Harness.totals());   // COPY (totals is a mutated singleton)
     let res;
     try {
-      res = await Harness.chat({ system: sys, messages: [{ role: 'user', content: prompt }], agentId: ws.agentId || 'agent', isTask: false, placed: [], internal: true, quotesStream: ws.id });   // the title prompt is a digest of this session's messages: the station stamps what the call writes as a quote of the session
+      res = await Harness.chat({ system: sys, messages: [{ role: 'user', content: prompt }], agentId: ws.agentId || 'agent', isTask: false, placed: [], internal: true, oneShot: 'title', quotesStream: ws.id });   // the title prompt is a digest of this session's messages: the station stamps what the call writes as a quote of the session
     } catch (_) { return; }   // network/hiccup → keep the placeholder, no noise
     // fold the quiet call's REAL usage into the origin stream (same truthful-telemetry path as a normal turn)
     try { const a = Harness.totals(); Workstreams.addCost(ws.id, { tokens: a.tokens - before.tokens, usd: a.cost - before.cost, calls: a.calls - before.calls }); } catch (_) {}

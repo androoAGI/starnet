@@ -1341,7 +1341,7 @@ const Harness = (() => {
      stream of newline-delimited JSON events — the FROZEN agent.* U.bus events the harness emits.
      Each event is re-emitted on U.bus (for telemetry) and mapped to the caller's callbacks.
      onToken(delta) per text delta · onToolCall/onToolResult per tool step · onUsage per turn. */
-  async function chat({ system, messages, onToken, onTerminalReset, onUsage, onToolCall, onToolResult, onRunId, onDeliverable, onPermission, onSummon, agentId, isTask, recurring, signal, streamId, recipeId, workbench, placed, stationPlaced, internal, evidence, keepEffort, projectRoot, taskAction, postconditions, recovery, connectorContinuationOf, goalContinuation, quotesStream, retryUserRunId, voiceTurn, turnId, retryOf, turnAt, clientNow, turnRowId, windowTokens, windowFrom }) {
+  async function chat({ system, messages, onToken, onTerminalReset, onUsage, onToolCall, onToolResult, onRunId, onDeliverable, onPermission, onSummon, agentId, isTask, recurring, signal, streamId, recipeId, workbench, placed, stationPlaced, internal, evidence, keepEffort, oneShot, projectRoot, taskAction, postconditions, recovery, connectorContinuationOf, goalContinuation, quotesStream, retryUserRunId, voiceTurn, turnId, retryOf, turnAt, clientNow, turnRowId, windowTokens, windowFrom }) {
     const model = getModel(), provider = getProv(), key = getKey(provider), reasoningEffort = getReasoningEffort(provider);
     // Codex authenticates by an OAuth token (server-side); the desktop build keeps the key in the
     // sidecar's env (keychain). Neither needs a key sent from here.
@@ -1400,6 +1400,8 @@ const Harness = (() => {
       if (internal) reqBody.internal = true;
       // self-talk runs on the cheap aux reasoning effort; keepEffort (work they read, the goal judge, the preflight) keeps theirs
       if (internal && keepEffort) reqBody.keepEffort = true;
+      // the session title (W3.5): the station runs it on the small model of the run's provider family, the run model once if unusable
+      if (internal && oneShot === 'title') reqBody.oneShot = 'title';
       // a SPOKEN reply: the sidecar may answer it on SETTINGS › Models › VOICE CHAT MODEL (this turn only)
       if (voiceTurn && !internal) reqBody.voiceTurn = true;
       /* THE EVIDENCE PACK, for the runs that must GUESS (rec perfection W2). An internal run gets a verbatim
@@ -1526,7 +1528,10 @@ const Harness = (() => {
         // XP / tasksDone / FloorStats products / the quest log / the suggestion cooldown never count the agent
         // thinking to itself (truthful-telemetry + honest-loot). The caller's own promise result is unaffected — the
         // switch below still latches runId/endReason locally from these same events.
-        const suppressBus = internal && (name === 'agent.run.start' || name === 'agent.run.end');
+        // W3.5: an internal session title's one planned retry on the run model (provider.fallback, reason oneshot_unusable)
+        // is that pass's own design, not a failover: no warn toast, REROUTE ticker or floor failover count. Its receipts and
+        // agent.cost still name both models.
+        const suppressBus = internal && (name === 'agent.run.start' || name === 'agent.run.end' || (name === 'provider.fallback' && payload.reason === 'oneshot_unusable'));
         if (!suppressBus && typeof U !== 'undefined' && U.bus) { try { U.bus.emit(name, payload); } catch (_) {} }
         switch (name) {
           // latch the LEAD's runId on the FIRST run.start only. Stage 2: a delegated worker's run.start/end/error

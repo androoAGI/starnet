@@ -753,8 +753,13 @@
     return { spawn, fs, os, path, env, platform, isFile, command, notInstalled, notSignedIn, childEnv, killTree, authStatus, logout };
   }
 
-  // the CLI's own model names and aliases -> the list-rate table's ids (an alias follows the newest of its family)
-  const ALIAS = { opus: 'claude-opus-5-5', sonnet: 'claude-sonnet-5-5', haiku: 'claude-haiku-4-5-20251001' };
+  /* the CLI's own model names and aliases -> the list-rate table's ids (an alias follows the newest of its family). `haiku`
+     is Haiku 5.5: the installed CLI's own catalog (2.1.319, read 2026-11-09) resolves the haiku alias to claude-haiku-5-5
+     on a first-party sign-in, and the claude-api skill names claude-haiku-5-5 the current Haiku. It was priced as Haiku 4.5
+     ($1/$5 per MTok, ten times Haiku 5.5's $0.10/$0.50). An older CLI that still serves the alias on Haiku 4.5 says so in
+     its init and message_start lines (test/fixtures/claude-cli-2.1.284-natural.json): a turn that names its served model is
+     priced as that model, and this table is only the fallback for a turn that names none (W3.5). */
+  const ALIAS = { opus: 'claude-opus-5-5', sonnet: 'claude-sonnet-5-5', haiku: 'claude-haiku-5-5' };
   function estimateUsd(u, model) {
     try {
       const id = String(model || '').replace(/\[1m\]$/i, '');
@@ -835,6 +840,7 @@
       let open = null;   // the call a tool_start already announced, whose block has not closed yet
       const t = {
         callIndex: 0, sawText: false, result: null, apiKeySource: null, apiError: '',
+        servedModel: '',   // the model the CLI says it ran (init, then each message_start): what an alias such as `haiku` resolved to
         blockDone: false, streamUsage: null,   // the call block ended the turn (see the reader's STOP)
         outChars: 0,   // what the model wrote this turn: the floor for its output tokens when the stop cut the count short
         raw: '',       // every text delta exactly as the CLI streamed it: what a persistent child keeps as this reply
@@ -865,7 +871,7 @@
       }
       t.line = function (j) {
         const out = [];
-        if (j.type === 'system' && j.subtype === 'init') t.apiKeySource = j.apiKeySource == null ? null : String(j.apiKeySource);
+        if (j.type === 'system' && j.subtype === 'init') { t.apiKeySource = j.apiKeySource == null ? null : String(j.apiKeySource); if (typeof j.model === 'string' && j.model) t.servedModel = j.model; }
         else if (j.type === 'system' && j.subtype === 'compact_boundary') t.compacted = true;
         else if (j.type === 'stream_event' && j.event && j.event.type === 'content_block_delta' && j.event.delta && j.event.delta.type === 'text_delta') {
           const text = String(j.event.delta.text || '');
@@ -874,7 +880,10 @@
           const part = splitter.push(j.event.delta.text);
           emitSplit(part, out);
           if (part.stop) { t.blockDone = true; t.rest = part.rest || ''; }
-        } else if (j.type === 'stream_event' && j.event && j.event.type === 'message_start') t.streamUsage = Object.assign({}, j.event.message && j.event.message.usage);
+        } else if (j.type === 'stream_event' && j.event && j.event.type === 'message_start') {
+          t.streamUsage = Object.assign({}, j.event.message && j.event.message.usage);
+          if (j.event.message && typeof j.event.message.model === 'string' && j.event.message.model) t.servedModel = j.event.message.model;
+        }
         else if (j.type === 'stream_event' && j.event && j.event.type === 'message_delta' && j.event.usage) t.streamUsage = Object.assign(t.streamUsage || {}, j.event.usage);
         else if (j.type === 'assistant' && j.error) t.apiError = String(j.error);
         else if (j.type === 'rate_limit_event') rateLimitSeen(j.rate_limit_info);
@@ -898,6 +907,8 @@
         if (split) details.cache_creation = split;
         return {
           type: 'usage',
+          // the model as it ran, when the CLI named it (provider.js: a usage event's optional `model`): receipts and aux rows say it
+          ...(t.servedModel ? { model: t.servedModel } : {}),
           usage: {
             prompt_tokens: uncached + cacheWrite + cacheRead,
             completion_tokens: out,
@@ -922,7 +933,7 @@
       t.stopChunks = function (model) {
         const su = Object.assign({}, t.streamUsage || {});
         su.output_tokens = Math.max(Number(su.output_tokens) || 0, Math.ceil(t.outChars / 4));
-        return [t.usageChunk({ usage: su, total_cost_usd: t.apiKeySource === 'none' ? NaN : estimateUsd(su, model) }), { type: 'done', finishReason: 'tool_calls', truncated: false }];
+        return [t.usageChunk({ usage: su, total_cost_usd: t.apiKeySource === 'none' ? NaN : estimateUsd(su, t.servedModel || model) }), { type: 'done', finishReason: 'tool_calls', truncated: false }];
       };
       // `detail` (the result line's subtype) names only a GENERIC failure: a tagged auth / usage-limit failure with an empty
       // `result` keeps its plain words, never an internal string such as error_during_execution (review 2026-10-13)
@@ -1197,8 +1208,10 @@
             // Initialization belongs to this exact child, including a warm child before any turn has a sink.
             let metadata;
             try { metadata = JSON.parse(line); } catch (_) { metadata = null; }
-            if (metadata && metadata.type === 'system' && metadata.subtype === 'init')
+            if (metadata && metadata.type === 'system' && metadata.subtype === 'init') {
               s.apiKeySource = metadata.apiKeySource == null ? null : String(metadata.apiKeySource);
+              if (typeof metadata.model === 'string' && metadata.model) s.servedModel = metadata.model;   // the model this child runs on
+            }
             if (s.sink) s.sink(line);
           }
         }
@@ -1348,6 +1361,7 @@
       const turn = ++seq;
       const T = makeTurn(req, turn);
       T.apiKeySource = s.apiKeySource;   // init is session-scoped, not repeated for every user turn
+      if (s.servedModel) T.servedModel = s.servedModel;   // …and so is the model it named (each message_start may name it again)
       if (box) box.turn = T;
       const queue = [];
       let wake = null, failure = null, clean = false, finished = false, idleTimer = null;
@@ -1460,7 +1474,7 @@
           if (inSync) {
             // the turn really ended: book its own result line (exact output tokens; this turn's share of the cost)
             const cost = costOf(s, ended);
-            const billed = { usage: ended.usage || T.streamUsage || {}, total_cost_usd: isFinite(cost) ? cost : estimateUsd(ended.usage || {}, req.model) };
+            const billed = { usage: ended.usage || T.streamUsage || {}, total_cost_usd: isFinite(cost) ? cost : estimateUsd(ended.usage || {}, T.servedModel || req.model) };
             out = [T.usageChunk(billed), { type: 'done', finishReason: 'tool_calls', truncated: false }];
             settle(); parkSession(s, sp.rest, T, req); clean = true;
           } else {
@@ -1472,7 +1486,7 @@
             settle(); closeSession(s, why);
             if (!(signal && signal.aborted)) prewarm(cmd, req, childStart(sp, req, runId).system, key, runId);   // the loop runs the tools meanwhile
             out = ended
-              ? [T.usageChunk({ usage: ended.usage || T.streamUsage || {}, total_cost_usd: isFinite(cost) ? cost : (T.apiKeySource === 'none' ? NaN : estimateUsd(ended.usage || {}, req.model)) }), { type: 'done', finishReason: 'tool_calls', truncated: false }]
+              ? [T.usageChunk({ usage: ended.usage || T.streamUsage || {}, total_cost_usd: isFinite(cost) ? cost : (T.apiKeySource === 'none' ? NaN : estimateUsd(ended.usage || {}, T.servedModel || req.model)) }), { type: 'done', finishReason: 'tool_calls', truncated: false }]
               : T.stopChunks(req.model);
           }
           for (const ev of out) yield ev;

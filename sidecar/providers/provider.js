@@ -20,6 +20,9 @@
          | { type:'generation', id }           // OPTIONAL provider-issued call ID; metadata only, never a usage receipt
          | { type:'usage',      usage }          // prompt_tokens, completion_tokens, total_tokens,
          |                                       //   prompt_tokens_details.cached_tokens, reasoning_tokens, cost, generation_id
+         |                                       //   OPTIONAL `model` beside usage: the model the provider says served the call
+         |                                       //   (claude-cli: what an alias such as `haiku` resolved to). Receipts and aux
+         |                                       //   rows record it as the model as it ran (W3.5); absent = the asked model.
          | { type:'done',       finishReason, truncated? }   // finishReason normalized via normalizeFinish()
          |     Adapters emit EXACTLY ONE 'done' per stream, and it is REQUIRED even when the upstream never
          |     stated a finish reason (finishReason: null) — the loop cannot distinguish a finished answer from

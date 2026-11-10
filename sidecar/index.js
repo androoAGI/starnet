@@ -265,7 +265,7 @@ function channelBodyError(e) {
     : 'bad json';
 }
 const { MIME, CHANNEL_UPLOAD_MAX_BYTES, mimeForPath, safeDownloadName, isActiveDeliverable, parseRange, isTextDocument, documentViewHtml, DOC_VIEW_CSP, DOC_VIEW_MAX_BYTES } = require('./file-response.js');
-const { reflect, reflectSalient, refusedAction, recordFromProposal, feedbackFor, highStakes } = require('./reflect.js');
+const { reflect, reflectSalient, refusedAction, recordFromProposal, feedbackFor, highStakes, parse: reflectParse } = require('./reflect.js');
 const FeedbackMemory = require('./feedbackmemory.js');   // THE COMMANDER'S TASTE: verdicts + corrections -> durable like/dislike memory
 const TasteRef = require('./tasteref.js');   // DESIGN ANCHOR: the rated run's real files / palette / fonts / image args / method, captured on a verdict
 const Failreview = require('./failreview.js');   // failure-review aux pass: PURE lesson producer for FAILED runs (reflect.js mold)
@@ -473,6 +473,7 @@ const TaskIntent = require('../frontend/app/fork.js').TaskIntent;    // shared T
 const ForkMarkers = require('../frontend/app/fork.js');               // the one choice-marker grammar (parse / stripMarkers)
 const CommanderContext = require('./commander-context.js');    // bounded provenance-labelled task context
 const threadmine = require('./threadmine.js');                // NS-6: pure post-run thread-mining producer (reflect/study mold)
+const OneShot = require('./oneshot-model.js');                 // W3.5: which model a one-shot pass runs on (the family's small model) + its one retry
 const AuxGovernor = require('./auxgovernor.js');              // aux-budget lane: PURE joint ceiling over the post-run aux passes (priority + budget)
 const { makeAuxAdmission } = require('./aux-admission.js');
 const LearnedTail = require('./learned-tail.js');             // issue #105: learned blocks of a persona stay out of the cached prefix
@@ -4062,6 +4063,69 @@ function nightshiftUndeclined(agentId, candidates) {
 function resolveAuxModel() {
   return String(ENV('AUX_MODEL') || ENV('REFLECT_MODEL') || '').trim() || null;
 }
+/* ---- W3.5 ONE-SHOT PASS MODEL (cost audit 2026-11-08; oneshot-model.js decides, this reads its inputs) ----------------
+   Study · thread mining · the scout cycle · a session title run on the SMALL model of the run's provider family (Andrew,
+   11-08): on by default, all off with STARNET_AUX_SMALL_MODEL=0. Reflection moves there only with
+   STARNET_AUX_SMALL_REFLECTION=1 (default off). The user's own aux model (resolveAuxModel) always wins, as before. The small
+   model is only ever an id the run provider's own catalog lists, read here under a ceiling: a catalog that does not answer
+   in time keeps the run model. Where the provider prices its models, the small model must also cost less than the run's
+   (oneshot-model.js PRICE CHECK, the adapter's own priceOf); a `:free` or $0 run keeps its model. */
+const ONESHOT_CATALOG_MS = 2000;
+/* one read per adapter OBJECT, held at most 10 min. A run's post-run passes share one aux adapter (PromptScrub.guardRequest
+   makes it per run) and a title run builds its own, so in practice this is one read per qualifying run and one per title.
+   What a read costs depends on the adapter: OpenRouter answers from its process-wide catalog, the Anthropic, Gemini and
+   OpenAI-compatible adapters from the process catalog cache (catalog-cache.js), claude-cli from its baked list after one
+   `claude auth status` on that adapter, and Codex with one live GET /models (no inference, no tokens). */
+const ONESHOT_CATALOG_TTL_MS = 10 * 60 * 1000;
+const oneShotCatalogs = new WeakMap();   // adapter -> { at, ids: Promise<string[]> } (an empty answer is never kept)
+function oneShotCatalog(provider, providerId) {
+  if (!provider || typeof provider.listModels !== 'function') return Promise.resolve([]);
+  const held = oneShotCatalogs.get(provider);
+  if (held && Date.now() - held.at < ONESHOT_CATALOG_TTL_MS) return held.ids;
+  const ids = (async () => {
+    let timer = null;
+    try {
+      const list = await Promise.race([
+        Promise.resolve().then(() => provider.listModels()),
+        new Promise(resolve => { timer = setTimeout(() => resolve(null), ONESHOT_CATALOG_MS); })
+      ]);
+      return Array.isArray(list) ? list.map(m => String((m && m.id) || '')).filter(id => id && !isBatchOnlyModel(providerId, id)) : [];
+    } catch (e) { failNote('oneshot.catalog', e); return []; }
+    finally { clearTimeout(timer); }
+  })();
+  const entry = { at: Date.now(), ids };
+  oneShotCatalogs.set(provider, entry);
+  ids.then(got => { if (!got.length && oneShotCatalogs.get(provider) === entry) oneShotCatalogs.delete(provider); });
+  return ids;
+}
+// the plan for one pass: { kind, model, runModel, small, why } — o: { provider, route, runModel (else model) }
+async function oneShotPlan(kind, o) {
+  const p = o && o.provider;
+  const ctx = { runModel: String((o && (o.runModel || o.model)) || ''), explicit: resolveAuxModel() || '',
+    smallOn: ENV('AUX_SMALL_MODEL') !== '0', reflectionOn: ENV('AUX_SMALL_REFLECTION') === '1',
+    // the run provider's own per-million prices (null on a subscription route): the small model must cost less than the run's
+    priceOf: (p && typeof p.priceOf === 'function') ? (id => p.priceOf(id)) : null };
+  const first = OneShot.pick(kind, ctx);
+  if (first.why !== 'no-catalog') return first;   // decided without the catalog: the user's aux model, a switch, no family, already small
+  ctx.models = await oneShotCatalog(o && o.provider, o && o.route);
+  return OneShot.pick(kind, ctx);
+}
+/* ONE call of a post-run one-shot pass, on the model its plan names, with the plan's one retry on the run model inside
+   OneShot.call. req = the pass's request without a model or an effort; accept(text) = the pass's own word that a reply is
+   usable (its parser, or NONE). Every attempt streams through the pass's own meter, so the ledger gets a row per model that
+   ran. Effort: the pass's own (o.reasoningEffort, resolved for o.model) on that model, else the lowest the provider lists for
+   the model the attempt runs on (auxPassEffort, the same policy). */
+async function oneShotStream(kind, o, spend, req, accept) {
+  const plan = await oneShotPlan(kind, o);
+  const signal = req && req.signal;
+  const r = await OneShot.call(plan, (model) => {
+    const q = Object.assign({}, req, { model });
+    const effort = model === o.model ? (o.reasoningEffort || null) : auxPassEffort(o.provider, model);
+    if (effort) q.reasoningEffort = effort;
+    return spend.stream(o.provider, q, o.cost);
+  }, accept, { aborted: () => !!(signal && signal.aborted), log: line => console.log('[oneshot] ' + line) });
+  return r.text;
+}
 /* auxSkillModel — which model a nested SKILL loop (review/curator) may run on. Same family as
    fallbackchain.promoteToolCapable but STRICTER in direction: promoting a task onto a fallback entry tolerates
    unknown support (a cold catalog must never refuse a run), while swapping a working TOOL loop down to a cheap
@@ -4242,15 +4306,14 @@ async function runReflection(o) {
   let replied = false, kept = false;   // W1.4 (learning-cooldown.js): the model answered (NONE counts) / a proposal survived
   // the aux-model call: mirrors summarize() — ONE streamed completion, reconciled for cost. reflect() builds
   // the prompt (recent user/agent exchange) and parses the tagged reply; here we only supply the model.
-  const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
   const propose = async (prompt) => {
-    const req = { model, stream: true, signal: ac.signal, messages: [
+    const req = { stream: true, signal: ac.signal, messages: [
       { role: 'system', content: 'You are an agent reflecting right after finishing a task. Extract only DURABLE, reusable memories worth keeping for future runs — stable user preferences or learned facts (state the gist, not the whole result). These are beliefs about the user or the world, never instructions, procedures, or advice you gave during the run. One per line, each tagged FACT: or PREFERENCE:. Skip anything transient, run-specific, or already obvious. If nothing is worth keeping, reply NONE.' },
       { role: 'user', content: prompt }
     ] };
-    if (auxEffort) req.reasoningEffort = auxEffort;
     if (runId) req.runId = runId;   // run attribution (starnet proxy header; other providers ignore it)
-    const text = await spend.stream(provider, req, cost);
+    // W3.5: the run model unless STARNET_AUX_SMALL_REFLECTION=1 moves it to the family's small model (one retry on the run model)
+    const text = await oneShotStream('reflection', o, spend, req, t => OneShot.isNone(t) || reflectParse(t).length > 0);
     replied = !!String(text || '').trim();
     return text;
   };
@@ -4450,17 +4513,16 @@ async function runStudy(o) {
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, STUDY_TIMEOUT_MS);
   const spend = auxSpend('study', o && o.route);
   let replied = false, kept = false;   // W1.4 (learning-cooldown.js): the model answered (NONE counts) / a proposal survived
-  const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
   const propose = async (prompt) => {
-    const req = { model, stream: true, signal: ac.signal, messages: [
+    const req = { stream: true, signal: ac.signal, messages: [
       { role: 'system', content: 'You update a durable profile of your Commander from finished work. Propose ONLY evidenced, durable belief changes, one per line, each tagged with a dimension and ADD or RETIRE. Skip anything transient, guessed, or already known. If nothing changed, reply NONE.' },
       // Capture stays verbatim in RAM. This is a derived prompt, so the stored-text owner also removes unsaved
       // vendor-shaped keys; the provider's held-only guard deliberately preserves those in a live keys.save turn.
       { role: 'user', content: PromptScrub.scrubStored(prompt) }
     ] };
-    if (auxEffort) req.reasoningEffort = auxEffort;
     if (runId) req.runId = runId;   // run attribution (starnet proxy header; other providers ignore it)
-    const text = await spend.stream(provider, req, cost);
+    // W3.5: the family's small model, one retry on the run model when its reply is unusable (oneshot-model.js)
+    const text = await oneShotStream('study', o, spend, req, t => OneShot.isNone(t) || Study.parse(t).length > 0);
     replied = !!String(text || '').trim();
     return text;
   };
@@ -4519,15 +4581,14 @@ async function runThreadMine(o) {
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, THREAD_MINE_TIMEOUT_MS);
   const spend = auxSpend('threadmine', o && o.route);
   let replied = false, kept = false;   // W1.4 (learning-cooldown.js): the model answered (NONE counts) / a thread survived
-  const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
   const propose = async (prompt) => {
-    const req = { model, stream: true, signal: ac.signal, messages: [
+    const req = { stream: true, signal: ac.signal, messages: [
       { role: 'system', content: 'You surface ideas the Commander raised but never acted on, each with a VERBATIM quote copied word-for-word from the conversation. Never paraphrase or invent. If none, reply NONE.' },
       { role: 'user', content: prompt }
     ] };
-    if (auxEffort) req.reasoningEffort = auxEffort;
     if (runId) req.runId = runId;   // run attribution (starnet proxy header; other providers ignore it)
-    const text = await spend.stream(provider, req, cost);
+    // W3.5: the family's small model, one retry on the run model when its reply is unusable (oneshot-model.js)
+    const text = await oneShotStream('threadmine', o, spend, req, t => OneShot.isNone(t) || threadmine.parse(t).length > 0);
     replied = !!String(text || '').trim();
     return text;
   };
@@ -9057,12 +9118,12 @@ async function runScoutCycle(o) {
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, SCOUT_TIMEOUT_MS);
   const spend = auxSpend('scout', o && o.route);
-  const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
-  const propose = async (system, prompt) => {
-    const req = { model, stream: true, signal: ac.signal, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] };
-    if (auxEffort) req.reasoningEffort = auxEffort;
+  // W3.5: each call on the family's small model, one retry on the run model when accept(reply) says the reply is unusable — accept
+  // reads the FORMAT only (the call's own parser without its grounding, dedup or denylist filters, which judge the content)
+  const propose = async (system, prompt, accept) => {
+    const req = { stream: true, signal: ac.signal, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] };
     if (runId) req.runId = runId;   // run attribution (starnet proxy header; other providers ignore it)
-    return spend.stream(provider, req, cost);
+    return oneShotStream('scout', o, spend, req, accept);
   };
   try {
     const pack = nightshiftContextPack();
@@ -9076,7 +9137,8 @@ async function runScoutCycle(o) {
       const known = Interests.summary(interestsState, { trustedOnly: true, now: Date.now(), limit: 12 }).map(r => r.label);
       const reply = await propose(
         'You extract the recurring, specific work topics a user\'s real activity shows. Reply ONLY in the requested tagged format.',
-        Interests.buildDirective({ activityLines: activity, knownTopics: known })
+        Interests.buildDirective({ activityLines: activity, knownTopics: known }),
+        t => OneShot.isNone(t) || Interests.parse(t, {}).length > 0
       );
       // a pause or forget that landed during the model call wins: fold, persist, and note nothing (spend is booked below)
       if (!learningUnchangedSince(pz)) return;
@@ -9120,7 +9182,8 @@ async function runScoutCycle(o) {
         existingRecipes: existing, gearKeys: SCOUT_CAP_KEYS,
         launchedOften: Scout.launchHints(scoutState, 5)   // lane B: names annotated "(rated well)" when the Commander's own verdicts earn it
       });
-      const reply = await propose('You are the station\'s recipe author. Follow the format exactly; ground every claim in the provided evidence.', directive);
+      const reply = await propose('You are the station\'s recipe author. Follow the format exactly; ground every claim in the provided evidence.', directive,
+        t => !!Scout.parseRecipe(t, { gearKeys: SCOUT_CAP_KEYS }));
       if (!learningUnchangedSince(pz)) return;   // no attempt stamp, no draft, no ledger row after a mid-call pause/forget
       if (!admitted()) return;   // …or a delete of a session the prompt quoted
       // grounding = the same evidence the directive showed the model — the WHY must cite it (parseRecipe guard). The
@@ -9176,7 +9239,8 @@ async function runScoutCycle(o) {
         capabilityKeys: SCOUT_CAP_KEYS, skillSlugs: skillSlugs,
         topRecommendation: cx.topRecommendation || ''
       });
-      const reply = await propose('You are the station\'s recruiter. Follow the format exactly; ground every claim in the provided evidence.', directive);
+      const reply = await propose('You are the station\'s recruiter. Follow the format exactly; ground every claim in the provided evidence.', directive,
+        t => !!ProspectGen.parse(t, { allowedKit: SCOUT_CAP_KEYS, allowedSkills: skillSlugs }));
       if (!learningUnchangedSince(pz)) return;
       if (!admitted()) return;
       const parsed = ProspectGen.parse(reply, { allowedKit: SCOUT_CAP_KEYS, allowedSkills: skillSlugs, existingClasses: existing });
@@ -22599,6 +22663,7 @@ async function handleRun(req, res) {
       windowTokens: body && Number.isFinite(body.windowTokens) ? body.windowTokens : undefined, windowFrom: body && body.windowFrom === 'station' ? 'station' : undefined, windowCaller: TurnWindow.callerOf(body),
       turnId: TurnKinds.isTurnId(body && body.turnId) ? body.turnId : undefined, retryOf: TurnKinds.isTurnId(body && body.retryOf) ? body.retryOf : undefined, turnRowId: (body && Number.isSafeInteger(body.turnRowId) && body.turnRowId > 0) ? body.turnRowId : undefined, ...TurnKinds.clientTurnTime(body, Date.now()), goalContinuation: (body && body.goalContinuation === true) || undefined,   // turn identity: ids only, a bad value dropped; the client's time pair converted once (no clamp); a goal-loop step is filed as one (kind goal-step)
       ...(body && typeof body.quotesStream === 'string' && QUOTE_SID_RE.test(body.quotesStream) ? { quotes: [body.quotesStream], quotesAt: receivedAt } : {}),   // an internal call the page composed from a session's words (the retitle, the goal judge) quotes that session (commit 11; additive body field, a bad id dropped)
+      oneShot: (internal && body && body.oneShot === 'title') ? 'title' : undefined,   // W3.5: the page's session-title run rides the family's small model (runOnceCore; additive body field, internal runs only)
       surface: 'interactive', prompt: promptConsent, pathPrompt: promptPathTrust, summon: summonRequest,   // team.summon → live summonAgent() round-trip; pathPrompt → NS-5 "work in <root>?" bless
       loginPrompt: askHuman,   // attended browser login: browser.login's two consent asks ride the same fail-closed permission.prompt channel
       // the Commander is AT the station (COMMS): this run may drive the shared, signed-in station browser
@@ -23060,7 +23125,7 @@ async function runOnceCore(o) {
   // run before its next call once no layer holds it (credentialGone). runKey is resolved here, long before its adapter.
   const runWatch = credStore.inFlight();
   const runKeyWatch = { held: credStore.admittedFromStation(o, providerId, runKey), sentByCaller: callerCredential && o.keyInRequest === true };
-  const runKeyGone = adapter => { const id = runWatch.gone(adapter); return id ? engineCredentialError(id, 'this run', true) : ''; };
+  const runKeyGone = adapter => { const id = runWatch.gone(adapter) || runWatch.gone(OneShot.innerOf(adapter)); return id ? engineCredentialError(id, 'this run', true) : ''; };   // a one-shot guard (W3.5) is its watched adapter
   const streamId = o.streamId || null;   // M-mem.2b (browser run only; the headless hub omits it → global memory)
   // Missing/unknown callers are unattended until proven otherwise. Only the watched /api/run
   // path passes the exact interactive value and a live prompt channel.
@@ -24713,6 +24778,21 @@ async function runOnceCore(o) {
   const fallbacks = rotationFallbacks
     .concat(fallbackModels.map(m => ({ provider, providerId, model: m })))
     .concat(providerFallbacks);
+  /* W3.5 — A SESSION TITLE RUNS ON THE FAMILY'S SMALL MODEL. The page marks its title run (oneShot 'title', internal only):
+     oneShotPlan picks the small model from this provider's catalog; the run starts there behind OneShot.guard, and the run's
+     own model heads the fallback chain. A reply that is no title (empty, a refusal, a sentence) or a failed call books its
+     usage under the small model and falls back ONCE to the run model (errorClass oneshot_unusable -> provider.fallback). */
+  let titlePlan = null;
+  if (internal && o.oneShot === 'title') {
+    try { titlePlan = await oneShotPlan('title', { provider, route: providerId, runModel: model }); } catch (e) { failNote('oneshot.title', e); titlePlan = null; }
+    if (titlePlan && !titlePlan.small) titlePlan = null;
+  }
+  if (titlePlan) {
+    fallbacks.unshift(OneShot.fallbackEntry(provider, providerId, titlePlan));   // the run's own model, first: the title's one retry
+    provider = OneShot.guard(provider, titlePlan, t => !!OneShot.titleOf(t));
+    model = titlePlan.model;
+    if (DEBUG_CHANNEL_LOGS) console.log('[oneshot] title: ' + titlePlan.model + ' (the run model ' + titlePlan.runModel + ' takes over once if its reply is unusable)');   // every title: debug only
+  }
   // INTERNAL self-talk (a title, session ideas, a goal plan) is reason-only aux work: it runs on the aux effort, not the
   // effort the Commander picked for their own chat (auxPassEffort). Every adapter clamps a per-request effort to what
   // the model it lands on offers, so a fallback hop stays valid. null = no override (every other run — an /v1
@@ -26920,7 +27000,9 @@ async function runOnceCore(o) {
   // reflection and failure-review on one run.
   const _auxFail = !!(!o.recovery && result && Failreview.reviewableOutcome(_leadOc.outcome) && isTask && !internal && !signal.aborted);
   const _auxNow = Date.now();       // one clock read for the scout cadence fold + curator-due check below
-  const _auxModel = _auxDone ? (reflectModel || resolveEffectiveModel({ result, requestedModel: o.model, usingCodex, codexDefaultModel: CODEX_DEFAULT_MODEL, defaultModel: CRON_DEFAULT_MODEL })) : '';
+  // the run's own model: the one-shot passes' family anchor and their one retry (W3.5, oneShotPlan); _auxModel = the aux tier, else it
+  const _auxRunModel = _auxDone ? resolveEffectiveModel({ result, requestedModel: o.model, usingCodex, codexDefaultModel: CODEX_DEFAULT_MODEL, defaultModel: CRON_DEFAULT_MODEL }) : '';
+  const _auxModel = _auxDone ? (reflectModel || _auxRunModel) : '';
   // per-request effort for the single-shot aux streams: the configured aux tier, else the lowest effort the provider
   // verifiably offers for _auxModel (auxPassEffort) — a strict-format extraction never pays for hidden thinking.
   const _auxEffort = _auxDone ? auxPassEffort(provider, _auxModel) : null;
@@ -27075,7 +27157,7 @@ async function runOnceCore(o) {
   // counted a model call — W1.4), so it re-qualifies next run.
   if (_auxSpend.has('reflection')) {
     reflectingNow.add(agentId);
-    automaticAux(activeProviderId, 'reflection', agentId, runId, () => runReflection({ agentId, runId, messages: result.messages.slice(), route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered, origin: memcore.originOf({ trigger: o.trigger, taskSource: o.taskSource }), projectRoot: o.projectRoot || '' })).catch(swallow('aux.reflection.envelope')).finally(() => { reflectingNow.delete(agentId); });
+    automaticAux(activeProviderId, 'reflection', agentId, runId, () => runReflection({ agentId, runId, messages: result.messages.slice(), route: activeProviderId, provider: auxProvider, model: _auxModel, runModel: _auxRunModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered, origin: memcore.originOf({ trigger: o.trigger, taskSource: o.taskSource }), projectRoot: o.projectRoot || '' })).catch(swallow('aux.reflection.envelope')).finally(() => { reflectingNow.delete(agentId); });
   }
   if (_auxSpend.has('failure-review')) {
     failReviewingNow.add(agentId);
@@ -27090,16 +27172,16 @@ async function runOnceCore(o) {
   if (_auxSpend.has('study')) {
     studyingNow.add(agentId);
     const studyDirective = TurnDirective.wording(directive);   // the captured words: never the loop's screen capture or a repair prompt
-    automaticAux(activeProviderId, 'study', agentId, runId, () => runStudy({ agentId, runId, messages: result.messages.slice(), directive: studyDirective, route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered,
+    automaticAux(activeProviderId, 'study', agentId, runId, () => runStudy({ agentId, runId, messages: result.messages.slice(), directive: studyDirective, route: activeProviderId, provider: auxProvider, model: _auxModel, runModel: _auxRunModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered,
       src: Object.assign({ streamId: o.streamId || '', runId, at: Date.now() }, TurnKinds.quoteStamp(execution.quotes())) })).catch(swallow('aux.study.envelope')).finally(() => { studyingNow.delete(agentId); });
   }
   if (_auxSpend.has('threadmine')) {
     threadMiningNow.add(agentId);
-    automaticAux(activeProviderId, 'threadmine', agentId, runId, () => runThreadMine({ agentId, runId, streamId: o.streamId || '', messages: result.messages.slice(), route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered })).catch(swallow('aux.threadmine.envelope')).finally(() => { threadMiningNow.delete(agentId); });
+    automaticAux(activeProviderId, 'threadmine', agentId, runId, () => runThreadMine({ agentId, runId, streamId: o.streamId || '', messages: result.messages.slice(), route: activeProviderId, provider: auxProvider, model: _auxModel, runModel: _auxRunModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered })).catch(swallow('aux.threadmine.envelope')).finally(() => { threadMiningNow.delete(agentId); });
   }
   if (_auxSpend.has('scout')) {
     scoutingNow = true;
-    automaticAux(activeProviderId, 'scout', agentId, runId, () => runScoutCycle({ runId, agentId, route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered })).catch(swallow('aux.scout.envelope')).finally(() => { scoutingNow = false; });
+    automaticAux(activeProviderId, 'scout', agentId, runId, () => runScoutCycle({ runId, agentId, route: activeProviderId, provider: auxProvider, model: _auxModel, runModel: _auxRunModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered })).catch(swallow('aux.scout.envelope')).finally(() => { scoutingNow = false; });
   }
   if (_auxSpend.has('skill-review')) {
     skillReviewingNow.add(agentId);
