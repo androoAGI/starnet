@@ -94,6 +94,8 @@ const ModelDock = (() => {
   let loading = false;
   let cache = {};
   const catalogRequests = {}, cacheRevisions = {};
+  // which providers' cached lists are this page's own hard-coded seed (the live fetch found nothing): never a provider's word
+  const seeded = {};
   // Per-provider truth about the catalog fetch. A populated fallback list is useful for recovery, but it is
   // not proof that a saved model still belongs to the active provider. Only a successful provider response
   // may reconcile (or invalidate) the current provider/model pair.
@@ -495,7 +497,7 @@ const ModelDock = (() => {
     const request = catalogRequests[p] = (catalogRequests[p] || 0) + 1;
     const isCurrent = () => catalogRequests[p] === request && selectionRevision() === revision;
     const disconnected = () => {
-      if (isCurrent()) { catalogState[p] = { confirmed: false, reason: 'not connected' }; cache[p] = []; cacheRevisions[p] = revision; }
+      if (isCurrent()) { catalogState[p] = { confirmed: false, reason: 'not connected' }; cache[p] = []; cacheRevisions[p] = revision; seeded[p] = false; }
       return [];
     };
     if (!providerEnabled(p)) return disconnected();
@@ -547,7 +549,9 @@ const ModelDock = (() => {
     cacheRevisions[p] = revision;
     catalogState[p] = { confirmed: confirmed, reason: confirmed ? '' : 'catalog unavailable' };
     if (!confirmed) list.forEach(m => { m.fallback = true; });
+    seeded[p] = false;
     if (!list.length && !confirmed && (p === 'codex' || p === 'openrouter' || p === 'anthropic' || p === 'gemini' || HOSTED_FALLBACKS[p])) {
+      seeded[p] = true;
       // E4: the live catalog fetch found nothing (sidecar/provider unreachable) — fall back to the
       // hardcoded seed list, but MARK each item so the UI can label it "(catalog offline)". Without the
       // flag a seed list renders indistinguishably from a verified live catalog, asserting models the
@@ -1063,6 +1067,10 @@ const ModelDock = (() => {
     normalizeEffort,
     // reuse surface for per-target pickers (bay / dossier) — pure data + label/effort helpers, no side effects
     catalog: (o) => computeCatalog(!!(o && o.force), o && o.ensure),
+    // the model ids provider `p`'s catalog last listed (its endpoint's, or the station's registry for it), synchronously from
+    // the cache; null before a fetch, or when the list is this page's own offline seed (LEANER CREW DEFAULTS, W3.4: a summon's
+    // tier pick is only ever a model the provider's catalog named)
+    catalogIds: (p) => { const k = normalizeProvider(p); return (!seeded[k] && Array.isArray(cache[k]) && cache[k].length) ? cache[k].map(m => m.id) : null; },
     starnetDry,
     labels: { model: modelLabel, provider: providerLabel, group: groupOf, short: shortModelName, normProvider: normalizeProvider, orGroup: openRouterGroupName },
     efforts: { optionsFor: effortOptionsFor, label: effortLabel, clamp: clampEffortForModel, list: () => EFFORTS.slice(), presetsFor: reasoningPresetsFor, presetFor: reasoningPresetFor, forPreset: effortForPreset },

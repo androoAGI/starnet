@@ -474,7 +474,9 @@ const Harness = (() => {
   const readinessCache = SK.providerReadiness.makeCache();
   let creditsEpoch = 0;
   let readinessFlight = null;
+  let crewDefaultsMode = 'off';   // LEANER CREW DEFAULTS (W3.3 + W3.4): the station's switch, as GET /api/providers last said it
   function readiness(provider) { return readinessCache.read(normalizeProviderId(provider || getProv())); }
+  function crewDefaults() { return crewDefaultsMode; }
   function refreshProviderReadiness() {
     if (readinessFlight) return readinessFlight;
     const ticket = readinessCache.ticket();
@@ -485,6 +487,7 @@ const Harness = (() => {
         const r = await fetch('/api/providers', { cache: 'no-store', signal: ctl.signal });
         if (!r.ok) throw new Error('station status unavailable');
         const j = await r.json();
+        crewDefaultsMode = (j && j.crewDefaults === 'lean') ? 'lean' : 'off';
         if (!readinessCache.accept(j.providers, ticket)) readinessCache.offline();
       } catch (_) { readinessCache.offline(); }
       finally {
@@ -2178,7 +2181,7 @@ const Harness = (() => {
     pingEngine, engineState, restartEngine,
     canRestartEngine: () => !!tauriCoreNow(),
     isDesktop: () => DESKTOP,   // lets the UI tell a desktop keychain-store failure (token saved locally) from a browser no-op
-    getSelectionRevision, getKey, setKey, setKeyPool, validateAndSetKeyPool, keyPoolSize, storeChannelToken, getModel, setModel, getProv, setProv, getBaseUrl, setBaseUrl, getReasoningEffort, setReasoningEffort, clearLegacyReasoningOff, clearReasoningEffort, normalizeReasoningEffort, init, configured, readiness, refreshProviderReadiness, refreshCreditsConfigured, creditsEpoch: () => creditsEpoch, hasStoredCredential, setDesktopConfigured,
+    getSelectionRevision, getKey, setKey, setKeyPool, validateAndSetKeyPool, keyPoolSize, storeChannelToken, getModel, setModel, getProv, setProv, getBaseUrl, setBaseUrl, getReasoningEffort, setReasoningEffort, clearLegacyReasoningOff, clearReasoningEffort, normalizeReasoningEffort, init, configured, readiness, refreshProviderReadiness, crewDefaults, refreshCreditsConfigured, creditsEpoch: () => creditsEpoch, hasStoredCredential, setDesktopConfigured,
     listModels, probeProvider, validateAndSetKey, priceOf, turnIdentityCaps, compactAtOf, contextLimitOf, runWindowOf, contextState, contextRevision: () => contextRev, chat, cancel, haltAll, consent, consentAck, consentArgs, consentAnswer, summonAck, notebook,
     runStreamState: () => runStream.state(),   // the page's ONE run stream: { open, id, runs, unsupported, heldBack }
     streamPost,   // a run a button starts (Run now / Retry / an app refresh / a workshop build), on the page's ONE run stream

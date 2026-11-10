@@ -475,6 +475,7 @@ const CommanderContext = require('./commander-context.js');    // bounded proven
 const threadmine = require('./threadmine.js');                // NS-6: pure post-run thread-mining producer (reflect/study mold)
 const OneShot = require('./oneshot-model.js');                 // W3.5: which model a one-shot pass runs on (the family's small model) + its one retry
 const AuxGovernor = require('./auxgovernor.js');              // aux-budget lane: PURE joint ceiling over the post-run aux passes (priority + budget)
+const CrewDefaults = require('../frontend/app/crewdefaults.js');   // LEANER CREW DEFAULTS (W3.3 + W3.4): the switch's parser and its crew effort rule (crewDefaultsMode reads STARNET_CREW_DEFAULTS through ENV(); the page loads the same module)
 const { makeAuxAdmission } = require('./aux-admission.js');
 const LearnedTail = require('./learned-tail.js');             // issue #105: learned blocks of a persona stay out of the cached prefix
 const DeclinedIndex = require('./declinedindex.js');         // flagship cross-wire (NS-8 lite): read-side shared declined index — a decline ANYWHERE suppresses a re-propose EVERYWHERE
@@ -2526,6 +2527,10 @@ function replaceAgentRoster(list) {
       // without these load unchanged (skills -> [], reasoningEffort -> null). skills are slugs, deduped + capped.
       skills: Array.isArray(a && a.skills) ? [...new Set(a.skills.map(s => String(s || '').trim()).filter(Boolean))].slice(0, 40) : [],
       reasoningEffort: (a && a.reasoningEffort) ? String(a.reasoningEffort) : null,
+      // LEANER CREW DEFAULTS (additive, W3.3): where that effort came from — 'class' (the class loadout wrote it) or 'pin' (a hand
+      // pick). The page sends it only while STARNET_CREW_DEFAULTS is on; a row without it is a pin to the crew rule (crewEffort).
+      // Present only when set, so every other row stays byte-identical.
+      ...((a && (a.effortSource === 'class' || a.effortSource === 'pin')) ? { effortSource: a.effortSource } : {}),
       // S3 (additive): the agent's EARNED track record, already coarsened + phrased by the browser
       // (frontend/app/xp.js credential()). Rendered on the lead's [ORCHESTRATION] dispatch list so delegation
       // is an informed pick, never a gated one. '' for an agent that has proved nothing yet — old rosters
@@ -2549,7 +2554,7 @@ function loadAgentRoster() {
 // P1.1: the fields saveAgentRoster() rebuilds from the live Map — the KNOWN shape. Preserved unknown fields (any
 // key a newer frontend added that this sidecar doesn't model) are spread UNDER these on save, so they survive a
 // re-save by older code rather than being dropped. agentId is always rebuilt (identity), never preserved raw.
-const ROSTER_KNOWN_FIELDS = ['agentId', 'system', 'name', 'model', 'provider', 'role', 'approvalMode', 'executionProfile', 'skills', 'reasoningEffort', 'track'];
+const ROSTER_KNOWN_FIELDS = ['agentId', 'system', 'name', 'model', 'provider', 'role', 'approvalMode', 'executionProfile', 'skills', 'effortSource', 'reasoningEffort', 'track'];
 // saveAgentRoster(updatedAt?) — persist the live roster. The optional updatedAt is the CLIENT's freshness stamp
 // (from POST /api/roster body.updatedAt); handleRoster passes it after its anti-clobber gate accepts a push, so the
 // stored envelope records the exact stamp we accepted (a later push older than it is refused). Server-internal
@@ -2559,7 +2564,8 @@ function saveAgentRoster(updatedAt) {
   try {
     fs.mkdirSync(WORKSPACES, { recursive: true });
     const agents = [...agentRoster].map(([agentId, a]) => {
-      const known = { agentId, system: a.system || '', name: a.name || agentId, model: a.model || null, provider: a.provider || null, role: a.role || '', approvalMode: (a.approvalMode === 'full') ? 'full' : 'ask', executionProfile: executionProfiles.normalizeId(a.executionProfile, { approvalMode: a.approvalMode, backendId: executionEnvironment && executionEnvironment.backendId }), skills: Array.isArray(a.skills) ? a.skills : [], reasoningEffort: a.reasoningEffort || null, track: a.track || '' };   // S3: track = the earned track-record line (see replaceAgentRoster)   // Class Loadouts S1: per-agent package + execution envelope persist beside approval posture.
+      const known = { agentId, system: a.system || '', name: a.name || agentId, model: a.model || null, provider: a.provider || null, role: a.role || '', approvalMode: (a.approvalMode === 'full') ? 'full' : 'ask', executionProfile: executionProfiles.normalizeId(a.executionProfile, { approvalMode: a.approvalMode, backendId: executionEnvironment && executionEnvironment.backendId }), skills: Array.isArray(a.skills) ? a.skills : [], reasoningEffort: a.reasoningEffort || null, track: a.track || '' };   // S3: track = the earned track-record line (see replaceAgentRoster)
+      if (a.effortSource === 'class' || a.effortSource === 'pin') known.effortSource = a.effortSource;   // W3.3: only when set (replaceAgentRoster)   // Class Loadouts S1: per-agent package + execution envelope persist beside approval posture.
       // P1.1: forward-compat field preservation — carry any UNKNOWN keys from the last-seen raw record under the
       // known ones, so a field a newer frontend added isn't silently eaten when older sidecar code re-saves.
       const rawRec = agentRosterRaw.get(agentId);
@@ -4203,6 +4209,50 @@ function auxLoopEffort(o, provider, model) {
 function effortAsRun(provider, model, sent, req) {
   if (!provider || typeof provider.effortAsSent !== 'function') return null;
   try { return provider.effortAsSent(model, sent || undefined, req) || null; } catch (e) { failNote('aux.effort', e); return null; }
+}
+/* crewDefaultsMode — the LEANER CREW DEFAULTS switch ('lean' | 'off'), read here and nowhere else: STARNET_CREW_DEFAULTS
+   through ENV(), the sidecar's one env reader (a STARNET_ value that is set wins even when blank, else the legacy SKYNET_
+   one), parsed by the pure CrewDefaults.mode. Read at each use, like ENV('LEAN_CREW') and ENV('AUX_EFFORT'). Off by
+   default; not STARNET_LEAN_CREW, the zero-crew diet (crew-diet.js), which is on by default. */
+function crewDefaultsMode() { return CrewDefaults.mode(ENV('CREW_DEFAULTS')); }
+/* crewEffort — LEANER CREW DEFAULTS, the effort half (W3.3: CrewDefaults.effortRule decides, this host applies it). A CREW
+   run (a worker, a clone, a line stage: CrewDefaults.surfaceOf) whose effort is its class's applied default above medium
+   asks for medium per request; the run after a failed verify (o.crewRetry: a review gate sent the work back, a structured
+   result failed host validation) one rung up, never above the class effort. Provenance is the roster's: a row whose
+   effortSource is 'class' and whose effort is the one this run resolved is class-applied (a clone reads its lead's row);
+   a pin, or a row with no marker, keeps its effort. The want goes through the one clamp (AuxGovernor.clampEffort over the
+   rungs the provider lists): no list, no override, and a rung above the asked effort is never sent (CrewDefaults.sendable:
+   the rule only lowers; the record then says 'unsent'). A route whose main requests carry no effort is never handed one:
+   claude-cli is told an effort only per request and a main run there sends none (W3.8 not chosen), so a claude-cli crew
+   run sends nothing, runs on the CLI's own default ('cli-default') and its record says 'unsent'. `hops` = the primary and
+   every fallback the run may land on; `lineId` = the line the run WORKS for: runOnceCore's capLine, the one rule its line
+   budget cap and stage team read, and nothing else (o.lineId is never read here). A terminal routine (runsLine !== true,
+   Andrew's 08-07 ruling) is not line work though LINE WATCH stamps its crate with the bay's line, so it is no crew run and
+   keeps its effort; a routine that runs its line is a line stage; a delegated run stays a worker or a clone.
+   Switch off (the default): null, and the run is exactly as before.
+   -> null | { sent, record }: sent = the per-request effort (null: none); record = the run record's effortRule
+   { surface, source, asked, why, sent? }, the effort itself as it ran being the record's reasoningEffort (effortAsRun). */
+function crewEffort(o, agentId, asked, hops, lineId) {
+  const md = crewDefaultsMode();
+  if (!CrewDefaults.isOn(md)) return null;
+  const id = String(agentId || '');
+  const surface = CrewDefaults.surfaceOf({ delegatedBy: o && o.delegatedBy, lineId, inRoster: agentRoster.has(id) });
+  if (!surface) return null;
+  const row = (surface === 'clone' ? agentRoster.get(String(o.delegatedBy)) : agentRoster.get(id)) || null;
+  const marked = row && (row.effortSource === 'class' || row.effortSource === 'pin') ? row.effortSource : '';
+  // a class marker covers the effort the class wrote, never another one this run was handed explicitly
+  const source = (marked === 'class' && !(row.reasoningEffort && normalizeReasoningEffort(row.reasoningEffort) === asked)) ? 'pin' : marked;
+  const rule = CrewDefaults.effortRule({ mode: md, surface, asked, source, retry: !!(o && o.crewRetry) });
+  if (!rule) return null;
+  const record = { surface, source: source || 'unmarked', asked, why: rule.why };
+  if (!rule.want) return { sent: null, record };
+  const first = (hops && hops[0]) || {};
+  const sent = CrewDefaults.sendable(AuxGovernor.clampEffort(rule.want, providerEfforts(first.provider, first.model)), asked);
+  const isRung = e => CrewDefaults.ORDER.indexOf(String(e || '')) >= 0;
+  const gains = h => !!(h && h.provider) && !isRung(effortAsRun(h.provider, h.model)) && isRung(effortAsRun(h.provider, h.model, sent));
+  if (!sent || (hops || []).some(gains)) { record.why = 'unsent'; return { sent: null, record }; }
+  record.sent = sent;
+  return { sent, record };
 }
 
 /* ---- HYBRID RECALL — the embedding lane (memory-compound lane) ----------------------------------------------
@@ -21323,7 +21373,10 @@ async function handleAgentModel(req, res) {
     return json(409, pageRefusal(out, agentId));
   }
   // no page: nothing was awaited since `cur` was read, so this writes onto the roster as it is now
-  agentRoster.set(agentId, Object.assign({}, cur, { model, provider }, effort ? { reasoningEffort: effort } : {}));
+  const next = Object.assign({}, cur, { model, provider }, effort ? { reasoningEffort: effort } : {});
+  // LEANER CREW DEFAULTS (W3.3): an effort named here is a hand pick, never a class default the crew rule may lower
+  if (effort) { if (CrewDefaults.isOn(crewDefaultsMode())) next.effortSource = 'pin'; else delete next.effortSource; }
+  agentRoster.set(agentId, next);
   if (!saveAgentRoster()) { agentRoster.set(agentId, cur); return json(500, { error: 'could not save the roster' }); }
   return json(200, Object.assign({ ok: true, agentId, model, provider, via: 'roster' }, effort ? { effort } : {}));
 }
@@ -25102,11 +25155,15 @@ async function runOnceCore(o) {
   // outputOnly repair is an external caller's own request, so it is o.internal here, not `internal`).
   // An internal run marked o.keepEffort (work the Commander reads, the goal judge, the wake preflight) keeps their effort.
   const internalEffort = o.internal && !o.keepEffort ? auxPassEffort(provider, model) : null;
+  // LEANER CREW DEFAULTS (W3.3): a crew run's class-applied effort, per request like the aux effort above (crewEffort; switch off: null).
+  // capLine, not workflowLine: a terminal routine is not line work (#28's rule, the line budget cap's)
+  const crew = internalEffort ? null : crewEffort(o, agentId, reasoningEffort, [{ provider, model }].concat(fallbacks), capLine);
+  const requestEffort = internalEffort || (crew && crew.sent) || null;
   // …and the effort it RAN on, read after the run from the adapter it ended on (effortAsRun): a claude-cli run that sent none
   // ran on the CLI's own default ('cli-default', never the dial's level), an HTTP request carries the adapter's own word for
   // the dial (Codex minimal is low), and a pick an endpoint refused was resent at the nearest rung it keeps (OpenRouter
   // learns the refusal), so the record names that rung, never the refused one. The request shape is the loop's (below).
-  const effortRan = () => effortAsRun(provider, model, internalEffort, { tools: o.outputOnly ? [] : toolDefs, isTask: internal ? undefined : isTask });
+  const effortRan = () => effortAsRun(provider, model, requestEffort, { tools: o.outputOnly ? [] : toolDefs, isTask: internal ? undefined : isTask });
 
   // ---- context auto-compaction: fold older turns into a summary once the live prompt passes 65% of the model's
   //      window, so a long run shrinks instead of overflowing. The summarizer is ONE model call over the older
@@ -26878,7 +26935,7 @@ async function runOnceCore(o) {
       result = await runAgentLoop({
       messages: msgs, provider, emit: loopEmit, cost, tools: o.outputOnly ? [] : toolDefs, dispatch, capCtx,
       isTask: internal ? undefined : isTask,
-      reasoningEffort: internalEffort || undefined,
+      reasoningEffort: requestEffort || undefined,
       // no project folder = no build or test to run: a standalone web page saved in the agent's own workspace is not
       // "code to verify" (loop.js VERIFY-ON-STOP) — the nudge sent agents into file:// browsing and shell reads of
       // their own deliverable after they had said "Done." (live walkthrough 2026-10-13)
@@ -27189,7 +27246,7 @@ async function runOnceCore(o) {
       }
       try { if (o.streamId && kinds.directiveKind !== 'station') { const files = TurnDelivery.fileRows(transcriptStore, { streamId: o.streamId, agentId, runId, turnId: runStartExtra.turnId, root: o.projectRoot || '', artifacts: execution.artifactList(), note: deliverableNotes.get(runId), quotes: execution.quotes(), taint: execution.rowTaint() || (typeof o.connectorAuthority?.taintedBy === 'function' ? o.connectorAuthority.taintedBy() : null) }); if (files.skipped.length) failNote('turn.files.skipped', new Error(files.skipped.length + ' artifact(s) not published as file rows: ' + files.skipped.map(s => s.why).join(','))); } } catch (e) { failNote('turn.files', e); }   // the run's files, as rows of their own (turn identity commit 10): get, never take, and a failure here skips nothing below (runStore.record, the final drain)
       const runEndedAt = entryEndedAt === null ? Date.now() : entryEndedAt;
-      runStore.record({ runId, parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '', agentId, provider: activeProviderId, wireSource: runWire.source, reason: ((result && result.reason) || 'error'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, cachedTokens: finalCachedTokens, nudges: (result && result.nudges) || null, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.syntheticTrigger ? '' : (o.sessionPrompt || ''), deliveryText, dispatchDelivery: o.dispatchDelivery, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort: effortRan(), unmetered: mediaFlags.unmetered, unpriced: mediaFlags.unpriced, usageMissing, spendUnknown: cutSpendUnknown, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), cancelledWhile: (result && result.cancelledWhile) || null, completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface, ownerDirective, recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '', handoffEdited: o.handoffEdited === true, stepTest: o.stepTest === true, lineId: o.lineId || '', dockId: o.dockId || '', cronJobId: isRoutineTrigger(trigger) ? String(o.cronJobId || '') : '', pageClosed: pageClosedRuns.get(runId) || null, steerNotes: steerBufs.ledgerOf(runId), wordless: TurnDirective.labelOnly(directive), taintedBy: execution.taintedBy() || '', rowTaintedBy: execution.rowTaint() || '' });   // wordless: the directive was only the label of its files. taintedBy stays the FIRST source (the relay, the refusal wording); rowTaintedBy is the stamp that durable rows written after the run carry (dispatch-delivery). Execution terminal stays separate from the neutral Task Brief outcome used by progression; recoveryOf links a continuation to the interrupted run it resumed
+      runStore.record({ runId, parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '', agentId, provider: activeProviderId, wireSource: runWire.source, reason: ((result && result.reason) || 'error'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, cachedTokens: finalCachedTokens, nudges: (result && result.nudges) || null, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.syntheticTrigger ? '' : (o.sessionPrompt || ''), deliveryText, dispatchDelivery: o.dispatchDelivery, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort: effortRan(), unmetered: mediaFlags.unmetered, unpriced: mediaFlags.unpriced, usageMissing, spendUnknown: cutSpendUnknown, effortRule: (crew && crew.record) || undefined, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), cancelledWhile: (result && result.cancelledWhile) || null, completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface, ownerDirective, recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '', handoffEdited: o.handoffEdited === true, stepTest: o.stepTest === true, lineId: o.lineId || '', dockId: o.dockId || '', cronJobId: isRoutineTrigger(trigger) ? String(o.cronJobId || '') : '', pageClosed: pageClosedRuns.get(runId) || null, steerNotes: steerBufs.ledgerOf(runId), wordless: TurnDirective.labelOnly(directive), taintedBy: execution.taintedBy() || '', rowTaintedBy: execution.rowTaint() || '' });   // wordless: the directive was only the label of its files. taintedBy stays the FIRST source (the relay, the refusal wording); rowTaintedBy is the stamp that durable rows written after the run carry (dispatch-delivery). Execution terminal stays separate from the neutral Task Brief outcome used by progression; recoveryOf links a continuation to the interrupted run it resumed
 
       // P0.1/H1.1: persist the full DIALOGUE (not just the outcome) — a durable server-side transcript for EVERY
       // run, incl. headless ones (cron/Telegram/delegated). Append the triggering user directive, then EVERY new
@@ -29704,7 +29761,8 @@ function handleProviders(req, res) {
   // at spawn, updated live through /api/key) rather than the browser's local store. The Settings key-save
   // confirmation reads this so it names the ACTUAL store honestly (keychain vs this browser) — never claims
   // keychain when the key is in fact held in the browser (truthful-telemetry law).
-  res.end(JSON.stringify({ providers, keychainMode: DESKTOP_SHELL }));
+  // LEANER CREW DEFAULTS (W3.4): the page preselects a summon's tier model only while the station's switch is on (present only then)
+  res.end(JSON.stringify(Object.assign({ providers, keychainMode: DESKTOP_SHELL }, CrewDefaults.isOn(crewDefaultsMode()) ? { crewDefaults: CrewDefaults.ON } : {})));
 }
 
 // One public verdict. Evidence is bound to the exact active pair; OAuth accounts have separate private

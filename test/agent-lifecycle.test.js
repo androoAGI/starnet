@@ -154,6 +154,7 @@ const { makeAgentLifecycle } = require('../sidecar/agent-lifecycle.js');
     const summon = new Function('CTX', `
       const Specialties = { get: () => null };
       const station = CTX.station;
+      const crewDefaultsOn = () => false;   // LEANER CREW DEFAULTS off: no catalog warm-up (crew-defaults.invariant holds it on)
       let lastRosterPush = CTX.rosterResult;
       function summonAgent(spec, opts) {
         CTX.events.push('summon:' + opts.activate + ':' + opts.desk);

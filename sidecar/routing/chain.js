@@ -899,6 +899,11 @@ function makeChainRunner(o) {
        the INNER gate letting work out lowered `looping` while the outer gate's re-run was still under way, so its next
        (already visited) step read as a loop-back and the line stopped. A gate closes only its own pass. */
     const openLoops = new Set(initial.openLoops);
+    /* a REVISE PASS (LEANER CREW DEFAULTS, W3.3): the open passes a verdict-keyed gate opened because the review failed (a revise
+       verdict, or a person's SEND BACK). Every stage that runs inside one is a retry after a failed verify, so its call carries
+       revisePass and the host steps its effort up one rung (index.js crewEffort). Closes with the gate's own pass. Kept in memory
+       only: a walk resumed from a hold re-opens it from the person's word at the gate. */
+    const failedLoops = new Set();
     // while a queued fan-out branch is running, the line's LAST GOOD answer is still the entry's own output
     // (a resumed walk keeps the entry's own output and node from the saved record, not the stage it stopped at)
     const entryOut = R ? { text: String(R.entryOutput.text), agentId: (R.entryNode || cur).agentId, dockId: (R.entryNode || cur).dockId }
@@ -1117,6 +1122,7 @@ function makeChainRunner(o) {
         // `parallel`: the host runs this hop OFF the line's shared conversation stream — a stream runs one turn at a time, so
         // three branches on it queued behind each other (live 2026-10-10), and a queued turn is rebuilt from the whole thread
         const call = { agentId: t.agentId, text: withoutHostNotes(turn), hop: hop0 + i, from: from ? from.agentId : null, signal: s.signal, workitemId, ceilingUsd: share, parallel: true };
+        if (failedLoops.size) call.revisePass = true;   // a retry after a failed review (W3.3): present only then
         call.handoffReads = handedFiles.slice();
         if (b.id) call.branchId = b.id;   // the branch this stage belongs to (a resumed walk writes it on the stage's durable attempt)
         call.draft = b.entry ? String(originalText || '') : b.part ? String(b.part.text || '') : String(b.text || '');
@@ -1215,8 +1221,8 @@ function makeChainRunner(o) {
           if (d.held) { out.text = d.text; return holdAt(LineFire.lineStop('blocked', { loop: step.loop, reason: d.reason }), cur, d.reason, d.gateId, d.pass, { hop, ctx, gate: { id: String(step.loop), max: step.max, backTo: !!step.backTo, self: selfLoop } }); }
           target = asNode(d.target); out.text = d.text;
           if (d.outboxId) escBox = d.outboxId;   // escalated to an OUTBOX: the crate ends there (below)
-          if (d.again) { iter[step.loop] = n + 1; loopHop = true; openLoops.add(step.loop); looping = true; fromTile = null; }
-          else { openLoops.delete(step.loop); looping = openLoops.size > 0; if (d.exhausted) { out.loopExhausted = true; if (d.why) out.unapproved = (out.unapproved ? out.unapproved + '; ' : '') + d.why; } }
+          if (d.again) { iter[step.loop] = n + 1; loopHop = true; openLoops.add(step.loop); looping = true; fromTile = null; if (decided || Verdict.isVerdictWord(step.when)) failedLoops.add(step.loop); }
+          else { openLoops.delete(step.loop); failedLoops.delete(step.loop); looping = openLoops.size > 0; if (d.exhausted) { out.loopExhausted = true; if (d.why) out.unapproved = (out.unapproved ? out.unapproved + '; ' : '') + d.why; } }
           // the gate let the work out onto a DONE lane that meets a JOINER: this branch parks there like any other
           if (!d.again && !target && step.afterJoin) step = step.afterJoin;
           else loopDone = true;
@@ -1363,6 +1369,7 @@ function makeChainRunner(o) {
         : hopPart ? Pipeline.partHandoff(originalText, hopPart.text, hopPart.i, hopPart.k, hop, briefOf(target), out.files)
         : hopTurn({ handoffText, stageBrief, loopGateAfter, lastStage, originalText, from: cur.agentId, upstream: out.text, hop, target: target.agentId, targetDock: target.dockId, lineId, files: out.files });
       const call = { agentId: target.agentId, text: withoutHostNotes(turn), hop, from: entryBranch ? null : cur.agentId, signal: s.signal, workitemId };
+      if (failedLoops.size) call.revisePass = true;   // a retry after a failed review (W3.3): present only then
       // what is LEFT of the line's $ ceiling rides the hop as a lower-only cap: the pre-hop check alone let one own-key stage
       // spend far past the line's limit ("within one hop's spend" — QA 2026-10-02)
       call.ceilingUsd = Math.max(0, lim.maxUsd - spent);

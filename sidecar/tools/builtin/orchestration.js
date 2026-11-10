@@ -1154,7 +1154,7 @@
             let repair;
             try {
               repair = await runOnce({
-                outputOnly: true,
+                outputOnly: true, crewRetry: true,   // a failed host check: the retry steps its effort up one rung (index.js crewEffort, W3.3)
                 ...projectOptions(job.sessionContext || ctx), ...connectorOptions(ctx), ...repairPool.options,
                 key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl, wireSource: wire.wireSource,
                 reasoningEffort: wire.reasoningEffort,   // the ONE effort rule (workerWire)
@@ -1449,7 +1449,7 @@
               let repair;
               try {
                 repair = await runOnce({
-                  outputOnly: true,
+                  outputOnly: true, crewRetry: true,   // a failed host check: the retry steps its effort up one rung (index.js crewEffort, W3.3)
                   ...projectOptions(ctx), ...connectorOptions(ctx), ...repairPool.options,
                   key, provider, baseUrl, reasoningEffort, model, ...workerPrompt(selfSystem),
                   messages: [{ role: 'user', content: contractedPrompt }, { role: 'assistant', content: firstText },
@@ -1769,7 +1769,7 @@
           let repair;
           try {
             repair = await runOnce({
-              outputOnly: true,
+              outputOnly: true, crewRetry: true,   // a failed host check: the retry steps its effort up one rung (index.js crewEffort, W3.3)
             ...projectOptions(ctx, rec), ...resumeConnectorOptions(ctx, rec), ...repairPool.options,
             key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl, wireSource: wire.wireSource,
             reasoningEffort: wire.reasoningEffort,   // the ONE effort rule (workerWire)

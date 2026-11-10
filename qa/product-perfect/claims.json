@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "10fc0c112cd0bd2affb9f713c4e724b249a88551",
-    "pathSetSha256": "8394eca9e4974a998b07e0619201f84827ddf7781133ca7c179f8deba46fc595",
+    "sourceCommit": "539e846ba84846317cb434bd71931ee02320a370",
+    "pathSetSha256": "03e6e69f94fc87395ad72f91e37e52cbc635a7bbcd855c2500b23d3e412a1321",
     "files": [
       {
         "path": "INSTALL.md",
@@ -173,8 +173,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 483199,
-        "sha256": "021f06f9a43a0d08ba21a896f43958aff96a2a2ffbf89f8542341dca371a26ec"
+        "bytes": 488335,
+        "sha256": "73d50ce33c9ccd089b866dc70d5e51bef2846a609455183c2fbe788ecedee3be"
       },
       {
         "path": "frontend/app/approved-sheet-effects.js",
@@ -410,6 +410,11 @@
         "path": "frontend/app/crewcards.js",
         "bytes": 15093,
         "sha256": "fa2e5f18cb18e8489b4b31dac4711e2a4035b21e9f0c0fd0f5225f5e18d6754e"
+      },
+      {
+        "path": "frontend/app/crewdefaults.js",
+        "bytes": 9627,
+        "sha256": "f9df4674daa7dc4dc6dbf18e7352e182a1e2224b6fd32cb38ebbd816ac51a07c"
       },
       {
         "path": "frontend/app/cronhuman.js",
@@ -708,8 +713,8 @@
       },
       {
         "path": "frontend/app/marketplace.js",
-        "bytes": 280862,
-        "sha256": "0365d4eda82702bc590bcf8d8e330bb2cf758b0d515de5a58ab06735f8683983"
+        "bytes": 282385,
+        "sha256": "d8f043e36cfe0bc6ba8bc01066457e8d4c3021ebd6ada23efb76b8023b5e11af"
       },
       {
         "path": "frontend/app/memtruth.js",
@@ -728,8 +733,8 @@
       },
       {
         "path": "frontend/app/modeldock.js",
-        "bytes": 56700,
-        "sha256": "4bba1664dee86dcaf54b69c12ddb9333c4a3eed1259228e117d814a6307026a1"
+        "bytes": 57397,
+        "sha256": "d4d5dc6f34efd03917e8d9c6556d10ea7692deec673a7783cc9b56b6e70bf337"
       },
       {
         "path": "frontend/app/modelpicker.js",
@@ -1903,8 +1908,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 101227,
-        "sha256": "859dd9024bcbf0a3f9f32151de2c10ee1829cb555ad0fb36af2462a96758863f"
+        "bytes": 101413,
+        "sha256": "36fbfdb70d3e24c651ed79f58ebfef67bd5f16c452a9ae0a5edebcbdfba0f5f3"
       },
       {
         "path": "frontend/js/arcade.js",
