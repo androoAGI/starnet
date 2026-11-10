@@ -198,23 +198,24 @@ A.ok(/:is\(\.ws-rail-search, \.crew-search-wrap\) \{ background: none !important
 A.ok(/\.ws-rail-search label::before \{[^}]*mask:/.test(css) && /\.crew-search-wrap::before \{[^}]*mask:/.test(css), 'both finders lead with the lit lens');
 A.ok(/#crew-search-close \{[^}]*border-radius: 50%/.test(css), 'the crew finder closes on a round chrome knob');
 
-// ---- the sheet is seven parts (2026-11-09). VECTOR = sections 1-22, the silver device Andrew kept ("I love this look so much
+// ---- the sheet is eight parts (2026-11-09). VECTOR = sections 1-22, the silver device Andrew kept ("I love this look so much
 // its insane"), finished by section 25, fitted by section 26, its CREW and COMMS heads rebuilt by section 27, its menu panels
-// dressed by section 28. Section 23, the black chassis, is variation B's base: gated :where(.vx-b), so it adds no specificity
+// dressed by section 28 and their insides by section 29. Section 23, the black chassis, is variation B's base: gated :where(.vx-b), so it adds no specificity
 // and B renders exactly as it did when that pass applied to both. Section 24 is variation B itself ----
 const rawCss = read('frontend/css/vector.css');
 const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '');
 const cut = (title) => { const at = rawCss.indexOf(title); return at < 0 ? -1 : rawCss.lastIndexOf('/*', at); };
-const baseAt = cut('23 · THE BLACK CHASSIS'), bAt = cut('24 · VARIATION B'), pAt = cut('25 · THE PERFECTED VECTOR'), fAt = cut('26 · THE FIT'), hAt = cut('27 · THE HEADS'), nAt = cut('28 · THE PANELS');
-A.ok(baseAt > 0 && bAt > baseAt && pAt > bAt && fAt > pAt && hAt > fAt && nAt > hAt,
-  'vector.css carries the black chassis, variation B, the perfected VECTOR, the fit pass, the heads and the panels as sections 23 to 28 in that order');
+const baseAt = cut('23 · THE BLACK CHASSIS'), bAt = cut('24 · VARIATION B'), pAt = cut('25 · THE PERFECTED VECTOR'), fAt = cut('26 · THE FIT'), hAt = cut('27 · THE HEADS'), nAt = cut('28 · THE PANELS'), iAt = cut('29 · THE INSIDES');
+A.ok(baseAt > 0 && bAt > baseAt && pAt > bAt && fAt > pAt && hAt > fAt && nAt > hAt && iAt > nAt,
+  'vector.css carries the black chassis, variation B, the perfected VECTOR, the fit pass, the heads, the panels and the insides as sections 23 to 29 in that order');
 const cssA = strip(rawCss.slice(0, baseAt));
 const cssBase = strip(rawCss.slice(baseAt, bAt));
 const cssB = strip(rawCss.slice(bAt, pAt));
 const cssP = strip(rawCss.slice(pAt, fAt));
 const cssF = strip(rawCss.slice(fAt, hAt));
 const cssH = strip(rawCss.slice(hAt, nAt));
-const cssN = strip(rawCss.slice(nAt));
+const cssN = strip(rawCss.slice(nAt, iAt));
+const cssI = strip(rawCss.slice(iAt));
 // an at-rule's own prelude (@container ... {) is not a selector: drop it, and its closing brace leaves an empty chunk
 const selsOf = (t) => t.replace(/@[a-z-]+[^{};]*\{/g, '').split('}').map(r => r.slice(0, Math.max(0, r.indexOf('{')))).filter(x => x.trim()).flatMap(x => x.split(/,\n/)).map(x => x.trim());
 // a selector list can also run on ONE line, so the line-start check alone is not enough: every root in a section must carry its gate
@@ -464,4 +465,122 @@ A.ok(!/@/.test(cssN), 'the panels pass has no at-rule: a panel that wraps is dre
 A.eq((cssN.match(/content:[^;}]*/g) || []).filter(x => x !== "content: ''" && x !== 'content: none').join(' | '), '',
   'the panels pass writes no words: it adds no legend, label or control');
 A.ok(!/background(-image)?:[^;]*url\(/.test(cssN) && !/repeating-/.test(cssN), 'the screens stay plain glass: the pass draws no crest, trace or grid');
+
+// ---- the insides (Andrew 2026-11-09: "update every single menu panel within starnet completely", then "Yes, insides next").
+// Section 28 dressed each window's head, tabs and keys. Inside, every card is now one pane of the same glass, every readout one
+// recess, every tile one slot whose pick is a hard ring and a lit leading edge, every field one well, every switch a well track
+// under a chrome knob. The pass is paint: it moves nothing, adds nothing, a restyled control keeps every state it had, and the
+// words on a tile stay readable (a bright fill under dim words measured 1.5:1 on a chosen tile, so no tile ground is one) ----
+const PFX = 'html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw)';
+const selsI = selsOf(cssI);
+A.ok(selsI.length > 30, 'the insides are their own section (' + selsI.length + ' selectors)');
+A.eq(selsI.filter(x => x !== PFX && !x.startsWith(PFX + ' ')).join(' | '), '',
+  'every selector in the insides pass opens with the window prefix: station windows only, VECTOR only, never the plain window');
+A.eq(stray(cssI, ':not(.vx-b)').join(' | '), '', 'no insides selector slips its scope inside a one-line list');
+const ruleI = (tail) => (cssI.match(new RegExp(W + tail + ' \\{[^}]*\\}')) || [''])[0];
+const rulesI = cssI.split('}').filter(r => r.includes('{')).map(r => ({ sel: r.slice(0, r.indexOf('{')).split(PFX).join('').trim(), body: r.slice(r.indexOf('{') + 1).replace(/\s+/g, ' ').trim() }));
+const ruleBy = (needle) => rulesI.find(r => r.body.includes(needle)) || { sel: '', body: '' };
+const named = (sel) => (sel.match(/\.[a-z][\w-]*/g) || []).map(x => x.slice(1)).sort().join(' ');
+// the parts
+const partsI = ruleI('');
+A.ok(/--vx-pane:\s*linear-gradient\(180deg, rgba\(255, 255, 255, \.055\) 0, rgba\(255, 255, 255, 0\) 26px\),\s*linear-gradient\(180deg, rgba\(var\(--ph-rgb\), \.1\) 0, rgba\(var\(--ph-rgb\), \.03\) 100%\),\s*rgba\(0, 3, 1, \.58\);/.test(partsI)
+  && /--vx-pane-shadow: inset 0 1px 0 rgba\(255, 255, 255, \.12\)[^;]*0 0 0 1px rgba\(0, 0, 0, \.66\), 0 3px 9px rgba\(0, 0, 0, \.42\);/.test(partsI),
+  'a pane is glass with a top light and a wash of the station’s hue, seated on a dark line');
+A.ok(/--vx-read-shadow: inset 0 2px 6px rgba\(0, 0, 0, \.95\), inset 0 0 0 1px rgba\(0, 0, 0, \.7\)/.test(partsI), 'a readout is recessed: its first shadow falls inward');
+A.ok(/--vx-tile-shadow: inset 0 1px 0 rgba\(255, 255, 255, \.16\)[^;]*0 0 0 1px rgba\(0, 0, 0, \.66\)/.test(partsI), 'a tile is lifted: a top light over a dark seat');
+// a tile's three grounds: [top light, hue at the top, hue above the fold, hue below the fold, hue at the foot], each over the dark base
+const groundI = (name) => { const m = partsI.match(new RegExp('--vx-' + name + ':\\s*linear-gradient\\(180deg, rgba\\(255, 255, 255, (\\.\\d+)\\), transparent 40%\\),\\s*'
+  + 'linear-gradient\\(180deg, rgba\\(var\\(--ph-rgb\\), (\\.\\d+)\\), rgba\\(var\\(--ph-rgb\\), (\\.\\d+)\\) 50%, rgba\\(var\\(--ph-rgb\\), (\\.\\d+)\\) 51%, rgba\\(var\\(--ph-rgb\\), (\\.\\d+)\\)\\),\\s*rgba\\(0, 3, 1, \\.5\\);')); return m ? m.slice(1).map(Number) : null; };
+const gTile = groundI('tile'), gHot = groundI('tile-hot'), gPick = groundI('pick');
+A.eq(JSON.stringify(gTile), '[0.05,0.13,0.06,0.03,0.09]', 'a tile is quiet glass over a dark base: it carries words, so it is dimmer than a list slot and never a bare tint');
+A.eq(JSON.stringify(gHot), '[0.09,0.26,0.12,0.07,0.16]', 'a tile under the pointer is the same glass a notch brighter, still over the dark base');
+A.eq(JSON.stringify(gPick), '[0.08,0.18,0.08,0.045,0.12]', 'a chosen tile keeps dark glass over the dark base');
+A.ok(gTile && gHot && gPick && gPick.every((v, i) => v <= gHot[i] && v >= gTile[i]),
+  'the chosen ground is never brighter than a hover: the pick is carried by its ring and edge, so its words stay as readable as its neighbours’');
+A.ok(/--vx-pick-shadow: inset 3px 0 0 rgba\(var\(--ph-rgb\), \.95\), inset 0 1px 0 rgba\(255, 255, 255, \.3\), [^;]*0 0 0 1px rgba\(var\(--ph-rgb\), \.85\), 0 2px 5px rgba\(0, 0, 0, \.45\);/.test(partsI),
+  'the pick is a lit leading edge listed FIRST (so it paints on top) inside a hard ring of the hue: a pick never reads as a hover');
+A.ok(!/--vx-band/.test(cssI), 'the bright band is gone: nothing in a window lays a half-strength fill under words');
+A.ok(!/var\(--vx-slot(-hot)?\)/.test(cssI), 'nothing inside a window wears the list slot’s bright glass: it has no dark base, so dim words on it lose a full step of contrast (tiles, trophies and provider cards take --vx-tile)');
+// panes
+const paneI = ruleBy('background: var(--vx-pane);');
+A.eq(named(paneI.sel), ['ag-hero', 'ag-mission', 'ag-growth-hero', 'ag-achievements', 'ag-reflection-panel', 'ag-next-challenge', 'cf-group', 'cd-sec', 'cd-overview', 'cd-brief', 'cd-record',
+  'q-return-card', 'q-life-goal', 'q-commander-growth', 'q-evolution', 'q-track', 'q-progress-section', 'q-refresh-options', 'q-metric-editor', 'q-card',
+  'cc-card', 'kb-col', 'fm-route', 'fm-mission', 'ob-stage', 'ob-row', 'ds-off', 'wh-source-settings', 'mc-row',
+  'platform-guide', 'ch-preferences', 'ch-setup', 'ch-connection', 'ch-bots', 'perm-master', 'perm-glance', 'perm-agent', 'perm-fold', 'settings-group',
+  'mkt-fam', 'mkt-dossier', 'mkt-roster'].sort().join(' '),
+  'every card in every window is one pane: the dossier, the quests, the work sheets and the manual, connect and settings, the market');
+A.ok(/border-radius: 10px !important;/.test(paneI.body) && /box-shadow: var\(--vx-pane-shadow\);/.test(paneI.body) && !/border(-color|-width|-style)?:/.test(paneI.body),
+  'a pane is fill, shadow and a 10px corner only: a card keeps its own border colour, so a gold wait, a red failure edge or an armed row still says so');
+// readouts
+const readI = ruleBy('background: var(--vx-well); box-shadow: var(--vx-read-shadow);');
+A.eq(named(readI.sel), ['perk', 'cf-card', 'cf', 'cf-body', 'cd-stat', 'cd-rec', 'cd-brief-text', 'stat-cell', 'ns-cell', 'ag-level-badge', 'ag-portrait-well', 'brief-block', 'up-mini',
+  'bp-streak', 'bp-chal', 'q-journal-count', 'gx-well', 'gx-station',
+  'fb-empty', 'dlv-head-strip', 'dlv-empty', 'empty-state', 'cc-filters', 'cc-details-body', 'ob-addr', 'fm-note', 'diag-pre',
+  'key-row', 'key-mask', 'mkt-scoutlog', 'mkt-consent-strip', 'mkt-fam-consent'].sort().join(' '),
+  'everything that only reports (a stat, a count, a key on file, an empty state) is one recessed readout');
+A.eq(readI.body, 'background: var(--vx-well); box-shadow: var(--vx-read-shadow);', 'a readout is fill and shadow only: it keeps its own border and corner');
+A.ok(new RegExp(W + ' \\.gx-tro\\.off:not\\(\\.q-card\\) \\{ background: var\\(--vx-well\\); box-shadow: var\\(--vx-read-shadow\\); \\}').test(cssI)
+  && new RegExp(W + ' \\.gx-tro\\.on:not\\(\\.q-card\\) \\{ background: var\\(--vx-tile\\); box-shadow: var\\(--vx-tile-shadow\\); \\}').test(cssI),
+  'a trophy not yet earned sits in a recess and an earned one on a lifted tile of quiet glass (earned stays visible, and its dim words stay readable: the bright list slot took them from 6.0:1 to 4.7:1); a quest card that is also a trophy stays a pane');
+// tiles
+const TILES = ' :is\\(\\.ag-item, \\.ag-setup-row, \\.ov-vchip, \\.pp-card, \\.set-theme:not\\(\\.settings-swatch\\), \\.skin-thumb, \\.ch-sum-row, \\.mkt-card, \\.mkt-rec, \\.mkt-build, \\.wfw-tile, \\.q-mission, \\.set-bd\\)';
+const tileI = ruleI(TILES);
+A.ok(/\{\s*background: var\(--vx-tile\);\s*box-shadow: var\(--vx-tile-shadow\);\s*\}/.test(tileI),
+  'anything you press to choose is a glass tile, fill and shadow only (a colour swatch keeps its own colour, a tile its own border)');
+A.ok(new RegExp(W + TILES + ':is\\(:hover, :focus-visible\\):not\\(:is\\(\\.sel, \\.selected, \\.on, \\[aria-pressed="true"\\], \\[disabled\\]\\)\\) \\{\\s*background: var\\(--vx-tile-hot\\);\\s*\\}').test(cssI),
+  'a tile brightens under the pointer or the keyboard; a chosen or disabled tile does not answer');
+A.ok(new RegExp(W + ' :is\\(\\.ag-item, \\.ov-vchip, \\.pp-card, \\.set-theme:not\\(\\.settings-swatch\\), \\.skin-thumb, \\.mkt-card, \\.q-mission, \\.set-bd\\):is\\(\\.sel, \\.selected, \\[aria-pressed="true"\\]\\),\\s*'
+  + W + ' :is\\(\\.dlv-proj, \\.wfw-tile\\)\\.on \\{\\s*background: var\\(--vx-pick\\);\\s*box-shadow: var\\(--vx-pick-shadow\\);\\s*\\}').test(cssI),
+  'the chosen tile wears the pick (its ring and lit edge over dark glass): a chosen tile never looks like its neighbours and never disappears under the tile');
+// fields
+const fieldI = ruleI(' input:is\\(\\[type="number"\\], \\[type="password"\\], \\[type="url"\\], \\[type="email"\\], \\[type="tel"\\], \\[type="date"\\], \\[type="time"\\]\\):not\\(\\[readonly\\]\\)');
+A.ok(/background: var\(--vx-well\) !important;/.test(fieldI) && /box-shadow: var\(--vx-well-shadow\) !important;/.test(fieldI),
+  'number, password, link, mail, phone, date and time fields are the glass well of a text field; a read-only field is not dressed as one you can type in');
+const selI = ruleI(' select');
+A.ok(/linear-gradient\(45deg, transparent 50%, var\(--vx-core\) 50%\) right 14px top 52% \/ 5px 5px no-repeat,\s*linear-gradient\(135deg, var\(--vx-core\) 50%, transparent 50%\) right 9px top 52% \/ 5px 5px no-repeat,\s*var\(--vx-well\) !important;/.test(selI)
+  && /padding-right: 26px;/.test(selI) && /box-shadow: var\(--vx-well-shadow\) !important;/.test(selI),
+  'every select is a well that draws its own chevron in the station’s hue and keeps room for it (the OS arrow cannot be themed)');
+// switches
+const HOSTS = ' :is\\(\\.set-row, \\.mkt, \\.skm-agree, \\.ch-optin, \\.settings-toggle-row, \\.sbs-agree\\) input\\[type="checkbox"\\]';
+const PERS = ' input\\[data-persona-toggle\\]';
+const swOff = (cssI.match(new RegExp(W + HOSTS + ',\\s*' + W + PERS + ',\\s*' + W + ' \\.sk-sw-track \\{[^}]*\\}')) || [''])[0];
+A.ok(/box-shadow: inset 0 0 0 1px rgba\(var\(--ph-rgb\), \.62\), inset 0 2px 3px rgba\(0, 0, 0, \.9\)/.test(swOff) && /border-color: transparent !important;/.test(swOff),
+  'every switch (the source’s own hosts, the persona switches, the skill switch) is a recessed track whose hue rim is the FIRST shadow, so an off switch still shows where it is');
+const swOn = (cssI.match(new RegExp(W + HOSTS + ':checked,\\s*' + W + PERS + ':checked,\\s*' + W + ' \\.sk-switch\\.on \\.sk-sw-track \\{[^}]*\\}')) || [''])[0];
+A.ok(/linear-gradient\(90deg, rgba\(var\(--ph-rgb\), \.9\), rgba\(var\(--ph-rgb\), \.55\)\) !important;/.test(swOn) && /0 0 8px rgba\(var\(--ph-rgb\), \.45\) !important;/.test(swOn),
+  'ON floods the track with the hue and glows: on and off never look alike');
+const swKnob = (cssI.match(new RegExp(W + HOSTS + '::after,\\s*' + W + PERS + '::after,\\s*' + W + ' \\.sk-sw-knob \\{[^}]*\\}')) || [''])[0];
+A.ok(/border-radius: 50% !important;/.test(swKnob) && /background: var\(--vx-knob\) !important;/.test(swKnob) && /box-shadow: 0 0 0 1px #050608/.test(swKnob),
+  'the switch knob is the round chrome dome of every other knob');
+// faders
+const FADER = ' \\.set-slider input\\[type="range"\\]';
+A.ok(/box-shadow: inset 0 0 0 1px rgba\(var\(--ph-rgb\), \.62\), inset 0 2px 3px rgba\(0, 0, 0, \.9\), 0 1px 0 rgba\(255, 255, 255, \.2\) !important;/.test(ruleI(FADER))
+  && new RegExp(W + FADER + ':not\\(\\.set-hue-track\\) \\{\\s*background: var\\(--vx-well\\) !important;\\s*\\}').test(cssI),
+  'a fader’s track is a well under a rim of the hue listed FIRST (an empty fader still shows where it runs: the shared well shadow buried a .2 rim), and the hue fader keeps its spectrum');
+const thumbI = ruleI(FADER + '::-webkit-slider-thumb'), thumbM = ruleI(FADER + '::-moz-range-thumb');
+A.ok(/width: 14px; height: 22px; border: 0; border-radius: 4px !important;/.test(thumbI) && /linear-gradient\(90deg, transparent 0 6px, var\(--vx-core\) 6px 8px, transparent 8px\), var\(--vx-capsule\);/.test(thumbI)
+  && /box-shadow: var\(--vx-capsule-shadow\);/.test(thumbI),
+  'the fader thumb is a dark capsule with one lit line (a colour, never the --vx-lit gradient stack)');
+A.ok(thumbM && thumbM.slice(thumbM.indexOf('{')) === thumbI.slice(thumbI.indexOf('{')), 'both engines draw the same thumb');
+// settings
+A.ok(new RegExp(W + ' \\.settings-group \\{ border-color: var\\(--vx-hair\\); \\}').test(cssI), 'a settings group is a pane on a hairline');
+const provI = ruleI(' \\.prov-card');
+A.ok(/border-radius: 10px !important; corner-shape: round;/.test(provI) && /background: var\(--vx-tile\);/.test(provI) && /box-shadow: var\(--vx-tile-shadow\);/.test(provI),
+  'a provider card is a round-cornered tile (the older bevel is off)');
+A.ok(new RegExp(W + ' \\.prov-card\\.conn \\{ border-color: var\\(--vx-line-mid\\); \\}').test(cssI)
+  && new RegExp(W + ' \\.prov-card\\.expired \\{ border-color: var\\(--bad\\); \\}').test(cssI)
+  && new RegExp(W + ' \\.prov-card\\.prov-landed \\{\\s*border-color: var\\(--vx-core\\);\\s*box-shadow: inset 0 0 0 1px rgba\\(var\\(--ph-bright-rgb\\), \\.45\\), var\\(--vx-tile-shadow\\);').test(cssI),
+  'a provider card keeps every state the source gives it: connected on a brighter line, expired on the station’s red, the card an error door lands on ringed bright');
+// the list down a window's left side
+const railI = ruleI(' \\.con-rail');
+A.ok(/color-mix\(in srgb, var\(--ph\) 7%, #000\), color-mix\(in srgb, var\(--ph\) 3%, #000\)/.test(railI) && /inset -1px 0 0 rgba\(0, 0, 0, \.8\), inset 0 2px 8px rgba\(0, 0, 0, \.7\)/.test(railI),
+  'the list down a window’s left side is one dark display, like the session list');
+// what the pass must never do
+A.eq([...new Set((cssI.match(/[{;]\s*-{0,2}[a-z][a-z-]*(?=:)/g) || []).map(x => x.replace(/^[{;]\s*/, '')))].filter(x => !x.startsWith('--vx-')).sort().join(' '),
+  'background border border-color border-radius box-shadow corner-shape height padding-right width',
+  'the insides pass is paint: its only box metrics are the fader thumb’s size and the room a select keeps for its chevron, so nothing in a window moves');
+A.ok(!/[;{\s]filter:\s/.test(cssI) && !/#stage-wrap/.test(cssI) && !/\[class/.test(cssI), 'the insides pass declares no filter, styles nothing under #stage-wrap and adds no [class] selector');
+A.ok(!/@/.test(cssI), 'the insides pass has no at-rule');
+A.ok(!/content:/.test(cssI), 'the insides pass writes no words and draws no extra part: no legend, label or control');
+A.ok(!/url\(/.test(cssI) && !/repeating-/.test(cssI), 'the insides stay plain glass: the pass draws no crest, trace, scan line or grid');
 A.report('vector-identity');

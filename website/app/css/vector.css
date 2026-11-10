@@ -2674,3 +2674,174 @@ html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw):is(.ta
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .quests-content .q-view-tabs::before { background: color-mix(in srgb, var(--ph) 13%, #02060a); }
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .con-rail-top.auto-init-head { padding-left: 20px; }
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .empty-state > span { margin-inline: auto; }
+
+/* ============ 29 · THE INSIDES — the second pass over every menu panel (Andrew 2026-11-09: "update every single menu
+   panel within starnet completely"; his go for this half: "Yes, insides next"). Section 28 dressed each window's head, tabs
+   and keys; inside it the cards, readouts, tiles, fields, switches and faders still wore the older flat glass, each a
+   little different. Every card is now one pane of the same glass, every readout one recess, every tile you press to choose
+   one glass slot whose chosen state is a hard ring and a lit leading edge, every field and select one well, every switch a
+   well track under a chrome knob. A restyled control keeps every state it had: a chosen tile, an armed row, an expired
+   provider still says so, and the words on it stay as readable as they were.
+   The screens stay plain glass: nothing here adds a crest, a trace, a grid or a tint, and nothing here adds a control or
+   a word. No at-rule. Station windows only, VECTOR only: every selector opens with the window prefix, scoped :not(.vx-b)
+   ============ */
+
+/* ---- the parts, named once on the window: a pane of glass, a readout's recess, a tile's glass and lift, and the pick a
+   chosen tile wears. A tile carries words, often dim ones, so its glass is quieter than a list slot's and sits on a dark
+   base; the pick is the same dark glass inside a hard ring with a lit leading edge, never a bright fill under the words
+   (measured 2026-11-10: a half-strength band took a chosen label from 4.5:1 to 1.5:1). Every rule below reads these, so
+   one window cannot drift from the next ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) {
+  --vx-pane:
+    linear-gradient(180deg, rgba(255, 255, 255, .055) 0, rgba(255, 255, 255, 0) 26px),
+    linear-gradient(180deg, rgba(var(--ph-rgb), .1) 0, rgba(var(--ph-rgb), .03) 100%),
+    rgba(0, 3, 1, .58);
+  --vx-pane-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), inset 0 -1px 0 rgba(0, 0, 0, .5), 0 0 0 1px rgba(0, 0, 0, .66), 0 3px 9px rgba(0, 0, 0, .42);
+  --vx-read-shadow: inset 0 2px 6px rgba(0, 0, 0, .95), inset 0 0 0 1px rgba(0, 0, 0, .7), 0 1px 0 rgba(255, 255, 255, .1);
+  --vx-tile-shadow: inset 0 1px 0 rgba(255, 255, 255, .16), inset 0 -1px 0 rgba(0, 0, 0, .5), 0 0 0 1px rgba(0, 0, 0, .66), 0 2px 5px rgba(0, 0, 0, .45);
+  --vx-tile:
+    linear-gradient(180deg, rgba(255, 255, 255, .05), transparent 40%),
+    linear-gradient(180deg, rgba(var(--ph-rgb), .13), rgba(var(--ph-rgb), .06) 50%, rgba(var(--ph-rgb), .03) 51%, rgba(var(--ph-rgb), .09)),
+    rgba(0, 3, 1, .5);
+  --vx-tile-hot:
+    linear-gradient(180deg, rgba(255, 255, 255, .09), transparent 40%),
+    linear-gradient(180deg, rgba(var(--ph-rgb), .26), rgba(var(--ph-rgb), .12) 50%, rgba(var(--ph-rgb), .07) 51%, rgba(var(--ph-rgb), .16)),
+    rgba(0, 3, 1, .5);
+  --vx-pick:
+    linear-gradient(180deg, rgba(255, 255, 255, .08), transparent 40%),
+    linear-gradient(180deg, rgba(var(--ph-rgb), .18), rgba(var(--ph-rgb), .08) 50%, rgba(var(--ph-rgb), .045) 51%, rgba(var(--ph-rgb), .12)),
+    rgba(0, 3, 1, .5);
+  --vx-pick-shadow: inset 3px 0 0 rgba(var(--ph-rgb), .95), inset 0 1px 0 rgba(255, 255, 255, .3), inset 0 -1px 0 rgba(0, 0, 0, .45), 0 0 0 1px rgba(var(--ph-rgb), .85), 0 2px 5px rgba(0, 0, 0, .45);
+}
+
+/* ---- panes: every card in every window is one pane of the same glass (the dossier, the quests, the work sheets and the
+   manual, connect and settings, the market, in that order). Fill, shadow and radius only: a card keeps its own border
+   colour, so a gold wait, a red failure edge or an armed row still says so ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.ag-hero, .ag-mission, .ag-growth-hero, .ag-achievements, .ag-reflection-panel, .ag-next-challenge, .cf-group, .cd-sec, .cd-overview, .cd-brief, .cd-record),
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.q-return-card, .q-life-goal, .q-commander-growth, .q-evolution, .q-track, .q-progress-section, .q-refresh-options, .q-metric-editor, .q-card),
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.cc-card, .kb-col, .fm-route, .fm-mission, .ob-stage, .ob-row, .ds-off, .wh-source-settings, .mc-row),
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.platform-guide, .ch-preferences, .ch-setup, .ch-connection, .ch-bots, .perm-master, .perm-glance, .perm-agent, .perm-fold, .settings-group),
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.mkt-fam, .mkt-dossier, .mkt-roster) {
+  border-radius: 10px !important;
+  background: var(--vx-pane);
+  box-shadow: var(--vx-pane-shadow);
+}
+
+/* ---- readouts: anything that only reports (a stat, a count, a key on file, an empty state) is a recessed dark window with
+   no scan texture. Fill and shadow only, like a pane ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.perk, .cf-card, .cf, .cf-body, .cd-stat, .cd-rec, .cd-brief-text, .stat-cell, .ns-cell, .ag-level-badge, .ag-portrait-well, .brief-block, .up-mini),
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.bp-streak, .bp-chal, .q-journal-count, .gx-well, .gx-station),
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.fb-empty, .dlv-head-strip, .dlv-empty, .empty-state, .cc-filters, .cc-details-body, .ob-addr, .fm-note, .diag-pre),
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.key-row, .key-mask, .mkt-scoutlog, .mkt-consent-strip, .mkt-fam-consent) {
+  background: var(--vx-well);
+  box-shadow: var(--vx-read-shadow);
+}
+
+/* ---- the trophy shelf: a trophy not yet earned sits in a recess, an earned one on a lifted tile inside the bright rim the
+   source gives it. It carries dim words, so it wears the tile's quiet glass, never the list slot's ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .gx-tro.off:not(.q-card) { background: var(--vx-well); box-shadow: var(--vx-read-shadow); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .gx-tro.on:not(.q-card) { background: var(--vx-tile); box-shadow: var(--vx-tile-shadow); }
+
+/* ---- tiles: anything you press to choose is a glass slot that brightens under the pointer or the keyboard; the chosen one
+   wears a hard ring of the hue and a lit leading edge (the edge is the FIRST shadow, so it paints on top), so a pick never
+   reads as a hover and never dims its own words. A chosen or disabled tile does not answer the pointer ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.ag-item, .ag-setup-row, .ov-vchip, .pp-card, .set-theme:not(.settings-swatch), .skin-thumb, .ch-sum-row, .mkt-card, .mkt-rec, .mkt-build, .wfw-tile, .q-mission, .set-bd) {
+  background: var(--vx-tile);
+  box-shadow: var(--vx-tile-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.ag-item, .ag-setup-row, .ov-vchip, .pp-card, .set-theme:not(.settings-swatch), .skin-thumb, .ch-sum-row, .mkt-card, .mkt-rec, .mkt-build, .wfw-tile, .q-mission, .set-bd):is(:hover, :focus-visible):not(:is(.sel, .selected, .on, [aria-pressed="true"], [disabled])) {
+  background: var(--vx-tile-hot);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.ag-item, .ov-vchip, .pp-card, .set-theme:not(.settings-swatch), .skin-thumb, .mkt-card, .q-mission, .set-bd):is(.sel, .selected, [aria-pressed="true"]),
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.dlv-proj, .wfw-tile).on {
+  background: var(--vx-pick);
+  box-shadow: var(--vx-pick-shadow);
+}
+
+/* ---- fields: the kinds the wells rule missed, and every select, which draws its own chevron in the station's hue (the OS
+   arrow cannot be themed) ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) input:is([type="number"], [type="password"], [type="url"], [type="email"], [type="tel"], [type="date"], [type="time"]):not([readonly]) {
+  border-color: transparent !important;
+  background: var(--vx-well) !important;
+  box-shadow: var(--vx-well-shadow) !important;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) select {
+  padding-right: 26px;
+  border-color: transparent !important;
+  background:
+    linear-gradient(45deg, transparent 50%, var(--vx-core) 50%) right 14px top 52% / 5px 5px no-repeat,
+    linear-gradient(135deg, var(--vx-core) 50%, transparent 50%) right 9px top 52% / 5px 5px no-repeat,
+    var(--vx-well) !important;
+  box-shadow: var(--vx-well-shadow) !important;
+}
+
+/* ---- switches: a recessed track under a chrome knob; ON floods the track with the hue. The hue rim is the FIRST shadow, so
+   it paints on top and an off switch still shows where it is. The hosts are the source's own switch hosts, plus the two
+   persona switches and the span-built skill switch ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.set-row, .mkt, .skm-agree, .ch-optin, .settings-toggle-row, .sbs-agree) input[type="checkbox"],
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) input[data-persona-toggle],
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .sk-sw-track {
+  border-color: transparent !important;
+  background: linear-gradient(180deg, #000 0, color-mix(in srgb, var(--ph) 14%, #020403) 100%) !important;
+  box-shadow: inset 0 0 0 1px rgba(var(--ph-rgb), .62), inset 0 2px 3px rgba(0, 0, 0, .9), 0 1px 0 rgba(255, 255, 255, .2) !important;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.set-row, .mkt, .skm-agree, .ch-optin, .settings-toggle-row, .sbs-agree) input[type="checkbox"]:checked,
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) input[data-persona-toggle]:checked,
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .sk-switch.on .sk-sw-track {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .3) 0, rgba(255, 255, 255, 0) 55%),
+    linear-gradient(90deg, rgba(var(--ph-rgb), .9), rgba(var(--ph-rgb), .55)) !important;
+  box-shadow: inset 0 1px 2px rgba(0, 0, 0, .55), 0 0 0 1px #050608, 0 0 8px rgba(var(--ph-rgb), .45) !important;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.set-row, .mkt, .skm-agree, .ch-optin, .settings-toggle-row, .sbs-agree) input[type="checkbox"]::after,
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) input[data-persona-toggle]::after,
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .sk-sw-knob {
+  border-radius: 50% !important;
+  background: var(--vx-knob) !important;
+  box-shadow: 0 0 0 1px #050608, 0 1px 2px rgba(0, 0, 0, .7) !important;
+}
+
+/* ---- faders: a well for a track (the hue fader keeps its spectrum) and a dark capsule with one lit line for a thumb.
+   The track wears the switch track's rim, listed first: an empty fader still shows where it runs ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .set-slider input[type="range"] {
+  border-color: transparent !important;
+  box-shadow: inset 0 0 0 1px rgba(var(--ph-rgb), .62), inset 0 2px 3px rgba(0, 0, 0, .9), 0 1px 0 rgba(255, 255, 255, .2) !important;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .set-slider input[type="range"]:not(.set-hue-track) {
+  background: var(--vx-well) !important;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .set-slider input[type="range"]::-webkit-slider-thumb {
+  width: 14px; height: 22px; border: 0; border-radius: 4px !important;
+  background: linear-gradient(90deg, transparent 0 6px, var(--vx-core) 6px 8px, transparent 8px), var(--vx-capsule);
+  box-shadow: var(--vx-capsule-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .set-slider input[type="range"]::-moz-range-thumb {
+  width: 14px; height: 22px; border: 0; border-radius: 4px !important;
+  background: linear-gradient(90deg, transparent 0 6px, var(--vx-core) 6px 8px, transparent 8px), var(--vx-capsule);
+  box-shadow: var(--vx-capsule-shadow);
+}
+
+/* ---- settings: a group is a pane on a hairline; a provider card is a tile that keeps every state the source gives it. A
+   connected card sits on a brighter line, an expired one on the station's red, and the card an error door lands on is
+   ringed bright for its moment ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .settings-group { border-color: var(--vx-hair); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .prov-card {
+  border-radius: 10px !important; corner-shape: round;
+  border-color: var(--vx-hair);
+  background: var(--vx-tile);
+  box-shadow: var(--vx-tile-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .prov-card.conn { border-color: var(--vx-line-mid); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .prov-card.expired { border-color: var(--bad); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .prov-card.prov-landed {
+  border-color: var(--vx-core);
+  box-shadow: inset 0 0 0 1px rgba(var(--ph-bright-rgb), .45), var(--vx-tile-shadow);
+}
+
+/* ---- the list down a window's left side is one dark display, like the session list beside the stage ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .con-rail {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .04) 0, rgba(255, 255, 255, 0) 40px),
+    linear-gradient(180deg, color-mix(in srgb, var(--ph) 7%, #000), color-mix(in srgb, var(--ph) 3%, #000));
+  box-shadow: inset -1px 0 0 rgba(0, 0, 0, .8), inset 0 2px 8px rgba(0, 0, 0, .7), 1px 0 0 rgba(255, 255, 255, .07);
+}
