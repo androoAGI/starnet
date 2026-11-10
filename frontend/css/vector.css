@@ -1255,8 +1255,10 @@ html body.vx:not(.hud-mode) #screen-game #chat-panel .cmsg-starter:is(:hover, :f
   background: linear-gradient(180deg, rgba(255, 255, 255, .16), rgba(255, 255, 255, 0) 50%), linear-gradient(180deg, rgba(var(--ph-rgb), .38), rgba(var(--ph-rgb), .16)) !important;
   box-shadow: inset 0 0 0 1px var(--vx-core), 0 0 14px rgba(var(--ph-rgb), .35) !important;
 }
-/* the bezel reaches out past the screen's box into the gutters: clip with a margin instead of hiding (no scroll container) */
-html body.vx:not(.hud-mode) #screen-game :is(#left, #chat-panel) { overflow: clip; overflow-clip-margin: 6px; }
+/* the bezel reaches out past the screen's box into the gutters: clip with a margin instead of hiding (no scroll container).
+   A clipped box is no scroll container, so as a grid item its automatic minimum is its CONTENT: without min-height 0 the rail
+   held the middle row open at a large TEXT SIZE on a short window and pushed the dock off the bottom of the screen */
+html body.vx:not(.hud-mode) #screen-game :is(#left, #chat-panel) { overflow: clip; overflow-clip-margin: 6px; min-height: 0; }
 
 /* the body is LIQUID CHROME (the skins are chrome first, glass second): a bright specular crown, a dark waist, a lower
    reflection band. The screens and rails sit in it like inlays */
@@ -2352,15 +2354,105 @@ html body.vx:not(.hud-mode):not(.vx-b) #logo::before { content: none; }
 html body.vx:not(.hud-mode):not(.vx-b) #logo .logo-img { background: var(--vx-core); }
 
 /* ---- the head knobs: one drawn icon each, seated on whole pixels ---- */
-html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left > h3 .crew-hide { width: 28px; height: 28px; font-size: 0; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left > h3 .crew-hide {
+  width: 26px; height: 26px; font-size: 0;
+  box-shadow: 0 0 0 1px #050608, 0 0 0 2px #2a3037, 0 1px 0 2px rgba(255, 255, 255, .5), 0 2px 3px 2px rgba(0, 0, 0, .4);
+}
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew-search-close { width: calc(26px * var(--sn-unzoom, 1)); height: calc(26px * var(--sn-unzoom, 1)); font-size: 0; }
 
 /* ---- the crew readout sheds whole: both counts, the working count alone, or nothing; never half a word ---- */
-html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left > h3 { flex-wrap: wrap; align-content: flex-start; row-gap: 40px; line-height: 42px; overflow: clip; padding-right: 86px; }
-html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left > h3 .crew-h3-right { position: absolute; right: 10px; top: 0; bottom: 0; height: 28px; margin: auto 0; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left > h3 { flex-wrap: wrap; align-content: flex-start; row-gap: 40px; line-height: 42px; overflow: clip; padding-right: 76px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left > h3 .crew-h3-right { position: absolute; right: 8px; top: 0; bottom: 0; height: 26px; margin: auto 0; gap: 7px; }
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left > h3 #crew-sum { flex: 1 0 auto; width: min-content; min-width: min-content; max-width: max-content; justify-content: center; }
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left > h3 #crew-sum .pos::after { content: none; }
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left > h3 #crew-sum .dim::before { content: '·'; margin-right: 8px; }
 
 /* ---- the rails carry no end rivets: a well sits on each end now, and a rivet half under a well read as a nub on its edge ---- */
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game :is(#topbar, #bottombar) { --vx-rivet: none; }
+
+/* ============ 26 · THE FIT — the kinks Andrew circled on 11-09: the PROJECTS tab ran out of a narrow rail ("if its small it
+   will glitch out for users"), the rail had no way to start a session ("there is no + or new session button, it is literally
+   completely missing"), the CREW and COMMS bars "feel a bit off ... adjusting to be made to make it fit better", and the
+   seam between the world and COMMS "cuts off the oval shapes entirely". VECTOR only: every selector is scoped :not(.vx-b) ============ */
+
+/* ---- ONE GUTTER: every block in a housing starts the same distance in from the glass, at every TEXT SIZE. The heads and
+   the tab strip are counter-zoomed hardware (app.css), so their gutter is converted back into the panel's zoomed px. Each
+   panel is a size container, so its narrow dress is keyed to the panel's own width, never the window's ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game :is(#left, #chat-panel) { --vx-gut: 15px; --vx-gut-u: calc(15px / var(--sn-unzoom, 1)); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left { container: vx-rail / inline-size; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel { container: vx-comms / inline-size; }
+
+/* ---- the title plates sit on that gutter, concentric with the housing's top corners, one beat above the first block ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game :is(#left, #chat-panel) > h3 {
+  margin: calc(12px / var(--sn-unzoom, 1)) var(--vx-gut-u) 6px; padding-left: 30px; letter-spacing: 3px; border-radius: 11px 11px 7px 7px;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game :is(#left, #chat-panel) > h3::before { left: 11px; }
+/* an open finder keeps the knobs' slimmer seat ring (its base rule carries the find key's id) */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left > h3 #crew-search-toggle[aria-expanded="true"] {
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, .45), 0 0 0 1px #050608, 0 0 0 2px #2a3037, 0 0 10px 2px rgba(var(--ph-rgb), .55);
+}
+
+/* ---- the rail head: SESSIONS | PROJECTS share one seat that spans the rail, and the + key sits at its end. The tabs
+   split the seat evenly and their type follows the strip's own width (the strip is pipglass's size container), so both
+   words stay whole on the narrowest rail: 50cqw less the key, the seat and 7px of cap on each side is one tab's room, and
+   VT323 advances 0.4em a glyph. The plain sizes above the cq ones are the fallback where cq units are missing ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-head { gap: 6px; padding: 2px var(--vx-gut-u) 4px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-head .ws-view { flex: 1 1 0; min-width: 0; gap: 3px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-head .ws-view::after { content: none; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-head .ws-view > .ws-tab {
+  flex: 1 1 0; min-width: 0; padding-left: 0; padding-right: 0; text-align: center;
+  font-size: 14px; letter-spacing: 0;
+  font-size: clamp(13px, calc((50cqw - 36.5px) / 3.2), 16px); letter-spacing: clamp(0px, calc((50cqw - 87.7px) / 8), 2px);
+  font-size: clamp(13px, round(down, calc((50cqw - 36.5px) / 3.2), 1px), 16px);
+}
+/* the chosen tab keeps its lit body under the pointer: the hover cap out-ranked .on, so the tab just clicked read as unchosen
+   until the pointer left it */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-head .ws-view > .ws-tab.on:is(:hover, :focus-visible) {
+  background: var(--vx-cap-on) !important; color: #020604 !important; text-shadow: none !important;
+}
+/* ---- the + key is back (section 20 dropped + NEW and left the rail with no way to start a session): the add knob of
+   the top and bottom bars, on SESSIONS (+ NEW) and on PROJECTS (+ ADD). A key the app hides stays hidden ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-head .ws-head-acts {
+  display: inline-flex !important; flex: none; align-self: center; align-items: center; height: auto; margin: 0; padding: 0;
+  border: 0; border-radius: 50%; background: none; box-shadow: none;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-head :is(#ws-new, #ws-addproject):not([hidden]) {
+  display: inline-grid !important; place-items: center; width: 28px; min-width: 28px; height: 28px; min-height: 0; margin: 0; padding: 0;
+  border: 0 !important; border-radius: 50%; corner-shape: round; font-size: 0 !important; letter-spacing: 0;
+  background: var(--vx-knob) !important; box-shadow: 0 0 0 1px #050608, 0 2px 4px rgba(0, 0, 0, .7) !important;
+  color: #06100a !important; text-shadow: none !important;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-head :is(#ws-new, #ws-addproject):not([hidden]):is(:hover, :focus-visible) {
+  background: var(--vx-knob-hot) !important; color: #020604 !important;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-head :is(#ws-new, #ws-addproject)::before {
+  content: ''; position: absolute; inset: 0; margin: auto; width: 12px; height: 12px; -webkit-mask: none; mask: none;
+  background: linear-gradient(currentColor, currentColor) center / 12px 2px no-repeat, linear-gradient(currentColor, currentColor) center / 2px 12px no-repeat;
+}
+
+/* ---- the finders, the transcript, the composer and the COMMS identity on the gutter ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left :is(.ws-rail-search, .crew-search-wrap) { padding-left: var(--vx-gut); padding-right: var(--vx-gut); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel :is(#chat-log, #chat-inputrow) { margin-left: var(--vx-gut); margin-right: var(--vx-gut); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel #comms-idbar {
+  margin-left: 0; margin-right: 0; padding-left: calc(var(--vx-gut) + 5px); padding-right: calc(var(--vx-gut) + 3px);
+}
+
+/* ---- the seams: #comms-resizer lives INSIDE #chat-panel, whose 6px clip margin cut every clamp on that seam in half.
+   The panel now clips by a path that leaves the seam's side open (and reads the same where overflow-clip-margin is
+   missing); the clamps run bezel to bezel, never onto the glass ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel { overflow: visible; clip-path: inset(-6px -6px -6px -30px); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game :is(.crew-resizer, .col-resizer)::before { width: 30px; margin-left: -15px; background-size: 30px 15px; }
+
+/* ---- a narrow panel runs compact (a laptop rail at a large TEXT SIZE is under 190 zoomed px): the rows close up and the
+   crew card sheds its level before it cuts a name; the COMMS identity closes up before it cuts the agent's ---- */
+@container vx-rail (max-width: 190px) {
+  html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-row { padding-left: 6px; padding-right: 6px; gap: 8px; }
+  html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-room { display: none; }
+  html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left :is(#workstreams, #projects) > .ws-row { padding-left: 7px; padding-right: 6px; gap: 7px; }
+}
+@container vx-rail (max-width: 150px) {
+  html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-row { padding-left: 4px; padding-right: 4px; gap: 6px; }
+}
+@container vx-comms (max-width: 260px) {
+  html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel #comms-idbar { gap: 6px; padding-left: calc(var(--vx-gut) + 3px); padding-right: var(--vx-gut); }
+}

@@ -57,9 +57,11 @@ for (const list of selectorLists) {
   }
 }
 A.eq(unscoped, [], 'every vector.css selector is scoped under body.vx');
-// the only at-rule is the bevel guard (a square fallback where corner-shape is unsupported, never a rounded one)
+// the at-rules are the bevel guard (a square fallback where corner-shape is unsupported, never a rounded one) and the fit
+// pass's three panel-width queries (section 26). A window-width @media is never one of them: a panel's dress follows the panel
 const atRules = [...new Set(preludes.filter(p => p.startsWith('@')))];
-A.eq(atRules, ['@supports (corner-shape: bevel)'], 'the only at-rule is the corner-shape guard');
+A.eq(atRules, ['@supports (corner-shape: bevel)', '@container vx-rail (max-width: 190px)', '@container vx-rail (max-width: 150px)', '@container vx-comms (max-width: 260px)'],
+  'the only at-rules are the corner-shape guard and the fit pass’s three panel-width queries');
 
 // ---- the radius families close by token ----
 for (const token of ['--sn-r-card', '--sn-r-key', '--sn-r-row', '--sn-r-chip', '--r-sm', '--r', '--r-lg']) {
@@ -169,7 +171,7 @@ A.ok(!/border-radius: 999px \d+px \d+px 999px/.test(css) && !/border-radius: \d+
 // collapse button to be updated", "the right side agent profile picture needs more space", "more detail between the panels",
 // "settings to make it darker", "improve the crew and comms on the top") ----
 A.ok(/#left \.ws-head #ws-new \{ display: none !important; \}/.test(css) && !/#ws-addproject(?!\[hidden\])[^{]*\{[^}]*display: none/.test(css),
-  'the rail drops + NEW but PROJECTS keeps its + ADD');
+  'the wide + NEW key of 11-08 stays dropped and PROJECTS keeps its + ADD (the fit pass, section 26, gives VECTOR a round + key back)');
 A.ok(/#left, #chat-panel\) > h3 \{[^}]*display: flex[^}]*#eef2f6/.test(css), 'the CREW and COMMS heads are chrome title plates');
 A.ok(/#left > h3 #crew-sum,\n[^{]*\.comms-session \{[^}]*background: var\(--vx-lcd\)/.test(css), 'the live head readouts sit in LCD pills');
 A.ok(/#left > h3 \.crew-hide \{[^}]*border-radius: 50%/.test(css), 'find and fold are round chrome knobs');
@@ -196,19 +198,22 @@ A.ok(/:is\(\.ws-rail-search, \.crew-search-wrap\) \{ background: none !important
 A.ok(/\.ws-rail-search label::before \{[^}]*mask:/.test(css) && /\.crew-search-wrap::before \{[^}]*mask:/.test(css), 'both finders lead with the lit lens');
 A.ok(/#crew-search-close \{[^}]*border-radius: 50%/.test(css), 'the crew finder closes on a round chrome knob');
 
-// ---- the sheet is four parts (2026-11-09). VECTOR = sections 1-22, the silver device Andrew kept ("I love this look so much
-// its insane"), finished by section 25. Section 23, the black chassis, is variation B's base: gated :where(.vx-b), so it adds
-// no specificity and B renders exactly as it did when that pass applied to both. Section 24 is variation B itself ----
+// ---- the sheet is five parts (2026-11-09). VECTOR = sections 1-22, the silver device Andrew kept ("I love this look so much
+// its insane"), finished by section 25 and fitted by section 26. Section 23, the black chassis, is variation B's base: gated
+// :where(.vx-b), so it adds no specificity and B renders exactly as it did when that pass applied to both. Section 24 is
+// variation B itself ----
 const rawCss = read('frontend/css/vector.css');
 const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '');
 const cut = (title) => { const at = rawCss.indexOf(title); return at < 0 ? -1 : rawCss.lastIndexOf('/*', at); };
-const baseAt = cut('23 · THE BLACK CHASSIS'), bAt = cut('24 · VARIATION B'), pAt = cut('25 · THE PERFECTED VECTOR');
-A.ok(baseAt > 0 && bAt > baseAt && pAt > bAt, 'vector.css carries the black chassis, variation B and the perfected VECTOR as sections 23, 24, 25 in that order');
+const baseAt = cut('23 · THE BLACK CHASSIS'), bAt = cut('24 · VARIATION B'), pAt = cut('25 · THE PERFECTED VECTOR'), fAt = cut('26 · THE FIT');
+A.ok(baseAt > 0 && bAt > baseAt && pAt > bAt && fAt > pAt, 'vector.css carries the black chassis, variation B, the perfected VECTOR and the fit pass as sections 23, 24, 25, 26 in that order');
 const cssA = strip(rawCss.slice(0, baseAt));
 const cssBase = strip(rawCss.slice(baseAt, bAt));
 const cssB = strip(rawCss.slice(bAt, pAt));
-const cssP = strip(rawCss.slice(pAt));
-const selsOf = (t) => t.split('}').map(r => r.slice(0, Math.max(0, r.indexOf('{')))).filter(x => x.trim()).flatMap(x => x.split(/,\n/)).map(x => x.trim());
+const cssP = strip(rawCss.slice(pAt, fAt));
+const cssF = strip(rawCss.slice(fAt));
+// an at-rule's own prelude (@container ... {) is not a selector: drop it, and its closing brace leaves an empty chunk
+const selsOf = (t) => t.replace(/@[a-z-]+[^{};]*\{/g, '').split('}').map(r => r.slice(0, Math.max(0, r.indexOf('{')))).filter(x => x.trim()).flatMap(x => x.split(/,\n/)).map(x => x.trim());
 // a selector list can also run on ONE line, so the line-start check alone is not enough: every root in a section must carry its gate
 const stray = (t, gate) => (t.match(/html body\.vx:not\(\.hud-mode\)[^ ]*/g) || []).filter(x => x !== 'html body.vx:not(.hud-mode)' + gate);
 A.ok(!/\.vx-b\b/.test(cssA), 'nothing in sections 1-22 mentions .vx-b: VECTOR does not depend on its variation');
@@ -279,4 +284,45 @@ A.ok(/#crew-sum \.pos::after \{ content: none; \}/.test(cssP) && /#crew-sum \.di
   'the crew readout\'s separator belongs to the idle count, so the working count never trails a loose dot when the idle count sheds');
 A.ok(/#left > h3 #crew-sum \{[^}]*min-width: min-content/.test(cssP), 'the crew readout sheds whole counts on a narrow rail, never half a word');
 A.ok(/:is\(#topbar, #bottombar\) \{ --vx-rivet: none; \}/.test(cssP), 'the rails carry no end rivets under the wells');
+
+// ---- the fit pass (Andrew 2026-11-09: "if its small it will glitch out for users", "there is no + or new session button, it
+// is literally completely missing", the CREW and COMMS bars "feel a bit off ... adjusting to be made to make it fit better",
+// the seam between the world and COMMS "cuts off the oval shapes entirely") ----
+const selsF = selsOf(cssF);
+A.ok(selsF.length > 20, 'the fit pass is its own section (' + selsF.length + ' selectors)');
+A.eq(selsF.filter(x => !x.startsWith('html body.vx:not(.hud-mode):not(.vx-b)')).join(' | '), '', 'every selector in the fit pass is scoped :not(.vx-b), inside its container queries too');
+A.eq(stray(cssF, ':not(.vx-b)').join(' | '), '', 'no fit-pass selector slips its scope inside a one-line list');
+// small windows: a clipped housing is no scroll container, so as a grid item it must be told it may shrink, or the rail
+// holds the middle row open at a large TEXT SIZE and pushes the dock off the bottom of the window
+A.ok(/#screen-game :is\(#left, #chat-panel\) \{ overflow: clip; overflow-clip-margin: 6px; min-height: 0; \}/.test(css),
+  'a clipped housing may shrink (min-height 0): the dock never leaves the window at a large TEXT SIZE');
+A.ok(/#left \{ container: vx-rail \/ inline-size; \}/.test(cssF) && /#chat-panel \{ container: vx-comms \/ inline-size; \}/.test(cssF),
+  'each panel is its own size container: its narrow dress follows the panel, never the window');
+A.ok(/:is\(#left, #chat-panel\) \{ --vx-gut: 15px; --vx-gut-u: calc\(15px \/ var\(--sn-unzoom, 1\)\); \}/.test(cssF),
+  'one gutter for every block in a housing, with its counter-zoomed twin for the heads and the tab strip');
+A.ok(/:is\(#left, #chat-panel\) > h3 \{\s*margin: calc\(12px \/ var\(--sn-unzoom, 1\)\) var\(--vx-gut-u\) 6px;/.test(cssF), 'the CREW and COMMS plates sit on that gutter');
+A.ok(/#chat-panel :is\(#chat-log, #chat-inputrow\) \{ margin-left: var\(--vx-gut\); margin-right: var\(--vx-gut\); \}/.test(cssF), 'the transcript and the composer sit on it too');
+// the rail head: both tabs whole on any rail
+const tabF = (cssF.match(/\.ws-view > \.ws-tab \{[^}]*\}/) || [''])[0];
+A.ok(/flex: 1 1 0; min-width: 0;/.test(tabF) && /\.ws-head \.ws-view \{ flex: 1 1 0; min-width: 0;/.test(cssF), 'SESSIONS and PROJECTS split one seat that spans the rail');
+A.ok(/font-size: 14px; letter-spacing: 0;\s*font-size: clamp\(13px, calc\(\(50cqw - /.test(tabF),
+  'the tab type follows the strip’s own width (cq units), after a plain size for an engine without them');
+A.ok(/\.ws-head \.ws-view::after \{ content: none; \}/.test(cssF), 'pipglass’s flex filler is off, or it takes a third of the seat from the tabs');
+A.ok(/\.ws-view > \.ws-tab\.on:is\(:hover, :focus-visible\) \{[^}]*var\(--vx-cap-on\)/.test(cssF), 'the chosen tab stays lit under the pointer (.on stays visible)');
+// the + key
+A.ok(/id="ws-new"/.test(html) && /id="ws-addproject"/.test(html), 'the rail’s two add keys are in the page');
+const keyF = (cssF.match(/:is\(#ws-new, #ws-addproject\):not\(\[hidden\]\) \{[^}]*\}/) || [''])[0];
+A.ok(/display: inline-grid !important;[^}]*width: 28px; min-width: 28px; height: 28px;[^}]*border-radius: 50%;[^}]*var\(--vx-knob\)/.test(keyF),
+  'the rail has its + key back: a round silver knob on SESSIONS (+ NEW) and PROJECTS (+ ADD)');
+A.ok(!/#ws-(new|addproject)(?![^{]*:not\(\[hidden\]\))[^{]*\{[^}]*display:/.test(cssF), 'a key the app hides stays hidden: no fit rule shows one without :not([hidden])');
+A.ok(/\.ws-head \.ws-head-acts \{\s*display: inline-flex !important;/.test(cssF), 'the key’s seat shows on SESSIONS too (section 20 folded it with the dropped + NEW)');
+A.ok(/:is\(#ws-new, #ws-addproject\)::before \{[^}]*12px 2px no-repeat[^}]*2px 12px no-repeat/.test(cssF), 'its plus is drawn on whole pixels, the same as the bars’ + keys');
+// the seams
+A.ok(/#chat-panel \{ overflow: visible; clip-path: inset\(-6px -6px -6px -30px\); \}/.test(cssF),
+  'COMMS clips by a path that is open on the seam’s side: #comms-resizer lives inside the panel, and the 6px clip margin cut its clamps in half');
+A.ok(/:is\(\.crew-resizer, \.col-resizer\)::before \{ width: 30px; margin-left: -15px; background-size: 30px 15px; \}/.test(cssF), 'the clamps run bezel to bezel on both seams');
+// a narrow panel
+A.ok(/@container vx-rail \(max-width: 190px\) \{[^@]*#crew \.crew-room \{ display: none; \}/.test(cssF) && /@container vx-rail \(max-width: 150px\)/.test(cssF) && /@container vx-comms \(max-width: 260px\)/.test(cssF),
+  'a narrow panel runs compact: the crew card sheds its room before it cuts a name');
+A.ok(!/\bfilter:/.test(cssF) && !/\[class/.test(cssF), 'the fit pass adds no filter and no [class] selector');
 A.report('vector-identity');
