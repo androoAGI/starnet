@@ -73,8 +73,10 @@ function hermeticEnv(base) {
   for (const k of Object.keys(process.env)) {
     if (/^(OPENROUTER|ANTHROPIC|OPENAI|GEMINI|GOOGLE_API|XAI|GROQ|MISTRAL|DEEPSEEK|TOGETHER|FIREWORKS|PERPLEXITY|CEREBRAS|KIMI|ELEVENLABS|STARNET_|SKYNET_)/i.test(k)) env[k] = '';
   }
+  // SKYNET_QUEST_REFRESH=0: the quest refresh's boot look (3 s after boot) is a tool-less upstream call the mock's auxiliary rule
+  // does not name, so on a loaded box it landed inside the probe that follows the restart and was read as its first request
   return Object.assign(env, { SKYNET_FULL_ACCESS: '1', STARNET_FULL_ACCESS: '1', SKYNET_SKILL_REVIEW: '0', SKYNET_SKILL_CURATOR: '0',
-    SKYNET_THREAD_MINE: '0', SKYNET_AUX_BUDGET: '0', STARNET_LIVE_PRICES: '0', STARNET_CREDITS_URL: '', SKYNET_CREDITS_URL: '',
+    SKYNET_THREAD_MINE: '0', SKYNET_AUX_BUDGET: '0', SKYNET_QUEST_REFRESH: '0', STARNET_LIVE_PRICES: '0', STARNET_CREDITS_URL: '', SKYNET_CREDITS_URL: '',
     SKYNET_OPENROUTER_BASE: base, SKYNET_OPENROUTER_KEY: 'tomb-fixture', SKYNET_DEFAULT_MODEL: 'test/model' });
 }
 
