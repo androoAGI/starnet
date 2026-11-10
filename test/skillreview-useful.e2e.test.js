@@ -23,7 +23,11 @@
         reviews, and the count grows by their turns; a thumbs-up under the bar fires 0 too (every review but an ok or miss
         rating's needs a due count, the 2026-09-28 cadence as a floor: this case fails the moment the gate stops needing one);
      I8 the clean run's kept count survives a sidecar restart (skill.nudge.json), and the same agent's next run, a short
-        one (under the bar on its own) with a tool error, reviews (base: 0, the clean run had spent the count).
+        one (under the bar on its own) with a tool error, reviews (base: 0, the clean run had spent the count);
+     I9 a clean CHAT run (a streamId, so a Task Brief opens) whose first write came before brief_proceed, so the brief held
+        it (the host's NOT RUN, NOT FAILED stamp) before it ran once the brief settled, fires 0 reviews and the run end says
+        "review held", not "qualifies (tool-error)" (base: 1; the lane before review r2: 1). A held or refused call is not
+        a tool error (skillreview.js heldOrRefused); test/skillreview-cause.test.js pins every such stamp.
    Zero network, zero real key (the fake key routes to the mock). Prints the measured counts on one line. */
 'use strict';
 
@@ -35,6 +39,7 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const { makeSkillStore } = require('../sidecar/skillstore.js');
 const { digestOf } = require('../sidecar/skills/gate.js');
 const skillGuard = require('../sidecar/skills/guard.js');
+const { TaskIntent } = require('../frontend/app/fork.js');
 
 const HOST = '127.0.0.1';
 const MODEL = 'test/model';
@@ -48,6 +53,8 @@ const PROPOSED = 'Station Survey';
 const ok2 = n => Array.from({ length: n }, (_, i) => i % 2 ? ['fs_list', {}] : ['station_inspect', {}]);
 const VIEW = ['skill_view', { name: SKILL }];
 const MISS = ['fs_read', { path: 'missing-notes.txt' }];   // no such file: the tool answers with an error
+const WRITE = ['fs_write', { path: 'survey-note.txt', content: 'station and workspace agree\n' }];
+const BRIEF = ['brief_proceed', { objective: 'survey the station and its workspace and save a short note', deliverable: 'the note file', assumptions: ['save it in the workspace root'] }];
 /* the MAIN run's tool calls, by the case marker in the Commander's message. 11 calls + the answer = 12 model turns. */
 const PLANS = {
   clean: [VIEW].concat(ok2(10)),
@@ -57,7 +64,10 @@ const PLANS = {
   verdict: [VIEW].concat(ok2(10)),
   praise: [VIEW].concat(ok2(10)),
   floor: [MISS].concat(ok2(2)),   // 3 tool turns and the answer: a tool error, well under the bar
-  short: [MISS]
+  short: [MISS],
+  // I9: a chat run (streamId, so a Task Brief opens): the first write comes before brief_proceed, so the brief HOLDS it (not
+  // run), then the brief settles and the same write runs; every call that ran succeeded
+  brief: [VIEW, WRITE, BRIEF, WRITE].concat(ok2(7))
 };
 
 function sse(res, deltas, finishReason) {
@@ -147,12 +157,13 @@ async function settle(state, stableMs, maxMs) {
 // one review = one review LOOP: its first model call (no tool result in it yet)
 const reviewsIn = calls => calls.filter(c => c.review && c.first);
 
-async function drive(fixture, mock, agentId, kind, words) {
+async function drive(fixture, mock, agentId, kind, words, streamId) {
   const from = mock.state.calls.length;
   const r = await fixture.request('/api/run', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ key: KEY, model: MODEL, agentId, isTask: true, placed: ['notebook', 'computer'],
-      messages: [{ role: 'user', content: '[RW ' + kind + '] ' + (words || 'Survey the station and its workspace and tell me what you find.') }] })
+    body: JSON.stringify(Object.assign({ key: KEY, model: MODEL, agentId, isTask: true, placed: ['notebook', 'computer'],
+      messages: [{ role: 'user', content: '[RW ' + kind + '] ' + (words || 'Survey the station and its workspace and tell me what you find.') }] },
+      streamId ? { streamId } : null))   // a chat's streamId opens the run's Task Brief
   });
   A.eq(r.status, 200, 'the real /api/run stream opened for ' + agentId);
   const events = (await r.text()).split('\n').map(l => l.trim()).filter(Boolean).map(l => { try { return JSON.parse(l); } catch (_) { return null; } }).filter(Boolean);
@@ -161,7 +172,8 @@ async function drive(fixture, mock, agentId, kind, words) {
   A.eq(p.reason, 'done', agentId + ': the run finished');
   await settle(mock.state);
   const win = mock.state.calls.slice(from);
-  return { runId: p.runId, turns: p.turns, mains: win.filter(c => c.main).length, reviews: reviewsIn(win), win };
+  const results = events.filter(e => e.name === 'agent.tool_result').map(e => e.payload || {});
+  return { runId: p.runId, turns: p.turns, mains: win.filter(c => c.main).length, reviews: reviewsIn(win), win, results };
 }
 
 function nudgeCount(fixture, agentId) {
@@ -172,7 +184,7 @@ function nudgeCount(fixture, agentId) {
 (async () => {
   const mock = await startMock();
   const fixture = SidecarFixture.create({ prefix: 'sk-review-useful-', env: hermeticEnv(mock.base), timeoutMs: 30000 });
-  seedSkills(fixture.workspace, ['rw-clean', 'rw-error', 'rw-cue', 'rw-verdict', 'rw-praise']);
+  seedSkills(fixture.workspace, ['rw-clean', 'rw-error', 'rw-cue', 'rw-verdict', 'rw-praise', 'rw-brief']);
   await fixture.start();
   const counts = {};
   try {
@@ -258,6 +270,20 @@ function nudgeCount(fixture, agentId) {
     counts.carried = short.reviews.length;
     A.eq(counts.carried, 1, 'I8 the count the clean run kept fires the review on the next run that holds a tool error');
     A.eq(nudgeCount(fixture, 'rw-clean'), 0, 'I8 and that review starts the count over');
+
+    // ---- I9 the Task Brief's hold is not a tool error: a clean CHAT run whose first write came before brief_proceed ----
+    const logFrom = fixture.output().length;
+    const held = await drive(fixture, mock, 'rw-brief', 'brief', 'Survey the station and its workspace, save a short note, and tell me what you find.', 'rw-brief-chat');
+    A.eq([held.mains, held.turns], [12, 12], 'fixture: the chat run took 12 model turns');
+    const heldResults = held.results.filter(r => TaskIntent.isGateHeld(r));
+    A.eq(heldResults.length, 1, 'fixture: the Task Brief held the write made before brief_proceed (the host\'s NOT RUN, NOT FAILED stamp): ' + JSON.stringify(held.results.map(r => (r.ok ? 'ok' : 'FAIL') + ':' + r.summary)));
+    A.ok(held.results.length >= 10 && held.results.every(r => r.ok === true || TaskIntent.isGateHeld(r)), 'fixture: every call that ran succeeded, the write included once the brief settled');
+    counts.briefHeld = held.reviews.length;
+    A.eq(counts.briefHeld, 0, 'I9 a clean chat run (its saved skill loaded, every call that ran succeeded, no cue) whose first write the Task Brief held fires no skill review (lane r2: 1)');
+    A.eq(nudgeCount(fixture, 'rw-brief'), 10, 'I9 its nudge count stays at the bar (10, due)');
+    const gateLines = fixture.output().slice(logFrom).split(/\r?\n/).filter(l => /\[skills\] review (?:qualifies|held)/.test(l) && l.indexOf('agent=rw-brief') >= 0);
+    A.ok(gateLines.length === 1 && gateLines[0].indexOf('[skills] review held: no tool error, correction or new procedure in this run') >= 0 && gateLines[0].indexOf('run=' + held.runId) >= 0,
+      'I9 the run end says the review is held for that run, not that a tool error qualifies it: ' + JSON.stringify(gateLines));
   } finally {
     await fixture.dispose();
     try { mock.server.close(); } catch (_) {}
