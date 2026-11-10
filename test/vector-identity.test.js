@@ -58,10 +58,10 @@ for (const list of selectorLists) {
 }
 A.eq(unscoped, [], 'every vector.css selector is scoped under body.vx');
 // the at-rules are the bevel guard (a square fallback where corner-shape is unsupported, never a rounded one) and the fit
-// pass's three panel-width queries (section 26). A window-width @media is never one of them: a panel's dress follows the panel
+// pass's four panel-width queries (section 26). A window-width @media is never one of them: a panel's dress follows the panel
 const atRules = [...new Set(preludes.filter(p => p.startsWith('@')))];
-A.eq(atRules, ['@supports (corner-shape: bevel)', '@container vx-rail (max-width: 190px)', '@container vx-rail (max-width: 150px)', '@container vx-comms (max-width: 260px)'],
-  'the only at-rules are the corner-shape guard and the fit pass’s three panel-width queries');
+A.eq(atRules, ['@supports (corner-shape: bevel)', '@container vx-rail (max-width: 215px)', '@container vx-rail (max-width: 190px)', '@container vx-rail (max-width: 165px)', '@container vx-comms (max-width: 260px)'],
+  'the only at-rules are the corner-shape guard and the fit pass’s four panel-width queries');
 
 // ---- the radius families close by token ----
 for (const token of ['--sn-r-card', '--sn-r-key', '--sn-r-row', '--sn-r-chip', '--r-sm', '--r', '--r-lg']) {
@@ -322,7 +322,12 @@ A.ok(/#chat-panel \{ overflow: visible; clip-path: inset\(-6px -6px -6px -30px\)
   'COMMS clips by a path that is open on the seam’s side: #comms-resizer lives inside the panel, and the 6px clip margin cut its clamps in half');
 A.ok(/:is\(\.crew-resizer, \.col-resizer\)::before \{ width: 30px; margin-left: -15px; background-size: 30px 15px; \}/.test(cssF), 'the clamps run bezel to bezel on both seams');
 // a narrow panel
-A.ok(/@container vx-rail \(max-width: 190px\) \{[^@]*#crew \.crew-room \{ display: none; \}/.test(cssF) && /@container vx-rail \(max-width: 150px\)/.test(cssF) && /@container vx-comms \(max-width: 260px\)/.test(cssF),
+A.ok(/@container vx-rail \(max-width: 190px\) \{[^@]*#crew \.crew-room \{ display: none; \}/.test(cssF) && /@container vx-rail \(max-width: 165px\)/.test(cssF) && /@container vx-comms \(max-width: 260px\)/.test(cssF),
   'a narrow panel runs compact: the crew card sheds its room before it cuts a name');
+A.ok(/@container vx-rail \(max-width: 165px\) \{[^@]*\.ws-rail-search label:has\(> #ws-search:placeholder-shown\)::after \{ content: 'search'; \}/.test(cssF),
+  'the empty finder never runs out mid-letter: under 165 its short line is one word');
+// the stock 200px rail (every window 861 to 1440 wide) left the crew name 87px, one short of a ten-letter name in VT323
+A.ok(/@container vx-rail \(max-width: 215px\) \{\s*html body\.vx:not\(\.hud-mode\):not\(\.vx-b\) #screen-game #left #crew \.crew-row \{ gap: 8px; \}\s*\}/.test(cssF),
+  'the stock 200px rail keeps a ten-letter crew name whole: the card closes its gap from 215 down');
 A.ok(!/\bfilter:/.test(cssF) && !/\[class/.test(cssF), 'the fit pass adds no filter and no [class] selector');
 A.report('vector-identity');

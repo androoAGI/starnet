@@ -2443,15 +2443,21 @@ html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel #comms-idbar {
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel { overflow: visible; clip-path: inset(-6px -6px -6px -30px); }
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game :is(.crew-resizer, .col-resizer)::before { width: 30px; margin-left: -15px; background-size: 30px 15px; }
 
-/* ---- a narrow panel runs compact (a laptop rail at a large TEXT SIZE is under 190 zoomed px): the rows close up and the
-   crew card sheds its level before it cuts a name; the COMMS identity closes up before it cuts the agent's ---- */
+/* ---- a narrow panel runs compact. The stock 200px rail left a crew name 87px, one short of a ten-letter name
+   ("STRATEGIS..."): from 215 down the card closes its gap. Under 190 zoomed px (a laptop rail at a large TEXT SIZE) the rows
+   close up and the crew card sheds its level before it cuts a name; the COMMS identity closes up before it cuts the agent's ---- */
+@container vx-rail (max-width: 215px) {
+  html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-row { gap: 8px; }
+}
 @container vx-rail (max-width: 190px) {
   html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-row { padding-left: 6px; padding-right: 6px; gap: 8px; }
   html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-room { display: none; }
   html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left :is(#workstreams, #projects) > .ws-row { padding-left: 7px; padding-right: 6px; gap: 7px; }
 }
-@container vx-rail (max-width: 150px) {
+/* under 165 the empty finder's "search sessions" (pipglass's short line) ran out mid-letter as "search sessi": it says "search" */
+@container vx-rail (max-width: 165px) {
   html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-row { padding-left: 4px; padding-right: 4px; gap: 6px; }
+  html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-rail-search label:has(> #ws-search:placeholder-shown)::after { content: 'search'; }
 }
 @container vx-comms (max-width: 260px) {
   html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel #comms-idbar { gap: 6px; padding-left: calc(var(--vx-gut) + 3px); padding-right: var(--vx-gut); }
