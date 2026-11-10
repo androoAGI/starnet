@@ -17,6 +17,9 @@ const { tagImageSource } = require('./providers/provider.js');
 const RunPaths = require('./run-paths.js');   // the run's one placement rule (placeJail) names a saved attachment
 const UserText = require('../frontend/app/usertext.js');   // the one flattener of a message's text parts (DIRECTIVE policy)
 const { cleanName, cleanMime } = require('./attachment-name.js');   // the ONE rule for a sender-chosen name and media type that a note echoes
+// every rewrite below is one-for-one (TurnView.map): an expanded or placed turn still stands on its row, so it keeps the row's
+// off-wire marks (a replayed turn's tag) and the list its row ids; the replay window and the earlier-conversation note read both
+const TurnView = require('./turn-view.js');
 
 /* WHICH ATTACHMENTS' BYTES A RUN RE-SENDS (attachment-rows-and-taint, S1).
    The browser keeps every sent turn's references, so each run used to re-read and re-send every attachment of the whole
@@ -249,7 +252,7 @@ module.exports = function makeAttachments(deps) {
     for (const p of selectResend(messages)) done.set(p.m + ':' + p.a, await expandOne(messages[p.m].attachments[p.a], p.exempt));
     // 2. assemble in message order
     const report = [];
-    const out = messages.map((m, mi) => {
+    const out = TurnView.map(messages, (m, mi) => {
       if (!hasRefs(m)) return m;
       const blocks = [];
       const text = textOf(m.content);
@@ -312,11 +315,11 @@ module.exports = function makeAttachments(deps) {
       try { out = await expandUserAttachments(messages, agentId, place ? { place } : undefined); }
       catch (e) {
         failNote('attachments.expand', e);
-        out = carryReport(messages.map(m => { if (!m || !Array.isArray(m.attachments)) return m; const c = Object.assign({}, m); delete c.attachments; return c; }), []);
+        out = carryReport(TurnView.map(messages, m => { if (!m || !Array.isArray(m.attachments)) return m; const c = Object.assign({}, m); delete c.attachments; return c; }), []);
       }
     }
     if (!(named && place)) return out;
-    const placed = out.map(m => placeSavedNames(m, place));
+    const placed = TurnView.map(out, m => placeSavedNames(m, place));
     return Array.isArray(out[RESENT]) ? carryReport(placed, out[RESENT]) : placed;
   }
 

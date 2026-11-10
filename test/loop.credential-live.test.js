@@ -431,8 +431,9 @@ for (let i = 0; i < 8; i++) LONG.push({ role: 'assistant', content: 'progress no
       const noEntryWork = () => { throw new Error('ordinary credential queue must not prepare/checkpoint/execute a private line entry'); };
       const lineEntryInvocations = require('../sidecar/routing/line-entry-invocation.js').makeEntryInvocation({
         prepare: noEntryWork, checkpoint: noEntryWork, run: noEntryWork, authority: null });
-      const enter = new Function('credStore', 'runWireOfRun', 'overseer', 'runOnceTrackedBelt', 'transcriptStore', 'turnWindow', 'RunTable', 'runTable', 'RunOutcome', 'endedOutcomes', 'failNote', 'lineEntryInvocations', wrapper + '\nreturn runOnce;')(
-        store, o => ({ provider: o.provider }), overseer, tracked, transcriptStore, turnWindow,
+      // TurnView: the queued re-seed joins its rows with TurnView.concat (W1.8), so the compiled wrapper needs the module too
+      const enter = new Function('credStore', 'runWireOfRun', 'overseer', 'runOnceTrackedBelt', 'transcriptStore', 'turnWindow', 'TurnView', 'RunTable', 'runTable', 'RunOutcome', 'endedOutcomes', 'failNote', 'lineEntryInvocations', wrapper + '\nreturn runOnce;')(
+        store, o => ({ provider: o.provider }), overseer, tracked, transcriptStore, turnWindow, require('../sidecar/turn-view.js'),
         RunTable, table, require('../frontend/app/runoutcome.js'), new Map(), () => {}, lineEntryInvocations);
       const pending = enter({ provider: 'custom', key, streamId: 'queued-credential', messages: [{ role: 'user', content: 'continue' }], keyInRequest: kind === 'caller' });
       A.ok(typeof release === 'function', kind + ': the production wrapper reached its queue');

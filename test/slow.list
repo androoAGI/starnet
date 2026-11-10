@@ -17,6 +17,8 @@ test/stationbake.chunk.test.js
 test/cli-dashboard-drive.test.js
 # comms-owner.e2e: a live page driven through four reloads — 83 s in G1's http run, 43-67 s at 100% CPU.
 test/comms-owner.e2e.test.js
+# cross-run-replay.invariant: one real sidecar, a fake Bot API and a recording mock (CLI, queue and channel follow-ups, two Telegram chats of six rounds of 20 parallel reads, a 300 KB photo chat) - 40.7 s standalone before the photo chat, 49.5 s standalone with it at 100% CPU with other sessions' gates running (2026-11-09); listed by the >= 40 s rule.
+test/cross-run-replay.invariant.test.js
 # website-app-sync: runs scripts/sync-website-app.mjs --check over the whole frontend copy — 69.2 s.
 test/website-app-sync.test.js
 # ledger-reconcile: the real io shell and the real CLI against a throwaway git repo — 51.5 s, 80.6 s and 67.1 s
