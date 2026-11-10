@@ -319,16 +319,13 @@ html body.vx:not(.hud-mode) #chat-panel .cmsg-empty .cmsg-starter:is(:hover, :fo
 }
 html body.vx:not(.hud-mode) #chat-panel .cmsg-empty .cmsg-starter-title { color: var(--vx-core); letter-spacing: 2px; text-shadow: 0 0 6px rgba(var(--ph-rgb), .6); }
 html body.vx:not(.hud-mode) #chat-panel .cmsg-empty-line { color: var(--vx-node); letter-spacing: 2px; text-shadow: var(--vx-title-glow); }
-/* the speech rails (rails, never bubbles): each rail is a lit vector line throwing a little light on its own side, and
-   the speaker's name is a lit tag */
-html body.vx:not(.hud-mode) #chat-panel #chat-log .cmsg.agent > .body {
-  border-left-color: var(--vx-line);
-  background: linear-gradient(90deg, rgba(var(--ph-rgb), .2), transparent 16px), var(--pg-dither, none);
-}
-html body.vx:not(.hud-mode) #chat-panel #chat-log .cmsg.user > .body {
-  border-right-color: currentColor;
-  background: linear-gradient(270deg, color-mix(in srgb, currentColor 20%, transparent), transparent 16px), var(--pg-dither, none);
-}
+/* the speech rails (rails, never bubbles) are the conversation's own design and stay it. The base sheet's speech rule
+   out-ranks anything written here on a speech body, so a fill named here never reached a line of speech: the one the
+   agent's rail carried only ever landed where that rule does not reach, as a lit band behind tool lines and inside the
+   cards, and it is gone (measured 2026-11-10; never write it back, and never chase it with a :not() chain, which
+   out-ranks the base rule and re-skins speech). What VECTOR adds is small: the Commander's rail takes the colour of
+   their own words, and a speaker's name is a lit tag */
+html body.vx:not(.hud-mode) #chat-panel #chat-log .cmsg.user > .body { border-right-color: currentColor; }
 html body.vx:not(.hud-mode) #chat-panel #chat-log .cmsg > .cmsg-head .who { letter-spacing: 2px; text-shadow: 0 0 5px color-mix(in srgb, currentColor 55%, transparent); }
 /* the composer: a recessed command line */
 html body.vx:not(.hud-mode) #chat-panel #chat-inputrow {
@@ -2844,4 +2841,130 @@ html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .con-r
     linear-gradient(180deg, rgba(255, 255, 255, .04) 0, rgba(255, 255, 255, 0) 40px),
     linear-gradient(180deg, color-mix(in srgb, var(--ph) 7%, #000), color-mix(in srgb, var(--ph) 3%, #000));
   box-shadow: inset -1px 0 0 rgba(0, 0, 0, .8), inset 0 2px 8px rgba(0, 0, 0, .7), 1px 0 0 rgba(255, 255, 255, .07);
+}
+
+/* ============ 30 · THE CARDS — the cards inside the COMMS conversation (Andrew 2026-11-10: "Yes, finish them"). Sections
+   28 and 29 dressed every window; the cards COMMS shows in the middle of a conversation (an approval, a question, a review,
+   a return from the workshop, the delegated crew) still wore the older flat glass and outlined keys. A card is now one pane
+   of the window glass, a command key is the windows' glossy cap and the one key a card wants pressed is the lit cap, an
+   answer you choose is a tile whose pick wears the ring and the lit edge, what a card only shows sits in a recess, and what
+   you type into is a well.
+   The conversation itself is not touched: speech stays on its rails with no box, the aside (the nudge) keeps its rail and
+   dither and only its keys change, the question card stays ONE frame (the conversation inside it is never a second pane),
+   and the run summary, the receipts line and the bracket chips stay as they are.
+   Paint only: nothing moves and nothing is added. A waiting card keeps its gold, a deny key its red, a picked answer stays
+   picked, and a key that cannot be pressed never lights. No at-rule. COMMS only, VECTOR only: every selector opens with the
+   COMMS prefix, scoped :not(.vx-b)
+   ============ */
+
+/* ---- the materials are section 29's eight, word for word (a test holds the two lists equal), declared again here because
+   section 29 names them on a station window and COMMS is not one ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel {
+  --vx-pane:
+    linear-gradient(180deg, rgba(255, 255, 255, .055) 0, rgba(255, 255, 255, 0) 26px),
+    linear-gradient(180deg, rgba(var(--ph-rgb), .1) 0, rgba(var(--ph-rgb), .03) 100%),
+    rgba(0, 3, 1, .58);
+  --vx-pane-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), inset 0 -1px 0 rgba(0, 0, 0, .5), 0 0 0 1px rgba(0, 0, 0, .66), 0 3px 9px rgba(0, 0, 0, .42);
+  --vx-read-shadow: inset 0 2px 6px rgba(0, 0, 0, .95), inset 0 0 0 1px rgba(0, 0, 0, .7), 0 1px 0 rgba(255, 255, 255, .1);
+  --vx-tile-shadow: inset 0 1px 0 rgba(255, 255, 255, .16), inset 0 -1px 0 rgba(0, 0, 0, .5), 0 0 0 1px rgba(0, 0, 0, .66), 0 2px 5px rgba(0, 0, 0, .45);
+  --vx-tile:
+    linear-gradient(180deg, rgba(255, 255, 255, .05), transparent 40%),
+    linear-gradient(180deg, rgba(var(--ph-rgb), .13), rgba(var(--ph-rgb), .06) 50%, rgba(var(--ph-rgb), .03) 51%, rgba(var(--ph-rgb), .09)),
+    rgba(0, 3, 1, .5);
+  --vx-tile-hot:
+    linear-gradient(180deg, rgba(255, 255, 255, .09), transparent 40%),
+    linear-gradient(180deg, rgba(var(--ph-rgb), .26), rgba(var(--ph-rgb), .12) 50%, rgba(var(--ph-rgb), .07) 51%, rgba(var(--ph-rgb), .16)),
+    rgba(0, 3, 1, .5);
+  --vx-pick:
+    linear-gradient(180deg, rgba(255, 255, 255, .08), transparent 40%),
+    linear-gradient(180deg, rgba(var(--ph-rgb), .18), rgba(var(--ph-rgb), .08) 50%, rgba(var(--ph-rgb), .045) 51%, rgba(var(--ph-rgb), .12)),
+    rgba(0, 3, 1, .5);
+  --vx-pick-shadow: inset 3px 0 0 rgba(var(--ph-rgb), .95), inset 0 1px 0 rgba(255, 255, 255, .3), inset 0 -1px 0 rgba(0, 0, 0, .45), 0 0 0 1px rgba(var(--ph-rgb), .85), 0 2px 5px rgba(0, 0, 0, .45);
+}
+
+/* ---- a card is a pane. The receipts line is a line, not a card, and a spent read has folded back into the log, so neither
+   is one. The nudge is an aside and the conversation inside a question is part of its card, so neither is named here. A
+   card's border is the base sheet's and is not touched ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel .cmsg:is(.turnin, .consent):not(.receipts),
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel .cmsg.tb-read:not(.tb-read-spent),
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel #chat-log > .dg-line {
+  background: var(--vx-pane);
+  box-shadow: var(--vx-pane-shadow);
+}
+/* a card that waits on you keeps its gold wash, laid over the pane */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel .cmsg.consent[data-live-ask],
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel #chat-log > .dg-line:has(.dg-line-sum.waiting) {
+  background: linear-gradient(180deg, rgba(var(--gold-rgb), .06), rgba(var(--gold-rgb), .012) 55%), var(--vx-pane);
+}
+
+/* ---- a command key is a cap. Two lists share the cards and never overlap: a key that DOES something is a cap (here), an
+   answer you choose between is a tile (below). On a question card only the keys that send it are commands. A quiet key
+   stays the base sheet's hairline, and the two thumbs have a rule of their own. A deny key keeps its red words ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel :is(.cmsg:is(.turnin, .nudge, .consent):not([data-clarify-prompt]) .consent-btn:not(.tc-shortcut), .cmsg[data-clarify-prompt] :is(.consent-confirm, .tc-actions > .consent-btn), .dg-inspect .consent-btn, .dg-line .dg-key):not(.thumb):not(.quiet) {
+  border-color: transparent !important;
+  background: var(--vx-cap) border-box !important;
+  box-shadow: var(--vx-cap-shadow) !important;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel :is(.cmsg:is(.turnin, .nudge, .consent):not([data-clarify-prompt]) .consent-btn:not(.tc-shortcut), .cmsg[data-clarify-prompt] :is(.consent-confirm, .tc-actions > .consent-btn), .dg-inspect .consent-btn, .dg-line .dg-key):not(.thumb):not(.quiet):not(:is(.danger, .deny)) {
+  color: var(--vx-core) !important;
+  text-shadow: 0 0 6px rgba(var(--ph-rgb), .75);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel :is(.cmsg:is(.turnin, .nudge, .consent):not([data-clarify-prompt]) .consent-btn:not(.tc-shortcut), .cmsg[data-clarify-prompt] :is(.consent-confirm, .tc-actions > .consent-btn), .dg-inspect .consent-btn, .dg-line .dg-key):not(.thumb):not(.quiet):is(:hover, :focus-visible):not(:disabled) {
+  background: var(--vx-cap-hot) border-box !important;
+}
+/* the one key a card wants pressed is lit, and stays lit under the pointer (this rule follows the hover rule, as in section
+   28). A key that cannot be pressed yet stays a dark cap */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel :is(.cmsg:is(.turnin, .nudge, .consent):not([data-clarify-prompt]) .consent-btn:not(.tc-shortcut), .cmsg[data-clarify-prompt] :is(.consent-confirm, .tc-actions > .consent-btn), .dg-inspect .consent-btn, .dg-line .dg-key):not(.thumb):not(.quiet):is(.primary, .ws-openit, .ws-primary, .consent-confirm):not(:disabled) {
+  border-color: transparent !important;
+  background: var(--vx-cap-on) border-box !important;
+  box-shadow: var(--vx-cap-on-shadow) !important;
+  color: #020604 !important;
+  text-shadow: none !important;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel :is(.cmsg:is(.turnin, .nudge, .consent):not([data-clarify-prompt]) .consent-btn:not(.tc-shortcut), .cmsg[data-clarify-prompt] :is(.consent-confirm, .tc-actions > .consent-btn), .dg-inspect .consent-btn, .dg-line .dg-key):not(.thumb):not(.quiet):is(.primary, .ws-openit, .ws-primary, .consent-confirm):not(:disabled) * {
+  color: inherit !important;
+  text-shadow: none !important;
+}
+/* the two thumbs carry the lit class and the deny class for reasons of their own: they are dark caps that keep their own
+   colours, never lit */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel .consent-btn.thumb {
+  border-color: transparent !important;
+  background: var(--vx-cap) border-box !important;
+  box-shadow: var(--vx-cap-shadow) !important;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel .consent-btn.thumb:is(:hover, :focus-visible):not(:disabled) {
+  background: var(--vx-cap-hot) border-box !important;
+}
+
+/* ---- an answer is a tile, and the picked one wears the ring and the lit edge. The answer the agent recommends keeps the
+   border the base sheet gives it; a picked or disabled tile does not answer the pointer ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel :is(.cmsg[data-clarify-prompt] .consent-btns > .consent-btn:not(.consent-confirm), .task-conversation .tc-shortcut, .cmsg.tb-read .tb-read-assump):not(.quiet) {
+  background: var(--vx-tile) border-box !important;
+  box-shadow: var(--vx-tile-shadow) !important;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel :is(.cmsg[data-clarify-prompt] .consent-btns > .consent-btn:not(.consent-confirm), .task-conversation .tc-shortcut, .cmsg.tb-read .tb-read-assump):not(.quiet):not(.primary) {
+  border-color: transparent !important;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel :is(.cmsg[data-clarify-prompt] .consent-btns > .consent-btn:not(.consent-confirm), .task-conversation .tc-shortcut, .cmsg.tb-read .tb-read-assump):not(.quiet):is(:hover, :focus-visible):not(:is(.sel, [aria-pressed="true"], :disabled)) {
+  background: var(--vx-tile-hot) border-box !important;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel :is(.cmsg[data-clarify-prompt] .consent-btns > .consent-btn:not(.consent-confirm), .task-conversation .tc-shortcut, .cmsg.tb-read .tb-read-assump):not(.quiet):is(.sel, [aria-pressed="true"]) {
+  border-color: transparent !important;
+  background: var(--vx-pick) border-box !important;
+  box-shadow: var(--vx-pick-shadow) !important;
+}
+
+/* ---- what a card only shows sits in a recess; what you type into is a well, and the one you are in wears a bright edge
+   inside the outline the base sheet already draws ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel :is(.cmsg, .dg-line) :is(.ws-pane, .tc-understanding, .tc-sample, .consent-payload > pre) {
+  background: var(--vx-well);
+  box-shadow: var(--vx-read-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel .cmsg :is(.turnin-edit, .tb-read-in, .tc-answer) {
+  border-color: transparent !important;
+  background: var(--vx-well) !important;
+  box-shadow: var(--vx-well-shadow) !important;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel .cmsg :is(.turnin-edit, .tb-read-in, .tc-answer):focus {
+  box-shadow: inset 0 0 0 1px var(--vx-node), var(--vx-well-shadow) !important;
 }

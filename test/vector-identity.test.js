@@ -198,16 +198,16 @@ A.ok(/:is\(\.ws-rail-search, \.crew-search-wrap\) \{ background: none !important
 A.ok(/\.ws-rail-search label::before \{[^}]*mask:/.test(css) && /\.crew-search-wrap::before \{[^}]*mask:/.test(css), 'both finders lead with the lit lens');
 A.ok(/#crew-search-close \{[^}]*border-radius: 50%/.test(css), 'the crew finder closes on a round chrome knob');
 
-// ---- the sheet is eight parts (2026-11-09). VECTOR = sections 1-22, the silver device Andrew kept ("I love this look so much
+// ---- the sheet is nine parts (2026-11-10). VECTOR = sections 1-22, the silver device Andrew kept ("I love this look so much
 // its insane"), finished by section 25, fitted by section 26, its CREW and COMMS heads rebuilt by section 27, its menu panels
-// dressed by section 28 and their insides by section 29. Section 23, the black chassis, is variation B's base: gated :where(.vx-b), so it adds no specificity
+// dressed by section 28, their insides by section 29 and the cards inside COMMS by section 30. Section 23, the black chassis, is variation B's base: gated :where(.vx-b), so it adds no specificity
 // and B renders exactly as it did when that pass applied to both. Section 24 is variation B itself ----
 const rawCss = read('frontend/css/vector.css');
 const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '');
 const cut = (title) => { const at = rawCss.indexOf(title); return at < 0 ? -1 : rawCss.lastIndexOf('/*', at); };
-const baseAt = cut('23 · THE BLACK CHASSIS'), bAt = cut('24 · VARIATION B'), pAt = cut('25 · THE PERFECTED VECTOR'), fAt = cut('26 · THE FIT'), hAt = cut('27 · THE HEADS'), nAt = cut('28 · THE PANELS'), iAt = cut('29 · THE INSIDES');
-A.ok(baseAt > 0 && bAt > baseAt && pAt > bAt && fAt > pAt && hAt > fAt && nAt > hAt && iAt > nAt,
-  'vector.css carries the black chassis, variation B, the perfected VECTOR, the fit pass, the heads, the panels and the insides as sections 23 to 29 in that order');
+const baseAt = cut('23 · THE BLACK CHASSIS'), bAt = cut('24 · VARIATION B'), pAt = cut('25 · THE PERFECTED VECTOR'), fAt = cut('26 · THE FIT'), hAt = cut('27 · THE HEADS'), nAt = cut('28 · THE PANELS'), iAt = cut('29 · THE INSIDES'), cAt = cut('30 · THE CARDS');
+A.ok(baseAt > 0 && bAt > baseAt && pAt > bAt && fAt > pAt && hAt > fAt && nAt > hAt && iAt > nAt && cAt > iAt,
+  'vector.css carries the black chassis, variation B, the perfected VECTOR, the fit pass, the heads, the panels, the insides and the cards as sections 23 to 30 in that order');
 const cssA = strip(rawCss.slice(0, baseAt));
 const cssBase = strip(rawCss.slice(baseAt, bAt));
 const cssB = strip(rawCss.slice(bAt, pAt));
@@ -215,7 +215,8 @@ const cssP = strip(rawCss.slice(pAt, fAt));
 const cssF = strip(rawCss.slice(fAt, hAt));
 const cssH = strip(rawCss.slice(hAt, nAt));
 const cssN = strip(rawCss.slice(nAt, iAt));
-const cssI = strip(rawCss.slice(iAt));
+const cssI = strip(rawCss.slice(iAt, cAt));
+const cssC = strip(rawCss.slice(cAt));
 // an at-rule's own prelude (@container ... {) is not a selector: drop it, and its closing brace leaves an empty chunk
 const selsOf = (t) => t.replace(/@[a-z-]+[^{};]*\{/g, '').split('}').map(r => r.slice(0, Math.max(0, r.indexOf('{')))).filter(x => x.trim()).flatMap(x => x.split(/,\n/)).map(x => x.trim());
 // a selector list can also run on ONE line, so the line-start check alone is not enough: every root in a section must carry its gate
@@ -583,4 +584,82 @@ A.ok(!/[;{\s]filter:\s/.test(cssI) && !/#stage-wrap/.test(cssI) && !/\[class/.te
 A.ok(!/@/.test(cssI), 'the insides pass has no at-rule');
 A.ok(!/content:/.test(cssI), 'the insides pass writes no words and draws no extra part: no legend, label or control');
 A.ok(!/url\(/.test(cssI) && !/repeating-/.test(cssI), 'the insides stay plain glass: the pass draws no crest, trace, scan line or grid');
+// ---- 30 · THE CARDS (Andrew 2026-11-10: "Yes, finish them"). The cards COMMS shows inside a conversation join the windows: a card
+// is a pane, a command key a cap, the one key a card wants pressed the lit cap, an answer you choose a tile whose pick is the ring,
+// what a card only shows a recess, what you type into a well. The conversation is not touched: speech has no box, the nudge stays
+// an aside, a question stays ONE frame. Paint only ----
+const CPFX = 'html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel';
+const selsC = selsOf(cssC);
+A.ok(selsC.length > 15, 'the cards are their own section (' + selsC.length + ' selectors)');
+A.eq(selsC.filter(x => x !== CPFX && !x.startsWith(CPFX + ' ')).join(' | '), '',
+  'every selector in the cards pass opens with the COMMS prefix: COMMS only, VECTOR only, never variation B');
+A.eq(stray(cssC, ':not(.vx-b)').join(' | '), '', 'no cards selector slips its scope inside a one-line list');
+const rulesC = cssC.split('}').filter(r => r.includes('{')).map(r => ({ sel: r.slice(0, r.indexOf('{')).split(CPFX).join('').replace(/\s+/g, ' ').trim(), body: r.slice(r.indexOf('{') + 1).replace(/\s+/g, ' ').trim() }));
+const atC = (sel) => rulesC.findIndex(r => r.sel === sel);
+const ruleC = (sel) => (rulesC[atC(sel)] || { body: '' }).body;
+// the materials
+const partsOf = (t) => (t.match(/--vx-[a-z-]+:[^;]*;/g) || []).map(x => x.replace(/\s+/g, ' '));
+A.eq(partsOf(ruleC('')).map(x => x.slice(0, x.indexOf(':'))).join(' '), '--vx-pane --vx-pane-shadow --vx-read-shadow --vx-tile-shadow --vx-tile --vx-tile-hot --vx-pick --vx-pick-shadow',
+  'COMMS names the eight materials of a window’s insides on itself (section 29 names them on a station window, which COMMS is not)');
+A.eq(partsOf(ruleC('')).join('\n'), partsOf(partsI).join('\n'), 'and they are section 29’s, word for word: a card in COMMS and a card in a window are the same glass');
+// the conversation is not a card
+const speechBodies = strip(rawCss).split('}').filter(r => /\.cmsg[^{]*> \.body\s*\{/.test(r));
+A.ok(speechBodies.length === 1 && /#chat-log \.cmsg\.user > \.body \{ border-right-color: currentColor;\s*$/.test(speechBodies[0]),
+  'the sheet paints no fill on a speech body: the base speech rule out-ranks one, so the agent’s only ever landed as a lit band behind tool lines and inside cards. The Commander’s rail takes the colour of their words and that is all');
+A.ok(!/> \.body|\.who\b|\.choice\b|\.choice-row|\.cmsg-head|presence|\.run-/.test(cssC),
+  'the cards pass names no speech body, name tag, bracket chip or run summary: the conversation keeps its own design');
+A.eq(cssC.split('.cmsg:is(.turnin, .nudge, .consent):not([data-clarify-prompt]) .consent-btn:not(.tc-shortcut)').join('').includes('.nudge'), false,
+  'the nudge is an aside: it is named only as a host of its keys, never as a pane');
+A.ok(!/\.task-conversation(?! \.tc-shortcut)/.test(cssC), 'the conversation inside a question is named only for its shortcut tiles: a question card is ONE frame, never a card in a card');
+// panes
+const PANE = '.cmsg:is(.turnin, .consent):not(.receipts), .cmsg.tb-read:not(.tb-read-spent), #chat-log > .dg-line';
+const WAIT = '.cmsg.consent[data-live-ask], #chat-log > .dg-line:has(.dg-line-sum.waiting)';
+A.eq(ruleC(PANE), 'background: var(--vx-pane); box-shadow: var(--vx-pane-shadow);',
+  'a card (a review, an approval, a question, a workshop return, a live read, the delegated crew) is one pane of the window glass, fill and shadow only: it keeps its own border, the receipts line is not a card and a spent read is not one');
+A.eq(ruleC(WAIT), 'background: linear-gradient(180deg, rgba(var(--gold-rgb), .06), rgba(var(--gold-rgb), .012) 55%), var(--vx-pane);',
+  'a card that waits on you keeps its gold wash, laid over the pane');
+A.ok(atC(PANE) >= 0 && atC(WAIT) > atC(PANE), 'the waiting wash follows the pane rule, so it is the one that paints');
+A.eq(rulesC.filter(r => /var\(--vx-pane\)/.test(r.body)).map(r => r.sel).join(' | '), PANE + ' | ' + WAIT, 'nothing else in COMMS is made a pane');
+// command keys
+const CAP = ':is(.cmsg:is(.turnin, .nudge, .consent):not([data-clarify-prompt]) .consent-btn:not(.tc-shortcut), .cmsg[data-clarify-prompt] :is(.consent-confirm, .tc-actions > .consent-btn), .dg-inspect .consent-btn, .dg-line .dg-key):not(.thumb):not(.quiet)';
+const HOT = ':is(:hover, :focus-visible):not(:disabled)';
+const LIT_C = CAP + ':is(.primary, .ws-openit, .ws-primary, .consent-confirm):not(:disabled)';
+A.eq(ruleC(CAP), 'border-color: transparent !important; background: var(--vx-cap) border-box !important; box-shadow: var(--vx-cap-shadow) !important;',
+  'a key that does something is the windows’ glossy cap; a quiet key keeps its hairline and the thumbs have their own rule');
+A.eq(ruleC(CAP + ':not(:is(.danger, .deny))'), 'color: var(--vx-core) !important; text-shadow: 0 0 6px rgba(var(--ph-rgb), .75);', 'a cap’s words are lit, and a deny or danger key keeps its own red');
+A.eq(ruleC(CAP + HOT), 'background: var(--vx-cap-hot) border-box !important;', 'a cap brightens under the pointer or the keyboard; a disabled one does not answer');
+A.eq(ruleC(LIT_C), 'border-color: transparent !important; background: var(--vx-cap-on) border-box !important; box-shadow: var(--vx-cap-on-shadow) !important; color: #020604 !important; text-shadow: none !important;',
+  'the one key a card wants pressed is the lit cap with dark words; a key that cannot be pressed yet never lights');
+A.eq(ruleC(LIT_C + ' *'), 'color: inherit !important; text-shadow: none !important;', 'anything inside the lit key takes its dark ink');
+A.ok(atC(CAP) >= 0 && atC(CAP + HOT) > atC(CAP) && atC(LIT_C) > atC(CAP + HOT), 'the lit rule follows the hover rule, so a lit key stays lit under the pointer');
+A.eq(rulesC.filter(r => /var\(--vx-cap-on(-shadow)?\)/.test(r.body)).map(r => r.sel).join(' | '), LIT_C, 'only that rule lights a key: never a thumb, a quiet key or an answer');
+A.eq(ruleC('.consent-btn.thumb'), 'border-color: transparent !important; background: var(--vx-cap) border-box !important; box-shadow: var(--vx-cap-shadow) !important;',
+  'the two thumbs are dark caps and the rule names no colour: thumb-up carries .primary and thumb-down .deny, and each keeps its own colour');
+A.eq(ruleC('.consent-btn.thumb' + HOT), 'background: var(--vx-cap-hot) border-box !important;', 'a thumb brightens under the pointer');
+// answers
+const ANS = ':is(.cmsg[data-clarify-prompt] .consent-btns > .consent-btn:not(.consent-confirm), .task-conversation .tc-shortcut, .cmsg.tb-read .tb-read-assump):not(.quiet)';
+const ANS_HOT = ANS + ':is(:hover, :focus-visible):not(:is(.sel, [aria-pressed="true"], :disabled))';
+const PICK = ANS + ':is(.sel, [aria-pressed="true"])';
+A.eq(ruleC(ANS), 'background: var(--vx-tile) border-box !important; box-shadow: var(--vx-tile-shadow) !important;', 'an answer you choose between is a glass tile, not a key');
+A.eq(ruleC(ANS + ':not(.primary)'), 'border-color: transparent !important;', 'a tile sits on its own seat, and the answer the agent recommends keeps the border the base sheet gives it');
+A.eq(ruleC(ANS_HOT), 'background: var(--vx-tile-hot) border-box !important;', 'a tile brightens under the pointer or the keyboard; a picked or disabled tile does not answer');
+A.eq(ruleC(PICK), 'border-color: transparent !important; background: var(--vx-pick) border-box !important; box-shadow: var(--vx-pick-shadow) !important;',
+  'a picked answer wears the pick (its ring and lit edge over dark glass): picked never looks like its neighbours');
+A.ok(atC(ANS) >= 0 && atC(ANS_HOT) > atC(ANS) && atC(PICK) > atC(ANS_HOT), 'the pick is the last tile rule, so it is the one that paints');
+A.ok(CAP.includes(':not([data-clarify-prompt]) .consent-btn:not(.tc-shortcut)') && CAP.includes('.cmsg[data-clarify-prompt] :is(.consent-confirm, .tc-actions > .consent-btn)') && ANS.includes('.consent-btns > .consent-btn:not(.consent-confirm)'),
+  'the two lists never overlap: on a question card only the send keys are caps, every answer is a tile, and a shortcut is never a cap');
+// what a card shows, and what you type into
+A.eq(ruleC(':is(.cmsg, .dg-line) :is(.ws-pane, .tc-understanding, .tc-sample, .consent-payload > pre)'), 'background: var(--vx-well); box-shadow: var(--vx-read-shadow);',
+  'what a card only shows (the files that came back, what the agent understood, a sample, a request’s payload) sits in a recess');
+const FIELD = '.cmsg :is(.turnin-edit, .tb-read-in, .tc-answer)';
+A.eq(ruleC(FIELD), 'border-color: transparent !important; background: var(--vx-well) !important; box-shadow: var(--vx-well-shadow) !important;', 'what you type into is the glass well of every other field');
+A.eq(ruleC(FIELD + ':focus'), 'box-shadow: inset 0 0 0 1px var(--vx-node), var(--vx-well-shadow) !important;', 'the field you are in wears a bright edge, and its focus outline is left alone');
+// what the pass must never do
+A.eq([...new Set((cssC.match(/[{;]\s*-{0,2}[a-z][a-z-]*(?=:)/g) || []).map(x => x.replace(/^[{;]\s*/, '')))].filter(x => !x.startsWith('--vx-')).sort().join(' '),
+  'background border-color box-shadow color text-shadow',
+  'the cards pass is paint: no size, no spacing, no radius, no outline, so nothing in the conversation moves');
+A.ok(!/[;{\s]filter:\s/.test(cssC) && !/#stage-wrap/.test(cssC) && !/\[class/.test(cssC), 'the cards pass declares no filter, styles nothing under #stage-wrap and adds no [class] selector');
+A.ok(!/@/.test(cssC), 'the cards pass has no at-rule');
+A.ok(!/content:/.test(cssC), 'the cards pass writes no words and draws no extra part: no legend, label or control');
+A.ok(!/url\(/.test(cssC) && !/repeating-/.test(cssC), 'the cards stay plain glass: the pass draws no crest, trace, scan line or grid');
 A.report('vector-identity');
