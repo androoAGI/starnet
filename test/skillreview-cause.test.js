@@ -16,6 +16,8 @@ const SR = require('../sidecar/skillreview.js');
 const LC = require('../sidecar/learning-cooldown.js');
 const { VERDICTS_THAT_TEACH } = require('../sidecar/verdictreview.js');
 const { TaskIntent } = require('../frontend/app/fork.js');
+// the sidecar as text through the source helper (index.js first, then every other sidecar file): source-helper H5
+const { readSidecarSource } = require('./helpers/source.js');
 
 let at = 1000;
 const call = (name, o) => { at += 10; return Object.assign({ callId: 'c' + at, name, startedAt: at, endedAt: at + 5, ms: 5, ok: true, isError: false, summary: 'ok' }, o || {}); };
@@ -136,7 +138,7 @@ A.eq(SR.heldOrRefused(null), false, 'heldOrRefused(null) is false, no throw');
     return a >= 0 && b > a ? text.slice(a, b) : '';
   };
   const literals = (text, re) => { const out = []; let m; while ((m = re.exec(text))) out.push(m[1]); return out; };
-  const idx = read('sidecar/index.js');
+  const idx = readSidecarSource();
   const hostDispatch = between(idx, 'const toolBudgetStopFor = (c) =>', 'r = await registry.dispatch(c, dctx);', "the host's dispatch up to the registry");
   const nested = between(idx, 'capCtx.composeDispatch = async', 'const result = await dispatch(call', "code.run's nested refusal");
   const registry = between(read('sidecar/tools/registry.js'), 'async function dispatch(call, ctx) {', 'tool.run(call.args, runCtx)', "the registry's dispatch up to tool.run");
@@ -188,8 +190,7 @@ A.eq(cause({ toolTrace: [null, undefined, 0].concat(steps('a_b', 'c_d', 'e_f')) 
 
 // ---- the thumbs-up's release (sidecar/index.js releaseHeldReview), read as text: the sidecar is never required here ----
 {
-  const fs = require('fs');
-  const idx = fs.readFileSync(require('path').join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const idx = readSidecarSource();
   const start = idx.indexOf('\nfunction releaseHeldReview(');
   const body = start >= 0 ? idx.slice(start, idx.indexOf('\n}\n', start) + 3) : '';
   A.ok(body.length > 0, 'releaseHeldReview is a top-level function of the sidecar');
