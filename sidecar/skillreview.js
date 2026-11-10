@@ -14,6 +14,12 @@
 
   const learning = typeof require === 'function' ? require('./learningevidence.js') : null;
   const RunOutcome = typeof require === 'function' ? require('../frontend/app/runoutcome.js') : (typeof globalThis !== 'undefined' ? globalThis.RunOutcome : null);
+  // reviewCause's two borrowed rules: the verdicts that teach (the rating path arms only these) and W1.4's correction cue
+  const VERDICTS = typeof require === 'function' ? require('./verdictreview.js').VERDICTS_THAT_TEACH : new Set(['ok', 'miss']);
+  const cueIn = typeof require === 'function' ? require('./learning-cooldown.js').cueIn : function () { return false; };
+  // ...and the Task Brief's held-call stamp (fork.js TaskIntent.isGateHeld, the resolver loop.js and the chat read it with)
+  const TaskIntent = typeof require === 'function' ? require('../frontend/app/fork.js').TaskIntent
+    : ((typeof globalThis !== 'undefined' && globalThis.Fork && globalThis.Fork.TaskIntent) || null);
 
   function str(v) { return v == null ? '' : String(v); }
 
@@ -36,8 +42,8 @@
     if (!result || !RunOutcome.resolve({ reason: result.reason, finishReason: result.finishReason }).ok) return false;
     // VERDICT-TRIGGERED (consistency loop, 2026-08-22): the Commander rating the work `ok` or `miss` is a lesson
     // regardless of run size — a two-turn run they called short of the mark teaches MORE than a forty-tool run
-    // nobody rated. `great` never triggers here; praise is not a procedure change.
-    if (opts.verdict === 'ok' || opts.verdict === 'miss') return true;
+    // nobody rated. `great` never triggers here by itself: it rides the nudge (reviewCause, the one verdict rule).
+    if (reviewCause({ verdict: opts.verdict }) === 'verdict') return true;
     const s = stats(result.messages);
     const minToolCalls = opts.minToolCalls == null ? 4 : opts.minToolCalls;
     const minTurns = opts.minTurns == null ? 8 : opts.minTurns;
@@ -161,7 +167,9 @@
      skillbase last changed, carried across runs. When the count reaches `every`, a review is DUE: it spends
      outside the aux ceiling (the governor's reserved lane) and the count starts over. An agent that saved or
      edited a skill itself this run did the job already, so its count starts over too. Pure: no clock, no I/O.
-     `every` 0 turns the nudge off. */
+     `every` 0 turns the nudge off.
+     Since W3.2 (2026-11-09) DUE is necessary, not sufficient: reviewCause below decides whether the run gives the
+     review anything to learn from, and a due count on a run that does not stays due (clamped at the bar). */
   const NUDGE_EVERY = 10;
   function parseNudgeEvery(raw) {
     if (raw == null) return NUDGE_EVERY;
@@ -182,6 +190,96 @@
     // changing and stops being rewritten
     const next = o.managed ? 0 : (every > 0 ? Math.min(every, carried + turns) : carried + turns);
     return { count: next, due: every > 0 && next >= every };
+  }
+
+  /* REVIEW ONLY WHEN USEFUL (cost lane W3.2, 2026-11-09; Andrew's call 2026-11-08). A due nudge used to fire the review on
+     whatever run came next: a chat, or a run that followed a saved skill to the letter. Each review is a tool loop (about
+     30k input-eq on a claude-cli station) and 1 proposal came out of 3. reviewCause is the ONE rule for every skill review,
+     the run-end one and the rating's: it names what the run gives the review to learn from, read only from state the
+     harness already holds (never a model call), or '' for nothing:
+       'verdict'        the Commander rated the run. A verdict ALWAYS qualifies the run it rates (Andrew's law for this
+                        lane: feedback is critical). A rating short of the mark (VERDICTS: the ok/miss the rating path arms)
+                        qualifies due or not, as before: it is the Commander's lesson, outside the cadence. A thumbs-up
+                        (PRAISE: great, the other thumb the chat offers) qualifies on the cadence floor like the run's own
+                        triggers: when the nudge is due it releases the agent's held review onto the run it praised (the
+                        procedure that worked) and spends the count. Before W3.2 a thumbs-up never reviewed anything.
+       'correction'     an explicit correction or preference cue in the Commander's own latest words (W1.4's cue
+                        resolver, learning-cooldown.js cueIn; the host mints commanderWords from the owner's own
+                        surfaces only, so a routine's or a worker's brief carries none).
+       'tool-error'     a call of the work ran and came back failed (what the evidence packet shows the review as
+                        'failed') in a run that still succeeded: the fix or retry pattern the review is told to capture. A
+                        call HELD OR REFUSED is not an error (heldOrRefused, the one rule): someone or something other than
+                        the call stopped it, so it never ran (or, for one read, its result never reached the run). That is
+                        the Task Brief's hold (TaskIntent.isGateHeld: the host stamps it NOT RUN, NOT FAILED, and a chat run
+                        holds any write it makes before brief_proceed); the Commander's No (denied) or a card withdrawn
+                        before anyone answered (cancelled); the station's policy (capdenied, user-control-denied,
+                        code-nested-denied; withheld: a tool this run was not granted; untrusted-content-lockout: the taint
+                        lock; direct-domain-local and direct-domain-target-only: the lead's onlyHost scope); their own hook
+                        (hook-blocked); a host guard that stops a call before it starts (recovery-replay-blocked: an
+                        operator-reviewed effect of an interrupted run; held-uncertain: an identical write that may already
+                        have landed; tool-budget: a bounded worker's call budget; workspace-busy: another run of the agent
+                        holds the workspace; loop-break: a repeat of an identical call that already failed, whose own
+                        failures count when they ran; output-only: a result repair); a read whose result the host refused
+                        (read refused: the session was deleted in flight, the journal could not record it, or the run's
+                        quote room was full); or the loop skipping it (skipped...). Still an error: a call the registry
+                        rejected as wrong in itself (unknown-tool, invalid arguments) and the progress guard's verdict that
+                        the work's own route is exhausted (strategy-exhausted, tool-progress-guard.js, which the host returns
+                        as a normal tool error on purpose). test/skillreview-cause.test.js reads every stamp the host, the
+                        registry and the loop can return for a call that did not run, and fails on one nobody classified.
+       'new-procedure'  a NEW MULTI-STEP PROCEDURE, which is what the review proposes a skill from: the run got there
+                        through at least PROCEDURE_STEPS successful calls of the work across at least PROCEDURE_TOOLS
+                        distinct tools, and it loaded no saved skill (no skill.view of its own skill or of a bundled
+                        recipe, no /skill preload), so no saved procedure governed it. One tool repeated is a lookup, not a
+                        procedure; a run that followed a saved skill and hit nothing new has nothing to add to it.
+     A call of the WORK is any call but NOT_WORK's: the skill tools are the skillbase itself, the Task Brief tools are the
+     run's own paperwork (taskbrief-tools.js), and the agent's own bookkeeping is not work either: the notebook, memory,
+     tool-search and widget tools (memory captures facts and state, the review prompt says, never procedure), the run's
+     checklist (todo), the deliverable note, a recall of its own earlier dialogue, a routine's scratchpad and a quest's
+     progress tick. None is a step of a procedure, and none failing is a lesson about how to do the task. Every kind but a
+     verdict short of the mark needs the nudge DUE as well (facts.due), so the nudge stays the cadence floor: every review
+     but an ok or miss rating's needs the bar's counted turns since the last one, and in practice reviews only get rarer
+     than the 2026-09-28 cadence. One edge can add one: a thumbs-up can release a count the cadence would also have held
+     (say the run that crossed the bar failed) before the next finished run, and a next 10-turn run with a trigger then
+     reviews again, where the cadence reviews once at that next finished run. Pure: no clock, no I/O. */
+  const PRAISE = 'great';
+  const PROCEDURE_STEPS = 3;
+  const PROCEDURE_TOOLS = 2;
+  // a trace names a call by its wire name (skill_view, brief_proceed)
+  const NOT_WORK = /^(?:skill[._](?:list|view|write|manage)|brief[._](?:ask|update|proceed)|notebook[._]\w+|memory[._]\w+|tool[._]search|widget[._]\w+|todo|deliverable[._]note|recall[._]conversation|routine[._]notepad|quest[._]update)$/;
+  const isWork = t => !NOT_WORK.test(str(t && t.name));
+  // the stamps a held or refused call comes back with (the host's dispatch, the registry before tool.run, the loop, code.run's
+  // nested refusal, the host's read refusal); the Task Brief's hold is read by its own resolver (isGateHeld)
+  const HELD_OR_REFUSED = /^(?:denied|cancelled|capdenied|user-control-denied|code-nested-denied|hook-blocked|withheld|untrusted-content-lockout|direct-domain-local|direct-domain-target-only|recovery-replay-blocked|held-uncertain|tool-budget|workspace-busy|loop-break|output-only|read refused:.*|skipped\b.*)$/;
+  const isGateHeld = t => !!(TaskIntent && typeof TaskIntent.isGateHeld === 'function' && TaskIntent.isGateHeld(t));
+  // heldOrRefused(traceEntry): someone or something other than the call itself stopped it
+  const heldOrRefused = t => !!t && (HELD_OR_REFUSED.test(str(t.summary)) || isGateHeld(t));
+  const ran = t => !!t && t.endedAt != null;
+  const succeeded = t => ran(t) && t.ok && !t.isError;
+  // a call of the work that ran and came back failed: the evidence packet's 'failed' (learningevidence.js), minus a call
+  // something else held or refused (heldOrRefused)
+  function callFailed(t) {
+    return ran(t) && !succeeded(t) && isWork(t) && !heldOrRefused(t);
+  }
+  // procedureOf(toolTrace) -> { steps, tools }: the run's successful calls of the work, and their distinct tools
+  function procedureOf(toolTrace) {
+    const steps = (Array.isArray(toolTrace) ? toolTrace : []).filter(t => succeeded(t) && isWork(t));
+    return { steps: steps.length, tools: new Set(steps.map(t => str(t.name))).size };
+  }
+  // reviewCause({ verdict, due, commanderWords, toolTrace, loadedSkills }) -> 'verdict' | 'correction' | 'tool-error' | 'new-procedure' | ''
+  function reviewCause(facts) {
+    const f = facts || {};
+    const verdict = str(f.verdict);
+    if (VERDICTS.has(verdict)) return 'verdict';
+    if (f.due !== true) return '';
+    if (verdict === PRAISE) return 'verdict';
+    if (cueIn(str(f.commanderWords))) return 'correction';
+    const trace = Array.isArray(f.toolTrace) ? f.toolTrace : [];
+    if (trace.some(callFailed)) return 'tool-error';
+    // loaded: the host's list of the agent's own skills this run viewed or preloaded, or any skill view that answered (a
+    // bundled recipe is fetched by skill.view too, and never joins that list)
+    const loaded = (Array.isArray(f.loadedSkills) && f.loadedSkills.length > 0) || trace.some(t => succeeded(t) && /^skill[._]view$/.test(str(t.name)));
+    const p = procedureOf(trace);
+    return !loaded && p.steps >= PROCEDURE_STEPS && p.tools >= PROCEDURE_TOOLS ? 'new-procedure' : '';
   }
 
   /* makeReviewObserver({ emit, log, now, source }) -> { onManage(skill, action, info) }
@@ -215,5 +313,6 @@
     };
   }
 
-  return { stats, shouldReviewRun, buildPrompt, transcript, isWriteAction, makeReviewObserver, NUDGE_EVERY, parseNudgeEvery, nudgeAfterRun };
+  return { stats, shouldReviewRun, buildPrompt, transcript, isWriteAction, makeReviewObserver, NUDGE_EVERY, parseNudgeEvery, nudgeAfterRun,
+    reviewCause, procedureOf, heldOrRefused, PRAISE, PROCEDURE_STEPS, PROCEDURE_TOOLS };
 });

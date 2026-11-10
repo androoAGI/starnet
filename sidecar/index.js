@@ -4719,6 +4719,11 @@ function launchVerdictReview(job) {
     console.log('[skills] verdict-triggered review dropped run=' + job.runId + ': its session was deleted');
     return Promise.resolve(true);
   }
+  // W3.2: the one rule for every skill review (skillReview.reviewCause): a verdict that teaches always qualifies, due or not
+  if (skillReview.reviewCause({ verdict: job.verdict }) !== 'verdict') {
+    console.log('[skills] verdict-triggered review dropped run=' + job.runId + ': verdict ' + job.verdict + ' is not one that teaches');
+    return Promise.resolve(true);
+  }
   console.log('[skills] verdict-triggered review fired run=' + job.runId + ' verdict=' + job.verdict + ' by=' + job.firedBy);
   return rehydrateReviewJob(job).then(runBackgroundSkillReview);
 }
@@ -4746,6 +4751,36 @@ async function rehydrateReviewJob(job) {
     runEffort,   // the effort that provider is built with: the review loop never goes above it where the model lists it (auxLoopEffort)
     unmetered: !billing.policyOf(providerId).ledgerMetered
   });
+}
+/* W3.2 A THUMBS-UP IS A VERDICT TOO (Andrew's law for the cost lane: feedback is critical, a verdict always qualifies). It
+   qualifies through the one rule (skillReview.reviewCause) on the cadence floor: when the agent's nudge is due, the 👍
+   releases the agent's HELD review (kept due because no run since gave it anything to learn from) onto the run it praised,
+   the procedure that worked. It is the review the run end would have run had the rating been known then: the same prompt (no
+   verdict block: praise is no shortfall), the same guards (a finished run of the station's own work, trusted evidence, the
+   in-flight guard), the same admission (the background lane and its token ceiling) and the same spend (only an admitted
+   review starts the count over). Under the bar a 👍 reviews nothing, as before W3.2. Returns whether a review was set in motion. */
+function releaseHeldReview(runId, verdict, lead) {
+  const packet = verdictReview.peek(runId);   // peeked, never taken: praise does not spend the parked packet
+  // the run end reviews only a finished run, and never a /v1 caller's traffic (surface autonomous)
+  if (!packet || packet.failed || (lead && lead.surface === 'autonomous')) return false;
+  const agentId = String(packet.agentId || 'agent');
+  const due = skillReview.nudgeAfterRun(skillNudge.get(agentId) || 0, { every: SKILL_REVIEW_EVERY }).due;
+  if (skillReview.reviewCause({ verdict, due }) !== 'verdict') return false;
+  const job = Object.assign({}, packet, { runId });
+  if (!forgetRegistry.admit({ streamId: job.streamId, runId, rowId: job.directive && job.directive.rowId, at: Date.now() })) return false;
+  if (!LearningEvidence.buildLearningEvidence(job, redact).eligible) { console.log('[skills] review held: no trusted learning evidence in run=' + runId + '; the nudge stays due agent=' + agentId); return false; }
+  if (skillReviewingNow.has(agentId)) { console.log('[skills] review held: a review of this agent is running; the nudge stays due run=' + runId + ' agent=' + agentId); return false; }
+  console.log('[skills] review qualifies (verdict ' + verdict + ') run=' + runId + ' agent=' + agentId);
+  skillReviewingNow.add(agentId);
+  rehydrateReviewJob(job).then(j => automaticAux(j.route, 'skill-review', agentId, runId, () => {
+    // the run end asks the governor before it queues its passes (governor.admit('aux')); here it is asked before the held
+    // count is spent, so a reached spending cap or token ceiling keeps the nudge due (runBackgroundSkillReview asks again)
+    const blocked = governor.admit('skill-review', { providerId: j.route, agentId, trigger: 'background' });
+    if (blocked) { console.log('[skills] review held: ' + (blocked.why || 'the spending check refused it') + '; the nudge stays due run=' + runId + ' agent=' + agentId); return false; }
+    skillNudge.set(agentId, 0); persistSkillNudge();   // only an admitted review spends the held count
+    return runBackgroundSkillReview(j);
+  })).catch(swallow('aux.skillreview.envelope')).finally(() => { skillReviewingNow.delete(agentId); });
+  return true;
 }
 const SKILL_CURATOR_INTERVAL_MS = num(ENV('SKILL_CURATOR_INTERVAL_MS'), 24 * 60 * 60 * 1000);
 const SKILL_CURATOR_MAX_COST_USD = num(ENV('SKILL_CURATOR_MAX_USD'), limitsRegistry.BY_KEY.skillCuratorUsd.def);
@@ -27075,7 +27110,8 @@ async function runOnceCore(o) {
   const _gateThreadmine = !!(ENV('THREAD_MINE') !== '0' && o.reflect && isTask && _learn.threadmine && threadmine.mineSalient(result.messages)
       && !threadMiningNow.has(agentId) && learningPassDue('threadmine', agentId));
   // skill review rides THE SKILL NUDGE (skillreview.nudgeAfterRun), not run size: this run's turns with skill tools on
-  // the wire join the agent's carried count, and the review is a candidate only once the count reaches the bar. A
+  // the wire join the agent's carried count, and the review is a candidate only once the count reaches the bar (and,
+  // since W3.2, only on a run that gives it something to learn from: _reviewWhy below). A
   // due review is RESERVED below: it takes a budget slot first, so it cannot lose every run-end to the beats (the scout
   // alone is a candidate on every finished task) and still counts against the ceiling (issue #105).
   // Counted only while a review could ever fire (review on, bar > 0), and never for a team.spawn clone: its 'sub-'
@@ -27086,7 +27122,15 @@ async function runOnceCore(o) {
   const _nudge = (ENV('SKILL_REVIEW') !== '0' && SKILL_REVIEW_EVERY > 0 && isTask && !o.toolsOptional && !internal && _skillToolsOn && !_throwawayAgent)
     ? skillReview.nudgeAfterRun(skillNudge.get(agentId) || 0, { turns: (result && result.turns) || 0, managed: managedSkills.some(m => skillReview.isWriteAction(m.action)), every: SKILL_REVIEW_EVERY })
     : null;
-  const _gateSkillReview = !!(_auxDone && _nudge && _nudge.due && !skillReviewingNow.has(agentId));
+  /* W3.2 REVIEW ONLY WHEN USEFUL (cost lane, Andrew 2026-11-08). A due count no longer fires the review by itself:
+     skillReview.reviewCause, the one rule for every skill review (launchVerdictReview and a thumbs-up's releaseHeldReview
+     ask it too), names what this run gives it to learn from: a tool error, a correction cue in the Commander's own words,
+     or a new multi-step procedure. A due count on a run that holds none of them is kept for the next run that does, or for
+     a thumbs-up on any run: the count write below carries it (clamped at the bar), and only an admitted review spends it. */
+  const _reviewDue = !!(_auxDone && _nudge && _nudge.due);
+  const _reviewWhy = _reviewDue ? skillReview.reviewCause({ due: true, commanderWords, toolTrace: execution.toolTraceList(), loadedSkills }) : '';
+  if (_reviewDue) console.log('[skills] review ' + (_reviewWhy ? 'qualifies (' + _reviewWhy + ')' : 'held: no tool error, correction or new procedure in this run; the nudge stays due') + ' run=' + runId + ' agent=' + agentId);
+  const _gateSkillReview = !!(_reviewWhy && !skillReviewingNow.has(agentId));
   // curator: candidate only when its 24h interval is DUE (else runSkillCurator early-returns anyway — no spend, no slot).
   const _gateCurator = !!(ENV('SKILL_CURATOR') !== '0' && _auxDone && auxCuratorDue(agentId, _auxNow));
   // scout: the CADENCE COUNTERS fold ALWAYS (below, synchronous bookkeeping — never a model call); the CYCLE is the
@@ -27133,7 +27177,7 @@ async function runOnceCore(o) {
   const _auxPlan = AuxGovernor.decide({ candidates: _auxCandidates, budget: _auxBudget, reserved: ['skill-review'] });
   const _auxSpend = new Set(_auxPlan.spend);
   // the nudge count starts over when its review fires; otherwise it carries (a due count on a run that could not
-  // review, e.g. a failed run, stays due for the next finished one). Written only when it changes.
+  // review, e.g. a failed run or one with nothing to learn from, stays due for the next one that can). Written only when it changes.
   if (_nudge) {
     const _nudgeNext = _nudge.count;   // reset only when the queued review is admitted
     if (_nudgeNext !== (skillNudge.get(agentId) || 0)) { skillNudge.set(agentId, _nudgeNext); persistSkillNudge(); }
@@ -30727,7 +30771,8 @@ async function handleGrowthRatings(req, res) {
   if (!result || result.error) return json(400, { ok: false, error: (result && result.error) || 'rating failed' });
   // CONSISTENCY LOOP: a first-time `ok`/`miss` verdict on a run that was parked at run end fires the quiet skill
   // review NOW, with the verdict (and the Commander's correction when the body carries one) in the prompt. Never
-  // on a duplicate rating, never on `great`. Reported truthfully in the response so the UI can say it happened.
+  // on a duplicate rating. A `great` (W3.2) never arms that review: it releases the agent's held nudge review onto the
+  // run when the nudge is due (releaseHeldReview). Reported truthfully in the response so the UI can say it happened.
   // GOLDEN (slice 4): a first-time `great` FREEZES this run for every skill it loaded — the reference a later run
   // of the same directive is measured against (skills/goldens.js check). Praise never spends the review packet.
   let goldensMinted = 0;
@@ -30769,6 +30814,10 @@ async function handleGrowthRatings(req, res) {
     // chip or the next typed message (POST /api/growth/ratings/correction) — rides into the prompt in their words.
     skillReviewArmed = verdictReview.arm(runId, canonical.verdict, launchVerdictReview, String(body.correction || ''));
     if (skillReviewArmed) console.log('[skills] verdict-triggered review armed run=' + runId + ' verdict=' + canonical.verdict + ' grace=' + verdictReview.graceMs + 'ms');
+    else if (canonical.verdict === skillReview.PRAISE) {
+      // the rating, its XP and its feedback memory are saved by now: a throw here must not answer that saved rating with an error
+      try { skillReviewArmed = releaseHeldReview(runId, canonical.verdict, lead); } catch (e) { failNote('skills.praise.release', e); skillReviewArmed = false; }
+    }
   }
   return json(200, { ok: true, duplicate: !!result.duplicate, rating: result.rating, skillReviewArmed, goldensMinted, feedbackMemory });
 }

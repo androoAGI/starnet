@@ -34,6 +34,9 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 const MARK = 'EFFORT_TRUTH_PROBE';
 const LONG = ('I rebuilt the staging rollback path end to end. Here is the write-up with the reasoning and the follow-ups worth remembering. ').repeat(40);
+// W3.2 (2026-11-09): a nudge-due skill review fires only on a run that gives it something to learn from (skillreview.js
+// reviewCause), so the task runs whose review this file checks carry a correction in the Commander's own words.
+const CORRECTION = ' Next time, write up what changed before you start.';
 
 // which background pass a spawn is, read from its system prompt (each pass writes its own)
 const KINDS = [
@@ -128,7 +131,7 @@ async function cliArm() {
       { agentId: 'engineer-1', name: 'ENGINEER', provider: 'claude-cli', model: 'claude-opus-5-5', reasoningEffort: 'high', role: 'specialist' }] });
     A.eq(roster.status, 200, 'fixture: the roster runs on the Claude sign-in, with a class-high specialist');
 
-    const base = { provider: 'claude-cli', model: 'claude-opus-5-5', placed: [], messages: [{ role: 'user', content: 'Roll back the staging path and write up what changed.' }] };
+    const base = { provider: 'claude-cli', model: 'claude-opus-5-5', placed: [], messages: [{ role: 'user', content: 'Roll back the staging path and write up what changed.' + CORRECTION }] };
     const probes = [
       { probe: 'dock-high', body: { agentId: 'probe-high', isTask: true, reasoningEffort: 'high' } },
       { probe: 'fast', body: { agentId: 'probe-fast', isTask: true, reasoningEffort: 'minimal' } },
@@ -201,7 +204,7 @@ async function cliConfiguredArm() {
     A.eq([st.status, st.body && st.body.installed, st.body && st.body.loggedIn], [200, true, true], 'configured tier: fixture: the fake CLI is installed and signed in');
     const roster = await f.json('POST', '/api/roster', { updatedAt: Date.now(), agents: [{ agentId: 'agent', name: 'ADA', provider: 'claude-cli', model: 'haiku', reasoningEffort: null }] });
     A.eq(roster.status, 200, 'configured tier: fixture: the roster runs on the Claude sign-in');
-    const base = { provider: 'claude-cli', model: 'claude-opus-5-5', placed: [], messages: [{ role: 'user', content: 'Roll back the staging path and write up what changed.' }] };
+    const base = { provider: 'claude-cli', model: 'claude-opus-5-5', placed: [], messages: [{ role: 'user', content: 'Roll back the staging path and write up what changed.' + CORRECTION }] };
     const probes = [
       { probe: 'cfg-task', body: { agentId: 'cfg-task', isTask: true, reasoningEffort: 'high' } },
       { probe: 'cfg-self', body: { agentId: 'cfg-self', isTask: false, internal: true, reasoningEffort: 'high' } }
@@ -289,7 +292,7 @@ async function openrouterArm() {
     for (const [agentId, effort] of [['or-high', 'high'], ['or-fast', 'minimal']]) {
       const from = mock.calls.length;
       const reason = await runOn(f, { key: 'sk-or-v1-efforttruth-fake', model: 'run/model', agentId, isTask: true, reasoningEffort: effort,
-        messages: [{ role: 'user', content: 'Rebuild the staging deploy rollback path and write up what changed and why' }] });
+        messages: [{ role: 'user', content: 'Rebuild the staging deploy rollback path and write up what changed and why.' + CORRECTION }] });
       A.eq(reason, 'done', 'fixture: the ' + agentId + ' run finished');
       await settle();
       runs[agentId] = mock.calls.slice(from);
