@@ -20,8 +20,8 @@
         praised, with the run end's own prompt (no verdict block), and spends the held count (base: the run end's 1, the
         thumbs-up 0; a verdict always qualifies, and praise rides the cadence floor);
      I7 THE FLOOR: a fresh agent's short runs, under the bar, that each hold a tool error AND a correction cue fire 0
-        reviews, and the count grows by their turns; a thumbs-up under the bar fires 0 too (reviews only ever get rarer
-        than the 2026-09-28 cadence: this case fails the moment the gate stops needing a due count);
+        reviews, and the count grows by their turns; a thumbs-up under the bar fires 0 too (every review but an ok or miss
+        rating's needs a due count, the 2026-09-28 cadence as a floor: this case fails the moment the gate stops needing one);
      I8 the clean run's kept count survives a sidecar restart (skill.nudge.json), and the same agent's next run, a short
         one (under the bar on its own) with a tool error, reviews (base: 0, the clean run had spent the count).
    Zero network, zero real key (the fake key routes to the mock). Prints the measured counts on one line. */

@@ -4711,6 +4711,10 @@ function releaseHeldReview(runId, verdict, lead) {
   console.log('[skills] review qualifies (verdict ' + verdict + ') run=' + runId + ' agent=' + agentId);
   skillReviewingNow.add(agentId);
   rehydrateReviewJob(job).then(j => automaticAux(j.route, 'skill-review', agentId, runId, () => {
+    // the run end asks the governor before it queues its passes (governor.admit('aux')); here it is asked before the held
+    // count is spent, so a reached spending cap or token ceiling keeps the nudge due (runBackgroundSkillReview asks again)
+    const blocked = governor.admit('skill-review', { providerId: j.route, agentId, trigger: 'background' });
+    if (blocked) { console.log('[skills] review held: ' + (blocked.why || 'the spending check refused it') + '; the nudge stays due run=' + runId + ' agent=' + agentId); return false; }
     skillNudge.set(agentId, 0); persistSkillNudge();   // only an admitted review spends the held count
     return runBackgroundSkillReview(j);
   })).catch(swallow('aux.skillreview.envelope')).finally(() => { skillReviewingNow.delete(agentId); });
@@ -30698,7 +30702,10 @@ async function handleGrowthRatings(req, res) {
     // chip or the next typed message (POST /api/growth/ratings/correction) — rides into the prompt in their words.
     skillReviewArmed = verdictReview.arm(runId, canonical.verdict, launchVerdictReview, String(body.correction || ''));
     if (skillReviewArmed) console.log('[skills] verdict-triggered review armed run=' + runId + ' verdict=' + canonical.verdict + ' grace=' + verdictReview.graceMs + 'ms');
-    else if (canonical.verdict === skillReview.PRAISE) skillReviewArmed = releaseHeldReview(runId, canonical.verdict, lead);
+    else if (canonical.verdict === skillReview.PRAISE) {
+      // the rating, its XP and its feedback memory are saved by now: a throw here must not answer that saved rating with an error
+      try { skillReviewArmed = releaseHeldReview(runId, canonical.verdict, lead); } catch (e) { failNote('skills.praise.release', e); skillReviewArmed = false; }
+    }
   }
   return json(200, { ok: true, duplicate: !!result.duplicate, rating: result.rating, skillReviewArmed, goldensMinted, feedbackMemory });
 }

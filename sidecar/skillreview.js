@@ -199,8 +199,7 @@
                         qualifies due or not, as before: it is the Commander's lesson, outside the cadence. A thumbs-up
                         (PRAISE: great, the other thumb the chat offers) qualifies on the cadence floor like the run's own
                         triggers: when the nudge is due it releases the agent's held review onto the run it praised (the
-                        procedure that worked) and spends the count, so praise never adds a review the 2026-09-28 cadence
-                        would not have run. Before W3.2 a thumbs-up never reviewed anything.
+                        procedure that worked) and spends the count. Before W3.2 a thumbs-up never reviewed anything.
        'correction'     an explicit correction or preference cue in the Commander's own latest words (W1.4's cue
                         resolver, learning-cooldown.js cueIn; the host mints commanderWords from the owner's own
                         surfaces only, so a routine's or a worker's brief carries none).
@@ -215,16 +214,20 @@
                         recipe, no /skill preload), so no saved procedure governed it. One tool repeated is a lookup, not a
                         procedure; a run that followed a saved skill and hit nothing new has nothing to add to it.
      A call of the WORK is any call but NOT_WORK's: the skill tools are the skillbase itself, the Task Brief tools are the
-     run's own paperwork (taskbrief-tools.js), and the notebook, memory, tool-search and widget tools are the agent's own
-     bookkeeping (memory captures facts and state, the review prompt says, never procedure), so none is a step of a
-     procedure, and none failing is a lesson about how to do the task. Every kind but a verdict short of the mark needs the
-     nudge DUE as well (facts.due), so the nudge stays the cadence floor: reviews only get rarer than the 2026-09-28
-     cadence, never more frequent. Pure: no clock, no I/O. */
+     run's own paperwork (taskbrief-tools.js), and the agent's own bookkeeping is not work either: the notebook, memory,
+     tool-search and widget tools (memory captures facts and state, the review prompt says, never procedure), the run's
+     checklist (todo), the deliverable note, a recall of its own earlier dialogue, a routine's scratchpad and a quest's
+     progress tick. None is a step of a procedure, and none failing is a lesson about how to do the task. Every kind but a
+     verdict short of the mark needs the nudge DUE as well (facts.due), so the nudge stays the cadence floor: every review
+     but an ok or miss rating's needs the bar's counted turns since the last one, and in practice reviews only get rarer
+     than the 2026-09-28 cadence. One edge can add one: a thumbs-up can release a count the cadence would also have held
+     (say the run that crossed the bar failed) before the next finished run, and a next 10-turn run with a trigger then
+     reviews again, where the cadence reviews once at that next finished run. Pure: no clock, no I/O. */
   const PRAISE = 'great';
   const PROCEDURE_STEPS = 3;
   const PROCEDURE_TOOLS = 2;
   // a trace names a call by its wire name (skill_view, brief_proceed)
-  const NOT_WORK = /^(?:skill[._](?:list|view|write|manage)|brief[._](?:ask|update|proceed)|notebook[._]\w+|memory[._]\w+|tool[._]search|widget[._]\w+)$/;
+  const NOT_WORK = /^(?:skill[._](?:list|view|write|manage)|brief[._](?:ask|update|proceed)|notebook[._]\w+|memory[._]\w+|tool[._]search|widget[._]\w+|todo|deliverable[._]note|recall[._]conversation|routine[._]notepad|quest[._]update)$/;
   const isWork = t => !NOT_WORK.test(str(t && t.name));
   const REFUSED = /^(?:denied|cancelled|capdenied|user-control-denied|code-nested-denied|hook-blocked|skipped\b.*)$/;
   const ran = t => !!t && t.endedAt != null;

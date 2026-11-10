@@ -6,7 +6,8 @@
    across two or more tools, no saved skill loaded), or a thumbs-up (praise rides the nudge: it qualifies only when due).
    The end-to-end proof is test/skillreview-useful.e2e.test.js; this pins the edges: what does NOT count (a call that never
    ran: refused, withdrawn or skipped; the skill, Task Brief and bookkeeping tools; one tool repeated; a run that followed a
-   saved skill or a bundled recipe; praise under the bar; an undue count). Pure module, no sidecar. */
+   saved skill or a bundled recipe; praise under the bar; an undue count). Pure module, no sidecar: the last block reads
+   sidecar/index.js as text to pin the thumbs-up's release (the governor before the count is spent; a throw answers no error). */
 'use strict';
 const A = require('./_assert.js');
 const SR = require('../sidecar/skillreview.js');
@@ -55,6 +56,15 @@ A.eq(cause({ toolTrace: steps('notebook_read', 'tool_search', 'notebook_write', 
   "the notebook, memory, tool-search and widget tools are the agent's own bookkeeping, never steps of a procedure");
 A.eq(cause({ toolTrace: steps('notebook_read', 'tool_search', 'web_fetch', 'fs_write', 'notebook.write') }), '', 'bookkeeping around two steps of the work: 2 left');
 A.eq(cause({ toolTrace: steps('notebook_read', 'web_search', 'web_fetch', 'fs_write', 'notebook_write') }), 'new-procedure', 'the work steps around the bookkeeping still count');
+// the run's checklist, its deliverable note, a recall of its own dialogue, a routine's scratchpad and a quest's tick are bookkeeping too
+A.eq(cause({ toolTrace: steps('todo', 'web_search', 'todo') }), '', 'a todo write, one search and a todo update is one step of the work, not a procedure');
+A.eq(cause({ toolTrace: steps('todo', 'recall_conversation', 'deliverable_note', 'routine_notepad', 'quest_update', 'routine.notepad', 'quest.update', 'deliverable.note', 'recall.conversation', 'web_search') }), '',
+  'the checklist, the deliverable note, the dialogue recall, the routine scratchpad and the quest tick are never steps (1 left)');
+A.eq(cause({ toolTrace: steps('todo', 'web_search', 'web_fetch', 'todo', 'fs_write', 'deliverable_note') }), 'new-procedure', 'the work steps around the checklist still count');
+for (const n of ['todo', 'deliverable_note', 'recall_conversation', 'routine_notepad', 'quest_update']) {
+  A.eq(cause({ loadedSkills: SKILL, toolTrace: [failed(n)].concat(steps('fs_list')) }), '', 'a failed ' + n + ' is bookkeeping, not a lesson about the task');
+}
+A.eq(cause({ toolTrace: steps('todos', 'todo_list', 'web_search') }), 'new-procedure', 'only the exact bookkeeping names are excluded (a tool merely named like one is work)');
 
 // ---- a correction cue in the Commander's own words (W1.4's resolver, reused) ----
 for (const words of ['From now on, always list the steps before you run them.', "Don't push to main.", 'I prefer tabs over spaces in my code.', 'Next time, ask before you delete anything.']) {
@@ -104,5 +114,21 @@ A.eq(cause({ toolTrace: [failed('fs_read')].concat(steps('a_b', 'c_d', 'e_f')) }
 A.eq(SR.reviewCause(), '', 'no facts: nothing');
 A.eq(SR.reviewCause({ due: true, toolTrace: 'junk', loadedSkills: 'junk', commanderWords: { not: 'text' } }), '', 'junk facts: nothing, no throw');
 A.eq(cause({ toolTrace: [null, undefined, 0].concat(steps('a_b', 'c_d', 'e_f')) }), 'new-procedure', 'holes in a trace are skipped');
+
+// ---- the thumbs-up's release (sidecar/index.js releaseHeldReview), read as text: the sidecar is never required here ----
+{
+  const fs = require('fs');
+  const idx = fs.readFileSync(require('path').join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const start = idx.indexOf('\nfunction releaseHeldReview(');
+  const body = start >= 0 ? idx.slice(start, idx.indexOf('\n}\n', start) + 3) : '';
+  A.ok(body.length > 0, 'releaseHeldReview is a top-level function of the sidecar');
+  const ask = body.indexOf("governor.admit('skill-review', { providerId: j.route, agentId, trigger: 'background' })");
+  const spend = body.indexOf('skillNudge.set(agentId, 0)');
+  A.ok(ask > 0 && spend > ask && body.slice(ask, spend).indexOf('return false;') > 0,
+    'the released review asks the governor before it spends the held count, and a refusal keeps the count (the run end asks governor.admit(\'aux\') up front)');
+  A.ok(body.indexOf('reviewCause({ verdict, due })') > 0, 'it asks the one rule, with the due count');
+  A.ok(/try \{ skillReviewArmed = releaseHeldReview\(runId, canonical\.verdict, lead\); \} catch \(e\) \{ failNote\('skills\.praise\.release', e\); skillReviewArmed = false; \}/.test(idx),
+    'a throw in the release never answers the saved thumbs-up with an error (failNote, armed false)');
+}
 
 A.report('skillreview-cause.test');
