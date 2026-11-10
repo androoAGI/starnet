@@ -4,15 +4,18 @@
    verdict that teaches (always, due or not), and, on a due nudge, a correction cue in the Commander's own words (W1.4's
    cue resolver), a failed tool call in a run that succeeded, or a new multi-step procedure (several successful calls
    across two or more tools, no saved skill loaded), or a thumbs-up (praise rides the nudge: it qualifies only when due).
-   The end-to-end proof is test/skillreview-useful.e2e.test.js; this pins the edges: what does NOT count (a call that never
-   ran: refused, withdrawn or skipped; the skill, Task Brief and bookkeeping tools; one tool repeated; a run that followed a
-   saved skill or a bundled recipe; praise under the bar; an undue count). Pure module, no sidecar: the last block reads
-   sidecar/index.js as text to pin the thumbs-up's release (the governor before the count is spent; a throw answers no error). */
+   The end-to-end proof is test/skillreview-useful.e2e.test.js; this pins the edges: what does NOT count (a call held or
+   refused: the Task Brief's hold, a refusal, a host guard, a withdrawn card, a skip; the skill, Task Brief and bookkeeping
+   tools; one tool repeated; a run that followed a saved skill or a bundled recipe; praise under the bar; an undue count).
+   Pure modules, no sidecar: the family block reads the harness's dispatch sources as text and fails on a held-or-refused
+   stamp nobody classified, and the last block reads sidecar/index.js to pin the thumbs-up's release (the governor before
+   the count is spent; a throw answers no error). */
 'use strict';
 const A = require('./_assert.js');
 const SR = require('../sidecar/skillreview.js');
 const LC = require('../sidecar/learning-cooldown.js');
 const { VERDICTS_THAT_TEACH } = require('../sidecar/verdictreview.js');
+const { TaskIntent } = require('../frontend/app/fork.js');
 
 let at = 1000;
 const call = (name, o) => { at += 10; return Object.assign({ callId: 'c' + at, name, startedAt: at, endedAt: at + 5, ms: 5, ok: true, isError: false, summary: 'ok' }, o || {}); };
@@ -84,12 +87,80 @@ A.eq(cause({ loadedSkills: SKILL, toolTrace: [failed('fs_write', 'denied')].conc
 for (const s of ['skipped — cancelled', 'skipped — terminal evidence', 'skipped - terminal evidence', 'skipped - cancelled', 'skipped']) {
   A.eq(cause({ loadedSkills: SKILL, toolTrace: [failed('web_fetch', s)] }), '', 'a call the loop skipped never ran: "' + s + '"');
 }
-// a call refused before it ran is not an error of the work: the Commander's No, the station's policy, their own hook, a withdrawn card
-for (const s of ['cancelled', 'capdenied', 'user-control-denied', 'code-nested-denied', 'hook-blocked']) {
-  A.eq(cause({ loadedSkills: SKILL, toolTrace: [failed('shell_exec', s)].concat(steps('fs_list')) }), '', 'a call refused before it ran ("' + s + '") is not a tool error');
+/* ---- a call HELD OR REFUSED is not an error of the work (skillreview.js heldOrRefused, the one rule) ----
+   Someone or something other than the call stopped it: the Task Brief's hold (the host's NOT RUN, NOT FAILED stamp, fork.js
+   TaskIntent.GATE_HELD), the Commander's No or a withdrawn card, the station's policy, their own hook, a host guard, a read
+   whose result the host refused, the loop's skip. Review r2 (W3.2) found the brief hold and four guard stamps read as tool
+   errors: a clean chat run whose first write came before brief_proceed fired a review. */
+const HELD_OR_REFUSED = [TaskIntent.GATE_HELD, 'denied', 'cancelled', 'capdenied', 'user-control-denied', 'code-nested-denied', 'withheld',
+  'untrusted-content-lockout', 'direct-domain-local', 'direct-domain-target-only', 'hook-blocked', 'recovery-replay-blocked', 'held-uncertain',
+  'tool-budget', 'workspace-busy', 'loop-break', 'output-only', 'read refused: session deleted', 'read refused: not recorded',
+  'read refused: too many sessions', 'skipped', 'skipped - cancelled', 'skipped — cancelled', 'skipped - terminal evidence', 'skipped — terminal evidence'];
+/* still an error: a call that ran and failed ('error', 'precondition', 'timeout'), one the registry rejected as wrong in itself
+   (unknown-tool; invalid arguments answer 'error'), and the progress guard's verdict that the work's own route is exhausted
+   (strategy-exhausted, a normal tool error on purpose). dispatch-boundary-failed and recovery-journal-failed end the run
+   (control.final, reason error), and a failed run is never reviewed: they count, and it is moot. */
+const COUNTED = ['error', 'precondition', 'timeout', 'unknown-tool', 'strategy-exhausted', 'dispatch-boundary-failed', 'recovery-journal-failed', 'skippedness', 'read refusedness'];
+// a success, never an error: an idempotent replay hands back the recorded result of a write that already succeeded
+const SUCCEEDS = ['idempotent-replay'];
+for (const s of HELD_OR_REFUSED) {
+  A.eq(cause({ loadedSkills: SKILL, toolTrace: steps('skill_view').concat([failed('fs_write', s)], steps('fs_write', 'fs_list', 'station_inspect')) }), '',
+    'a call held or refused ("' + s + '") is not a tool error');
+  A.eq(SR.heldOrRefused(failed('fs_write', s)), true, 'heldOrRefused reads "' + s + '"');
 }
-for (const s of ['error', 'precondition', 'unknown-tool', 'dispatch-boundary-failed', 'skippedness']) {
-  A.eq(cause({ loadedSkills: SKILL, toolTrace: [failed('fs_edit', s)] }), 'tool-error', 'a call that ran (or was mis-called) and failed ("' + s + '") is a tool error');
+A.eq(cause({ commanderWords: 'Survey the station and its workspace.', loadedSkills: ['Deploy Site'],
+  toolTrace: [call('skill_view', { summary: 'loaded Deploy Site' }), failed('fs_write', TaskIntent.GATE_HELD)].concat(steps('fs_write', 'fs_list', 'station_inspect', 'fs_list')) }), '',
+  'the r2 case: a clean chat run whose first write came before brief_proceed (held, then made again and ok) is not reviewed');
+A.eq(TaskIntent.isGateHeld({ isError: true, summary: TaskIntent.GATE_HELD }), true, 'fixture: the brief hold is read by fork.js TaskIntent.isGateHeld, the resolver loop.js uses');
+A.eq(cause({ loadedSkills: SKILL, toolTrace: [call('fs_write', { ok: false, isError: false, summary: TaskIntent.GATE_HELD })] }), 'tool-error',
+  'the hold is the host\'s isError stamp; the same words on a result that is not an error are not the hold (isGateHeld\'s own rule)');
+for (const s of COUNTED) {
+  A.eq(cause({ loadedSkills: SKILL, toolTrace: [failed('fs_edit', s)] }), 'tool-error', 'a call that ran and failed, or was wrong in itself ("' + s + '"), is a tool error');
+  A.eq(SR.heldOrRefused(failed('fs_edit', s)), false, 'heldOrRefused does not read "' + s + '"');
+}
+A.eq(SR.heldOrRefused(null), false, 'heldOrRefused(null) is false, no throw');
+
+/* ---- THE FAMILY STAYS CLOSED: every stamp a call that did not run can come back with is classified ----
+   Read as text (nothing is required that boots anything): the host's dispatch up to the registry, code.run's nested refusal,
+   the registry's dispatch up to tool.run, the lead's host scope (domain-task.js), the idempotency gate, the host's read
+   refusal (turn-directive.js), the journal's dispatch-boundary refusal (run-execution-state.js failJournal) and the loop's
+   own results (skips). A new gate stamp fails here until someone decides whether
+   it held the call (HELD_OR_REFUSED, and skillreview.js) or the call failed (COUNTED). */
+{
+  const fs = require('fs');
+  const path = require('path');
+  const read = rel => fs.readFileSync(path.join(__dirname, '..', rel), 'utf8');
+  const between = (text, from, to, label) => {
+    const a = text.indexOf(from), b = a >= 0 ? text.indexOf(to, a) : -1;
+    A.ok(a >= 0 && b > a, 'the scan finds ' + label);
+    return a >= 0 && b > a ? text.slice(a, b) : '';
+  };
+  const literals = (text, re) => { const out = []; let m; while ((m = re.exec(text))) out.push(m[1]); return out; };
+  const idx = read('sidecar/index.js');
+  const hostDispatch = between(idx, 'const toolBudgetStopFor = (c) =>', 'r = await registry.dispatch(c, dctx);', "the host's dispatch up to the registry");
+  const nested = between(idx, 'capCtx.composeDispatch = async', 'const result = await dispatch(call', "code.run's nested refusal");
+  const registry = between(read('sidecar/tools/registry.js'), 'async function dispatch(call, ctx) {', 'tool.run(call.args, runCtx)', "the registry's dispatch up to tool.run");
+  const domain = between(read('sidecar/domain-task.js'), 'function refusalOf(', '\n  }\n', "the lead's host-scope refusal");
+  const idem = read('sidecar/idempotency-ledger.js');
+  const quote = between(read('sidecar/turn-directive.js'), 'function quoteRefusal(', '\n}', "the host's read refusal");
+  const journal = between(read('sidecar/run-execution-state.js'), 'function failJournal(', '\n  }\n', "the journal's dispatch-boundary refusal");
+  const loop = read('sidecar/loop.js');
+  const SUMMARY = /summary:\s*'([^']+)'/g;
+  const found = new Set([].concat(
+    literals(hostDispatch, SUMMARY), literals(nested, SUMMARY), literals(domain, SUMMARY), literals(idem, SUMMARY), literals(loop, SUMMARY), literals(journal, SUMMARY),
+    literals(hostDispatch, /summary:\s*TaskIntent\.(\w+)/g).map(k => TaskIntent[k]),
+    literals(quote, /'(read refused: [^']+)'/g),
+    // the registry's refusals: errResult(text, '<stamp>'), or the default 'error' when no stamp is given
+    registry.split('\n').filter(l => l.indexOf('errResult(') >= 0).map(l => { const all = literals(l, /,\s*'([a-z][a-z -]*)'\)/g); return all.length ? all[all.length - 1] : 'error'; })
+  ));
+  const known = new Set(HELD_OR_REFUSED.concat(COUNTED, SUCCEEDS));
+  const unclassified = [...found].filter(s => !known.has(s));
+  A.eq(unclassified, [], 'every stamp a call that did not run can carry is classified, held/refused or failed (found ' + found.size + ')');
+  for (const s of [TaskIntent.GATE_HELD, 'withheld', 'untrusted-content-lockout', 'recovery-replay-blocked', 'tool-budget', 'capdenied', 'hook-blocked',
+    'code-nested-denied', 'direct-domain-target-only', 'held-uncertain', 'workspace-busy', 'loop-break', 'read refused: too many sessions', 'skipped — cancelled',
+    'recovery-journal-failed', 'strategy-exhausted', 'unknown-tool']) {
+    A.ok(found.has(s), 'the scan reaches "' + s + '" where the harness stamps it');
+  }
 }
 A.eq(cause({ loadedSkills: SKILL, toolTrace: [{ callId: 'x', name: 'fs_read', startedAt: 1 }] }), '', 'a call with no result yet is neither failed nor a step');
 for (const n of ['brief_proceed', 'brief.proceed', 'brief_update', 'skill_view', 'skill.manage', 'notebook_write', 'memory_forget', 'tool_search', 'widget_set']) {
