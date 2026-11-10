@@ -2462,3 +2462,95 @@ html body.vx:not(.hud-mode):not(.vx-b) #screen-game :is(.crew-resizer, .col-resi
 @container vx-comms (max-width: 260px) {
   html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel #comms-idbar { gap: 6px; padding-left: calc(var(--vx-gut) + 3px); padding-right: var(--vx-gut); }
 }
+
+/* ============ 27 · THE HEADS — the third pass on the CREW and COMMS title bars (Andrew 2026-11-09: "make the crew and comms
+   top look better, just looks a bit off. needs improvements"). They were flat pale plates on a dark panel, and nothing else
+   on the device is a flat plate, so however they were nudged they read as stuck on. Each head is now built like the dock: a
+   black bay let into the housing behind the dock's chrome lip, the panel's name on a domed chrome key that carries the panel
+   lamp, the live readout as lit type on the black, and the two crew knobs as the chrome dome of every + key.
+   VECTOR only: every selector is scoped :not(.vx-b) ============ */
+
+/* ---- the bay: the dock's black well and chrome lip with capsule ends (21px is half of its 42px). The dark knob takes the
+   head down with the dock, the tab seat and the composer (.35): .22 left it the brightest thing in the panel at a low
+   BRIGHTNESS. A head is not under #stage-wrap, so the filter is safe here ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game :is(#left, #chat-panel) > h3 {
+  isolation: isolate;
+  height: 42px; padding: 0 21px 0 34px; column-gap: 20px; border-radius: 21px;
+  font-size: 19px; letter-spacing: 3px; color: #06100a; text-shadow: 0 1px 0 rgba(255, 255, 255, .55);
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, .9) 0, rgba(0, 0, 0, 0) 5px),
+    linear-gradient(180deg, #05070a 0, #0d1116 60%, #161b21 100%);
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px #c4ccd5, 0 1px 0 2px #eef2f6, 0 0 0 3px #2a3037, 0 3px 5px 3px rgba(0, 0, 0, .55);
+  filter: brightness(calc(1 - var(--vx-dim, 0) * .35));
+}
+
+/* ---- the name key: the dock key's dome, its lead end following the bay. The head's own ::after draws it behind the name
+   (app.css switches that pseudo off; two ids here bring it back), sized to the word in the head's own type: VT323 advances
+   1ch a glyph, plus the lamp's lead, the tracking and the tail. A COMMS title with no session beside it (no session yet, or
+   a project's own name) is the whole key itself, so a long project name gets a key as long as it needs ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game :is(#left, #chat-panel) > h3::after,
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel > h3 #comms-title:not(:has(> .comms-session)) {
+  border-radius: 17px 9px 9px 17px;
+  background:
+    radial-gradient(ellipse 30% 40% at 22% 22%, #fff 0, rgba(255, 255, 255, 0) 100%),
+    linear-gradient(180deg, #f4f7fa 0, #e9edf1 26%, #c3cad2 50%, #8f98a3 74%, #6b747f 100%);
+  box-shadow:
+    inset 0 -1px 0 rgba(255, 255, 255, .5), inset 0 1px 0 #fff,
+    inset 0 -9px 8px -4px rgba(5, 8, 10, .85), inset -7px 0 7px -5px rgba(5, 8, 10, .6), inset 6px 0 7px -5px rgba(5, 8, 10, .3),
+    0 0 0 1px #050608, 0 2px 3px rgba(0, 0, 0, .7);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game :is(#left, #chat-panel) > h3::after {
+  content: ''; display: block; position: absolute; z-index: -1; order: 0; flex: none; left: 4px; top: 4px; bottom: 4px; height: auto;
+  width: calc(4ch + 51px);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel > h3::after { width: calc(5ch + 54px); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel > h3:not(:has(.comms-session))::after { content: none; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel > h3 #comms-title:not(:has(> .comms-session)) {
+  display: block; flex: 0 1 auto; height: 34px; line-height: 34px; margin-left: -30px; padding: 0 9px 0 30px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+/* ---- the lamp: a lit jewel in a dark pocket cut into the key (the dock lamp's pocket), in the station's hue ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game :is(#left, #chat-panel) > h3::before {
+  left: 15px; top: 50%; width: 10px; height: 10px; margin-top: -5px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--vx-core) 60%, #fff) 0, var(--ph) 48%, color-mix(in srgb, var(--ph) 45%, #000) 100%);
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px rgba(0, 0, 0, .35), 0 1px 0 2px rgba(255, 255, 255, .55), 0 0 7px 1px rgba(var(--ph-rgb), .7);
+}
+
+/* ---- the readouts: lit type on the black, no pill. Section 21 sizes them through :is(#crew-sum, .comms-session), an id
+   inside :is(), so these rules name them the same way or they lose to it. CREW's counts start one beat after its key and
+   still shed whole (section 25) ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game :is(#left, #chat-panel) > h3 :is(#crew-sum, .comms-session) {
+  padding: 0; border-radius: 0; background: none; box-shadow: none;
+  font-size: 15px; letter-spacing: 1.5px; opacity: 1;
+  color: color-mix(in srgb, var(--vx-core) 80%, #fff); text-shadow: 0 0 7px rgba(var(--ph-rgb), .75);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left > h3 { padding-right: 76px; justify-content: flex-start; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left > h3 #crew-sum { justify-content: flex-start; }
+/* COMMS: the key holds the panel's name and the session reads beside it. chat.js writes the session as " · name": the key's
+   edge parts the two now, so the lead dot and its space (2ch and their tracking) are drawn back out of the readout's box */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel > h3 #comms-title { gap: 0; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel > h3 :is(#crew-sum, .comms-session) {
+  display: block; height: auto; margin-left: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  text-indent: calc(-2ch - 3px);
+}
+
+/* ---- the knobs: the add knob's chrome dome, concentric with the bay's end (28px in a 42px bay, 7px all round). An open
+   finder lights its knob like a lamp; hover and focus keep the hot chrome of every other knob ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left > h3 .crew-h3-right { right: 7px; height: 28px; gap: 6px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left > h3 .crew-hide {
+  width: 28px; height: 28px; background: var(--vx-knob); color: #06100a; text-shadow: none;
+  box-shadow: 0 0 0 1px #050608, 0 2px 4px rgba(0, 0, 0, .7);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left > h3 .crew-hide:is(:hover, :focus-visible) { background: var(--vx-knob-hot); color: #020604; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left > h3 #crew-search-toggle[aria-expanded="true"] {
+  background: radial-gradient(circle at 38% 30%, #fff 0, color-mix(in srgb, var(--vx-core) 70%, #fff) 25%, var(--ph) 60%, color-mix(in srgb, var(--ph) 55%, #000) 100%);
+  box-shadow: inset 0 2px 3px rgba(0, 0, 0, .45), 0 0 0 1px #050608, 0 0 10px 2px rgba(var(--ph-rgb), .55);
+}
+
+/* ---- a stock rail at a large TEXT SIZE leaves the CREW bay 157px: its key closes its lead and its tail so the knobs keep
+   their own room (the key ended 2px from the find knob) ---- */
+@container vx-rail (max-width: 165px) {
+  html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left > h3 { padding-left: 31px; }
+  html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left > h3::before { left: 13px; }
+  html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left > h3::after { width: calc(4ch + 45px); }
+}

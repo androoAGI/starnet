@@ -198,20 +198,22 @@ A.ok(/:is\(\.ws-rail-search, \.crew-search-wrap\) \{ background: none !important
 A.ok(/\.ws-rail-search label::before \{[^}]*mask:/.test(css) && /\.crew-search-wrap::before \{[^}]*mask:/.test(css), 'both finders lead with the lit lens');
 A.ok(/#crew-search-close \{[^}]*border-radius: 50%/.test(css), 'the crew finder closes on a round chrome knob');
 
-// ---- the sheet is five parts (2026-11-09). VECTOR = sections 1-22, the silver device Andrew kept ("I love this look so much
-// its insane"), finished by section 25 and fitted by section 26. Section 23, the black chassis, is variation B's base: gated
-// :where(.vx-b), so it adds no specificity and B renders exactly as it did when that pass applied to both. Section 24 is
-// variation B itself ----
+// ---- the sheet is six parts (2026-11-09). VECTOR = sections 1-22, the silver device Andrew kept ("I love this look so much
+// its insane"), finished by section 25, fitted by section 26, its CREW and COMMS heads rebuilt by section 27. Section 23, the
+// black chassis, is variation B's base: gated :where(.vx-b), so it adds no specificity and B renders exactly as it did when
+// that pass applied to both. Section 24 is variation B itself ----
 const rawCss = read('frontend/css/vector.css');
 const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '');
 const cut = (title) => { const at = rawCss.indexOf(title); return at < 0 ? -1 : rawCss.lastIndexOf('/*', at); };
-const baseAt = cut('23 · THE BLACK CHASSIS'), bAt = cut('24 · VARIATION B'), pAt = cut('25 · THE PERFECTED VECTOR'), fAt = cut('26 · THE FIT');
-A.ok(baseAt > 0 && bAt > baseAt && pAt > bAt && fAt > pAt, 'vector.css carries the black chassis, variation B, the perfected VECTOR and the fit pass as sections 23, 24, 25, 26 in that order');
+const baseAt = cut('23 · THE BLACK CHASSIS'), bAt = cut('24 · VARIATION B'), pAt = cut('25 · THE PERFECTED VECTOR'), fAt = cut('26 · THE FIT'), hAt = cut('27 · THE HEADS');
+A.ok(baseAt > 0 && bAt > baseAt && pAt > bAt && fAt > pAt && hAt > fAt,
+  'vector.css carries the black chassis, variation B, the perfected VECTOR, the fit pass and the heads as sections 23, 24, 25, 26, 27 in that order');
 const cssA = strip(rawCss.slice(0, baseAt));
 const cssBase = strip(rawCss.slice(baseAt, bAt));
 const cssB = strip(rawCss.slice(bAt, pAt));
 const cssP = strip(rawCss.slice(pAt, fAt));
-const cssF = strip(rawCss.slice(fAt));
+const cssF = strip(rawCss.slice(fAt, hAt));
+const cssH = strip(rawCss.slice(hAt));
 // an at-rule's own prelude (@container ... {) is not a selector: drop it, and its closing brace leaves an empty chunk
 const selsOf = (t) => t.replace(/@[a-z-]+[^{};]*\{/g, '').split('}').map(r => r.slice(0, Math.max(0, r.indexOf('{')))).filter(x => x.trim()).flatMap(x => x.split(/,\n/)).map(x => x.trim());
 // a selector list can also run on ONE line, so the line-start check alone is not enough: every root in a section must carry its gate
@@ -330,4 +332,52 @@ A.ok(/@container vx-rail \(max-width: 165px\) \{[^@]*\.ws-rail-search label:has\
 A.ok(/@container vx-rail \(max-width: 215px\) \{\s*html body\.vx:not\(\.hud-mode\):not\(\.vx-b\) #screen-game #left #crew \.crew-row \{ gap: 8px; \}\s*\}/.test(cssF),
   'the stock 200px rail keeps a ten-letter crew name whole: the card closes its gap from 215 down');
 A.ok(!/\bfilter:/.test(cssF) && !/\[class/.test(cssF), 'the fit pass adds no filter and no [class] selector');
+
+// ---- the heads (Andrew 2026-11-09: "make the crew and comms top look better, just looks a bit off. needs improvements").
+// They were flat pale plates on a dark panel. Each is now built like the dock: a black bay behind a chrome lip, the panel's
+// name on a domed chrome key that carries the lamp, the live readout as lit type on the black, the crew knobs as chrome domes ----
+const selsH = selsOf(cssH);
+A.ok(selsH.length > 15, 'the heads are their own section (' + selsH.length + ' selectors)');
+A.eq(selsH.filter(x => !x.startsWith('html body.vx:not(.hud-mode):not(.vx-b)')).join(' | '), '', 'every selector in the heads pass is scoped :not(.vx-b), inside its container query too');
+A.eq(stray(cssH, ':not(.vx-b)').join(' | '), '', 'no heads selector slips its scope inside a one-line list');
+const ruleH = (tail) => (cssH.match(new RegExp('html body\\.vx:not\\(\\.hud-mode\\):not\\(\\.vx-b\\) #screen-game ' + tail + ' \\{[^}]*\\}')) || [''])[0];
+// the bay
+const bayH = ruleH(':is\\(#left, #chat-panel\\) > h3');
+A.ok(/height: 42px;[^}]*border-radius: 21px;/.test(bayH) && /#05070a 0, #0d1116 60%, #161b21 100%/.test(bayH) && /0 0 0 2px #c4ccd5, 0 1px 0 2px #eef2f6/.test(bayH),
+  'each head is the dock’s black bay behind its chrome lip, with capsule ends (21px on a 42px bay)');
+A.ok(/isolation: isolate;/.test(bayH), 'the bay is its own stacking context: the key drawn behind the name (z-index -1) stays in front of the bay’s black');
+A.ok(/filter: brightness\(calc\(1 - var\(--vx-dim, 0\) \* \.35\)\)/.test(bayH),
+  'the dark knob takes the heads down with the dock and the composer (.35): .22 left them the brightest thing in a dim panel');
+// the name key and its lamp
+const DOME = /border-radius: 17px 9px 9px 17px;[^}]*#f4f7fa 0, #e9edf1 26%, #c3cad2 50%, #8f98a3 74%, #6b747f 100%[^}]*0 0 0 1px #050608, 0 2px 3px rgba\(0, 0, 0, \.7\)/;
+const domeH = (cssH.match(/> h3::after,\s*html body\.vx:not\(\.hud-mode\):not\(\.vx-b\) #screen-game #chat-panel > h3 #comms-title:not\(:has\(> \.comms-session\)\) \{[^}]*\}/) || [''])[0];
+A.ok(DOME.test(domeH), 'the name sits on the dock key’s chrome dome, and a COMMS title with no session beside it wears the same dome');
+const keyH = ruleH(':is\\(#left, #chat-panel\\) > h3::after');
+A.ok(/content: ''; display: block; position: absolute; z-index: -1;/.test(keyH) && /width: calc\(4ch \+ 51px\);/.test(keyH) && /#chat-panel > h3::after \{ width: calc\(5ch \+ 54px\); \}/.test(cssH),
+  'the key is drawn behind the name by the head’s own ::after and sized to the word (CREW four glyphs, COMMS five)');
+A.ok(/#chat-panel > h3:not\(:has\(\.comms-session\)\)::after \{ content: none; \}/.test(cssH)
+  && /#comms-title:not\(:has\(> \.comms-session\)\) \{\s*display: block;[^}]*text-overflow: ellipsis;/.test(cssH),
+  'a bare COMMS title (no session yet, or a project’s own name) is the whole key and never wears two: a long project name ends in an ellipsis');
+const lampH = ruleH(':is\\(#left, #chat-panel\\) > h3::before');
+A.ok(/width: 10px; height: 10px;[^}]*border-radius: 50%;/.test(lampH) && /var\(--ph\) 48%/.test(lampH) && /0 0 7px 1px rgba\(var\(--ph-rgb\), \.7\)/.test(lampH),
+  'the panel lamp is a lit jewel in the station’s hue, set into the key');
+// the readouts
+const readH = ruleH(':is\\(#left, #chat-panel\\) > h3 :is\\(#crew-sum, \\.comms-session\\)');
+A.ok(/padding: 0; border-radius: 0; background: none; box-shadow: none;/.test(readH) && /text-shadow: 0 0 7px rgba\(var\(--ph-rgb\), \.75\)/.test(readH),
+  'the readouts are lit type on the black, not pills (named through :is(#crew-sum, .comms-session), or section 21’s id inside :is() out-ranks them)');
+A.ok(/#left > h3 \{ padding-right: 76px; justify-content: flex-start; \}/.test(cssH) && /#left > h3 #crew-sum \{ justify-content: flex-start; \}/.test(cssH),
+  'the crew counts start beside the key and the bay keeps the knobs’ room, so the counts still shed whole');
+A.ok(/#chat-panel > h3 :is\(#crew-sum, \.comms-session\) \{[^}]*overflow: hidden; text-overflow: ellipsis; white-space: nowrap;\s*text-indent: calc\(-2ch - 3px\);/.test(cssH),
+  'the session name reads beside the COMMS key: a long one ends in an ellipsis, and the lead dot chat.js writes is drawn out of its box');
+// the knobs
+const knobH = ruleH('#left > h3 \\.crew-hide');
+A.ok(/width: 28px; height: 28px; background: var\(--vx-knob\);/.test(knobH) && /0 0 0 1px #050608, 0 2px 4px rgba\(0, 0, 0, \.7\)/.test(knobH) && /\.crew-h3-right \{ right: 7px; height: 28px;/.test(cssH),
+  'find and fold are the add knob’s chrome dome, concentric with the bay’s end (28px in 42px, 7px all round)');
+A.ok(/\.crew-hide:is\(:hover, :focus-visible\) \{ background: var\(--vx-knob-hot\);/.test(cssH), 'a hovered or focused knob is the hot chrome of every other knob');
+A.ok(/#crew-search-toggle\[aria-expanded="true"\] \{[^}]*var\(--ph\) 60%[^}]*0 0 10px 2px rgba\(var\(--ph-rgb\), \.55\)/.test(cssH), 'an open finder lights its knob (the open state stays visible on the new dome)');
+// a narrow rail
+A.ok(/@container vx-rail \(max-width: 165px\) \{[^@]*#left > h3 \{ padding-left: 31px; \}[^@]*#left > h3::before \{ left: 13px; \}[^@]*#left > h3::after \{ width: calc\(4ch \+ 45px\); \}/.test(cssH),
+  'on a stock rail at a large TEXT SIZE the CREW key closes its lead and its tail: the knobs keep their own room');
+A.eq((cssH.match(/\bfilter:/g) || []).length, 1, 'the heads pass has one filter, the dark knob on the heads themselves');
+A.ok(!/#stage-wrap/.test(cssH) && !/\[class/.test(cssH), 'the heads pass styles nothing under #stage-wrap and adds no [class] selector');
 A.report('vector-identity');
