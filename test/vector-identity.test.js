@@ -198,22 +198,23 @@ A.ok(/:is\(\.ws-rail-search, \.crew-search-wrap\) \{ background: none !important
 A.ok(/\.ws-rail-search label::before \{[^}]*mask:/.test(css) && /\.crew-search-wrap::before \{[^}]*mask:/.test(css), 'both finders lead with the lit lens');
 A.ok(/#crew-search-close \{[^}]*border-radius: 50%/.test(css), 'the crew finder closes on a round chrome knob');
 
-// ---- the sheet is six parts (2026-11-09). VECTOR = sections 1-22, the silver device Andrew kept ("I love this look so much
-// its insane"), finished by section 25, fitted by section 26, its CREW and COMMS heads rebuilt by section 27. Section 23, the
-// black chassis, is variation B's base: gated :where(.vx-b), so it adds no specificity and B renders exactly as it did when
-// that pass applied to both. Section 24 is variation B itself ----
+// ---- the sheet is seven parts (2026-11-09). VECTOR = sections 1-22, the silver device Andrew kept ("I love this look so much
+// its insane"), finished by section 25, fitted by section 26, its CREW and COMMS heads rebuilt by section 27, its menu panels
+// dressed by section 28. Section 23, the black chassis, is variation B's base: gated :where(.vx-b), so it adds no specificity
+// and B renders exactly as it did when that pass applied to both. Section 24 is variation B itself ----
 const rawCss = read('frontend/css/vector.css');
 const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '');
 const cut = (title) => { const at = rawCss.indexOf(title); return at < 0 ? -1 : rawCss.lastIndexOf('/*', at); };
-const baseAt = cut('23 · THE BLACK CHASSIS'), bAt = cut('24 · VARIATION B'), pAt = cut('25 · THE PERFECTED VECTOR'), fAt = cut('26 · THE FIT'), hAt = cut('27 · THE HEADS');
-A.ok(baseAt > 0 && bAt > baseAt && pAt > bAt && fAt > pAt && hAt > fAt,
-  'vector.css carries the black chassis, variation B, the perfected VECTOR, the fit pass and the heads as sections 23, 24, 25, 26, 27 in that order');
+const baseAt = cut('23 · THE BLACK CHASSIS'), bAt = cut('24 · VARIATION B'), pAt = cut('25 · THE PERFECTED VECTOR'), fAt = cut('26 · THE FIT'), hAt = cut('27 · THE HEADS'), nAt = cut('28 · THE PANELS');
+A.ok(baseAt > 0 && bAt > baseAt && pAt > bAt && fAt > pAt && hAt > fAt && nAt > hAt,
+  'vector.css carries the black chassis, variation B, the perfected VECTOR, the fit pass, the heads and the panels as sections 23 to 28 in that order');
 const cssA = strip(rawCss.slice(0, baseAt));
 const cssBase = strip(rawCss.slice(baseAt, bAt));
 const cssB = strip(rawCss.slice(bAt, pAt));
 const cssP = strip(rawCss.slice(pAt, fAt));
 const cssF = strip(rawCss.slice(fAt, hAt));
-const cssH = strip(rawCss.slice(hAt));
+const cssH = strip(rawCss.slice(hAt, nAt));
+const cssN = strip(rawCss.slice(nAt));
 // an at-rule's own prelude (@container ... {) is not a selector: drop it, and its closing brace leaves an empty chunk
 const selsOf = (t) => t.replace(/@[a-z-]+[^{};]*\{/g, '').split('}').map(r => r.slice(0, Math.max(0, r.indexOf('{')))).filter(x => x.trim()).flatMap(x => x.split(/,\n/)).map(x => x.trim());
 // a selector list can also run on ONE line, so the line-start check alone is not enough: every root in a section must carry its gate
@@ -380,4 +381,87 @@ A.ok(/@container vx-rail \(max-width: 165px\) \{[^@]*#left > h3 \{ padding-left:
   'on a stock rail at a large TEXT SIZE the CREW key closes its lead and its tail: the knobs keep their own room');
 A.eq((cssH.match(/\bfilter:/g) || []).length, 1, 'the heads pass has one filter, the dark knob on the heads themselves');
 A.ok(!/#stage-wrap/.test(cssH) && !/\[class/.test(cssH), 'the heads pass styles nothing under #stage-wrap and adds no [class] selector');
+
+// ---- the panels (Andrew 2026-11-09: "then we need to start to update every single menu panel within starnet completely").
+// A window wore chrome on its bezel and flat parts inside. Every window now opens with the heads' black bay and name key, every
+// tab row is a key bar or a keypad, every panel key is a glossy cap, and the dock menus are black bays in a chrome lip ----
+const selsN = selsOf(cssN);
+A.ok(selsN.length > 25, 'the panels are their own section (' + selsN.length + ' selectors)');
+A.eq(selsN.filter(x => !x.startsWith('html body.vx:not(.hud-mode):not(.vx-b) #screen-game ')).join(' | '), '', 'every selector in the panels pass is scoped :not(.vx-b) and lives on the station screen');
+A.eq(stray(cssN, ':not(.vx-b)').join(' | '), '', 'no panels selector slips its scope inside a one-line list');
+A.eq(selsN.filter(x => !/ #screen-game (#terms \.term:not\(\.pw\)|#bottombar \.bb-menu)/.test(x)).join(' | '), '',
+  'the pass dresses station windows and the dock menus, nothing else (a pre-station screen and the plain window stay as they are)');
+const W = 'html body\\.vx:not\\(\\.hud-mode\\):not\\(\\.vx-b\\) #screen-game #terms \\.term:not\\(\\.pw\\)';
+const ruleN = (tail) => (cssN.match(new RegExp(W + tail + ' \\{[^}]*\\}')) || [''])[0];
+// the window head
+const headN = ruleN(' \\.term-head');
+A.ok(/#05070a 0, #0d1116 60%, #161b21 100%/.test(headN) && /inset 0 -2px 0 #eef2f6, inset 0 -3px 0 #c4ccd5/.test(headN) && /border-bottom: 0;/.test(headN),
+  'a window opens with the heads’ black bay, closed by the chrome lip (no flat title strip, no hairline under it)');
+A.ok(new RegExp(W + ' \\.term-head::after \\{ content: none; \\}').test(cssN), 'the old title strip’s own rule line is off: the lip is the only line under the head');
+const nameN = ruleN(' \\.term-head \\.term-title');
+A.ok(/border-radius: 14px 7px 7px 14px;[^}]*#f4f7fa 0, #e9edf1 26%, #c3cad2 50%, #8f98a3 74%, #6b747f 100%[^}]*0 0 0 1px #050608, 0 2px 3px rgba\(0, 0, 0, \.7\)/.test(nameN),
+  'the window’s name is engraved on the heads’ domed chrome key');
+A.ok(/flex: 0 1 auto; min-width: 0; margin-right: auto;/.test(nameN) && /overflow: hidden; text-overflow: ellipsis; white-space: nowrap;/.test(nameN),
+  'the name key is as long as its word and gives way in a narrow window (an ellipsis, never a wrapped or clipped name)');
+const lampN = ruleN(' \\.term-head \\.term-title::before');
+A.ok(/width: 10px; height: 10px;[^}]*border-radius: 50%;/.test(lampN) && /var\(--ph\) 48%/.test(lampN) && /0 0 7px 1px rgba\(var\(--ph-rgb\), \.7\)/.test(lampN),
+  'the name key carries the panel lamp in the station’s hue');
+const wkeyN = ruleN(' \\.term-head :is\\(\\.gd-window-button, \\.term-x\\)');
+A.ok(/width: 28px; min-width: 28px; height: 28px;/.test(wkeyN) && /background: var\(--vx-knob\);/.test(wkeyN) && /0 0 0 1px #050608, 0 2px 4px rgba\(0, 0, 0, \.7\)/.test(wkeyN),
+  'minimise, maximise and close are the chrome dome of every other knob (28px, the CREW knobs’ size)');
+A.ok(/\.term-head :is\(\.gd-window-button, \.term-x\):is\(:hover, :focus-visible\) \{\s*background: var\(--vx-knob-hot\);/.test(cssN), 'a hovered or focused window key is the hot chrome');
+// the dossier and recruit tabs
+const seatN = ruleN(' :is\\(\\.con-toptabs, \\.mkt-recipe-detail-tabs\\)');
+A.ok(/border-radius: 21px !important;/.test(seatN) && /background: var\(--vx-seat\) !important; box-shadow: var\(--vx-seat-shadow\) !important;/.test(seatN),
+  'the dossier tabs and the recruit detail tabs sit in a chrome seat (21px = a pill at one 42px row)');
+A.ok(/flex-wrap: wrap;/.test(seatN), 'those tabs wrap to a second row in a small window (two of the five dossier tabs ran off the window’s edge)');
+const TABS = ' :is\\(\\.con-toptabs > \\.con-toptab, \\.mkt-recipe-detail-tabs > button\\)';
+const capN = ruleN(TABS);
+A.ok(/height: 34px;/.test(capN) && /background: var\(--vx-cap\) !important; box-shadow: var\(--vx-cap-shadow\) !important;/.test(capN) && /color: var\(--vx-core\) !important;/.test(capN),
+  'each of those tabs is a glossy cap with a lit legend');
+const onN = ruleN(TABS + ':is\\(\\.active, \\.on, \\[aria-selected="true"\\], \\[aria-pressed="true"\\]\\)');
+A.ok(/background: var\(--vx-cap-on\) !important;/.test(onN) && /color: #020604 !important;/.test(onN), 'the chosen tab is the pressed, lit cap with dark ink (the open tab stays visible)');
+A.ok(new RegExp(W + TABS + ':is\\(:hover, :focus-visible\\) \\{\\s*background: var\\(--vx-cap-hot\\) !important;').test(cssN), 'a hovered or focused tab is the hot cap (keyboard focus stays visible)');
+// the dock menus
+const D = 'html body\\.vx:not\\(\\.hud-mode\\):not\\(\\.vx-b\\) #screen-game #bottombar \\.bb-menu';
+const menuN = (cssN.match(new RegExp(D + ' \\{[^}]*\\}')) || [''])[0];
+A.ok(/#05070a 0, #0d1116 60%, #161b21 100%/.test(menuN) && /0 0 0 2px #c4ccd5, 0 1px 0 2px #eef2f6, 0 0 0 3px #2a3037/.test(menuN) && /border-radius: 18px !important;/.test(menuN),
+  'a dock menu is a black bay in the dock’s chrome lip');
+A.ok(new RegExp(D + '::before,\\s*' + D + '::after \\{ content: none; \\}').test(cssN), 'the dock menu’s old frame pieces are off');
+A.ok(new RegExp(D + ' \\.bb \\.bb-i \\{[^}]*background: var\\(--vx-well\\); box-shadow: var\\(--vx-well-shadow\\);').test(cssN), 'a menu row’s icon sits in a glass well');
+// every panel key
+const KEYS = ' :is\\(\\.bb, \\.settings-jumps > button, \\.consent-btn, \\.cd-addbtn, \\.cd-starter, \\.cf-nav-b, \\.fm-action, \\.q-dismiss, \\.apps-btn, \\.mkt-cta-alt, \\.mkt-lane, \\.cc-filter, \\.q-filter\\)';
+const pkeyN = ruleN(KEYS);
+A.ok(/background: var\(--vx-cap\) border-box !important; box-shadow: var\(--vx-cap-shadow\) !important;/.test(pkeyN), 'every panel key is the glossy cap (no flat or outlined button is left in a window)');
+A.ok(new RegExp(W + KEYS + ':not\\(:is\\(\\.danger, \\.deny\\)\\) \\{\\s*color: var\\(--vx-core\\) !important;').test(cssN),
+  'a key’s legend is lit in the station’s hue, and a danger or deny key keeps its own warning ink');
+A.ok(new RegExp(W + KEYS + ':is\\(:hover, :focus-visible\\):not\\(:disabled\\) \\{\\s*background: var\\(--vx-cap-hot\\) border-box !important;').test(cssN),
+  'a hovered or focused key is the hot cap, and a disabled key does not answer the pointer');
+const LIT = ' :is\\(\\.bb:is\\(\\.active, \\.sel, \\.on, \\[aria-pressed="true"\\]\\), \\.mkt-lane\\.on, \\.cc-filter\\.active, \\.q-filter:is\\(\\.on, \\.active, \\[aria-pressed="true"\\]\\), \\.mkt-cta-main, \\.apps-btn\\.primary, \\.bb\\.refit-primary, \\.q-go, \\.cd-interview\\):not\\(:disabled\\)';
+const litN = ruleN(LIT);
+A.ok(/background: var\(--vx-cap-on\) border-box !important; box-shadow: var\(--vx-cap-on-shadow\) !important;/.test(litN) && /color: #020604 !important; text-shadow: none !important;/.test(litN),
+  'the chosen key and the one key a panel wants pressed are the lit cap with dark ink; a disabled key is never lit');
+A.ok(new RegExp(W + LIT + ' \\* \\{ color: inherit !important; text-shadow: none !important; \\}').test(cssN), 'an icon or a count inside a lit key takes the dark ink too (never lit type on a lit cap)');
+// the keypads
+const padN = ruleN(' \\.settings-jumps');
+A.ok(/width: fit-content; max-width: 100%; border-radius: 12px !important;/.test(padN) && /background: var\(--vx-seat\); box-shadow: var\(--vx-seat-shadow\);/.test(padN),
+  'the settings jumps are a keypad in a square-shouldered seat no wider than its keys');
+A.ok(new RegExp(W + ' \\.settings-jumps > button \\{ flex: 1 1 auto; border-radius: 7px !important; \\}').test(cssN), 'a wrapped row of settings keys fills its row (no bare chrome slab beside a short row)');
+A.ok(new RegExp(W + ' \\.fm-tabs \\{ border-radius: 12px !important; \\}').test(cssN)
+  && new RegExp(W + ' \\.fm-tabs > \\.fm-tab:is\\(\\*, :first-child, :last-child\\) \\{ border-radius: 7px !important; \\}').test(cssN),
+  'the manual’s chapters are the same keypad: its grid runs 2, 4 or 8 across, and a pill seat cut its corner keys off');
+// the fit
+A.ok(new RegExp(W + ' \\.fm-tabs > \\.fm-tab \\{ padding-inline: 4px; letter-spacing: 1px; \\}').test(cssN), 'the manual’s longest chapter name is whole on its key');
+A.ok(new RegExp(W + ':is\\(\\.tasks-win, \\.dlv-win, \\.wfw-win\\) \\.term-body \\{ padding-left: 16px; padding-right: 8px; \\}').test(cssN),
+  'the three work sheets get the gutter every other window has (their text ran against the bezel)');
+A.ok(new RegExp(W + ' \\.quests-content \\.q-view-tabs::before \\{ background: color-mix\\(in srgb, var\\(--ph\\) 13%, #02060a\\); \\}').test(cssN),
+  'the band the quest tabs stick on is the window’s own glass (no black strip over the page)');
+A.ok(new RegExp(W + ' \\.con-rail-top\\.auto-init-head \\{ padding-left: 20px; \\}').test(cssN) && new RegExp(W + ' \\.empty-state > span \\{ margin-inline: auto; \\}').test(cssN),
+  'the automation rail’s note lines up with the legends under it, and an empty state’s sentence sits under its headline');
+// what the pass must never do
+A.ok(!/[;{\s]filter:\s/.test(cssN) && !/#stage-wrap/.test(cssN) && !/\[class/.test(cssN), 'the panels pass declares no filter, styles nothing under #stage-wrap and adds no [class] selector');
+A.ok(!/@/.test(cssN), 'the panels pass has no at-rule: a panel that wraps is dressed to wrap at any width');
+A.eq((cssN.match(/content:[^;}]*/g) || []).filter(x => x !== "content: ''" && x !== 'content: none').join(' | '), '',
+  'the panels pass writes no words: it adds no legend, label or control');
+A.ok(!/background(-image)?:[^;]*url\(/.test(cssN) && !/repeating-/.test(cssN), 'the screens stay plain glass: the pass draws no crest, trace or grid');
 A.report('vector-identity');
