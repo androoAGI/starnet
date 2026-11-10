@@ -369,3 +369,5 @@ test/learning-cooldown.e2e.test.js
 test/learning-cooldown.race.e2e.test.js
 # prompt-scrub.invariant.http: one real sidecar against a capturing mock (legacy rows on disk before boot, live seeding through real routes, then a dozen later lanes, each captured request scanned for keys); W1.4 waits up to 20 s for ASK2's learning passes - 42.5 s on base e316231d7 and 44.6 s on the lane back to back, 41.9-50.1 s across the lane's runs with other sessions' gates running (2026-11-09); listed by the >= 40 s rule (already over it on base).
 test/prompt-scrub.invariant.http.test.js
+# skillreview-useful.e2e: one real sidecar and a restart, nine tool runs against a mock (clean, error, correction, new procedure, a thumbs-down, a thumbs-up, two under the bar, the carried count), each settled until its learning passes land - 49-54 s at about 93% CPU and 79 s at 100% CPU with other sessions' gates running (2026-11-09/10); listed by the >= 40 s rule.
+test/skillreview-useful.e2e.test.js
