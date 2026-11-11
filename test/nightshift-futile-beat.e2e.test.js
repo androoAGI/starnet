@@ -139,8 +139,8 @@ async function until(pred, maxMs) {
   try {
     // ===== BOOT 1 — reach the stuck state through the real pipeline (the driver never ticks here) =====
     await fx.start({ SKYNET_NIGHTSHIFT_TICK_MS: '3600000' });
-    await fx.json('POST', '/api/workshop/grant', { agentId: 'agent', on: true });
-    const posture = await fx.json('POST', '/api/autonomy/posture', { posture: { initiative: 'leash', reach: 'sandbox', leashPerDay: 12 }, beliefs: hotBeliefs(Date.now()) });
+    await fx.deskJson('POST', '/api/workshop/grant', { agentId: 'agent', on: true });
+    const posture = await fx.deskJson('POST', '/api/autonomy/posture', { posture: { initiative: 'leash', reach: 'sandbox', leashPerDay: 12 }, beliefs: hotBeliefs(Date.now()) });
     A.ok(posture.body && posture.body.ok === true, 'the dial is raised to build unattended');
 
     const b1 = await fireBeat(fx);
@@ -194,7 +194,7 @@ async function until(pred, maxMs) {
     A.ok(marked(), 'the futile beat is remembered on disk (it names the build it collided with)');
     const all = () => calls.propose + calls.act + calls.other + calls.draft;
     const before3 = all(), draft3 = calls.draft, used3 = Number(s2.beatsUsedToday) || 0, tOff = Date.now();
-    const off = (await fx.json('POST', '/api/workshop/grant', { agentId: 'agent', on: false })).body || {};
+    const off = (await fx.deskJson('POST', '/api/workshop/grant', { agentId: 'agent', on: false })).body || {};
     A.ok(off.ok === true, 'the Commander turns the away-workshop grant off');
     A.ok(await until(async () => all() > before3, 15000), 'with the grant off, a scheduled beat makes its call: a reason-only draft is never held as futile');
     const sDraft = await status(fx);
@@ -202,7 +202,7 @@ async function until(pred, maxMs) {
       'status stops claiming a build verdict is awaited while the beats run as drafts (got ' + JSON.stringify({ buildMode: sDraft.buildMode, binding: sDraft.binding, waitingOn: sDraft.waitingOn }) + ')');
     A.ok((await ledger(fx)).some(e => e && e.source === 'nightshift' && e.kind === 'note' && e.reason === 'no-workshop-grant' && Number(e.ts) >= tOff), 'that beat ran as a reason-only draft (its own ledger note says so)');
     A.ok(!marked(), 'the draft beat forgot the futile one: its last beat is no longer the futile one');
-    const on = (await fx.json('POST', '/api/workshop/grant', { agentId: 'agent', on: true })).body || {};
+    const on = (await fx.deskJson('POST', '/api/workshop/grant', { agentId: 'agent', on: true })).body || {};
     A.ok(on.ok === true, 'the grant goes back on');
     let sRe = {};
     const reheld = await until(async () => { sRe = await status(fx); return !sRe.inFlight && sRe.binding === 'awaiting-verdict' && !!sRe.waitingOn && sRe.waitingOn.title === CONT; }, 15000);

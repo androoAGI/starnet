@@ -171,7 +171,7 @@ function hotBeliefs(now) {
     }
     return { status: res.status, events, runId };
   };
-  const posture = (resume) => fx.json('POST', '/api/autonomy/posture', Object.assign({ posture: { initiative: 'leash', reach: 'sandbox', leashPerDay: 12 }, beliefs: hotBeliefs(Date.now()) }, resume ? { resumeHalt: true } : {}));
+  const posture = (resume) => fx.deskJson('POST', '/api/autonomy/posture', Object.assign({ posture: { initiative: 'leash', reach: 'sandbox', leashPerDay: 12 }, beliefs: hotBeliefs(Date.now()) }, resume ? { resumeHalt: true } : {}));
   // the usage receipts as the station wrote them (WORKSPACES/.usage/calls.jsonl), and the weight the rail counts them at
   const callsFile = path.join(usage, 'calls.jsonl');
   const receipts = () => (fs.existsSync(callsFile) ? fs.readFileSync(callsFile, 'utf8') : '').split('\n').filter(Boolean).map(l => { try { return JSON.parse(l); } catch (_) { return null; } }).filter(Boolean);
@@ -209,7 +209,7 @@ function hotBeliefs(now) {
 
     /* ===== 1. at 92%, every unattended start is held: no call, one truthful row each ===== */
     const t0 = Date.now();
-    A.eq((await fx.json('POST', '/api/workshop/grant', { agentId: 'agent', on: true })).status, 200, 'the away workshop is granted (its routine is armed, firing in 2 s)');
+    A.eq((await fx.deskJson('POST', '/api/workshop/grant', { agentId: 'agent', on: true })).status, 200, 'the away workshop is granted (its routine is armed, firing in 2 s)');
     const queued = await fx.json('POST', '/api/workshop/queue', { agentId: 'agent', title: MARK.build + ' a tiny haiku generator', detail: 'one file' });
     A.ok(queued.body && queued.body.ok === true, 'a build is queued, so an away shift that is not held has something to build');
     const routineId = await routine(MARK.routine + ' write the morning note', 'in 2s', 'harbor ledger');
@@ -286,15 +286,15 @@ function hotBeliefs(now) {
     A.eq([again.status, again.reason], [200, 'done'], 'the next message runs; the provider now says 89% — ' + again.text);
     const routine2 = await routine(MARK.routine + ' second note', 'in 1s', 'lighthouse tally');
     A.ok(!!routine2, 'a second routine is scheduled');
-    A.eq((await fx.json('POST', '/api/workshop/grant', { agentId: 'agent', on: false })).status, 200, 'the away workshop is re-armed (off) ...');
-    A.eq((await fx.json('POST', '/api/workshop/grant', { agentId: 'agent', on: true })).status, 200, '... and on: its routine fires in 2 s');
+    A.eq((await fx.deskJson('POST', '/api/workshop/grant', { agentId: 'agent', on: false })).status, 200, 'the away workshop is re-armed (off) ...');
+    A.eq((await fx.deskJson('POST', '/api/workshop/grant', { agentId: 'agent', on: true })).status, 200, '... and on: its routine fires in 2 s');
     const went = k => kinds(t2).indexOf(k) >= 0;
     await until(async () => went('beat'), 25000);
     A.ok(went('beat'), 'at 89% an away-shift beat goes: ' + JSON.stringify(kinds(t2)));
     const s2 = await status();
     A.ok(s2.binding !== 'window-reserve' && !s2.hold, 'the night shift\'s status no longer names the hold: ' + s2.binding);
     // one away beat is the proof: the dial goes back to WAIT, so the day's leash is still there for the rail's turn below
-    A.eq((await fx.json('POST', '/api/autonomy/posture', { posture: { initiative: 'wait', reach: 'sandbox', leashPerDay: 12 } })).status, 200, 'the night shift is stood down (WAIT)');
+    A.eq((await fx.deskJson('POST', '/api/autonomy/posture', { posture: { initiative: 'wait', reach: 'sandbox', leashPerDay: 12 } })).status, 200, 'the night shift is stood down (WAIT)');
     await until(async () => went('routine') && went('loop') && went('build'), 25000);
     if (!went('routine')) {
       const job = ((await fx.json('GET', '/api/cron')).body.jobs || []).find(j => j && j.id === routine2) || {};
@@ -352,9 +352,9 @@ function hotBeliefs(now) {
     A.eq([third.status, third.reason], [200, 'done'], 'the Commander\'s own message runs past the rail — ' + third.text);
     // B1: RESUME is a re-arm of a posture that turns unattended work ON. WAIT and CHECK WITH ME (line up suggestions), even sent
     // with resumeHalt, lift E-STOP halts as before and resume nothing here: the rail still holds a new routine
-    const waitResume = await fx.json('POST', '/api/autonomy/posture', { posture: { initiative: 'wait', reach: 'observe', leashPerDay: 12 }, resumeHalt: true });
+    const waitResume = await fx.deskJson('POST', '/api/autonomy/posture', { posture: { initiative: 'wait', reach: 'observe', leashPerDay: 12 }, resumeHalt: true });
     A.eq([waitResume.status, waitResume.body && waitResume.body.railResumed], [200, false], 'WAIT with resumeHalt resumes nothing — ' + String(waitResume.text).slice(0, 200));
-    const checkResume = await fx.json('POST', '/api/autonomy/posture', { posture: { initiative: 'propose', reach: 'observe', leashPerDay: 12 }, resumeHalt: true });
+    const checkResume = await fx.deskJson('POST', '/api/autonomy/posture', { posture: { initiative: 'propose', reach: 'observe', leashPerDay: 12 }, resumeHalt: true });
     A.eq([checkResume.status, checkResume.body && checkResume.body.railResumed], [200, false], 'CHECK WITH ME with resumeHalt resumes nothing — ' + String(checkResume.text).slice(0, 200));
     const t35 = Date.now();
     const routine4 = await routine(MARK.routine + ' fourth note', 'in 1s', 'quarry roster');

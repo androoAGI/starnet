@@ -306,10 +306,10 @@ const handleOf = content => { const h = /read it with fs\.read (\{[^\n]*?\})\]/.
     const sends = () => telegram.calls.filter(c => c.method === 'sendMessage' && String(c.fields.chat_id) === CHAT);
     const landed = mark => sends().some(c => String(c.fields.text || '').indexOf(mark) >= 0);
     const say = async (t, mark, extra) => { telegram.push(t, extra); await waitFor(() => landed(mark), 40000, mark); await sleep(400); };
-    const connected = await fixture.json('POST', '/api/channels/telegram/connect', { token: '123456:TESTTOKEN', key: 'sk-or-v1-w18-replay-fake', model: 'test/model', provider: 'openrouter', agentId: 'agent', agentName: 'ULTRON', system: 'You are ULTRON.' });
+    const connected = await fixture.deskJson('POST', '/api/channels/telegram/connect', { token: '123456:TESTTOKEN', key: 'sk-or-v1-w18-replay-fake', model: 'test/model', provider: 'openrouter', agentId: 'agent', agentName: 'ULTRON', system: 'You are ULTRON.' });
     A.eq(connected.status, 200, 'channel: telegram connects');
     await waitFor(async () => { const s = await fixture.json('GET', '/api/channels/telegram/status'); return !!(s.body && s.body.connected && s.body.state === 'up'); }, 20000, 'telegram up');
-    const pair = await fixture.json('POST', '/api/channels/telegram/owner/pair', {});
+    const pair = await fixture.deskJson('POST', '/api/channels/telegram/owner/pair', {});
     telegram.push('/pair ' + pair.body.code);
     await waitFor(() => sends().some(c => /Owner paired/i.test(String(c.fields.text || ''))), 15000, 'owner paired');
     await say('W18ch02k READ ' + f.ch02, 'W18DONE ch02k');
