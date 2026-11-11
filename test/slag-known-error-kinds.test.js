@@ -36,7 +36,7 @@ const KINDS = {};
 // NOT_A_FAILURE: a deliberate stop never becomes a post-mortem (it ends 'cancelled', not 'error').
 const BUCKET = {
   claude_cli_missing: 'NAMED', claude_cli_signed_out: 'NAMED', claude_cli_checking: 'RETRY', claude_cli_status_unavailable: 'RETRY',
-  billing: 'NAMED', managed_credit: 'NAMED', managed_credit_link: 'NAMED', auth: 'NAMED', no_model: 'NAMED', oauth: 'NAMED',
+  billing: 'NAMED', managed_credit: 'NAMED', managed_credit_link: 'NAMED', managed_credit_short: 'RETRY', managed_credit_empty: 'NAMED', auth: 'NAMED', no_model: 'NAMED', oauth: 'NAMED',
   grok_oauth_unavailable: 'NAMED', quota_exhausted: 'NAMED', model_not_found: 'NAMED', context_overflow: 'NAMED',
   content_policy_blocked: 'NAMED', capdenied: 'NAMED', spotify_not_connected: 'NAMED', stale_session: 'NAMED', spend_unknown: 'NAMED',
   output_limit: 'NAMED', hook_blocked: 'NAMED', local_model_memory: 'NAMED', local_timeout: 'NAMED', endpoint_mismatch: 'NAMED',

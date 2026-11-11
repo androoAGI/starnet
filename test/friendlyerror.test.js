@@ -97,6 +97,28 @@ for (const raw of [
   A.ok(/credit/i.test(v.userMessage) && /AI & MODELS/.test(v.userMessage), 'the message names the credit problem and the AI & MODELS door (the same one the button opens)');
 }
 
+// ---- #182: the StarNet relay's own refusal is StarNet credit, never a provider's billing; the held case and the empty one say different first steps ----
+{
+  // the admit refusal (the relay names this call's hold): part of the balance may be held by open calls, so waiting comes first
+  const relay = 'StarNet http 402 - insufficient StarNet credits: this call holds up to $0.4200 while it runs and the balance available is $0.0000 (requires more credits, or fewer max_tokens)';
+  const v = friendlyError(relay);
+  A.eq([v.kind, v.action, v.retryable], ['managed_credit_short', 'store', true], 'the held refusal is its own kind, with the STORE door, and can go through later');
+  A.ok(!/provider account/i.test(v.userMessage), 'it never calls StarNet credit a provider account: ' + v.userMessage);
+  A.ok(/held by calls that haven.t finished/.test(v.userMessage) && /nothing was charged/.test(v.userMessage), 'it says part of the balance can be held by open calls, and that nothing was charged');
+  A.ok(v.userMessage.indexOf('try again in a few minutes') >= 0 && v.userMessage.indexOf('try again') < v.userMessage.indexOf('top up'), 'its first advice is to try again in a few minutes, a top-up second: ' + v.userMessage);
+  A.ok(/low/.test(v.userMessage) && /top up/.test(v.userMessage), 'and it still names the top-up for a low balance');
+  // the same refusal with the affordable budget the station's one low-credit retry reads
+  A.eq(friendlyError(relay + ' — can only afford 600 max_tokens').kind, 'managed_credit_short', 'the held refusal with its affordable budget too');
+  // the bare refusal (the relay found nothing free to spend: an empty wallet): the first advice is to top up, never "try again in a few minutes"
+  for (const bare of ['insufficient StarNet credits', 'StarNet http 402 - insufficient StarNet credits']) {
+    const e = friendlyError(bare);
+    A.eq([e.kind, e.action, e.retryable], ['managed_credit_empty', 'store', false], 'the bare relay refusal is the empty-wallet kind, with the STORE door (' + bare + ')');
+    const first = e.userMessage.split(/(?<=[.;])\s/)[1] || '';
+    A.ok(/^Top up under SETTINGS → AI & MODELS/.test(first), 'its first advice is to top up: ' + e.userMessage);
+    A.ok(!/try again in a few minutes|provider account/i.test(e.userMessage) && /nothing was charged/.test(e.userMessage), 'it never says wait a few minutes or a provider account, and says nothing was charged: ' + e.userMessage);
+  }
+  A.eq(friendlyError('http 402 - Insufficient credits on your OpenAI account').kind, 'billing', 'a provider\'s own 402 is still billing');
+}
 // ---- a FAILED balance check is not an empty wallet (customer report 2026-10-06: told to top up holding $79.24) ----
 {
   const v = friendlyError('Managed credits are unavailable right now — the credits service did not answer (try again, or use your own provider key).');
