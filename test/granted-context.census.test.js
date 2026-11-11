@@ -127,7 +127,10 @@ for (const [re, want] of SEAMS) {
   let m; while ((m = re.exec(CORE))) got.push(m[1].trim());
   A.eq(got.sort(), want.slice().sort(), 'the seams ' + re + ' put exactly these into the model\'s messages (a new one: classify it in INPUTS, gate it, and add it here)');
 }
-A.ok(/convo = TurnView\.concat\(/.test(CORE) && (CORE.match(/convo = /g) || []).length === 2, 'the stream history is seeded at one place (let convo = messages; convo = TurnView.concat)');
+// the cross-run replay (cost lane W1.8) rewrites the history the seed brought: earlier tool results become a head and a
+// handle and the replay is cut to the window. It reads convo and nothing else, so it is no new source of text.
+A.ok(/convo = TurnView\.concat\(/.test(CORE) && (CORE.match(/convo = /g) || []).length === 3, 'the stream history is seeded at one place (let convo = messages; convo = TurnView.concat) and rewritten at one (convo = replay.messages)');
+A.ok(/const replay = await CrossRunReplay\.resolve\(convo, \{/.test(CORE) && /if \(replay\.messages !== convo\) \{ convo = replay\.messages; /.test(CORE), 'that one rewrite is the cross-run replay of the same history (CrossRunReplay.resolve(convo, ...)), never a second seed');
 
 // ---------- 3. the gates ----------
 A.ok(/system = \(own \? PromptScrub\.scrubStored\(own\) \+ CRON_ROUTINE_NOTE : CRON_PERSONA\) \+ grantDelivery \+ hostSystemTail/.test(CORE),
@@ -152,6 +155,7 @@ const GATES = {
   'taskBriefContext': /if \(isTask && o\.taskKey && !o\.toolsOptional && !grantedRun\) \{/,
   'taskIntentNote': /if \(isTask && o\.taskKey && !o\.toolsOptional && !grantedRun\) \{/,
   'taskContextBlock': [/\} else if \(isTask && !grantedRun\) \{[\s\S]{0,400}taskContextBlock = commanderEvidenceContext\(system \|\| ''\);/, /getTaskContext: \(\) => \{\n\s*if \(grantedRun\) return '';/],
+  'delegatedBlock': /const delegatedBlock = \(!grantedRun && typeof o\.delegatedContext === 'string' && o\.delegatedContext\.trim\(\)\) \? /,
   'recall.text': /if \(!internal && !grantedRun\) try \{\s*\/\/[^\n]*\n\s*const stored = notebookStore\.get\('notebook:' \+ agentId\);/,
   'convo': /if \(!o\.recovery && !o\.groupTools && !internal && !grantedRun && o\.resumeSeed !== false && streamId/,
   'earlier.note': /if \(!internal && !o\.recovery && !o\.groupTools && !grantedRun && streamId && Array\.isArray\(convo\) && convo\.length\) \{/,

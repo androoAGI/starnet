@@ -57,6 +57,7 @@ const INPUTS = Object.freeze([
   // the per-run context note
   { id: 'station-evidence', vars: ['stationEvidenceBlock', 'evidenceBlock'], client: true, granted: 'withheld', how: 'topics, open threads, recent activity, POST /api/scout/context worksignal, POST /api/growth/ratings verdicts, track record' },
   { id: 'task-context', vars: ['taskBriefContext', 'taskIntentNote', 'taskContextBlock'], client: true, granted: 'withheld', how: 'commanderEvidenceContext (dossier + goal + evidence) for a task run, also handed to its workers (taskContext / getTaskContext)' },
+  { id: 'delegated-context', vars: ['delegatedBlock'], client: true, granted: 'withheld', how: 'the [TASK CONTEXT] a lead hands a worker it dispatches (orchestration.js workerPrompt, cost lane W1.10): the lead\'s brief, Commander evidence, recall and taste from getTaskContext; only host code sets it, a granted lead hands none and a worker carries no grants, left out all the same' },
   { id: 'recalled-memory', vars: ['recall.text'], client: true, granted: 'withheld', how: 'the agent\'s notebook, the Commander\'s taste and standing notes (POST /api/notebook/restore, /api/growth/ratings/correction, /api/taste/keep-style)' },
   { id: 'runtime-skill-index', vars: ['runtimeSkillBlock'], client: true, granted: 'withheld', how: 'the agent\'s saved skills by name and summary (POST /api/agent-skills/manage)' },
   { id: 'quests', vars: ['questsBlock'], client: true, granted: 'withheld', how: 'open quests (POST /api/quests/mint, /api/quests/update)' },

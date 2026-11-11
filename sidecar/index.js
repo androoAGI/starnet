@@ -27783,8 +27783,12 @@ async function runOnceCore(o) {
      [DELEGATED EXECUTION] line naming it. It opens this run's <run_context> note (after a learned tail, where it used
      to end up for a persona with learned heads); STABLE_PREFIX=0 puts it first in the system's per-run tail, after the
      cached prefix; an internal run (a structured-result repair is outputOnly) keeps its verbatim system and gets it at
-     the end, so it is never dropped. Only host code sets it: /api/run builds its options field by field. */
-  const delegatedBlock = (typeof o.delegatedContext === 'string' && o.delegatedContext.trim()) ? '\n\n' + PromptScrub.scrubStored(o.delegatedContext.trim()) : '';
+     the end, so it is never dropped. Only host code sets it: /api/run builds its options field by field.
+     A GRANTED RUN TAKES NONE (GHSA-2hpj NEW-1, granted-context.js INPUTS delegated-context). Its words are the lead's
+     dossier, goal, evidence, recall and taste, all text the client key can write. A granted lead already hands its
+     workers none (getTaskContext) and a worker carries no grants (the chain-grants law), so this gate changes no run
+     that exists today: it keeps the census true if either of those ever moves. */
+  const delegatedBlock = (!grantedRun && typeof o.delegatedContext === 'string' && o.delegatedContext.trim()) ? '\n\n' + PromptScrub.scrubStored(o.delegatedContext.trim()) : '';
   // the crew call is NOT a run-context block: it trails the Commander's words as its own <crew_call> note (below)
   const perRunBlocks = LearnedTail.tail(persona.learned) + delegatedBlock + runtimeSkillBlock + preloadedSkillBlock + taskBriefContext + stationEvidenceBlock + awayBriefingNote + directDomainBlock + runtimeBlock;
   const taskSystem = stablePrefix
