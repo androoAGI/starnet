@@ -22,8 +22,17 @@
    Red steps are the gate's own verdict and are only counted here; the red-disposition rules for them are in
    docs/RELEASE_RUNBOOK.md §1.4a.
 
-   EXIT. 0 when every log holds step results and no false green; 1 when a log holds a false green or no step result
-   at all (an empty or foreign file must never lint clean); 2 on a usage error or an unreadable file.
+   READING THE WHOLE RUN. A step the lint never finds is a step whose output it never read, so a log it cannot follow
+   to the end never lints clean. A step whose output ends without a newline leaves that text in front of the runner's
+   next line on the same physical line ("progress...run-test-list: step 2/4 ok 0.2s — node ..."); the lint finds the
+   runner's line anywhere in a line, once it knows the run's label, and lints the text in front of it with that step.
+   A run that stops before its last step, a run whose step count disagrees with the runner's own tally ("<label>: ran
+   X of Y step(s)"), a run with no tally, or a tally for a run the lint never read, is an INCOMPLETE RUN and fails:
+   the log was cut short (deadline, interrupt, a partial copy) or holds a result line the lint could not follow.
+
+   EXIT. 0 when every log holds step results, every run is read to the runner's tally, and no step is a false green;
+   1 when a log holds a false green, an incomplete run, or no step result at all (an empty or foreign file must never
+   lint clean); 2 on a usage error or an unreadable file.
 
    Read-only: it reads the logs and the allow-list, writes nothing, runs nothing, and finishes in well under a
    second on a 1,784-step log. */
@@ -39,6 +48,28 @@ const ANSI = /\x1b\[[0-9;?]*[A-Za-z]/g;
 // any non-space run, so a log decoded with the wrong code page still parses.
 const STEP_RESULT = /^(\S+): step (\d+)\/(\d+) (ok|FAILED \(([^)]*)\)) \d+(?:\.\d+)?s \S+ node (\S+)\s*$/;
 const FLAKY_RETRY = /^(\S+): step (\d+)\/(\d+) failed \(.*\) in its quarantined flaky case\b.*retrying once/;
+// "<label>: ran 4 of 4 step(s) in 0m01s": the runner's own tally, printed once when a run ends (cut short or not).
+const TALLY = /^(\S+): ran (\d+) of (\d+) step\(s\) in /;
+// The runner's lines that can come straight after a step's output. The runner prints each with console.log, so each
+// one ends its physical line; text in front of one on the same line is the step's last output, written with no
+// newline. A candidate counts only when the text from the label to the end of the line is a whole runner line.
+const STEP_NOTE = /^\S+: step \d+\/\d+ (?:TIMED OUT |reached the run deadline |could not start: |interrupted |is quarantined in )/;
+const INTERRUPT = /^\S+: interrupted by \S+ /;
+const AFTER_OUTPUT = [STEP_RESULT, FLAKY_RETRY, STEP_NOTE, INTERRUPT, TALLY];
+
+/* Where a runner line starts inside a line that a step's output ran into: the first index > 0 at which a known label
+   begins a whole runner line, or -1 (index 0 is an ordinary runner line). */
+function gluedAt(line, labels) {
+  let best = -1;
+  for (const label of labels) {
+    const needle = label + ': ';
+    for (let at = line.indexOf(needle, 1); at > 0 && (best < 0 || at < best); at = line.indexOf(needle, at + 1)) {
+      const rest = line.slice(at);
+      if (AFTER_OUTPUT.some(re => re.test(rest))) { best = at; break; }
+    }
+  }
+  return best;
+}
 
 export const SIGNALS = Object.freeze({
   stack: line => /^\s+at\s+(?:.+\s\((?:.*:\d+(?::\d+)?|<anonymous>|native|unknown location|index \d+)\)|.+:\d+:\d+)\s*$/.test(line),
@@ -105,23 +136,57 @@ export function signalEvents(lines) {
   return events;
 }
 
+/* Why a run cannot vouch for its steps, or null when it was read from step 1 to the runner's tally. */
+function incompleteRun(run) {
+  const name = 'the ' + run.label + ' run of ' + run.total + ' step(s)';
+  const lost = run.lostAt ? '; the lint lost track after step ' + run.lostAt.after + ' (the next result line it found was step ' +
+    run.lostAt.saw + '), so the output of the steps after it was never read' : '';
+  const off = run.tallies.find(t => t.ran !== t.read);
+  if (off) return name + ': the runner says it ran ' + off.ran + ' step(s), the lint read ' + off.read + lost;
+  if (run.last < run.total) {
+    return name + ' stops after step ' + run.last + (run.lostAt ? lost
+      : run.tallies.length ? ': the gate was cut short (the runner ran ' + run.tallies[0].ran + '), so this is no green receipt'
+        : ' and the runner never printed its tally: a partial log');
+  }
+  if (!run.tallies.length) return name + ': every step was read, but the runner never printed its tally ("ran ' + run.total + ' of ' + run.total + ' step(s)"): a log copied before the run ended?';
+  return null;
+}
+
 /* Lints the text of one gate log. allow: Map(step -> texts) or null. A step result line counts only when it
    continues a run (same label and total, next number) or starts one (step 1), so a test that prints a line shaped
-   like the runner's cannot steal the steps after it. */
+   like the runner's cannot steal the steps after it. A run the lint cannot read to the runner's tally is reported
+   in `incomplete` and makes the log unclean. */
 export function lintLog(text, allow) {
   const lines = toLines(text);
   const labels = new Set();
-  for (const line of lines) { const m = STEP_RESULT.exec(line); if (m) labels.add(m[1]); }
+  for (const line of lines) { const m = STEP_RESULT.exec(line) || TALLY.exec(line); if (m) labels.add(m[1]); }
   const isRunnerLine = line => { for (const label of labels) if (line.startsWith(label + ': ')) return true; return false; };
 
-  const result = { steps: 0, ok: 0, red: 0, runs: 0, falseGreens: [], allowed: [], retried: [], notes: [] };
+  const result = { steps: 0, ok: 0, red: 0, runs: 0, glued: 0, falseGreens: [], allowed: [], retried: [], incomplete: [], notes: [] };
   const seenAllowText = new Map();   // step -> Set(text used)
   const okSteps = new Set();
-  const runs = new Map();            // label + total -> { label, total, last }
-  const cutShort = r => result.notes.push('a ' + r.label + ' run ends after step ' + r.last + ' of ' + r.total + ' (cut short?)');
+  const runs = new Map();            // label + total -> the current run { label, total, last, tallies, lostAt }
+  const allRuns = [];
   let block = [];
   let retriedHere = false;
-  for (const line of lines) {
+  for (const physical of lines) {
+    let line = physical;
+    const cut = labels.size ? gluedAt(line, labels) : -1;
+    if (cut > 0) {
+      block.push(line.slice(0, cut));
+      line = line.slice(cut);
+      result.glued++;
+    }
+    const tally = TALLY.exec(line);
+    if (tally) {
+      const run = runs.get(tally[1] + '\0' + tally[3]);
+      const ran = Number(tally[2]);
+      if (run) run.tallies.push({ ran, read: run.last });
+      else if (ran > 0 || Number(tally[3]) > 0) {
+        result.incomplete.push('the ' + tally[1] + ' runner says it ran ' + ran + ' of ' + tally[3] + ' step(s), but the lint read no step of that run');
+      }
+      continue;
+    }
     const retry = FLAKY_RETRY.exec(line);
     const retryRun = retry && runs.get(retry[1] + '\0' + retry[3]);
     if (retryRun && Number(retry[2]) === retryRun.last + 1) {
@@ -135,13 +200,15 @@ export function lintLog(text, allow) {
     let run = m ? runs.get(key) : null;
     const boundary = m && (n === 1 || (run && n === run.last + 1));
     if (!boundary) {
+      // a result line that skips ahead in a run is the mark of a step line the lint did not find
+      if (run && n > run.last + 1 && !run.lostAt) run.lostAt = { after: run.last, saw: n };
       if (!isRunnerLine(line)) block.push(line);
       continue;
     }
     if (n === 1) {
-      if (run && run.last < run.total) cutShort(run);
-      run = { label: m[1], total: Number(m[3]), last: 0 };
+      run = { label: m[1], total: Number(m[3]), last: 0, tallies: [], lostAt: null };
       runs.set(key, run);
+      allRuns.push(run);
       result.runs++;
     }
     run.last = n;
@@ -174,7 +241,13 @@ export function lintLog(text, allow) {
     block = [];
     retriedHere = false;
   }
-  for (const run of runs.values()) if (run.last < run.total) cutShort(run);
+  for (const run of allRuns) {
+    const why = incompleteRun(run);
+    if (why) result.incomplete.push(why);
+  }
+  if (result.glued) {
+    result.notes.push(result.glued + ' runner line(s) followed step output that had no newline; that output was linted with its step');
+  }
   if (allow) {
     for (const [step, texts] of allow) {
       if (!okSteps.has(step)) continue;
@@ -182,7 +255,7 @@ export function lintLog(text, allow) {
       for (const t of texts) if (!used.has(t)) result.notes.push('allow-list text no longer printed by ' + step + ': "' + t + '" (drop it at this cut?)');
     }
   }
-  result.clean = result.steps > 0 && result.falseGreens.length === 0;
+  result.clean = result.steps > 0 && result.falseGreens.length === 0 && result.incomplete.length === 0;
   return result;
 }
 
@@ -193,12 +266,16 @@ export function lintFile(file, allow) {
 function render(r, allowFile) {
   const out = [];
   const base = path.basename(r.file);
+  const incomplete = () => { for (const why of r.incomplete) out.push('  INCOMPLETE RUN  ' + why); };
   if (!r.steps) {
     out.push('receipt-lint: ' + base + ' holds no step result line; not a gate log, or the gate never ran a step');
+    incomplete();
     return out;
   }
   out.push('receipt-lint: ' + base + ' — ' + r.steps + ' step(s) (' + r.ok + ' ok, ' + r.red + ' red): ' +
-    r.falseGreens.length + ' false green(s), ' + r.allowed.length + ' allow-listed');
+    r.falseGreens.length + ' false green(s), ' + r.allowed.length + ' allow-listed' +
+    (r.incomplete.length ? ', ' + r.incomplete.length + ' incomplete run(s)' : ''));
+  incomplete();
   for (const row of r.falseGreens) {
     out.push('  FALSE GREEN  step ' + row.position + '  ' + row.step + '  [' + [...new Set(row.unexplained.flatMap(e => e.kinds))].join(', ') + ']');
     for (const event of row.unexplained.slice(0, 3)) out.push('      ' + event.line.slice(0, 200) + (event.frames ? '  (+' + event.frames + ' stack frame(s))' : ''));
@@ -237,7 +314,8 @@ export function main(argv, io) {
   }
   const falseGreens = results.reduce((sum, r) => sum + r.falseGreens.length, 0);
   const empty = results.filter(r => !r.steps).length;
-  const code = falseGreens || empty ? 1 : 0;
+  const incomplete = results.reduce((sum, r) => sum + r.incomplete.length, 0);
+  const code = falseGreens || empty || incomplete ? 1 : 0;
   if (json) {
     log(JSON.stringify({ schema: 'starnet.receipt-lint.v1', allowList: allowFile, ok: code === 0, results }, null, 2));
     return code;
@@ -245,11 +323,14 @@ export function main(argv, io) {
   for (const r of results) render(r, allowFile).forEach(line => log(line));
   const allowed = results.reduce((sum, r) => sum + r.allowed.length, 0);
   if (code === 0) {
-    log('receipt-lint: OK — no ok step printed an unlisted error signal in ' + results.length + ' log(s)' +
+    log('receipt-lint: OK — every run read to its tally, and no ok step printed an unlisted error signal in ' + results.length + ' log(s)' +
       (allowed ? ' (' + allowed + ' allow-listed step(s); review the allow-list at every cut)' : ''));
   } else {
-    log('receipt-lint: FAILED — ' + falseGreens + ' ok step(s) printed an error signal' +
-      (empty ? ', ' + empty + ' log(s) held no step result' : '') + '; a false green is a red, see docs/RELEASE_RUNBOOK.md §1.4a');
+    const why = [];
+    if (falseGreens) why.push(falseGreens + ' ok step(s) printed an error signal');
+    if (incomplete) why.push(incomplete + ' run(s) not read to the runner\'s tally');
+    if (empty) why.push(empty + ' log(s) held no step result');
+    log('receipt-lint: FAILED — ' + why.join(', ') + '; a false green or an unread step is a red, see docs/RELEASE_RUNBOOK.md §1.4a');
   }
   return code;
 }

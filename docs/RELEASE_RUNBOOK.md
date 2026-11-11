@@ -298,8 +298,11 @@ So a release receipt also owes these four rules:
    node scripts/qa/receipt-lint.mjs gate-fast.log gate-http.log
    ```
    It fails (exit 1, one line per step) every step scored `ok` whose output holds a stack frame, an
-   `Error:` line, a `FAIL:` line or a logged throw (`threw` / `unhandled`). Its last line reads
-   `receipt-lint: OK` or `receipt-lint: FAILED`. A false green is a red: it takes the disposition below.
+   `Error:` line, a `FAIL:` line or a logged throw (`threw` / `unhandled`). It also fails a log it cannot
+   read whole (`INCOMPLETE RUN`): a run that stops before its last step, has no `ran X of Y step(s)` tally,
+   or reads a different step count than that tally (a partial log, a gate cut short, or a result line the
+   lint could not follow). Its last line reads `receipt-lint: OK` or `receipt-lint: FAILED`. A false green
+   or an unread step is a red: it takes the disposition below.
    Text a test prints on purpose is named in `scripts/qa/receipt-lint.allow` (step plus exact text; today
    `channels.hub`, `channels.parity` and `nav-coach-dismiss`, LIKELY deliberate fault injections).
    **Review every allow-list entry at every cut**: keep it only while the test still prints that text on
