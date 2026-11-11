@@ -4,11 +4,11 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**31** open (open+claimed) of 461 total — 0 P0 · 0 P1 · 31 P2
+**31** open (open+claimed) of 462 total — 0 P0 · 0 P1 · 31 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
-User/owner reports: **123** · source fixed: **103** · installer verified: **6** · customer confirmed: **1** · still reported failing: **5** · recovery unconfirmed: **117**.
+User/owner reports: **124** · source fixed: **104** · installer verified: **6** · customer confirmed: **1** · still reported failing: **5** · recovery unconfirmed: **118**.
 
 | Report | Family | Source | Installer | Customer |
 | --- | --- | --- | --- | --- |
@@ -60,6 +60,7 @@ User/owner reports: **123** · source fixed: **103** · installer verified: **6*
 | [Interactive replies in scheduled conversations cannot be rated](bugs/09f0e9fa-interactive-replies-in-scheduled-conversations-c.md) | work-rating-origin | fixed | unverified | unconfirmed |
 | [Preference corrections are discarded or leave contradictory memories active](bugs/f97e73fb-preference-corrections-are-discarded-or-leave-co.md) | memory-corrections | fixed | unverified | unconfirmed |
 | [Projects overview remains loading after a valid nonempty response](bugs/25120f27-projects-overview-remains-loading-after-a-valid.md) | projects-rendering | fixed | unverified | unconfirmed |
+| [Quiet routine runs fill browser storage, and deleted routine sessions come back after a restart](bugs/45c13fa3-quiet-routine-runs-fill-browser-storage.md) | session-records | fixed | unverified | unconfirmed |
 | [Reopened conversations send before history is restored and hide late messages](bugs/2426399e-reopened-conversations-send-before-history-is-re.md) | session-continuity | fixed | unverified | unconfirmed |
 | [Saved file links disappear when conversation history is restored](bugs/253e5a8e-saved-file-links-disappear-when-conversation-his.md) | deliverable-history-replay | fixed | unverified | unconfirmed |
 | [Sent group attachments appear only in the shared shelf](bugs/de0bb232-sent-group-attachments-appear-only-in-the-shared.md) | message-attachments | fixed | unverified | unconfirmed |
@@ -316,6 +317,7 @@ User/owner reports: **123** · source fixed: **103** · installer verified: **6*
 | P1 | fixed | sessions | [Project reopening loses crew controls and can mislabel or steal conversation focus](bugs/629c9bd7-project-reopening-loses-crew-controls-and-can-mi.md) | release-audit-0124-0920 | 4c09cec32d2000892c56d4388dc6374beb04baf1 |
 | P1 | fixed | sessions | [Projects overview remains loading after a valid nonempty response](bugs/25120f27-projects-overview-remains-loading-after-a-valid.md) | projects-loading-0918 | fa3d96b12474612e5cc7a648c9b1685cfeef94e8 |
 | P1 | fixed | sessions | [Queued save acknowledgements leave browser revision stale](bugs/891e15e8-queued-save-acknowledgements-leave-browser-revis.md) | release-0112-finalprep-0911 | 767a3592516edea1062d82855be2d21a8b4f7e16 |
+| P1 | fixed | sessions | [Quiet routine runs fill browser storage, and deleted routine sessions come back after a restart](bugs/45c13fa3-quiet-routine-runs-fill-browser-storage.md) | agent/routine-records-1111 | 44801f696 |
 | P1 | fixed | sessions | [Recent activity drops source provenance and reintroduces attachment text after restart](bugs/6e750350-recent-activity-drops-source-provenance.md) | agent/memory-harness-audit-1011 | 6421e4c857a6f885d0c437e9e4d01168f92ba7db |
 | P1 | fixed | sessions | [Reload duplicates combined assistant replies beside durable turns](bugs/ec226657-reload-duplicates-combined-assistant-replies-bes.md) | agent/release-0112-audit-0910 | a66fc5638 |
 | P1 | fixed | sessions | [Remote host rejects proven desk caches without transcript proof readers](bugs/f9c18635-remote-host-rejects-proven-desk-caches-without-t.md) | batch3-codex-1103 | d4a54f29f |
