@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "3e92ec3b549f7b5a5b295193e43a373e0e573653",
+    "sourceCommit": "43635dbbdc7cb2a627ec9d999b45db27a56bec57",
     "pathSetSha256": "3fcf7fe61741ec23df6d05c34348f71d3fe8406311bd91e78ede3d543d0a0a31",
     "files": [
       {
@@ -173,8 +173,8 @@
       },
       {
         "path": "frontend/app/app.js",
-        "bytes": 490747,
-        "sha256": "de797682de01ad58b90c9d41ff3487e44282d6a94181989357b7d1d48fe255f7"
+        "bytes": 495990,
+        "sha256": "c447471a6aee272bc65f50930a792a8ea5844fb940d22779f2c8228ba4222766"
       },
       {
         "path": "frontend/app/approved-sheet-effects.js",
@@ -523,8 +523,8 @@
       },
       {
         "path": "frontend/app/friendlyerror.js",
-        "bytes": 119135,
-        "sha256": "dfc7bca58c8966ab018e5a95d504740c538c7297572c8cd594273dc2e86e8db1"
+        "bytes": 120400,
+        "sha256": "2379160efe3d3351af372f712380d45e6532b40d71b5025f9620a1b71b98b348"
       },
       {
         "path": "frontend/app/fullscreen.js",
@@ -778,8 +778,8 @@
       },
       {
         "path": "frontend/app/overseer-setup.js",
-        "bytes": 8128,
-        "sha256": "dd50de83fbe620e1f7070e108139e65836568b0afbca7afba94f6d4d1e0b2e65"
+        "bytes": 8272,
+        "sha256": "09e7caa848e8796312f1d752a917775edada0f0acf891b526480631c82de7d3a"
       },
       {
         "path": "frontend/app/overseer.js",
@@ -1188,8 +1188,8 @@
       },
       {
         "path": "frontend/app/slaglog.js",
-        "bytes": 11271,
-        "sha256": "f11a108893318997461872d51e217be237fe1fbfd3118cd3fac1a1db0b0dd286"
+        "bytes": 11428,
+        "sha256": "5fe126699f2138fc3178aebc4bdda9d7ca2a4329a8912a18f273fdbeca9daad9"
       },
       {
         "path": "frontend/app/spacebg.js",
@@ -1253,8 +1253,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 1006720,
-        "sha256": "1edadad9c0292c404db507b8bb3d58f094766caaadb68db761ba2b1cead3d88b"
+        "bytes": 1008119,
+        "sha256": "c0b4ac1080c3c765b28b4151d3f770411d461975216430ad030a28225024a4e5"
       },
       {
         "path": "frontend/app/steering-message.js",
