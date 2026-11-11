@@ -307,6 +307,9 @@ function hotBeliefs(now) {
     A.ok(went('build'), 'at 89% an away build goes');
 
     /* ===== 4. the 24-hour rail, RESUME, and a restart ===== */
+    // a start's receipt is written when its call's usage lands, a moment after the provider saw the request: wait for all
+    // four before the station stops (a stop in that moment drops the last one)
+    await until(async () => { const seen = new Set(receipts().filter(r => r.at >= t2).map(r => r.origin)); return ['loop', 'nightshift', 'routine', 'workshop'].every(k => seen.has(k)); }, 20000);
     await fx.stop();
     // what ran above, as its usage receipts say it: every unattended start stamped with who started it, the user's message never
     const ran = receipts().filter(r => r.at >= t2);
