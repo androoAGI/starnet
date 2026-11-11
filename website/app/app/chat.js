@@ -2062,9 +2062,10 @@ const Chat = (() => {
           noteContinuity(ws, 'send-station-window'); return { degraded: true };
         }
         noteContinuity(ws, 'send-held-history-unavailable');
-        // the station answered (a 5xx): the connection is fine, so do not tell the Commander to wait for it (#178)
+        // the station answered (a 5xx): the connection is fine, so do not tell the Commander to wait for it (#178). Nor to resend:
+        // this send already asked once more, and a history the station cannot vouch for (a damaged line it kept) refuses every resend
         throw Object.assign(new Error(read && read.serverFailed
-          ? 'Conversation history could not be restored: the station answered but could not read it just now. Your message is kept; try sending again in a moment.'
+          ? 'Conversation history could not be restored: the station answered but could not read it. Your message is kept.'
           : 'Conversation history could not be restored. Your message is kept; try again when the connection returns.'), { code: 'HISTORY_UNAVAILABLE' });
       }
       noteContinuity(ws, 'send-history-retry');
