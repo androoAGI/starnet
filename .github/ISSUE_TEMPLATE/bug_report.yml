@@ -5,12 +5,21 @@ labels: [bug]
 body:
   - type: markdown
     attributes:
-      value: Thanks for helping improve StarNet. Do not include secrets or private data.
+      value: |
+        Thanks for helping improve StarNet. Do not include secrets or private data.
+
+        **First, press COPY DIAGNOSTICS.** In StarNet, press **SETTINGS** on the dock, open **APP & BACKUP**, find **DIAGNOSTICS** and press **⧉ COPY DIAGNOSTICS**. Then paste the readout into the Diagnostics box below. It carries your app version, platform, provider and model, and the tail of recent errors. It never carries your keys, tokens, messages or prompts.
+        - If StarNet stopped on its error screen, press the **⧉ COPY DIAGNOSTICS** button on that screen.
+        - If a chat reply failed, press **⧉ copy diagnostics for a bug report** under it.
   - type: input
     id: version
     attributes:
       label: StarNet version
-      description: Version, commit, or build description shown by the app.
+      description: >-
+        Press UPDATES on the dock: the top of the UPDATE CENTER reads "current v…". The same line is in
+        SETTINGS › APP & BACKUP › UPDATES, and the COPY DIAGNOSTICS readout carries it too. For a source
+        checkout, give the commit.
+      placeholder: v0.15.0
     validations:
       required: true
   - type: dropdown
@@ -36,5 +45,9 @@ body:
   - type: textarea
     id: diagnostics
     attributes:
-      label: Sanitized diagnostics
-      description: Remove API keys, tokens, personal data, and private paths before pasting logs.
+      label: Diagnostics (COPY DIAGNOSTICS)
+      description: >-
+        Paste the readout from SETTINGS › APP & BACKUP › DIAGNOSTICS › ⧉ COPY DIAGNOSTICS, or from the button on
+        the error screen. Read it before you post, and remove any private names or paths. If StarNet will not open
+        at all, say so here.
+      render: text
