@@ -198,16 +198,16 @@ A.ok(/:is\(\.ws-rail-search, \.crew-search-wrap\) \{ background: none !important
 A.ok(/\.ws-rail-search label::before \{[^}]*mask:/.test(css) && /\.crew-search-wrap::before \{[^}]*mask:/.test(css), 'both finders lead with the lit lens');
 A.ok(/#crew-search-close \{[^}]*border-radius: 50%/.test(css), 'the crew finder closes on a round chrome knob');
 
-// ---- the sheet is nine parts (2026-11-10). VECTOR = sections 1-22, the silver device Andrew kept ("I love this look so much
+// ---- the sheet is ten parts (2026-11-10). VECTOR = sections 1-22, the silver device Andrew kept ("I love this look so much
 // its insane"), finished by section 25, fitted by section 26, its CREW and COMMS heads rebuilt by section 27, its menu panels
-// dressed by section 28, their insides by section 29 and the cards inside COMMS by section 30. Section 23, the black chassis, is variation B's base: gated :where(.vx-b), so it adds no specificity
+// dressed by section 28, their insides by section 29, the cards inside COMMS by section 30 and the last old surfaces by section 31. Section 23, the black chassis, is variation B's base: gated :where(.vx-b), so it adds no specificity
 // and B renders exactly as it did when that pass applied to both. Section 24 is variation B itself ----
 const rawCss = read('frontend/css/vector.css');
 const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '');
 const cut = (title) => { const at = rawCss.indexOf(title); return at < 0 ? -1 : rawCss.lastIndexOf('/*', at); };
-const baseAt = cut('23 · THE BLACK CHASSIS'), bAt = cut('24 · VARIATION B'), pAt = cut('25 · THE PERFECTED VECTOR'), fAt = cut('26 · THE FIT'), hAt = cut('27 · THE HEADS'), nAt = cut('28 · THE PANELS'), iAt = cut('29 · THE INSIDES'), cAt = cut('30 · THE CARDS');
-A.ok(baseAt > 0 && bAt > baseAt && pAt > bAt && fAt > pAt && hAt > fAt && nAt > hAt && iAt > nAt && cAt > iAt,
-  'vector.css carries the black chassis, variation B, the perfected VECTOR, the fit pass, the heads, the panels, the insides and the cards as sections 23 to 30 in that order');
+const baseAt = cut('23 · THE BLACK CHASSIS'), bAt = cut('24 · VARIATION B'), pAt = cut('25 · THE PERFECTED VECTOR'), fAt = cut('26 · THE FIT'), hAt = cut('27 · THE HEADS'), nAt = cut('28 · THE PANELS'), iAt = cut('29 · THE INSIDES'), cAt = cut('30 · THE CARDS'), lAt = cut('31 · THE REST');
+A.ok(baseAt > 0 && bAt > baseAt && pAt > bAt && fAt > pAt && hAt > fAt && nAt > hAt && iAt > nAt && cAt > iAt && lAt > cAt,
+  'vector.css carries the black chassis, variation B, the perfected VECTOR, the fit pass, the heads, the panels, the insides, the cards and the rest as sections 23 to 31 in that order');
 const cssA = strip(rawCss.slice(0, baseAt));
 const cssBase = strip(rawCss.slice(baseAt, bAt));
 const cssB = strip(rawCss.slice(bAt, pAt));
@@ -216,7 +216,8 @@ const cssF = strip(rawCss.slice(fAt, hAt));
 const cssH = strip(rawCss.slice(hAt, nAt));
 const cssN = strip(rawCss.slice(nAt, iAt));
 const cssI = strip(rawCss.slice(iAt, cAt));
-const cssC = strip(rawCss.slice(cAt));
+const cssC = strip(rawCss.slice(cAt, lAt));
+const cssL = strip(rawCss.slice(lAt));
 // an at-rule's own prelude (@container ... {) is not a selector: drop it, and its closing brace leaves an empty chunk
 const selsOf = (t) => t.replace(/@[a-z-]+[^{};]*\{/g, '').split('}').map(r => r.slice(0, Math.max(0, r.indexOf('{')))).filter(x => x.trim()).flatMap(x => x.split(/,\n/)).map(x => x.trim());
 // a selector list can also run on ONE line, so the line-start check alone is not enough: every root in a section must carry its gate
@@ -662,4 +663,135 @@ A.ok(!/[;{\s]filter:\s/.test(cssC) && !/#stage-wrap/.test(cssC) && !/\[class/.te
 A.ok(!/@/.test(cssC), 'the cards pass has no at-rule');
 A.ok(!/content:/.test(cssC), 'the cards pass writes no words and draws no extra part: no legend, label or control');
 A.ok(!/url\(/.test(cssC) && !/repeating-/.test(cssC), 'the cards stay plain glass: the pass draws no crest, trace, scan line or grid');
+// ---- 31 · THE REST (Andrew 2026-11-10: "Yes, restyle them"). The last old surfaces take the silver device: the five pop-up lists
+// (the model list, the slash commands, the agent list, a session row's menu, WIDGETS), the toasts, three small leftovers, the boot
+// loader + title screen and Build Mode. Paint and shape: nothing moves, no control and no word is added, and the conversation is
+// not touched. What was looked at and left: the top bar's status box and the context gauge (already LCD wells), the error screens
+// and Genesis (section 13's), and the placement plate Build Mode draws on the canvas ----
+const LPFX = 'html body.vx:not(.hud-mode):not(.vx-b)';
+const selsL = selsOf(cssL);
+A.ok(selsL.length > 100, 'the rest is its own section (' + selsL.length + ' selectors)');
+A.eq(selsL.filter(x => x !== LPFX && !x.startsWith(LPFX + ' ')).join(' | '), '', 'every selector in the last pass opens with the VECTOR gate: VECTOR only, never variation B');
+A.eq(stray(cssL, ':not(.vx-b)').join(' | '), '', 'no selector in the last pass slips its scope inside a one-line list');
+const ROOTS = ['#model-dock', '#chat-slash', '#gd-agent-menu', '.ws-menu', '.wg-pop.wg-library', '#toast-stack', '#screen-game #left #ws-agent-filter',
+  '#screen-game #terms .term:not(.pw) .q-star-map', '#screen-game #terms .term:not(.pw) .q-star:not(.q-sys-off)', '#wr-cine-hint',
+  ':is(#screen-boot, #screen-splash)', '#screen-boot', '#screen-splash', '.refit-overlay'];
+A.eq(selsL.map(x => x.slice(LPFX.length).trim()).filter(x => x && !ROOTS.some(r => x === r || x.startsWith(r + ' ') || x.startsWith(r + ':'))).join(' | '), '',
+  'the last pass reaches only the surfaces it was asked to restyle: the five pop-up lists, the toasts, the crew filter, the quest tiles, the cinema hint, the boot + title screens and Build Mode');
+A.eq(selsL.filter(x => x === LPFX).length, 1, 'the bare gate is used once, for the materials');
+A.ok(!/\.cmsg|#chat-log|#chat-panel|\.dg-line|presence|\.nudge|\.consent/.test(cssL), 'the last pass names nothing inside the conversation: speech, the nudge and the cards keep the design they have');
+A.ok(!/\.tb-status|\.tb-xp|#ctx-gauge|\.ctx-cells|#screen-connect|\.cc-tb-tag|\.ov-wordmark|\.ov-journey|\.ov-actions/.test(cssL),
+  'what was looked at and left stays left: the top bar’s status box and the context gauge are LCD wells already, the error screens and Genesis are section 13’s');
+const rulesL = cssL.split('}').filter(r => r.includes('{')).map(r => ({ sel: r.slice(0, r.indexOf('{')).split(LPFX).join('').replace(/\s+/g, ' ').trim(), body: r.slice(r.indexOf('{') + 1).replace(/\s+/g, ' ').trim() }));
+const atL = (sel) => rulesL.findIndex(r => r.sel === sel);
+const ruleL = (sel) => (rulesL[atL(sel)] || { body: '' }).body;
+// the materials
+A.eq(partsOf(ruleL('')).map(x => x.slice(0, x.indexOf(':'))).join(' '), '--vx-pane --vx-pane-shadow --vx-read-shadow --vx-tile-shadow --vx-tile --vx-tile-hot --vx-pick --vx-pick-shadow',
+  'the body names the eight materials of a window’s insides once, for the surfaces that are not inside a station window or COMMS');
+A.eq(partsOf(ruleL('')).join('\n'), partsOf(partsI).join('\n'), 'and they are section 29’s, word for word: a tile in a pop-up list, in Build Mode and in a window are the same glass');
+A.eq((cssL.match(/--vx-[a-z-]+:/g) || []).length, 8, 'the last pass defines no material of its own');
+// the pop-up lists
+const BAY = 'border-color: transparent; border-radius: 16px; background: linear-gradient(180deg, rgba(0, 0, 0, .9) 0, rgba(0, 0, 0, 0) 6px) border-box, linear-gradient(180deg, #05070a 0, #0d1116 60%, #161b21 100%) border-box; box-shadow: 0 0 0 1px #000, 0 0 0 2px #c4ccd5, 0 1px 0 2px #eef2f6, 0 0 0 3px #2a3037, 0 10px 30px 3px rgba(0, 0, 0, .7); -webkit-backdrop-filter: none; backdrop-filter: none;';
+const HEAD_LIP = 'inset 0 -1px 0 #2a3037, inset 0 -2px 0 #eef2f6, inset 0 -3px 0 #c4ccd5, inset 0 -4px 0 #000';
+A.eq(ruleL('#model-dock, #chat-slash, #gd-agent-menu, .ws-menu, .wg-pop.wg-library'), BAY,
+  'the five pop-up lists share one shell: a black bay in the chrome lip, no blur. Shell only: what opens and closes them is not touched');
+A.eq(ruleL('#model-dock .model-dock-head, #chat-slash .slash-head, .wg-pop.wg-library .wg-library-header'),
+  'border-color: transparent; border-radius: 0; background: linear-gradient(180deg, #05070a 0, #0d1116 100%); box-shadow: ' + HEAD_LIP + ';',
+  'a pop-up’s head is the bay’s own top with the chrome lip under it, as a window’s head has');
+const ROW = '#model-dock .model-dock-row, #chat-slash .slash-item, #gd-agent-menu .gd-agent-option, .ws-menu .ws-menu-item:not(.armed), .wg-pop.wg-library :is(.wg-app-row, .wg-library-card)';
+const ROW_HOT = '#model-dock .model-dock-row:is(:hover, :focus-visible):not(.sel), #chat-slash .slash-item:hover:not(.sel), #gd-agent-menu .gd-agent-option:is(:hover, :focus-visible):not([aria-selected="true"]), .ws-menu .ws-menu-item:not(.armed):is(:hover, :focus-visible), .wg-pop.wg-library :is(.wg-app-row, .wg-library-card):is(:hover, :focus-within)';
+const ROW_PICK = '#model-dock .model-dock-row.sel, #chat-slash .slash-item.sel, #gd-agent-menu .gd-agent-option[aria-selected="true"]';
+A.eq(ruleL(ROW), 'border-color: transparent; border-radius: 8px; background: var(--vx-tile) border-box; box-shadow: var(--vx-tile-shadow);', 'a row in a pop-up list is a glass tile');
+A.eq(ruleL(ROW_HOT), 'border-color: transparent; background: var(--vx-tile-hot) border-box; box-shadow: var(--vx-tile-shadow);', 'the row under the pointer or the keyboard lifts; the chosen row does not answer');
+A.eq(ruleL(ROW_PICK), 'border-color: transparent; background: var(--vx-pick) border-box; box-shadow: var(--vx-pick-shadow);',
+  'the chosen row (the model in use, the command about to run, the agent you are talking to) wears the pick: its ring and lit edge over dark glass');
+A.ok(atL(ROW) >= 0 && atL(ROW_HOT) > atL(ROW) && atL(ROW_PICK) > atL(ROW_HOT), 'the pick is the last row rule, so it is the one that paints');
+// an armed key ("click again to delete") is the base sheet's: nothing here may match it or out-rank it
+const menuSels = selsL.filter(x => x.includes('.ws-menu-item'));
+A.ok(menuSels.length === 3 && menuSels.every(x => /\.ws-menu-item(\.danger)?:not\(\.armed\)/.test(x)), 'every rule on a row of the session menu steps aside for an armed row (' + menuSels.length + ' selectors)');
+A.ok(rulesL.filter(r => r.sel.includes('.ws-menu')).every(r => !/!important/.test(r.body)), 'and nothing under the session menu is forced: the armed fill always wins');
+A.ok(/rgba\(255, 92, 77/.test(ruleL('.ws-menu .ws-menu-item.danger:not(.armed):is(:hover, :focus-visible)')), 'a destructive row keeps its red under the pointer');
+// keys
+const POP_CAP = '#model-dock .model-dock-effort, #model-dock .model-dock-foot :is(button, a), .wg-pop.wg-library .wg-library-filters button, .wg-pop.wg-library :is(.wg-studio-button, .wg-library-action)';
+const POP_LIT = '#model-dock .model-dock-effort.sel, .wg-pop.wg-library .wg-library-filters button[aria-pressed="true"], .wg-pop.wg-library .wg-studio-primary:not(:disabled)';
+const LIT_BODY = 'border-color: transparent; background: var(--vx-cap-on) border-box; box-shadow: var(--vx-cap-on-shadow); color: #020604; text-shadow: none;';
+A.eq(ruleL(POP_CAP), 'border-color: transparent; border-radius: 7px; background: var(--vx-cap) border-box; box-shadow: var(--vx-cap-shadow); color: var(--vx-core); text-shadow: 0 0 6px rgba(var(--ph-rgb), .75);',
+  'a key in a pop-up list is the windows’ glossy cap with lit words');
+A.eq(ruleL(POP_LIT), LIT_BODY, 'the chosen key of a bar, and the one key WIDGETS wants pressed, is the lit cap with dark words; one that cannot be pressed yet never lights');
+A.ok(atL(POP_CAP) >= 0 && atL(POP_LIT) > atL(POP_CAP), 'the lit rule follows the cap and hover rules');
+A.eq(ruleL('#model-dock :is(.model-dock-presets, .model-dock-exact), .wg-pop.wg-library .wg-library-filters'), 'gap: 4px; padding: 4px; border: 0; border-radius: 12px; background: var(--vx-seat); box-shadow: var(--vx-seat-shadow);',
+  'a bar of keys sits on a chrome seat');
+// fields: a drop-down keeps the chevron the base sheet draws as its background, so it only ever gets a background COLOUR
+const WELL_SELECT = 'border-color: transparent; border-radius: 9px; background-color: #010302; box-shadow: var(--vx-well-shadow);';
+A.eq(ruleL('.wg-pop.wg-library select.wg-studio-input'), WELL_SELECT, 'a drop-down in WIDGETS is a well by colour and shadow alone');
+A.eq(ruleL('.refit-overlay select:is(.refit-input, .refit-object-finder)'), WELL_SELECT, 'so is a drop-down in Build Mode');
+const WELL_POP = '#model-dock #model-dock-search, .wg-pop.wg-library :is(.wg-library-search, .wg-studio-input:not(select))';
+const WELL_BM = '.refit-overlay :is(.refit-input, .refit-num, .refit-searchfield):not(select)';
+A.eq(ruleL(WELL_POP), 'border-color: transparent; border-radius: 9px; background: var(--vx-well); box-shadow: var(--vx-well-shadow);', 'a field in a pop-up list is a recessed well, and the rule steps round a drop-down');
+A.eq(ruleL(WELL_BM), 'border-color: transparent; border-radius: 9px; background: var(--vx-well) border-box; box-shadow: var(--vx-well-shadow);', 'so is a field in Build Mode');
+A.eq(rulesL.filter(r => /var\(--vx-well\)/.test(r.body)).map(r => r.sel).join(' | '),
+  [WELL_POP, '.wg-pop.wg-library .wg-detail-reading', '#screen-game #terms .term:not(.pw) .q-star-map', WELL_BM, '.refit-overlay :is(.refit-linetile-view, .refit-preview-art, .refit-step-art, .station-build-art)'].join(' | '),
+  'the well’s fill is never laid over a drop-down: it would paint out the drawn chevron');
+A.eq(ruleL('#model-dock #model-dock-search:focus, .wg-pop.wg-library :is(.wg-library-search, .wg-studio-input):focus'), 'outline: 0; box-shadow: inset 0 0 0 1px var(--vx-node), var(--vx-well-shadow);', 'the field you are in wears a bright edge');
+// toasts
+A.ok(/^border-color: transparent transparent transparent var\(--sev\); border-radius: 12px;/.test(ruleL('#toast-stack .toast')) && /0 0 0 2px #c4ccd5/.test(ruleL('#toast-stack .toast')),
+  'a toast is a small bay in the chrome lip, and it keeps the left edge that says its severity');
+A.eq(ruleL('#toast-stack .toast::after'), 'content: none;', 'a toast’s old corner ticks go');
+// the small leftovers
+A.eq(ruleL('#screen-game #left #ws-agent-filter'), 'border-color: transparent; background: var(--vx-pick) border-box; box-shadow: var(--vx-pick-shadow);', 'the crew filter in force reads as the chosen thing: ring and lit edge');
+A.eq(ruleL('#screen-game #terms .term:not(.pw) .q-star:not(.q-sys-off)'), 'background: var(--vx-tile) border-box; box-shadow: var(--vx-tile-shadow);',
+  'a quest tile is a glass tile: it keeps the border that says its state, and an offline one is left as it is');
+A.eq(ruleL('#wr-cine-hint'), 'border-color: transparent; border-radius: 999px; padding: 4px 18px; background: var(--vx-lcd) border-box; box-shadow: var(--vx-lcd-shadow);', 'the cinema hint is one line on a small readout');
+// before the station is up
+A.ok(/var\(--vx-grain\)/.test(ruleL(':is(#screen-boot, #screen-splash)')) && /linear-gradient\(180deg, #6d7682 0%/.test(ruleL(':is(#screen-boot, #screen-splash)')),
+  'the boot loader and the title screen stand in the station’s own brushed cabinet');
+A.eq(ruleL('#screen-boot .boot-veil, #screen-splash .sp-center'), 'position: absolute; inset: 10px; border-radius: 16px; box-shadow: 0 0 0 1px #000, 0 0 0 2px #c4ccd5, 0 1px 0 2px #eef2f6, 0 0 0 3px #2a3037;',
+  'each is one black bay in the chrome lip, the same margin the station’s frame keeps');
+A.eq(rulesL.filter(r => /position:/.test(r.body)).map(r => r.sel).join(' | '), '#screen-boot .boot-veil, #screen-splash .sp-center', 'nothing else is re-positioned');
+A.eq(ruleL('#screen-splash :is(.sp-floor, .cc-bracket)'), 'display: none;', 'the title screen’s grid floor and corner brackets go: a screen stays plain');
+A.eq(rulesL.filter(r => /display:/.test(r.body)).map(r => r.sel).join(' | '), '#screen-boot .boot-veil | #screen-splash :is(.sp-floor, .cc-bracket)', 'nothing else is hidden or re-flowed');
+A.eq(ruleL('#screen-splash .sp-press'), 'padding: 9px 24px; border-radius: 9px; background: var(--vx-cap-on) border-box; box-shadow: var(--vx-cap-on-shadow); color: #020604; text-shadow: none;',
+  'the one control on the title screen is the lit cap; its blink is left running');
+// Build Mode
+A.eq(ruleL('.refit-overlay .refit-dock, .refit-overlay .refit-guide-card, .refit-overlay .station-build-box'), BAY, 'Build Mode’s library and its cards are the same bay as a pop-up list');
+A.ok(ruleL('.refit-overlay .refit-top').includes(HEAD_LIP) && ruleL('.refit-overlay .refit-dock-head').includes(HEAD_LIP), 'Build Mode’s top strip and the library’s head carry the chrome lip of a window’s head');
+const BM_KEYS = '.refit-overlay :is(.bb, .btn-sm, #refit-kit-toggle)';
+const OWN = ':not(:is(.station-build-card, .armed, .refit-tool-reclaim, .refit-danger, .refit-sel-del))';
+const BM_HOT = BM_KEYS + OWN + ':is(:hover, :focus-visible):not(:disabled)';
+const BM_LIT = BM_KEYS + ':is(.active, .sel, .on, [aria-pressed="true"], .refit-primary)' + OWN + ':not(:disabled)';
+A.eq(ruleL(BM_KEYS + ':not(:is(.station-build-card, .armed))'), 'border-radius: 7px; background: var(--vx-cap) border-box; box-shadow: var(--vx-cap-shadow); animation: none;',
+  'a key in Build Mode is a cap, and a cap is whole: the base sheet fades the end of a button whose legend overflows, which melts a cap into its seat. An armed key keeps its fill');
+A.eq(ruleL(BM_KEYS + OWN), 'border-color: transparent; color: var(--vx-core); text-shadow: 0 0 6px rgba(var(--ph-rgb), .75);', 'a cap’s words are lit; a destructive key keeps its own ink and edge');
+A.eq(ruleL(BM_HOT), 'background: var(--vx-cap-hot) border-box; color: color-mix(in srgb, var(--vx-core) 55%, #fff);', 'a cap brightens under the pointer or the keyboard; a disabled one does not answer');
+A.eq(ruleL(BM_LIT), 'border-color: transparent !important; background: var(--vx-cap-on) border-box !important; box-shadow: var(--vx-cap-on-shadow); color: #020604 !important; text-shadow: none;',
+  'the chosen key (a tool, a tab, a tier, the primary action) is the lit cap with dark words');
+A.eq(ruleL(BM_LIT + ' *'), 'color: inherit; text-shadow: none;', 'anything inside the lit key takes its dark ink');
+A.ok(atL(BM_KEYS + OWN) >= 0 && atL(BM_HOT) > atL(BM_KEYS + OWN) && atL(BM_LIT) > atL(BM_HOT), 'the lit rule follows the hover rule, so a lit key stays lit under the pointer');
+A.eq(rulesL.filter(r => /var\(--vx-cap-on(-shadow)?\)/.test(r.body)).map(r => r.sel).join(' | '), POP_LIT + ' | #screen-splash .sp-press | ' + BM_LIT,
+  'only those three rules light a key: a chosen key in a pop-up list, the title key, a chosen key in Build Mode');
+const RED = '.refit-overlay :is(.bb, .btn-sm):is(.refit-tool-reclaim, .refit-danger, .refit-sel-del):not(.armed)';
+A.eq(ruleL(RED), 'color: #ffc2bb; text-shadow: 0 0 6px rgba(255, 92, 77, .7);', 'a destructive key is a cap whose legend stays red, lifted to read on the cap');
+A.ok(/rgba\(255, 92, 77, \.34\)/.test(ruleL(RED + ':is(:hover, :focus-visible, .active):not(:disabled)')), 'and it takes a red wash under the pointer, never the green one');
+A.eq(ruleL('.refit-overlay :is(.bb, .btn-sm).refit-primary:disabled'), 'border-color: transparent !important; background: var(--vx-cap) border-box !important; color: var(--vx-core) !important;',
+  'a primary key that cannot be pressed yet is a dark cap, not a flat lit block');
+const BM_TILE = '.refit-overlay :is(.refit-proptile, .refit-mattile, .refit-linetile, .refit-machinetile, .refit-linetile-makeroom, .refit-hotslot, .refit-handkey, .refit-keyrow, .refit-step, .station-build-card, .refit-category-menu > summary)';
+const BM_PICK = '.refit-overlay :is(.refit-proptile, .station-build-card)[aria-pressed="true"], .refit-overlay :is(.refit-mattile, .refit-linetile, .refit-machinetile, .refit-hotslot, .refit-handkey):is(.active, [aria-pressed="true"])';
+A.eq(ruleL(BM_TILE), 'background: var(--vx-tile) border-box; box-shadow: var(--vx-tile-shadow);', 'the things you pick in Build Mode are glass tiles');
+A.eq(ruleL(BM_PICK), 'border-color: transparent; background: var(--vx-pick) border-box; box-shadow: var(--vx-pick-shadow);',
+  'the chosen one wears the pick. A prop tile is chosen by aria-pressed="true" alone: picking a prop toggles .active on the other prop tiles too, so .active on a prop tile says nothing');
+A.ok(atL(BM_TILE) >= 0 && atL(BM_PICK) > atL(BM_TILE), 'the pick follows the tile and hover rules, so it is the one that paints');
+A.eq(rulesL.filter(r => /var\(--vx-pick(-shadow)?\)/.test(r.body)).map(r => r.sel).join(' | '), ROW_PICK + ' | #screen-game #left #ws-agent-filter | ' + BM_PICK,
+  'the pick goes to a chosen row, the crew filter in force and a chosen thing in Build Mode: nothing else');
+A.ok(/border-color: var\(--bad\);/.test(ruleL('.refit-overlay .refit-handkey[data-handkey="remove"].active')) && /var\(--gold\)/.test(ruleL('.refit-overlay .refit-goalcell .refit-linetile')),
+  'the states a tile already says with its edge stay said: the red of the REMOVE hand, the gold of the goal');
+// what the pass must never do
+A.eq([...new Set((cssL.match(/[{;]\s*-{0,2}[a-z][a-z-]*(?=:)/g) || []).map(x => x.replace(/^[{;]\s*/, '')))].filter(x => !x.startsWith('--vx-')).sort().join(' '),
+  '-webkit-backdrop-filter align-items animation backdrop-filter background background-color border border-bottom-color border-color border-radius border-top-color bottom box-shadow clip-path color content display flex-direction gap height inset justify-content margin margin-top opacity outline padding padding-bottom padding-inline position text-shadow top',
+  'the last pass is paint and shape: no width, no font, no transform, no z-index, no transition, so nothing changes size class, face or stacking');
+A.eq((cssL.match(/animation:[^;]*;/g) || []).join(' '), 'animation: none; animation: none;', 'the last pass adds no motion: it only stills the boot veil’s flicker and the fade that melts a cap');
+A.eq((cssL.match(/(?<![a-z-])content:[^;]*;/g) || []).join(' '), 'content: none;', 'the last pass writes no words and draws no extra part: its one content line removes the toast’s corner ticks');
+A.eq((cssL.match(/backdrop-filter:[^;]*;/g) || []).filter(x => x !== 'backdrop-filter: none;').join(' '), '', 'the last pass blurs nothing: a bay is solid');
+A.ok(!/[;{\s]filter:\s/.test(cssL) && !/#stage-wrap/.test(cssL) && !/\[class/.test(cssL), 'the last pass declares no filter, styles nothing under #stage-wrap and adds no [class] selector');
+A.ok(!/@/.test(cssL), 'the last pass has no at-rule');
+A.ok(!/url\(/.test(cssL) && !/repeating-/.test(cssL) && !/background-size/.test(cssL), 'the last surfaces stay plain: the pass draws no crest, trace, scan line or grid');
 A.report('vector-identity');

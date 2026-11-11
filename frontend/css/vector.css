@@ -2968,3 +2968,426 @@ html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel .cmsg :is(.turni
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #chat-panel .cmsg :is(.turnin-edit, .tb-read-in, .tc-answer):focus {
   box-shadow: inset 0 0 0 1px var(--vx-node), var(--vx-well-shadow) !important;
 }
+
+/* ============================================================
+   31 · THE REST — the last old surfaces take the silver device: the pop-up lists (model list, slash commands, agent
+   list, row menu, WIDGETS), the toasts, the small leftovers, the boot + title screens, and Build Mode. Paint and shape
+   only: nothing moves, no control and no word is added.
+   ============================================================ */
+/* the window materials, word for word the lists in sections 29 and 30, once on the body so the body-level pop-ups,
+   the toasts, Build Mode and the full screens can use them */
+html body.vx:not(.hud-mode):not(.vx-b) {
+  --vx-pane:
+    linear-gradient(180deg, rgba(255, 255, 255, .055) 0, rgba(255, 255, 255, 0) 26px),
+    linear-gradient(180deg, rgba(var(--ph-rgb), .1) 0, rgba(var(--ph-rgb), .03) 100%),
+    rgba(0, 3, 1, .58);
+  --vx-pane-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), inset 0 -1px 0 rgba(0, 0, 0, .5), 0 0 0 1px rgba(0, 0, 0, .66), 0 3px 9px rgba(0, 0, 0, .42);
+  --vx-read-shadow: inset 0 2px 6px rgba(0, 0, 0, .95), inset 0 0 0 1px rgba(0, 0, 0, .7), 0 1px 0 rgba(255, 255, 255, .1);
+  --vx-tile-shadow: inset 0 1px 0 rgba(255, 255, 255, .16), inset 0 -1px 0 rgba(0, 0, 0, .5), 0 0 0 1px rgba(0, 0, 0, .66), 0 2px 5px rgba(0, 0, 0, .45);
+  --vx-tile:
+    linear-gradient(180deg, rgba(255, 255, 255, .05), transparent 40%),
+    linear-gradient(180deg, rgba(var(--ph-rgb), .13), rgba(var(--ph-rgb), .06) 50%, rgba(var(--ph-rgb), .03) 51%, rgba(var(--ph-rgb), .09)),
+    rgba(0, 3, 1, .5);
+  --vx-tile-hot:
+    linear-gradient(180deg, rgba(255, 255, 255, .09), transparent 40%),
+    linear-gradient(180deg, rgba(var(--ph-rgb), .26), rgba(var(--ph-rgb), .12) 50%, rgba(var(--ph-rgb), .07) 51%, rgba(var(--ph-rgb), .16)),
+    rgba(0, 3, 1, .5);
+  --vx-pick:
+    linear-gradient(180deg, rgba(255, 255, 255, .08), transparent 40%),
+    linear-gradient(180deg, rgba(var(--ph-rgb), .18), rgba(var(--ph-rgb), .08) 50%, rgba(var(--ph-rgb), .045) 51%, rgba(var(--ph-rgb), .12)),
+    rgba(0, 3, 1, .5);
+  --vx-pick-shadow: inset 3px 0 0 rgba(var(--ph-rgb), .95), inset 0 1px 0 rgba(255, 255, 255, .3), inset 0 -1px 0 rgba(0, 0, 0, .45), 0 0 0 1px rgba(var(--ph-rgb), .85), 0 2px 5px rgba(0, 0, 0, .45);
+}
+
+/* --- THE POP-UP LISTS: the dock menu's shell — a black bay in a chrome lip — with rows as tiles --- */
+html body.vx:not(.hud-mode):not(.vx-b) #model-dock,
+html body.vx:not(.hud-mode):not(.vx-b) #chat-slash,
+html body.vx:not(.hud-mode):not(.vx-b) #gd-agent-menu,
+html body.vx:not(.hud-mode):not(.vx-b) .ws-menu,
+html body.vx:not(.hud-mode):not(.vx-b) .wg-pop.wg-library {
+  border-color: transparent;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, .9) 0, rgba(0, 0, 0, 0) 6px) border-box,
+    linear-gradient(180deg, #05070a 0, #0d1116 60%, #161b21 100%) border-box;
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px #c4ccd5, 0 1px 0 2px #eef2f6, 0 0 0 3px #2a3037, 0 10px 30px 3px rgba(0, 0, 0, .7);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+/* a pop-up's head: the bay's own top with the chrome lip under it, as a window's head has */
+html body.vx:not(.hud-mode):not(.vx-b) #model-dock .model-dock-head,
+html body.vx:not(.hud-mode):not(.vx-b) #chat-slash .slash-head,
+html body.vx:not(.hud-mode):not(.vx-b) .wg-pop.wg-library .wg-library-header {
+  border-color: transparent;
+  border-radius: 0;
+  background: linear-gradient(180deg, #05070a 0, #0d1116 100%);
+  box-shadow: inset 0 -1px 0 #2a3037, inset 0 -2px 0 #eef2f6, inset 0 -3px 0 #c4ccd5, inset 0 -4px 0 #000;
+}
+/* the model list's head is its readout: the model in use, on dark glass */
+html body.vx:not(.hud-mode):not(.vx-b) #model-dock .model-dock-head { background: var(--vx-lcd); padding-bottom: 14px; }
+html body.vx:not(.hud-mode):not(.vx-b) #chat-slash .slash-head { margin: -5px -5px 5px; padding: 9px 13px 12px; }
+
+/* the fields: wells */
+html body.vx:not(.hud-mode):not(.vx-b) #model-dock #model-dock-search,
+html body.vx:not(.hud-mode):not(.vx-b) .wg-pop.wg-library :is(.wg-library-search, .wg-studio-input:not(select)) {
+  border-color: transparent;
+  border-radius: 9px;
+  background: var(--vx-well);
+  box-shadow: var(--vx-well-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .wg-pop.wg-library select.wg-studio-input {
+  border-color: transparent;
+  border-radius: 9px;
+  background-color: #010302;
+  box-shadow: var(--vx-well-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #model-dock #model-dock-search:focus,
+html body.vx:not(.hud-mode):not(.vx-b) .wg-pop.wg-library :is(.wg-library-search, .wg-studio-input):focus {
+  outline: 0;
+  box-shadow: inset 0 0 0 1px var(--vx-node), var(--vx-well-shadow);
+}
+
+/* the rows: tiles; the row under the pointer lifts; the chosen row takes the ring and the lit edge */
+html body.vx:not(.hud-mode):not(.vx-b) #model-dock .model-dock-list { border-color: transparent; padding-inline: 3px; }
+html body.vx:not(.hud-mode):not(.vx-b) #model-dock .model-dock-row,
+html body.vx:not(.hud-mode):not(.vx-b) #chat-slash .slash-item,
+html body.vx:not(.hud-mode):not(.vx-b) #gd-agent-menu .gd-agent-option,
+html body.vx:not(.hud-mode):not(.vx-b) .ws-menu .ws-menu-item:not(.armed),
+html body.vx:not(.hud-mode):not(.vx-b) .wg-pop.wg-library :is(.wg-app-row, .wg-library-card) {
+  border-color: transparent;
+  border-radius: 8px;
+  background: var(--vx-tile) border-box;
+  box-shadow: var(--vx-tile-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #chat-slash .slash-item + .slash-item,
+html body.vx:not(.hud-mode):not(.vx-b) #gd-agent-menu .gd-agent-option + .gd-agent-option { margin-top: 4px; }
+html body.vx:not(.hud-mode):not(.vx-b) .ws-menu { gap: 4px; }
+html body.vx:not(.hud-mode):not(.vx-b) #model-dock .model-dock-row:is(:hover, :focus-visible):not(.sel),
+html body.vx:not(.hud-mode):not(.vx-b) #chat-slash .slash-item:hover:not(.sel),
+html body.vx:not(.hud-mode):not(.vx-b) #gd-agent-menu .gd-agent-option:is(:hover, :focus-visible):not([aria-selected="true"]),
+html body.vx:not(.hud-mode):not(.vx-b) .ws-menu .ws-menu-item:not(.armed):is(:hover, :focus-visible),
+html body.vx:not(.hud-mode):not(.vx-b) .wg-pop.wg-library :is(.wg-app-row, .wg-library-card):is(:hover, :focus-within) {
+  border-color: transparent;
+  background: var(--vx-tile-hot) border-box;
+  box-shadow: var(--vx-tile-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .ws-menu .ws-menu-item.danger:not(.armed):is(:hover, :focus-visible) {
+  background: linear-gradient(180deg, rgba(255, 92, 77, .26), rgba(255, 92, 77, .1)) border-box, rgba(0, 3, 1, .5) border-box;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #model-dock .model-dock-row.sel,
+html body.vx:not(.hud-mode):not(.vx-b) #chat-slash .slash-item.sel,
+html body.vx:not(.hud-mode):not(.vx-b) #gd-agent-menu .gd-agent-option[aria-selected="true"] {
+  border-color: transparent;
+  background: var(--vx-pick) border-box;
+  box-shadow: var(--vx-pick-shadow);
+}
+/* the row menu's divider: an engraved line */
+html body.vx:not(.hud-mode):not(.vx-b) .ws-menu .ws-menu-sep { height: 2px; margin: 3px 6px; background: linear-gradient(180deg, #000 50%, rgba(255, 255, 255, .17) 50%); }
+
+/* the keys: caps; a bar of them sits on a chrome seat and the chosen one is lit */
+html body.vx:not(.hud-mode):not(.vx-b) #model-dock :is(.model-dock-presets, .model-dock-exact),
+html body.vx:not(.hud-mode):not(.vx-b) .wg-pop.wg-library .wg-library-filters {
+  gap: 4px;
+  padding: 4px;
+  border: 0;
+  border-radius: 12px;
+  background: var(--vx-seat);
+  box-shadow: var(--vx-seat-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #model-dock .model-dock-effort,
+html body.vx:not(.hud-mode):not(.vx-b) #model-dock .model-dock-foot :is(button, a),
+html body.vx:not(.hud-mode):not(.vx-b) .wg-pop.wg-library .wg-library-filters button,
+html body.vx:not(.hud-mode):not(.vx-b) .wg-pop.wg-library :is(.wg-studio-button, .wg-library-action) {
+  border-color: transparent;
+  border-radius: 7px;
+  background: var(--vx-cap) border-box;
+  box-shadow: var(--vx-cap-shadow);
+  color: var(--vx-core);
+  text-shadow: 0 0 6px rgba(var(--ph-rgb), .75);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #model-dock .model-dock-effort:is(:hover, :focus-visible),
+html body.vx:not(.hud-mode):not(.vx-b) #model-dock .model-dock-foot :is(button, a):is(:hover, :focus-visible),
+html body.vx:not(.hud-mode):not(.vx-b) .wg-pop.wg-library .wg-library-filters button:is(:hover, :focus-visible),
+html body.vx:not(.hud-mode):not(.vx-b) .wg-pop.wg-library :is(.wg-studio-button, .wg-library-action):not(:disabled):is(:hover, :focus-visible) {
+  border-color: transparent;
+  background: var(--vx-cap-hot) border-box;
+  color: color-mix(in srgb, var(--vx-core) 55%, #fff);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #model-dock .model-dock-effort.sel,
+html body.vx:not(.hud-mode):not(.vx-b) .wg-pop.wg-library .wg-library-filters button[aria-pressed="true"],
+html body.vx:not(.hud-mode):not(.vx-b) .wg-pop.wg-library .wg-studio-primary:not(:disabled) {
+  border-color: transparent;
+  background: var(--vx-cap-on) border-box;
+  box-shadow: var(--vx-cap-on-shadow);
+  color: #020604;
+  text-shadow: none;
+}
+/* the WIDGETS close key: a chrome dome, its drawn X in dark ink */
+html body.vx:not(.hud-mode):not(.vx-b) .wg-pop.wg-library .wg-library-close,
+html body.vx:not(.hud-mode):not(.vx-b) .wg-pop.wg-library .wg-library-close:hover {
+  border-color: transparent;
+  border-radius: 50%;
+  background: var(--vx-knob) border-box;
+  box-shadow: 0 0 0 1px #050608, 0 2px 4px rgba(0, 0, 0, .7);
+  color: #06100a;
+}
+html body.vx:not(.hud-mode):not(.vx-b) .wg-pop.wg-library .wg-library-close:hover { background: var(--vx-knob-hot) border-box; color: #020604; }
+html body.vx:not(.hud-mode):not(.vx-b) .wg-pop.wg-library .wg-library-close::before,
+html body.vx:not(.hud-mode):not(.vx-b) .wg-pop.wg-library .wg-library-close::after { height: 2px; top: 15px; }
+/* a widget's reading: a recessed readout */
+html body.vx:not(.hud-mode):not(.vx-b) .wg-pop.wg-library .wg-detail-reading {
+  border-color: transparent;
+  background: var(--vx-well);
+  box-shadow: var(--vx-read-shadow);
+}
+
+/* --- THE TOASTS: small bays in the chrome lip; the severity keeps its left edge and its lamp --- */
+html body.vx:not(.hud-mode):not(.vx-b) #toast-stack { gap: 12px; }
+html body.vx:not(.hud-mode):not(.vx-b) #toast-stack .toast {
+  border-color: transparent transparent transparent var(--sev);
+  border-radius: 12px;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, .9) 0, rgba(0, 0, 0, 0) 6px) border-box,
+    linear-gradient(180deg, #05070a 0, #0d1116 60%, #161b21 100%) border-box;
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px #c4ccd5, 0 1px 0 2px #eef2f6, 0 0 0 3px #2a3037, 0 6px 18px 3px rgba(0, 0, 0, .7);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #toast-stack .toast.actionable:hover {
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, .9) 0, rgba(0, 0, 0, 0) 6px) border-box,
+    linear-gradient(180deg, #0a0e13 0, #141a21 60%, #1d242c 100%) border-box;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #toast-stack .toast::after { content: none; }
+html body.vx:not(.hud-mode):not(.vx-b) #toast-stack .toast .toast-lamp { text-shadow: 0 0 7px var(--sev); }
+
+/* --- THE SMALL LEFTOVERS --- */
+/* the rail's crew filter strip: the crew member it is held to, as the chosen thing — ring and lit edge */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #ws-agent-filter {
+  border-color: transparent;
+  background: var(--vx-pick) border-box;
+  box-shadow: var(--vx-pick-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #ws-agent-filter:is(:hover, :focus-visible) { background: var(--vx-tile-hot) border-box; }
+/* the Quest Log's progress map: a well of tiles. A tile keeps the edge that says its state (online, offline, new) */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .q-star-map {
+  border-color: transparent;
+  background: var(--vx-well) border-box;
+  box-shadow: var(--vx-read-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .q-star:not(.q-sys-off) {
+  background: var(--vx-tile) border-box;
+  box-shadow: var(--vx-tile-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .q-star:not(.q-sys-off):is(:hover, :focus-visible) { background: var(--vx-tile-hot) border-box; }
+/* the cinema hint: one line on a small readout */
+html body.vx:not(.hud-mode):not(.vx-b) #wr-cine-hint {
+  border-color: transparent;
+  border-radius: 999px;
+  padding: 4px 18px;
+  background: var(--vx-lcd) border-box;
+  box-shadow: var(--vx-lcd-shadow);
+}
+
+/* --- BEFORE THE STATION IS UP: the boot loader and the title screen are the same device — one black bay in the
+   cabinet. The corner brackets and the grid floor go; the stars, the mark and the words stay where they were --- */
+html body.vx:not(.hud-mode):not(.vx-b) :is(#screen-boot, #screen-splash) {
+  background:
+    radial-gradient(ellipse 50% 18% at 22% 0%, rgba(255, 255, 255, .3), transparent 70%),
+    radial-gradient(ellipse 40% 16% at 80% 100%, rgba(255, 255, 255, .16), transparent 70%),
+    radial-gradient(ellipse 22% 60% at 0% 50%, rgba(255, 255, 255, .14), transparent 70%),
+    radial-gradient(ellipse 22% 60% at 100% 50%, rgba(255, 255, 255, .1), transparent 70%),
+    var(--vx-grain),
+    linear-gradient(180deg, #6d7682 0%, #3a414a 14%, #1c2127 40%, #262c33 62%, #4a525c 86%, #22272d 100%);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-boot .boot-veil,
+html body.vx:not(.hud-mode):not(.vx-b) #screen-splash .sp-center {
+  position: absolute;
+  inset: 10px;
+  border-radius: 16px;
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px #c4ccd5, 0 1px 0 2px #eef2f6, 0 0 0 3px #2a3037;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-boot .boot-veil {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  opacity: 1;
+  animation: none;
+  background: linear-gradient(180deg, rgba(0, 0, 0, .9) 0, rgba(0, 0, 0, 0) 8px), linear-gradient(180deg, #010203 0, #05070a 100%);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-boot .boot-mark { color: var(--vx-node); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-splash :is(#sp-stars, .sp-nebula) { clip-path: inset(10px round 16px); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-splash #sp-stars { background: linear-gradient(180deg, #010203 0, #05070a 100%); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-splash :is(.sp-floor, .cc-bracket) { display: none; }
+/* the one control on the title screen is a lit key */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-splash .sp-press {
+  padding: 9px 24px;
+  border-radius: 9px;
+  background: var(--vx-cap-on) border-box;
+  box-shadow: var(--vx-cap-on-shadow);
+  color: #020604;
+  text-shadow: none;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-splash .sp-stamp { bottom: 24px; }
+
+/* --- BUILD MODE: the same device laid over the floor. The top strip is a window head, the library and every card
+   are bays in the chrome lip, keys are caps (the chosen one lit), fields are wells, and the things you pick are
+   tiles. The destructive keys keep their red, an armed key keeps its fill, the floor is untouched --- */
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay .refit-top {
+  border-color: transparent;
+  background: linear-gradient(180deg, #05070a 0, #0d1116 100%);
+  box-shadow: inset 0 -1px 0 #2a3037, inset 0 -2px 0 #eef2f6, inset 0 -3px 0 #c4ccd5, inset 0 -4px 0 #000, 0 8px 24px rgba(0, 0, 0, .5);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay .refit-dock,
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay .refit-guide-card,
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay .station-build-box {
+  border-color: transparent;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, .9) 0, rgba(0, 0, 0, 0) 6px) border-box,
+    linear-gradient(180deg, #05070a 0, #0d1116 60%, #161b21 100%) border-box;
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px #c4ccd5, 0 1px 0 2px #eef2f6, 0 0 0 3px #2a3037, 0 10px 30px 3px rgba(0, 0, 0, .7);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay .refit-dock-head {
+  border-color: transparent;
+  background: linear-gradient(180deg, #05070a 0, #0d1116 100%);
+  box-shadow: inset 0 -1px 0 #2a3037, inset 0 -2px 0 #eef2f6, inset 0 -3px 0 #c4ccd5, inset 0 -4px 0 #000;
+}
+/* the two floating notes over the floor: small bays */
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay .refit-propcard {
+  border-radius: 12px;
+  background: linear-gradient(180deg, rgba(0, 0, 0, .9) 0, rgba(0, 0, 0, 0) 6px), linear-gradient(180deg, #05070a 0, #0d1116 60%, #161b21 100%);
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px #c4ccd5, 0 1px 0 2px #eef2f6, 0 0 0 3px #2a3037, 0 6px 18px 3px rgba(0, 0, 0, .7);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay .refit-propcard h4 { padding: 0; background: none; color: var(--vx-core); text-shadow: 0 0 6px rgba(var(--ph-rgb), .75); }
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay .refit-tip {
+  border-radius: 8px;
+  background: linear-gradient(180deg, #05070a 0, #0d1116 100%);
+  box-shadow: 0 0 0 1px #000, 0 2px 10px rgba(0, 0, 0, .7);
+}
+
+/* the dividers: engraved lines, a dark cut over a light one */
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay :is(.refit-mode-section, .refit-selection) { border-bottom-color: rgba(255, 255, 255, .1); box-shadow: inset 0 -1px 0 #000; }
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay :is(.refit-hint, .refit-tool-help, .refit-actions, .refit-guide-shortcuts, .station-build-footer, .workflow-footer) { border-top-color: #000; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .1); }
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay .workflow-header { border-color: transparent; background: linear-gradient(180deg, #05070a 0, #0d1116 100%); box-shadow: inset 0 -1px 0 #2a3037, inset 0 -2px 0 #eef2f6, inset 0 -3px 0 #c4ccd5, inset 0 -4px 0 #000; }
+
+/* the keys: caps. A destructive key keeps its own ink and edge; an armed key keeps its fill. A cap is whole: a legend
+   too long for it is cut at the edge of the cap, the cap itself never fades away */
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay :is(.bb, .btn-sm, #refit-kit-toggle):not(:is(.station-build-card, .armed)) {
+  border-radius: 7px;
+  background: var(--vx-cap) border-box;
+  box-shadow: var(--vx-cap-shadow);
+  animation: none;
+}
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay :is(.bb, .btn-sm, #refit-kit-toggle):not(:is(.station-build-card, .armed, .refit-tool-reclaim, .refit-danger, .refit-sel-del)) {
+  border-color: transparent;
+  color: var(--vx-core);
+  text-shadow: 0 0 6px rgba(var(--ph-rgb), .75);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay :is(.bb, .btn-sm, #refit-kit-toggle):not(:is(.station-build-card, .armed, .refit-tool-reclaim, .refit-danger, .refit-sel-del)):is(:hover, :focus-visible):not(:disabled) {
+  background: var(--vx-cap-hot) border-box;
+  color: color-mix(in srgb, var(--vx-core) 55%, #fff);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay :is(.bb, .btn-sm, #refit-kit-toggle):is(.active, .sel, .on, [aria-pressed="true"], .refit-primary):not(:is(.station-build-card, .armed, .refit-tool-reclaim, .refit-danger, .refit-sel-del)):not(:disabled) {
+  border-color: transparent !important;
+  background: var(--vx-cap-on) border-box !important;
+  box-shadow: var(--vx-cap-on-shadow);
+  color: #020604 !important;
+  text-shadow: none;
+}
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay :is(.bb, .btn-sm, #refit-kit-toggle):is(.active, .sel, .on, [aria-pressed="true"], .refit-primary):not(:is(.station-build-card, .armed, .refit-tool-reclaim, .refit-danger, .refit-sel-del)):not(:disabled) * { color: inherit; text-shadow: none; }
+/* a destructive key is a cap too: its red legend is lifted to read on the cap, a red wash under the pointer */
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay :is(.bb, .btn-sm):is(.refit-tool-reclaim, .refit-danger, .refit-sel-del):not(.armed) {
+  color: #ffc2bb;
+  text-shadow: 0 0 6px rgba(255, 92, 77, .7);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay :is(.bb, .btn-sm):is(.refit-tool-reclaim, .refit-danger, .refit-sel-del):not(.armed):is(:hover, :focus-visible, .active):not(:disabled) {
+  background: linear-gradient(180deg, rgba(255, 92, 77, .34), rgba(255, 92, 77, .12)) border-box, var(--vx-cap) border-box !important;
+  color: #ffe1dd;
+}
+/* a choice between caps is said by the lit cap, so the ones not chosen are not dimmed as well */
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay .bb.refit-tier:not(:disabled) { opacity: 1; }
+/* a primary key that cannot be pressed yet is a dark cap, not a flat lit block */
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay :is(.bb, .btn-sm).refit-primary:disabled {
+  border-color: transparent !important;
+  background: var(--vx-cap) border-box !important;
+  color: var(--vx-core) !important;
+}
+/* the library tabs: five caps on one chrome seat */
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay .refit-library-tabs {
+  gap: 3px;
+  margin: 4px 7px;
+  padding: 3px;
+  border: 0;
+  border-radius: 11px;
+  background: var(--vx-seat);
+  box-shadow: var(--vx-seat-shadow);
+}
+
+/* the fields: wells */
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay :is(.refit-input, .refit-num, .refit-searchfield):not(select) {
+  border-color: transparent;
+  border-radius: 9px;
+  background: var(--vx-well) border-box;
+  box-shadow: var(--vx-well-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay select:is(.refit-input, .refit-object-finder) {
+  border-color: transparent;
+  border-radius: 9px;
+  background-color: #010302;
+  box-shadow: var(--vx-well-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay :is(.refit-input, .refit-num, .refit-searchfield, .refit-object-finder):focus {
+  outline: 0;
+  border-color: transparent;
+  box-shadow: inset 0 0 0 1px var(--vx-node), var(--vx-well-shadow);
+}
+
+/* the groups: panes */
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay :is(.refit-makeprop, .refit-propinspector, .refit-propcats, .refit-lineprefs, .trg-form, .refit-finline) {
+  border-color: transparent;
+  border-radius: 10px;
+  background: var(--vx-pane) border-box;
+  box-shadow: var(--vx-pane-shadow);
+}
+
+/* the things you pick: tiles. The one under the pointer lifts; the chosen one takes the ring and the lit edge */
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay :is(.refit-proptile, .refit-mattile, .refit-linetile, .refit-machinetile, .refit-linetile-makeroom, .refit-hotslot, .refit-handkey, .refit-keyrow, .refit-step, .station-build-card, .refit-category-menu > summary) {
+  background: var(--vx-tile) border-box;
+  box-shadow: var(--vx-tile-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay :is(.refit-proptile, .refit-mattile, .refit-linetile:not(.nofit), .refit-machinetile, .refit-linetile-makeroom, .refit-hotslot, .refit-handkey, .refit-keyrow, .refit-step, .station-build-card, .refit-category-menu > summary) { border-color: transparent; }
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay :is(.refit-proptile, .refit-mattile, .refit-linetile, .refit-machinetile, .refit-linetile-makeroom, .refit-hotslot, .refit-handkey, .station-build-card, .refit-category-menu > summary):is(:hover, :focus-visible) { background: var(--vx-tile-hot) border-box; }
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay :is(.refit-proptile, .station-build-card)[aria-pressed="true"],
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay :is(.refit-mattile, .refit-linetile, .refit-machinetile, .refit-hotslot, .refit-handkey):is(.active, [aria-pressed="true"]) {
+  border-color: transparent;
+  background: var(--vx-pick) border-box;
+  box-shadow: var(--vx-pick-shadow);
+}
+/* a tile name that was dim ink on flat glass is lifted to read on the tile; the chosen one stays the brightest */
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay .refit-mattile:not(:is(.active, [aria-pressed="true"])) { color: color-mix(in srgb, var(--ph) 84%, #000); }
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay :is(.refit-input, .refit-num, .refit-searchfield)::placeholder { color: color-mix(in srgb, var(--ph) 80%, #000); }
+/* the states a tile already says with its edge stay said: the gold of the goal, the red of the REMOVE hand */
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay .refit-goalcell .refit-linetile { border-color: color-mix(in srgb, var(--gold) 70%, transparent); }
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay .refit-handkey[data-handkey="remove"].active {
+  border-color: var(--bad);
+  background: linear-gradient(180deg, rgba(255, 92, 77, .24), rgba(255, 92, 77, .08)) border-box, rgba(0, 3, 1, .5) border-box;
+  box-shadow: var(--vx-tile-shadow);
+}
+/* a colour swatch is all picture: it takes a dark rim, and the ring when chosen */
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay .refit-hue { border-color: #000; box-shadow: 0 0 0 1px rgba(255, 255, 255, .14); }
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay .refit-hue:is(:hover, :focus-visible) { box-shadow: 0 0 0 1px rgba(var(--ph-rgb), .7); }
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay .refit-hue:is(.active, [aria-pressed="true"]) { border-color: #000; box-shadow: 0 0 0 2px var(--vx-core); }
+
+/* the recessed bits: the picture wells and the key legends */
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay :is(.refit-linetile-view, .refit-preview-art, .refit-step-art, .station-build-art) {
+  border-color: transparent;
+  background: var(--vx-well) border-box;
+  box-shadow: var(--vx-read-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay :is(.refit-keyrow, .refit-handkey, .refit-sel-act) kbd,
+html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay .station-build-meta span {
+  border-color: transparent;
+  background: #010302 border-box;
+  box-shadow: var(--vx-read-shadow);
+}
