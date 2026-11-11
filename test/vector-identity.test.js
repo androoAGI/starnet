@@ -58,10 +58,13 @@ for (const list of selectorLists) {
 }
 A.eq(unscoped, [], 'every vector.css selector is scoped under body.vx');
 // the at-rules are the bevel guard (a square fallback where corner-shape is unsupported, never a rounded one) and the fit
-// pass's four panel-width queries (section 26). A window-width @media is never one of them: a panel's dress follows the panel
+// pass's four panel-width queries (section 26). A window-width @media is never one of them: a panel's dress follows the panel.
+// The deep end of the dark knob adds one more guard: the legend flip needs clamp() inside a color-mix() percentage, and a
+// webview without it keeps the dark legends (the knob still darkens, it only never flips them)
 const atRules = [...new Set(preludes.filter(p => p.startsWith('@')))];
-A.eq(atRules, ['@supports (corner-shape: bevel)', '@container vx-rail (max-width: 215px)', '@container vx-rail (max-width: 190px)', '@container vx-rail (max-width: 165px)', '@container vx-comms (max-width: 260px)'],
-  'the only at-rules are the corner-shape guard and the fit pass’s four panel-width queries');
+const INK_GUARD = '@supports (color: color-mix(in srgb, red, blue calc(clamp(0, .5, 1) * 100%)))';
+A.eq(atRules, ['@supports (corner-shape: bevel)', INK_GUARD, '@container vx-rail (max-width: 215px)', '@container vx-rail (max-width: 190px)', '@container vx-rail (max-width: 165px)', '@container vx-comms (max-width: 260px)'],
+  'the only at-rules are the corner-shape guard, the dark knob’s legend-flip guard and the fit pass’s four panel-width queries');
 
 // ---- the radius families close by token ----
 for (const token of ['--sn-r-card', '--sn-r-key', '--sn-r-row', '--sn-r-chip', '--r-sm', '--r', '--r-lg']) {
@@ -693,8 +696,8 @@ A.eq(partsOf(ruleL('')).map(x => x.slice(0, x.indexOf(':'))).join(' '), '--vx-pa
 A.eq(partsOf(ruleL('')).join('\n'), partsOf(partsI).join('\n'), 'and they are section 29’s, word for word: a tile in a pop-up list, in Build Mode and in a window are the same glass');
 A.eq((cssL.match(/--vx-[a-z-]+:/g) || []).length, 8, 'the last pass defines no material of its own');
 // the pop-up lists
-const BAY = 'border-color: transparent; border-radius: 16px; background: linear-gradient(180deg, rgba(0, 0, 0, .9) 0, rgba(0, 0, 0, 0) 6px) border-box, linear-gradient(180deg, #05070a 0, #0d1116 60%, #161b21 100%) border-box; box-shadow: 0 0 0 1px #000, 0 0 0 2px #c4ccd5, 0 1px 0 2px #eef2f6, 0 0 0 3px #2a3037, 0 10px 30px 3px rgba(0, 0, 0, .7); -webkit-backdrop-filter: none; backdrop-filter: none;';
-const HEAD_LIP = 'inset 0 -1px 0 #2a3037, inset 0 -2px 0 #eef2f6, inset 0 -3px 0 #c4ccd5, inset 0 -4px 0 #000';
+const BAY = 'border-color: transparent; border-radius: 16px; background: linear-gradient(180deg, rgba(0, 0, 0, .9) 0, rgba(0, 0, 0, 0) 6px) border-box, linear-gradient(180deg, #05070a 0, #0d1116 60%, #161b21 100%) border-box; box-shadow: var(--vx-lip2), 0 0 0 1px #000, 0 0 0 2px #c4ccd5, 0 1px 0 2px #eef2f6, 0 0 0 3px #2a3037, 0 10px 30px 3px rgba(0, 0, 0, .7); -webkit-backdrop-filter: none; backdrop-filter: none;';
+const HEAD_LIP = 'inset 0 -3px 0 var(--vx-veilc), inset 0 -1px 0 #2a3037, inset 0 -2px 0 #eef2f6, inset 0 -3px 0 #c4ccd5, inset 0 -4px 0 #000';
 A.eq(ruleL('#model-dock, #chat-slash, #gd-agent-menu, .ws-menu, .wg-pop.wg-library'), BAY,
   'the five pop-up lists share one shell: a black bay in the chrome lip, no blur. Shell only: what opens and closes them is not touched');
 A.eq(ruleL('#model-dock .model-dock-head, #chat-slash .slash-head, .wg-pop.wg-library .wg-library-header'),
@@ -747,7 +750,7 @@ A.eq(ruleL('#wr-cine-hint'), 'border-color: transparent; border-radius: 999px; p
 // before the station is up
 A.ok(/var\(--vx-grain\)/.test(ruleL(':is(#screen-boot, #screen-splash)')) && /linear-gradient\(180deg, #6d7682 0%/.test(ruleL(':is(#screen-boot, #screen-splash)')),
   'the boot loader and the title screen stand in the station’s own brushed cabinet');
-A.eq(ruleL('#screen-boot .boot-veil, #screen-splash .sp-center'), 'position: absolute; inset: 10px; border-radius: 16px; box-shadow: 0 0 0 1px #000, 0 0 0 2px #c4ccd5, 0 1px 0 2px #eef2f6, 0 0 0 3px #2a3037;',
+A.eq(ruleL('#screen-boot .boot-veil, #screen-splash .sp-center'), 'position: absolute; inset: 10px; border-radius: 16px; box-shadow: var(--vx-lip2), 0 0 0 1px #000, 0 0 0 2px #c4ccd5, 0 1px 0 2px #eef2f6, 0 0 0 3px #2a3037;',
   'each is one black bay in the chrome lip, the same margin the station’s frame keeps');
 A.eq(rulesL.filter(r => /position:/.test(r.body)).map(r => r.sel).join(' | '), '#screen-boot .boot-veil, #screen-splash .sp-center', 'nothing else is re-positioned');
 A.eq(ruleL('#screen-splash :is(.sp-floor, .cc-bracket)'), 'display: none;', 'the title screen’s grid floor and corner brackets go: a screen stays plain');
@@ -796,4 +799,49 @@ A.eq((cssL.match(/backdrop-filter:[^;]*;/g) || []).filter(x => x !== 'backdrop-f
 A.ok(!/[;{\s]filter:\s/.test(cssL) && !/#stage-wrap/.test(cssL) && !/\[class/.test(cssL), 'the last pass declares no filter, styles nothing under #stage-wrap and adds no [class] selector');
 A.ok(!/@/.test(cssL), 'the last pass has no at-rule');
 A.ok(!/url\(/.test(cssL) && !/repeating-/.test(cssL) && !/background-size/.test(cssL), 'the last surfaces stay plain: the pass draws no crest, trace, scan line or grid');
+
+// ---- THE DEEP END of the dark knob (Andrew 2026-11-10: "improve the brightness as well, lets make it to be able to get
+// really dark for the dashboard"). The knob is the same SETTINGS › BRIGHTNESS slider; at 0 nothing may change, so every
+// veil's alpha is a product with the knob and every flipped ink starts from the old ink ----
+const dkAt = cssA.indexOf('--vx-dk: calc(var(--vx-dim, 0) / .85);');
+const dkRule = dkAt < 0 ? '' : cssA.slice(cssA.lastIndexOf('}', dkAt) + 1, cssA.indexOf('}', dkAt) + 1).replace(/\s+/g, ' ').trim();
+A.ok(dkRule.startsWith('html body.vx:not(.hud-mode) {'), 'the deep end’s tokens sit on the body in the shared sections, so they reach every part without moving a locked rule');
+for (const [tok, val] of [['veilc', 'calc(var(--vx-dk) * .88)'], ['keyc', 'calc(var(--vx-dk) * .5 + var(--vx-night) * (.48 - var(--vx-dk) * .1))'], ['litc', 'calc(var(--vx-dk) * .5)'], ['onc', 'calc(var(--vx-dim, 0) * .35)']]) {
+  A.ok(dkRule.includes('--vx-' + tok + ': rgba(0, 0, 0, ' + val + ');'), 'the ' + tok + ' veil is black at an alpha that is 0 when the knob is 0');
+}
+A.ok(dkRule.includes('--vx-night: 0; --vx-inkp: 0%;'), 'outside the guard the legends never flip: the keys stop at the half veil and keep their dark ink');
+A.ok(css.includes(INK_GUARD + ' {\n  html body.vx:not(.hud-mode) {\n    --vx-night: clamp(0, calc((var(--vx-dk) - .325) * 1000), 1);\n    --vx-inkp: calc(var(--vx-night) * 100%);\n  }\n}'),
+  'inside the guard the night step goes 0 to 1 between -30 and -35 (the slider moves in fives) and the ink follows it: a dark legend on a half-dimmed key was about 3.4:1 at -50');
+A.ok(dkRule.includes('--vx-ink: color-mix(in srgb, #06100a, var(--vx-core) var(--vx-inkp));') && dkRule.includes('--vx-ink2: color-mix(in srgb, #0b1014, var(--vx-core) var(--vx-inkp));')
+  && dkRule.includes('--vx-ink-hot: color-mix(in srgb, #020604, color-mix(in srgb, var(--vx-core) 55%, #fff) var(--vx-inkp));'),
+  'a key legend is the old dark ink until the night step, then the lit ink: a dark key never carries a dark legend');
+A.eq((css.match(/var\(--vx-dim\)/g) || []).length, 0, 'the knob is always read with a 0 fallback: a station that never set it is undimmed');
+// the bare metal goes down under veils
+A.ok(/#screen-game\.active \{\s*background:\s*var\(--vx-veilg\),/.test(cssA) && /#chat-panel #chat-inputrow \{[^}]*background:\s*var\(--vx-veilg\),/.test(cssA), 'the chassis and the composer deck take the deep veil');
+A.ok(/:is\(#topbar, #bottombar\) \{\s*box-shadow: inset 0 0 0 200px var\(--vx-veilc\),/.test(cssA), 'the two bars take it as an inset wash, so the legends on them are never filtered');
+A.ok(/--vx-seat: var\(--vx-veilg\), /.test(cssA) && /--vx-knob: var\(--vx-keyg\), /.test(cssA) && /--vx-knob-hot: var\(--vx-keyg\), /.test(cssA) && /--vx-lcd-shadow: var\(--vx-lip3\), /.test(cssA),
+  'seats, knobs and the chrome lip round a readout carry their veil in the token, so every user of the token goes down with it');
+A.eq((cssA.match(/linear-gradient\(rgba\(0, 0, 0, calc\(var\(--vx-dim, 0\) \* \.9\)\), rgba\(0, 0, 0, calc\(var\(--vx-dim, 0\) \* \.9\)\)\)/g) || []).length, 2,
+  'the two panels’ glass and a window’s glass go equally deep');
+A.ok(/:is\(#left, #chat-panel\)::after \{\s*filter: brightness\(calc\(1 - var\(--vx-dim, 0\) \* 1\.02\)\)/.test(cssA) && /\.term:not\(\.pw\)::after \{ filter: brightness\(calc\(1 - var\(--vx-dim, 0\) \* 1\.02\)\)/.test(cssA),
+  'the chrome frames of the panels and the windows go to black (they carry no legend, so a filter is safe there)');
+A.ok(/opacity: calc\(1 - var\(--vx-dim, 0\) \* \.65\)/.test(cssA), 'the bars’ light pipes ease down with the knob');
+A.ok(/\[aria-current="page"\]\) \{\s*background:\s*var\(--vx-litg\),/.test(cssA), 'the chosen session band eases down under its white words');
+// the station view's bezel: the one housing that may not take a filter
+const silP = (cssP.match(/#screen-game:not\(\.cinema\) #stage-wrap \.cam-hud::before \{[^}]*\}/) || [''])[0];
+A.ok(/background: #000; -webkit-mask-box-image: url\("vx\/win\.png"\) 92 \/ 46px stretch;\s*opacity: calc\(var\(--vx-dk\) \* \.86\);/.test(silP) && /pointer-events: none/.test(silP) && !/filter/.test(silP),
+  'the station view’s bezel darkens under a black cut-out of its own 9-slice (no filter near the world, and it never catches a click)');
+// keys: off keys ease down, lit keys take one step, never two
+A.ok(/--vx-cap: var\(--vx-litg\), /.test(cssA) && /--vx-cap-hot: var\(--vx-litg\), /.test(cssA), 'an off cap’s sheen eases down (its legend is lit, so the veil only helps it)');
+A.ok(/--vx-cap-on: var\(--vx-ong\), var\(--vx-cap-on-raw\);/.test(cssA) && /--vx-gloss:\s*var\(--vx-ong\),/.test(cssA), 'a lit cap and the lit nav key take the mild lit veil (dark ink on them stays above 7:1)');
+A.ok(/#chat-panel #chat-inputrow \{ filter: brightness\(calc\(1 - var\(--vx-dim, 0\) \* \.35\)\); --vx-cap-on: var\(--vx-cap-on-raw\); \}/.test(cssA),
+  'the three housings that already take their keys down with a filter hand their lit keys the raw fill');
+A.eq((css.match(/--vx-cap-on: var\(--vx-cap-on-raw\);/g) || []).length, 1, 'so a lit key is dimmed once, never twice (twice puts its dark legend under 4:1)');
+// every chrome lip goes down: none is left bare to stay white in a dark room
+A.eq((css.match(/box-shadow: 0 0 0 1px #000, 0 0 0 2px #c4ccd5/g) || []).length, 0, 'no chrome ring is left without its lip veil');
+A.eq((css.match(/box-shadow: inset 0 -1px 0 #2a3037/g) || []).length, 0, 'no head’s chrome lip is left without its veil');
+// the screens before the station is up
+A.ok(/^background: var\(--vx-veilg\),/.test(ruleL(':is(#screen-boot, #screen-splash)')), 'the cabinet round the boot loader and the title screen goes down too');
+A.ok(/#screen-lineage\)\.active \{\s*background:\s*var\(--vx-veilg\),/.test(cssA) && /#screen-lineage\) \.ov-foot \{[^}]*background:\s*var\(--vx-veilg\),/.test(cssA),
+  'and the steel backdrop and foot rail of the full screens (the lit card on them stays lit)');
 A.report('vector-identity');
