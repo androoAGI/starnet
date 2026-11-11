@@ -2348,7 +2348,8 @@ html body.vx:not(.hud-mode):not(.vx-b) #screen-game #topbar > #logo-anchor::befo
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #topbar > .widget-rail { margin-left: 34px; }
 html body.vx:not(.hud-mode):not(.vx-b) #logo { filter: none; }
 html body.vx:not(.hud-mode):not(.vx-b) #logo::before { content: none; }
-html body.vx:not(.hud-mode):not(.vx-b) #logo .logo-img { background: var(--vx-core); }
+/* the mark is painted in the theme's own colour, never the pale core tint (Andrew 11-10: "its just white. it should be the color of the theme") */
+html body.vx:not(.hud-mode):not(.vx-b) #logo .logo-img { background: var(--ph); }
 
 /* ---- the head knobs: one drawn icon each, seated on whole pixels ---- */
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left > h3 .crew-hide {

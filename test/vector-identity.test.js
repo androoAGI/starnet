@@ -281,6 +281,8 @@ A.ok(/:is\(#topbar, #bottombar\) \.widget-rail \.wg-add \{[^}]*width: 30px; min-
 A.ok(/\.wg-add::before \{[^}]*12px 2px no-repeat[^}]*2px 12px no-repeat/.test(cssP), 'the plus is drawn on whole pixels (2px arms in a 12px box on a 30px knob)');
 A.ok(/:not\(\.vx-b\) #logo \{ filter: none; \}/.test(cssP) && /:not\(\.vx-b\) #logo::before \{ content: none; \}/.test(cssP),
   'the mark is the clean logo: no glow and no digit field');
+A.ok(/:not\(\.vx-b\) #logo \.logo-img \{ background: var\(--ph\); \}/.test(cssP) && !/:not\(\.vx-b\) #logo \.logo-img \{[^}]*(?:--vx-core|#fff|255, 255, 255)/.test(cssP),
+  'the mark is painted in the theme colour itself, never the pale core tint or white (Andrew 11-10: “its just white. it should be the color of the theme”)');
 A.ok(/#topbar::before \{ content: none; \}/.test(cssP) && /#topbar > #logo-anchor::before \{[^}]*content: ''[^}]*left: -18px; right: -18px;/.test(cssP),
   'the brand well is drawn on the mark\'s own anchor, so the mark stays centred in it at either logo size (style.css shrinks the mark on narrow windows)');
 A.ok(!/#logo::before \{[^}]*content: ''/.test(cssP), 'the well is never drawn on #logo itself (logoclip.js clips that box)');
