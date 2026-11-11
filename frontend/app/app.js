@@ -3384,6 +3384,79 @@ const App = (() => {
     } catch (e) { return { ok: false, why: String((e && e.message) || e).slice(0, 140) }; }
   }
 
+
+  /* #181 (Mac, 0.15.0: Claude sign-in -> WAKE -> "testing the wire..." -> back to PRESS ANY KEY). macOS stopped the page's web
+     content process during the wire test and the desktop host reloaded the page; a first run has no save yet, so the reload
+     landed on the title and every choice was gone. For the length of a wire test the setup choices are kept here, and a page
+     that comes back while one was running returns to the connect screen with them, saying what happened. Kept: name,
+     provider, model, endpoint, character and voice. Never a key (keys live in the keychain and the sidecar), and never FULL
+     approval, which has its own two-press confirm: a restored setup asks again at the safe default. The host logs the stop in
+     startup.log and marks its reload #webview-recovered (src-tauri main.rs on_web_content_terminated). */
+  const WAKE_DRAFT_KEY = 'starnet.wakeDraft.v1', WAKE_DRAFT_MS = 15 * 60 * 1000, WEBVIEW_RECOVERED_FRAGMENT = 'webview-recovered';
+  let pageRecoveredByHost = false;
+  function takeRecoveryMarker() {
+    try {
+      if (location.hash !== '#' + WEBVIEW_RECOVERED_FRAGMENT) return false;
+      history.replaceState(null, '', location.pathname + location.search);
+      return true;
+    } catch (_) { return false; }
+  }
+  function saveWakeDraft(model, baseUrl) {
+    try {
+      localStorage.setItem(WAKE_DRAFT_KEY, JSON.stringify({ at: Date.now(), name: String(el('in-name').value || '').slice(0, 18),
+        provider: pickedProvider, model: String(model || '').slice(0, 200), baseUrl: String(baseUrl || '').slice(0, 2048),
+        skin: pickedSkin, persona: pickedPersona, traits: pickedTraits, customVoice: String(pickedCustomVoice || '').slice(0, 2000) }));
+    } catch (_) {}
+  }
+  function clearWakeDraft() { try { localStorage.removeItem(WAKE_DRAFT_KEY); } catch (_) {} }
+  // read once and gone: a draft older than WAKE_DRAFT_MS (or from the future) is a stale leftover, not a setup in progress
+  function takeWakeDraft(now) {
+    let d = null;
+    try { d = JSON.parse(localStorage.getItem(WAKE_DRAFT_KEY) || 'null'); } catch (_) { d = null; }
+    clearWakeDraft();
+    const t = Date.now(), at = d && Number(d.at);
+    if (!d || typeof d !== 'object' || Array.isArray(d) || !Number.isFinite(at) || at > (now || t) + 60000 || (now || t) - at > WAKE_DRAFT_MS) return null;
+    return d;
+  }
+  // a dial is a whole step 0-3 (personas.js TRAITS, PROFANITY) and a toggle is on or off: nothing else, and no text, comes back
+  function wakeDraftTraits(raw) {
+    const out = {};
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return out;
+    for (const k of Object.keys(raw).slice(0, 24)) {
+      const v = raw[k];
+      if (/^[a-z][a-zA-Z0-9_]{0,31}$/.test(k) && (typeof v === 'boolean' || (Number.isInteger(v) && v >= 0 && v <= 3))) out[k] = v;
+    }
+    return out;
+  }
+  function restoreWakeDraft(d, recovered) {
+    const str = (v, n) => (typeof v === 'string' ? v.slice(0, n) : '');
+    // the input event keeps the nameplate and the 18-character counter in step, as typing does
+    if (str(d.name, 18) && el('in-name')) { el('in-name').value = str(d.name, 18); el('in-name').dispatchEvent(new Event('input')); }
+    if (str(d.skin, 64)) pickedSkin = str(d.skin, 64);         // buildSkins falls back to the default for an unknown id
+    if (str(d.persona, 64)) pickedPersona = str(d.persona, 64);  // buildVoice does the same for an unknown persona
+    pickedTraits = wakeDraftTraits(d.traits);
+    pickedCustomVoice = str(d.customVoice, 2000);
+    pickedApproval = 'ask';
+    buildSkins(); buildVoice(); buildApproval(); updateNameplate();
+    const prov = str(d.provider, 40);
+    const chip = prov && Array.from(document.querySelectorAll('.provider-row .prov')).find(b => b.dataset.prov === prov);
+    if (chip) { userPickedProvider = true; selectProviderUI(prov); }
+    if (str(d.baseUrl, 2048) && el('in-base-url')) el('in-base-url').value = str(d.baseUrl, 2048);
+    if (str(d.model, 200) && el('in-model')) { el('in-model').value = str(d.model, 200); updateHint(); }
+    if (typeof OverseerSetup !== 'undefined') {
+      if (OverseerSetup.showStep) OverseerSetup.showStep('brain', false);
+      if (chip && OverseerSetup.beginConnection) OverseerSetup.beginConnection();
+    }
+    const msg = el('connect-msg');
+    if (msg) {
+      msg.className = 'msg';
+      msg.textContent = (recovered
+        ? 'macOS stopped StarNet’s display while it tested the wire, and StarNet reloaded it. '
+        : 'StarNet stopped before the wire test finished. ')
+        + 'Your choices are kept — press WAKE to try again. If it happens again, restart StarNet; startup.log has the details.';
+    }
+  }
+
   // Returns TRUE once it commits to entering the station (WAKING latched), FALSE on any validation bounce.
   async function onWakeAttempt() {
     SFX.boot(); SFX.open();
@@ -3501,7 +3574,9 @@ const App = (() => {
     }
     wakeBtnBusy(true);
     msg.textContent = 'testing the wire — one real call to ' + model + '…';
+    if (!resumingSaved) saveWakeDraft(model, baseUrl);   // #181: a page that dies during the test comes back to these choices
     const wire = await preflightWire();
+    clearWakeDraft();
     if (!wire.ok) {
       wakeBtnBusy(false);
       msg.className = 'msg bad';
@@ -6242,6 +6317,7 @@ const App = (() => {
 
   /* ---------- boot ---------- */
   async function init() {
+    pageRecoveredByHost = takeRecoveryMarker();   // #181: read (and strip) the host's recovery mark before anything else
     if (Harness.init) await Harness.init();   // desktop: load the keychain "configured?" flag first
     if (typeof StationUI !== 'undefined') StationUI.init();   // applies saved theme/CRT settings, wires the bottom bar
     if (typeof Updates !== 'undefined' && typeof StationUI !== 'undefined') Updates.init({ notify: StationUI.notify, rerender: key => StationUI.invalidate(key, null, { fresh: true }) });   // the Update Center repaints next frame, its controls showing the new state
@@ -6394,6 +6470,9 @@ const App = (() => {
     if (lineage && lineage.priorInstallEvidence === true) {
       showPriorStateGate(lineage); return;
     }
+    // #181: a page that came back while a wire test was running returns to its connect screen with the choices it had
+    const draft = takeWakeDraft();
+    if (draft) { startCreation(); if (document.getElementById('screen-connect')) restoreWakeDraft(draft, pageRecoveredByHost); return; }
     // FIRST RUN (no save) — the key-art boot splash, then PRESS ANY KEY → CREATE YOUR OVERSEER.
     showSplash();
   }

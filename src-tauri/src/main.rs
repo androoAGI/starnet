@@ -3612,6 +3612,80 @@ fn install_webview_crash_recovery(win: &tauri::WebviewWindow) {
     }
 }
 
+/// #181 (Mac, 0.15.0: WAKE -> "testing the wire..." -> back to PRESS ANY KEY, nothing in startup.log). macOS can stop a
+/// WKWebView's web content process (memory pressure, a WebKit content crash), and Tauri's default answer reloads the
+/// page with only a debug log line: the reporter's logs showed the page booting again while the sidecar ran on, and a
+/// first run, which has no save yet, landed back on its title with every choice gone. This replaces that default:
+///   - the stop is said in startup.log, as WebView2's are (on_webview_process_failed);
+///   - recovery spends the same budget (3 in 10 min), so a page that dies on every load is left as it is and the log
+///     says to restart, instead of reloading forever;
+///   - the reload carries #webview-recovered, so the page can say what happened and resume a setup in progress.
+/// It runs from WebKit's own delegate callback, so the reload hops to another thread and back onto the event loop
+/// (as schedule_main_window_rebuild does), never re-entering the runtime from inside that callback.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn on_web_content_terminated(webview: &tauri::Webview) {
+    let app = webview.app_handle().clone();
+    let log = startup_log_path(&app);
+    let label = webview.label().to_string();
+    if let Some(state) = app.try_state::<AppState>() {
+        if state.shutting_down.load(Ordering::SeqCst) {
+            log_startup(&log, format!("webview-recovery: macOS ended the web content process of '{label}' during shutdown; ignored"));
+            return;
+        }
+        if !state.webview_recovery.try_spend(Instant::now()) {
+            log_startup(
+                &log,
+                format!("webview-recovery: macOS stopped the web content process of '{label}'; recovery budget spent (3 in 10 min), leaving the window as-is; restart StarNet to recover"),
+            );
+            return;
+        }
+    }
+    let webview = webview.clone();
+    let task_app = app.clone();
+    std::thread::spawn(move || {
+        let task_log = log.clone();
+        let queued = task_app.run_on_main_thread(move || {
+            let marked = webview.url().map(|mut url| {
+                url.set_fragment(Some(webview_recovery::RECOVERED_FRAGMENT));
+                url
+            });
+            let how = match marked.and_then(|url| webview.navigate(url)) {
+                Ok(()) => "reloading the page (marked #webview-recovered)".to_string(),
+                Err(e) => match webview.reload() {
+                    Ok(()) => format!("reloading the page (unmarked: {e})"),
+                    Err(e2) => format!("reload FAILED ({e2}); restart StarNet to recover"),
+                },
+            };
+            log_startup(
+                &task_log,
+                format!("webview-recovery: macOS stopped the web content process of '{label}'; {how}"),
+            );
+        });
+        if let Err(e) = queued {
+            log_startup(&log, format!("webview-recovery: macOS stopped a web content process; could not queue the reload ({e})"));
+        }
+    });
+}
+
+/// The builder hook for on_web_content_terminated: macOS only (Tauri has no such hook elsewhere; WebView2's
+/// ProcessFailed is wired per window in install_webview_crash_recovery).
+trait WebContentRecovery {
+    fn with_web_content_recovery(self) -> Self;
+}
+
+impl WebContentRecovery for tauri::Builder<tauri::Wry> {
+    fn with_web_content_recovery(self) -> Self {
+        #[cfg(target_os = "macos")]
+        {
+            self.on_web_content_process_terminate(on_web_content_terminated)
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            self
+        }
+    }
+}
+
 #[cfg(windows)]
 fn on_webview_process_failed(
     app: &AppHandle,
@@ -5662,6 +5736,8 @@ fn main() {
         // the webview gets no dialog capability; the prompt is minted and answered at the host.
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
+        // #181: macOS web content process stops are logged, budgeted and resumed (on_web_content_terminated)
+        .with_web_content_recovery()
         .invoke_handler(tauri::generate_handler![
             harness_store_key,
             harness_store_provider_key,

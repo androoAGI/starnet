@@ -94,6 +94,7 @@ async function wake(store) {
   const seen = { preflight: 0 };
   const run = Function('Harness', 'elements', 'seen', `const el=id=>elements[id],SFX={boot(){},open(){}},stopCodexPoll=()=>{},stopStarnetLinkPoll=()=>{},stopStarnetBalancePoll=()=>{},providerNeedsBaseUrl=p=>p==='custom',isOAuthProviderId=()=>false,providerNeedsKey=()=>false,providerSignupUrl=()=>'',providerLabel=()=>'Custom',esc=x=>x,wakeBtnBusy=()=>{};let pickedProvider='custom',codexConnected=false,prefilledKey='',keyOverwriteConfirmed=false,resumingSaved=null;
     const preflightWire=async()=>{seen.preflight++;return{ok:false,why:'test stop after the key check'}};
+    const saveWakeDraft=()=>{},clearWakeDraft=()=>{};   // #181's draft keeping (test/webview-recovery-draft.test.js)
     ${A.fnBody(app, 'async function onWakeAttempt(')}
     return onWakeAttempt();`);
   let error = null;

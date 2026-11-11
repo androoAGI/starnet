@@ -11,6 +11,11 @@ use std::collections::VecDeque;
 use std::sync::Mutex;
 use std::time::{Duration, Instant};
 
+/// #181: the fragment a macOS recovery reload carries (`index.html#webview-recovered`). The page reads it once,
+/// strips it, and a first-run setup that was mid wire test returns to its connect screen instead of the title
+/// (frontend/app/app.js takeRecoveryMarker; test/webview-recovery-draft.test.js holds the two to one word).
+pub(crate) const RECOVERED_FRAGMENT: &str = "webview-recovered";
+
 /// What the host does for one `COREWEBVIEW2_PROCESS_FAILED_KIND`.
 #[cfg_attr(not(windows), allow(dead_code))]
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

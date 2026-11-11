@@ -143,5 +143,6 @@ window.OverseerSetup = (() => {
     select(recovery ? 'brain' : 'identity', false);
     if (recovery) beginConnection();
   }
-  return { init, reflectProvider, reflectModel, beginConnection, modelPicked, cancelModel };
+  // showStep: a setup restored after the page reloaded mid wire test (#181, app.js restoreWakeDraft) opens on the brain step
+  return { init, reflectProvider, reflectModel, beginConnection, modelPicked, cancelModel, showStep: select };
 })();

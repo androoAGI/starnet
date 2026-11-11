@@ -13,7 +13,7 @@ async function attempt({stored=false,connected=true,typed='',provider='openai',w
  const refreshStarnetGenesisStatus=async()=>{seen.balanceChecks++;return {answered:true,linked:true,balanceUsd:0}};
  ${A.fnBody(src,'function savedStationProv(')}
  ${A.fnBody(src,'function resumeInto(')}
- const preflightWire=async()=>{seen.calls++;return{ok:wireOk,why:'test transport sentinel'}};${fn}\nreturn onWakeAttempt();`);
+ const preflightWire=async()=>{seen.calls++;return{ok:wireOk,why:'test transport sentinel'}};const saveWakeDraft=()=>{seen.drafts=(seen.drafts||0)+1},clearWakeDraft=()=>{};${fn}\nreturn onWakeAttempt();`);
  await run(Harness,elements,seen,connected,provider,wireOk,resume,saved);seen.original=saved;return{...seen,message:elements['connect-msg'].innerHTML||elements['connect-msg'].textContent};
 }
 (async()=>{
