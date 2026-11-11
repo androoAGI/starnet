@@ -403,14 +403,40 @@
      A paused job is un-paused, exactly as resume does — asking to fire a paused routine and having nothing
      happen is a silent no-op, and the caller is told (state comes back 'scheduled'). A one-shot that has
      ALREADY settled (lastRunAt set) is deliberately left alone: planTick treats a settled one-shot as
-     permanently ineligible, so stamping it due would promise a fire that can never happen. */
+     permanently ineligible, so stamping it due would promise a fire that can never happen.
+
+     A PERSON'S TRIGGER (cost fix W3.1). ctx.personAsked: the host was asked from a person's own run (routine.manage
+     run_now in a message's run, never inside an unattended start), so the fire this makes due is that person's, not
+     the schedule's. personAskedAt names the occurrence (the nextRunAt stamped here); the cron driver admits THAT fire
+     without the unattended hold and outside its scope, and drops the mark in the same write that advances it. A
+     trigger made inside an unattended start leaves its fire unattended, unless a person's is still waiting (the mark
+     moves with the occurrence it re-stamps). A mark the occurrence no longer matches (a retry rewound nextRunAt)
+     admits nothing. */
   function triggerJob(jobs, id, ctx) {
     const now = (ctx && ctx.now) || 0;
     return mapJob(jobs, id, (job) => {
       if (job.schedule && job.schedule.kind === 'once' && job.lastRunAt) return job;   // settled one-shot: never re-armable
       // a manual trigger owns the next fire completely — a stale retry anchor advancing from an old grid
       // after the triggered run settles would phase-shift the schedule the Commander just touched.
-      return Object.assign({}, job, { enabled: true, state: 'scheduled', nextRunAt: iso(now), retryAnchorAt: null, occurrenceScope: null });
+      const next = Object.assign({}, job, { enabled: true, state: 'scheduled', nextRunAt: iso(now), retryAnchorAt: null, occurrenceScope: null });
+      const waiting = job.personAskedAt != null && job.personAskedAt === job.nextRunAt;   // a person's fire not taken yet
+      if ((ctx && ctx.personAsked === true) || waiting) next.personAskedAt = iso(now);
+      else delete next.personAskedAt;
+      return next;
+    });
+  }
+
+  /* releaseHeldOnce — the unattended hold (cost fix W3.1) held a ONE-SHOT's fire: no run started, so the fire-claim the tick
+     stamped (it says "in flight") is released and the one occurrence is rechecked at retryAt, the shape a blocked or an
+     unchanged one-shot takes. A trigger then makes it due at once. A recurring job is returned as it is: the tick's advance
+     already dropped its occurrence. No-op-safe on an absent or settled job. */
+  function releaseHeldOnce(jobs, id, info) {
+    const retryAt = info && info.retryAt;
+    return mapJob(jobs, id, (job) => {
+      if (!(job.schedule && job.schedule.kind === 'once') || job.lastRunAt) return job;
+      const next = Object.assign({}, job, { fireClaim: null, heartbeatAt: null });
+      if (retryAt != null) next.nextRunAt = iso(retryAt);
+      return next;
     });
   }
 
@@ -960,6 +986,7 @@
     pauseJob: pauseJob,
     resumeJob: resumeJob,
     triggerJob: triggerJob,
+    releaseHeldOnce: releaseHeldOnce,
     claimOnceFire: claimOnceFire,
     renewOnceHeartbeat: renewOnceHeartbeat,
     markRun: markRun,

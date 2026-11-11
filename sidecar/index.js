@@ -136,6 +136,7 @@ const { _internals: ProgressGuardInternals } = require('./tool-progress-guard.js
 const { recoverToolResult } = require('./tool-recovery.js'); // bounded retry for host-trusted transient reads only
 const transcriptStoreModule = require('./transcriptstore.js');
 const TurnView = require('./turn-view.js');
+const CrossRunReplay = require('./cross-run-replay.js');   // W1.8: earlier runs' replayed results ride as a head and a handle, in a window
 const OverseerDelivery = require('./overseer-delivery.js');
 const { makeTranscriptStore } = transcriptStoreModule;
 const { makeRunJournal, DISPATCH_BOUNDARY_MODEL, quotesForgotten: journalQuotesForgotten } = require('./run-journal.js');
@@ -174,7 +175,8 @@ const {
   attachRateLimits,
   attachSubUsage,
   attachCatalogCache,
-  attachRequestScrub
+  attachRequestScrub,
+  attachUsageReceipts
 } = require('./providers/factory.js');
 const { makeCatalogCache, runWindow: catalogRunWindow } = require('./providers/catalog-cache.js');
 const { promptTierCeiling } = require('./providers/prices.js');
@@ -263,11 +265,12 @@ function channelBodyError(e) {
     : 'bad json';
 }
 const { MIME, CHANNEL_UPLOAD_MAX_BYTES, mimeForPath, safeDownloadName, isActiveDeliverable, parseRange, isTextDocument, documentViewHtml, DOC_VIEW_CSP, DOC_VIEW_MAX_BYTES } = require('./file-response.js');
-const { reflect, reflectSalient, refusedAction, recordFromProposal, feedbackFor, highStakes } = require('./reflect.js');
+const { reflect, reflectSalient, refusedAction, recordFromProposal, feedbackFor, highStakes, parse: reflectParse } = require('./reflect.js');
 const FeedbackMemory = require('./feedbackmemory.js');   // THE COMMANDER'S TASTE: verdicts + corrections -> durable like/dislike memory
 const TasteRef = require('./tasteref.js');   // DESIGN ANCHOR: the rated run's real files / palette / fonts / image args / method, captured on a verdict
 const Failreview = require('./failreview.js');   // failure-review aux pass: PURE lesson producer for FAILED runs (reflect.js mold)
 const LearningEligibility = require('./learning-eligibility.js');   // memory-truth-1027: the ONE rule for which runs may teach which learning pass
+const LearningCooldown = require('./learning-cooldown.js');   // W1.4: the ONE cooldown policy for reflection, failure review, study and thread mining
 const Embed = require('./embed.js');              // memory-compound: the embedding lane of hybrid recall (BM25 + vectors over a configured provider)
 const { swallow, note: failNote, summary: failopenSummary, setClock: failopenSetClock } = require('./failopen.js');    // tagged fail-open: a swallowed error stays visible (throttled warn + counter + diagnostics summary)
 const { makeProcessFaultHandler } = require('./process-fault.js');   // fail-loud-but-safe uncaughtException policy (degrade health, release locks, exit(1) for the shell watchdog)
@@ -378,6 +381,7 @@ const nightshift = require('./nightshift.js');            // NS-1: pure planner 
 const LocalDay = require('./localday.js');
 const PriorWork = require('./priorwork.js');              // the night shift's memory of earlier builds + the near-duplicate veto                // the LOCAL calendar-day key (leash/focus/tonight) — offset injected below
 const { makeNightshiftDriver } = require('./nightshift-driver.js'); // NS-1: the restart-safe idle-autonomy tick driver
+const UnattendedAdmission = require('./unattended-admission.js');   // W1.6: the futile-beat skip (hold a beat that would re-propose an undecided build)
 const contextpack = require('./contextpack.js');          // NS-2: pure recency-weighted context pack for the propose step
 const AwayBriefing = require('./away-briefing.js');   // THE ONE RETURN REPORT: every unattended outcome folded into one briefing
 const nightfocus = require('./nightfocus.js');            // NS-5b: pure single-priority FOCUS resolver (evidence-ranked, steer-aware)
@@ -469,7 +473,9 @@ const TaskIntent = require('../frontend/app/fork.js').TaskIntent;    // shared T
 const ForkMarkers = require('../frontend/app/fork.js');               // the one choice-marker grammar (parse / stripMarkers)
 const CommanderContext = require('./commander-context.js');    // bounded provenance-labelled task context
 const threadmine = require('./threadmine.js');                // NS-6: pure post-run thread-mining producer (reflect/study mold)
+const OneShot = require('./oneshot-model.js');                 // W3.5: which model a one-shot pass runs on (the family's small model) + its one retry
 const AuxGovernor = require('./auxgovernor.js');              // aux-budget lane: PURE joint ceiling over the post-run aux passes (priority + budget)
+const CrewDefaults = require('../frontend/app/crewdefaults.js');   // LEANER CREW DEFAULTS (W3.3 + W3.4): the switch's parser and its crew effort rule (crewDefaultsMode reads STARNET_CREW_DEFAULTS through ENV(); the page loads the same module)
 const { makeAuxAdmission } = require('./aux-admission.js');
 const LearnedTail = require('./learned-tail.js');             // issue #105: learned blocks of a persona stay out of the cached prefix
 const DeclinedIndex = require('./declinedindex.js');         // flagship cross-wire (NS-8 lite): read-side shared declined index — a decline ANYWHERE suppresses a re-propose EVERYWHERE
@@ -1585,7 +1591,8 @@ const ledger = makeLedger({ io: ledgerIo, clock: { now: () => Date.now() }, next
 const mediaDayGate = makeMediaDayGate({ read: () => ledger.unknownImageWindow(), limit: Number(ENV('IMAGE_UNKNOWN_COST_DAY_MAX')) });
 // every housekeeping pass meters its model calls through ONE of these and books them, $0 subscription calls too (ledger.js);
 // its row names its payer by the pass's route (billing-class.js auxRowClass)
-const auxSpend = (kind, route) => { const r = auxRoute(route); return makeAuxMeter({ ledger, kind, provider: r, rowClass: r ? signedIn => billing.auxRowClass(r, signedIn) : null }); };
+const auxSpend = (kind, route) => { const r = auxRoute(route); return makeAuxMeter({ ledger, kind, provider: r, rowClass: r ? signedIn => billing.auxRowClass(r, signedIn) : null,
+  effortOf: (provider, req) => effortAsRun(provider, req && req.model, req && req.reasoningEffort, req) }); };   // the row names the effort the call ran on
 // the passes that run the full agent loop (skill review, curator) book its result instead: any turn or usage = a row,
 // $0 included, with the loop's own floors (an unpriced model, a stream cut before usage) on a metered route only
 function auxLoopRan(result) { return !!result && !!(result.turns || result.usd || result.tokens); }
@@ -1610,7 +1617,8 @@ function auxTokenGate(providerId) {
 }
 const auxAdmission = makeAuxAdmission({ gate: auxTokenGate });
 function automaticAux(route, kind, agentId, runId, work) {
-  return auxAdmission.schedule(auxRoute(route), work, g => {
+  // W3.1: a background pass is not part of the unattended start it followed (it keeps its own ceiling; the rail counts runs)
+  return auxAdmission.schedule(auxRoute(route), () => unattendedScope.exit(work), g => {
     console.log('[aux-governor] run=' + runId + ' agent=' + agentId + ' token ceiling reached after settlement (' + g.used + '/' + g.ceiling + ' in 24h) DEFERRED[' + kind + ']');
   });
 }
@@ -2452,6 +2460,21 @@ const providerAccounts = require('./provider-accounts.js').makeProviderAccounts(
 // no credential), kept across restarts in the dotted .usage root (out of every agent's file jail). /api/usage/providers.
 const subUsage = require('./sub-usage.js').makeSubUsage({ clock: { now: () => Date.now() }, file: path.join(WORKSPACES, '.usage', 'subscriptions.json') });
 attachSubUsage(subUsage);
+// WHO STARTED IT (cost fix W3.1): the unattended start a model call belongs to — { origin, ref, start } — carried by async context
+// from the starter that opened it (asUnattended) to the call's receipt. A person's run never runs inside it, and a start that has
+// ended stamps nothing (work it left behind is not its work).
+const unattendedScope = new AsyncLocalStorage();
+const unattendedLive = new Map();   // start -> its scopes still running (a routine fire's entry run and its work line share one)
+let unattendedRows = null;          // the unattended receipts: read once from the file, then fed each new one (noteUnattendedReceipt)
+// the unattended start this async context belongs to, while that start still runs: { origin, ref, start }, or null (a person's own)
+function unattendedNow() { const sc = unattendedScope.getStore(); return (sc && unattendedLive.has(sc.start)) ? sc : null; }
+// USAGE RECEIPTS (usage-receipts.js): one record per model call — counts only, the window reading that call saw, and the origin of
+// an unattended start — in .usage/calls.jsonl (rotated), written at the factory seam every adapter streams through. Read by
+// /api/usage/providers, and by the unattended hold's rail and its tokens per beat / per fire (W3.1).
+const usageReceipts = require('./usage-receipts.js').makeUsageReceipts({ clock: { now: () => Date.now() }, file: path.join(WORKSPACES, '.usage', 'calls.jsonl'), readings: subUsage,
+  scope: () => unattendedNow(),
+  onRecord: (rec) => noteUnattendedReceipt(rec) });
+attachUsageReceipts(usageReceipts);
 const accountAuthSeen = new Map();
 const accountAuthPending = new Map();
 
@@ -2633,6 +2656,10 @@ function replaceAgentRoster(list) {
       // without these load unchanged (skills -> [], reasoningEffort -> null). skills are slugs, deduped + capped.
       skills: Array.isArray(a && a.skills) ? [...new Set(a.skills.map(s => String(s || '').trim()).filter(Boolean))].slice(0, 40) : [],
       reasoningEffort: (a && a.reasoningEffort) ? String(a.reasoningEffort) : null,
+      // LEANER CREW DEFAULTS (additive, W3.3): where that effort came from — 'class' (the class loadout wrote it) or 'pin' (a hand
+      // pick). The page sends it only while STARNET_CREW_DEFAULTS is on; a row without it is a pin to the crew rule (crewEffort).
+      // Present only when set, so every other row stays byte-identical.
+      ...((a && (a.effortSource === 'class' || a.effortSource === 'pin')) ? { effortSource: a.effortSource } : {}),
       // S3 (additive): the agent's EARNED track record, already coarsened + phrased by the browser
       // (frontend/app/xp.js credential()). Rendered on the lead's [ORCHESTRATION] dispatch list so delegation
       // is an informed pick, never a gated one. '' for an agent that has proved nothing yet — old rosters
@@ -2659,7 +2686,7 @@ function loadAgentRoster() {
 // P1.1: the fields saveAgentRoster() rebuilds from the live Map — the KNOWN shape. Preserved unknown fields (any
 // key a newer frontend added that this sidecar doesn't model) are spread UNDER these on save, so they survive a
 // re-save by older code rather than being dropped. agentId is always rebuilt (identity), never preserved raw.
-const ROSTER_KNOWN_FIELDS = ['agentId', 'system', 'name', 'model', 'provider', 'role', 'approvalMode', 'executionProfile', 'skills', 'reasoningEffort', 'track'];
+const ROSTER_KNOWN_FIELDS = ['agentId', 'system', 'name', 'model', 'provider', 'role', 'approvalMode', 'executionProfile', 'skills', 'effortSource', 'reasoningEffort', 'track'];
 // saveAgentRoster(updatedAt?) — persist the live roster. The optional updatedAt is the CLIENT's freshness stamp
 // (from POST /api/roster body.updatedAt); handleRoster passes it after its anti-clobber gate accepts a push, so the
 // stored envelope records the exact stamp we accepted (a later push older than it is refused). Server-internal
@@ -2669,7 +2696,8 @@ function saveAgentRoster(updatedAt) {
   try {
     fs.mkdirSync(WORKSPACES, { recursive: true });
     const agents = [...agentRoster].map(([agentId, a]) => {
-      const known = { agentId, system: a.system || '', name: a.name || agentId, model: a.model || null, provider: a.provider || null, role: a.role || '', approvalMode: (a.approvalMode === 'full') ? 'full' : 'ask', executionProfile: executionProfiles.normalizeId(a.executionProfile, { approvalMode: a.approvalMode, backendId: executionEnvironment && executionEnvironment.backendId }), skills: Array.isArray(a.skills) ? a.skills : [], reasoningEffort: a.reasoningEffort || null, track: a.track || '' };   // S3: track = the earned track-record line (see replaceAgentRoster)   // Class Loadouts S1: per-agent package + execution envelope persist beside approval posture.
+      const known = { agentId, system: a.system || '', name: a.name || agentId, model: a.model || null, provider: a.provider || null, role: a.role || '', approvalMode: (a.approvalMode === 'full') ? 'full' : 'ask', executionProfile: executionProfiles.normalizeId(a.executionProfile, { approvalMode: a.approvalMode, backendId: executionEnvironment && executionEnvironment.backendId }), skills: Array.isArray(a.skills) ? a.skills : [], reasoningEffort: a.reasoningEffort || null, track: a.track || '' };   // S3: track = the earned track-record line (see replaceAgentRoster)
+      if (a.effortSource === 'class' || a.effortSource === 'pin') known.effortSource = a.effortSource;   // W3.3: only when set (replaceAgentRoster)   // Class Loadouts S1: per-agent package + execution envelope persist beside approval posture.
       // P1.1: forward-compat field preservation — carry any UNKNOWN keys from the last-seen raw record under the
       // known ones, so a field a newer frontend added isn't silently eaten when older sidecar code re-saves.
       const rawRec = agentRosterRaw.get(agentId);
@@ -4205,6 +4233,69 @@ function nightshiftUndeclined(agentId, candidates) {
 function resolveAuxModel() {
   return String(ENV('AUX_MODEL') || ENV('REFLECT_MODEL') || '').trim() || null;
 }
+/* ---- W3.5 ONE-SHOT PASS MODEL (cost audit 2026-11-08; oneshot-model.js decides, this reads its inputs) ----------------
+   Study · thread mining · the scout cycle · a session title run on the SMALL model of the run's provider family (Andrew,
+   11-08): on by default, all off with STARNET_AUX_SMALL_MODEL=0. Reflection moves there only with
+   STARNET_AUX_SMALL_REFLECTION=1 (default off). The user's own aux model (resolveAuxModel) always wins, as before. The small
+   model is only ever an id the run provider's own catalog lists, read here under a ceiling: a catalog that does not answer
+   in time keeps the run model. Where the provider prices its models, the small model must also cost less than the run's
+   (oneshot-model.js PRICE CHECK, the adapter's own priceOf); a `:free` or $0 run keeps its model. */
+const ONESHOT_CATALOG_MS = 2000;
+/* one read per adapter OBJECT, held at most 10 min. A run's post-run passes share one aux adapter (PromptScrub.guardRequest
+   makes it per run) and a title run builds its own, so in practice this is one read per qualifying run and one per title.
+   What a read costs depends on the adapter: OpenRouter answers from its process-wide catalog, the Anthropic, Gemini and
+   OpenAI-compatible adapters from the process catalog cache (catalog-cache.js), claude-cli from its baked list after one
+   `claude auth status` on that adapter, and Codex with one live GET /models (no inference, no tokens). */
+const ONESHOT_CATALOG_TTL_MS = 10 * 60 * 1000;
+const oneShotCatalogs = new WeakMap();   // adapter -> { at, ids: Promise<string[]> } (an empty answer is never kept)
+function oneShotCatalog(provider, providerId) {
+  if (!provider || typeof provider.listModels !== 'function') return Promise.resolve([]);
+  const held = oneShotCatalogs.get(provider);
+  if (held && Date.now() - held.at < ONESHOT_CATALOG_TTL_MS) return held.ids;
+  const ids = (async () => {
+    let timer = null;
+    try {
+      const list = await Promise.race([
+        Promise.resolve().then(() => provider.listModels()),
+        new Promise(resolve => { timer = setTimeout(() => resolve(null), ONESHOT_CATALOG_MS); })
+      ]);
+      return Array.isArray(list) ? list.map(m => String((m && m.id) || '')).filter(id => id && !isBatchOnlyModel(providerId, id)) : [];
+    } catch (e) { failNote('oneshot.catalog', e); return []; }
+    finally { clearTimeout(timer); }
+  })();
+  const entry = { at: Date.now(), ids };
+  oneShotCatalogs.set(provider, entry);
+  ids.then(got => { if (!got.length && oneShotCatalogs.get(provider) === entry) oneShotCatalogs.delete(provider); });
+  return ids;
+}
+// the plan for one pass: { kind, model, runModel, small, why } — o: { provider, route, runModel (else model) }
+async function oneShotPlan(kind, o) {
+  const p = o && o.provider;
+  const ctx = { runModel: String((o && (o.runModel || o.model)) || ''), explicit: resolveAuxModel() || '',
+    smallOn: ENV('AUX_SMALL_MODEL') !== '0', reflectionOn: ENV('AUX_SMALL_REFLECTION') === '1',
+    // the run provider's own per-million prices (null on a subscription route): the small model must cost less than the run's
+    priceOf: (p && typeof p.priceOf === 'function') ? (id => p.priceOf(id)) : null };
+  const first = OneShot.pick(kind, ctx);
+  if (first.why !== 'no-catalog') return first;   // decided without the catalog: the user's aux model, a switch, no family, already small
+  ctx.models = await oneShotCatalog(o && o.provider, o && o.route);
+  return OneShot.pick(kind, ctx);
+}
+/* ONE call of a post-run one-shot pass, on the model its plan names, with the plan's one retry on the run model inside
+   OneShot.call. req = the pass's request without a model or an effort; accept(text) = the pass's own word that a reply is
+   usable (its parser, or NONE). Every attempt streams through the pass's own meter, so the ledger gets a row per model that
+   ran. Effort: the pass's own (o.reasoningEffort, resolved for o.model) on that model, else the lowest the provider lists for
+   the model the attempt runs on (auxPassEffort, the same policy). */
+async function oneShotStream(kind, o, spend, req, accept) {
+  const plan = await oneShotPlan(kind, o);
+  const signal = req && req.signal;
+  const r = await OneShot.call(plan, (model) => {
+    const q = Object.assign({}, req, { model });
+    const effort = model === o.model ? (o.reasoningEffort || null) : auxPassEffort(o.provider, model);
+    if (effort) q.reasoningEffort = effort;
+    return spend.stream(o.provider, q, o.cost);
+  }, accept, { aborted: () => !!(signal && signal.aborted), log: line => console.log('[oneshot] ' + line) });
+  return r.text;
+}
 /* auxSkillModel — which model a nested SKILL loop (review/curator) may run on. Same family as
    fallbackchain.promoteToolCapable but STRICTER in direction: promoting a task onto a fallback entry tolerates
    unknown support (a cold catalog must never refuse a run), while swapping a working TOOL loop down to a cheap
@@ -4219,16 +4310,14 @@ function auxSkillModel(provider, runModel) {
 /* auxReasoningEffort — the per-request reasoning effort for the SINGLE-SHOT aux streams (reflection/study/
    thread-mine/scout/compaction). Engaged only when the aux tier is configured (an aux model, or an explicit
    STARNET_AUX_EFFORT): an unconfigured install keeps today's requests byte-identical. Default 'low' — aux work
-   is extraction/summarization, where thinking depth buys little — overridable via STARNET_AUX_EFFORT. Returns
-   null unless the provider VERIFIABLY offers that effort for this model (provider.reasoningEfforts); null rides
-   as "no per-request override", so an adapter that can't select effort never sees a value it might reject. */
+   is extraction/summarization, where thinking depth buys little — overridable via STARNET_AUX_EFFORT. Clamped to the
+   rungs the provider lists for this model (AuxGovernor.clampEffort: the asked rung, else the nearest above, else below),
+   so a configured 'minimal' on a route that has no minimal runs at low there, as the background loops do. null = no
+   list (provider.reasoningEfforts): no per-request override, so an adapter that can't select effort never sees one. */
 function auxReasoningEffort(provider, model) {
   const effortEnv = String(ENV('AUX_EFFORT') || '').trim();
   if (!effortEnv && !resolveAuxModel()) return null;
-  if (!provider || typeof provider.reasoningEfforts !== 'function') return null;
-  const want = normalizeReasoningEffort(effortEnv || 'low');
-  let allowed; try { allowed = provider.reasoningEfforts(model); } catch (_) { return null; }
-  return (Array.isArray(allowed) && allowed.indexOf(want) >= 0) ? want : null;
+  return AuxGovernor.clampEffort(normalizeReasoningEffort(effortEnv || 'low'), providerEfforts(provider, model));
 }
 /* auxPassEffort — the effort for the station's REASON-ONLY aux work: the post-run passes (reflection · failure
    review · study · thread-mine · scout) and INTERNAL self-talk runs (a session title, session ideas, a goal plan, a
@@ -4250,6 +4339,72 @@ function auxPassEffort(provider, model) {
 function providerEfforts(provider, model) {
   if (!provider || typeof provider.reasoningEfforts !== 'function') return null;
   try { return provider.reasoningEfforts(model); } catch (e) { failNote('aux.effort', e); return null; }
+}
+/* auxLoopEffort — the effort for the station's background TOOL loops (the skill review, the skill curator), `o` = the
+   loop's inputs (runEffort). sent: 'low', or the configured STARNET_AUX_EFFORT, clamped to the rungs the provider lists for
+   the loop's model and never above the run's own effort when the list holds it (AuxGovernor.loopEffort, over the same
+   clampEffort every background effort goes through); undefined = no list: no override. ran(): the effort the loop's row
+   records, read after the loop (a mid-loop heal moved it; effortAsRun). */
+function auxLoopEffort(o, provider, model) {
+  const configured = String(ENV('AUX_EFFORT') || '').trim();
+  const sent = AuxGovernor.loopEffort(providerEfforts(provider, model), o && o.runEffort, configured ? normalizeReasoningEffort(configured) : undefined) || undefined;
+  return { sent, ran: () => effortAsRun(provider, model, sent) };
+}
+/* effortAsRun — THE answer to "what effort did this call run on", for every record that names one (a run record, a ledger
+   row): the adapter's own word for what its request put on the wire (provider.effortAsSent), read after the call, so a rung
+   the endpoint refused and the adapter resent is named as resent. `sent` = the per-request effort the call carried (falsy:
+   none, so the effort the adapter was built with went out); `req` (optional) = the request, where its shape decides the wire.
+   Never the dial: claude-cli is told an effort only per request (--effort), so a call that carried none ran on the CLI's own
+   default and says 'cli-default'; Codex sends minimal as low and max as xhigh; Opus 5.5 always thinks (none goes out as low);
+   an OpenRouter model that takes no reasoning field is sent no effort at all. null = the adapter cannot say, or its request
+   carried no effort: a record leaves the field out rather than guess. */
+function effortAsRun(provider, model, sent, req) {
+  if (!provider || typeof provider.effortAsSent !== 'function') return null;
+  try { return provider.effortAsSent(model, sent || undefined, req) || null; } catch (e) { failNote('aux.effort', e); return null; }
+}
+/* crewDefaultsMode — the LEANER CREW DEFAULTS switch ('lean' | 'off'), read here and nowhere else: STARNET_CREW_DEFAULTS
+   through ENV(), the sidecar's one env reader (a STARNET_ value that is set wins even when blank, else the legacy SKYNET_
+   one), parsed by the pure CrewDefaults.mode. Read at each use, like ENV('LEAN_CREW') and ENV('AUX_EFFORT'). Off by
+   default; not STARNET_LEAN_CREW, the zero-crew diet (crew-diet.js), which is on by default. */
+function crewDefaultsMode() { return CrewDefaults.mode(ENV('CREW_DEFAULTS')); }
+/* crewEffort — LEANER CREW DEFAULTS, the effort half (W3.3: CrewDefaults.effortRule decides, this host applies it). A CREW
+   run (a worker, a clone, a line stage: CrewDefaults.surfaceOf) whose effort is its class's applied default above medium
+   asks for medium per request; the run after a failed verify (o.crewRetry: a review gate sent the work back, a structured
+   result failed host validation) one rung up, never above the class effort. Provenance is the roster's: a row whose
+   effortSource is 'class' and whose effort is the one this run resolved is class-applied (a clone reads its lead's row);
+   a pin, or a row with no marker, keeps its effort. The want goes through the one clamp (AuxGovernor.clampEffort over the
+   rungs the provider lists): no list, no override, and a rung above the asked effort is never sent (CrewDefaults.sendable:
+   the rule only lowers; the record then says 'unsent'). A route whose main requests carry no effort is never handed one:
+   claude-cli is told an effort only per request and a main run there sends none (W3.8 not chosen), so a claude-cli crew
+   run sends nothing, runs on the CLI's own default ('cli-default') and its record says 'unsent'. `hops` = the primary and
+   every fallback the run may land on; `lineId` = the line the run WORKS for: runOnceCore's capLine, the one rule its line
+   budget cap and stage team read, and nothing else (o.lineId is never read here). A terminal routine (runsLine !== true,
+   Andrew's 08-07 ruling) is not line work though LINE WATCH stamps its crate with the bay's line, so it is no crew run and
+   keeps its effort; a routine that runs its line is a line stage; a delegated run stays a worker or a clone.
+   Switch off (the default): null, and the run is exactly as before.
+   -> null | { sent, record }: sent = the per-request effort (null: none); record = the run record's effortRule
+   { surface, source, asked, why, sent? }, the effort itself as it ran being the record's reasoningEffort (effortAsRun). */
+function crewEffort(o, agentId, asked, hops, lineId) {
+  const md = crewDefaultsMode();
+  if (!CrewDefaults.isOn(md)) return null;
+  const id = String(agentId || '');
+  const surface = CrewDefaults.surfaceOf({ delegatedBy: o && o.delegatedBy, lineId, inRoster: agentRoster.has(id) });
+  if (!surface) return null;
+  const row = (surface === 'clone' ? agentRoster.get(String(o.delegatedBy)) : agentRoster.get(id)) || null;
+  const marked = row && (row.effortSource === 'class' || row.effortSource === 'pin') ? row.effortSource : '';
+  // a class marker covers the effort the class wrote, never another one this run was handed explicitly
+  const source = (marked === 'class' && !(row.reasoningEffort && normalizeReasoningEffort(row.reasoningEffort) === asked)) ? 'pin' : marked;
+  const rule = CrewDefaults.effortRule({ mode: md, surface, asked, source, retry: !!(o && o.crewRetry) });
+  if (!rule) return null;
+  const record = { surface, source: source || 'unmarked', asked, why: rule.why };
+  if (!rule.want) return { sent: null, record };
+  const first = (hops && hops[0]) || {};
+  const sent = CrewDefaults.sendable(AuxGovernor.clampEffort(rule.want, providerEfforts(first.provider, first.model)), asked);
+  const isRung = e => CrewDefaults.ORDER.indexOf(String(e || '')) >= 0;
+  const gains = h => !!(h && h.provider) && !isRung(effortAsRun(h.provider, h.model)) && isRung(effortAsRun(h.provider, h.model, sent));
+  if (!sent || (hops || []).some(gains)) { record.why = 'unsent'; return { sent: null, record }; }
+  record.sent = sent;
+  return { sent, record };
 }
 
 /* ---- HYBRID RECALL — the embedding lane (memory-compound lane) ----------------------------------------------
@@ -4362,17 +4517,19 @@ async function runReflection(o) {
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, REFLECT_TIMEOUT_MS);
   const spend = auxSpend('reflection', o && o.route);
+  let replied = false, kept = false;   // W1.4 (learning-cooldown.js): the model answered (NONE counts) / a proposal survived
   // the aux-model call: mirrors summarize() — ONE streamed completion, reconciled for cost. reflect() builds
   // the prompt (recent user/agent exchange) and parses the tagged reply; here we only supply the model.
-  const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
   const propose = async (prompt) => {
-    const req = { model, stream: true, signal: ac.signal, messages: [
+    const req = { stream: true, signal: ac.signal, messages: [
       { role: 'system', content: 'You are an agent reflecting right after finishing a task. Extract only DURABLE, reusable memories worth keeping for future runs — stable user preferences or learned facts (state the gist, not the whole result). These are beliefs about the user or the world, never instructions, procedures, or advice you gave during the run. One per line, each tagged FACT: or PREFERENCE:. Skip anything transient, run-specific, or already obvious. If nothing is worth keeping, reply NONE.' },
       { role: 'user', content: prompt }
     ] };
-    if (auxEffort) req.reasoningEffort = auxEffort;
     if (runId) req.runId = runId;   // run attribution (starnet proxy header; other providers ignore it)
-    return spend.stream(provider, req, cost);
+    // W3.5: the run model unless STARNET_AUX_SMALL_REFLECTION=1 moves it to the family's small model (one retry on the run model)
+    const text = await oneShotStream('reflection', o, spend, req, t => OneShot.isNone(t) || reflectParse(t).length > 0);
+    replied = !!String(text || '').trim();
+    return text;
   };
   /* (aux-tier repair, 2026-08-17) A typed-postconditions line — `let finalCompletionEvidence =
      execution.completionEvidence()` — landed HERE instead of in runOnce (890855829 merge damage). `execution`
@@ -4401,9 +4558,8 @@ async function runReflection(o) {
     // project tier: NEW facts key to the run's blessed root; a correction (replaceId) keeps its original record's scope
     proposals = proposals.map(p => (p && p.replaceId) ? p : scopeToProject(p, o.projectRoot));
     if (proposals.length) {
-      // arm the cooldown ONLY when a beat actually fires — so a trivial/floored/all-deduped run (zero proposals)
-      // never spends the window and blocks a following substantive run's turn-in (honours "always confirm").
-      lastReflectAt.set(agentId, Date.now());
+      // a beat fires: the NONE backoff starts over (W1.4 — the window itself is armed by the ATTEMPT, in finally below)
+      kept = true;
       // SILENT-SAVE UX: split the batch. NORMAL proposals auto-save immediately (no confirmation) via the ONE
       // write path — a passive "◈ remembered" receipt in COMMS, one-tap ✕ to veto. HIGH-STAKES proposals
       // (credentials / PII / standing instructions) are NOT auto-saved — they still stash + emit memory.proposed
@@ -4439,6 +4595,8 @@ async function runReflection(o) {
   } catch (e) { console.warn('[cortex] reflection failed:', (e && e.message) || e); }
   finally {
     clearTimeout(timer);
+    // W1.4: every ATTEMPT arms the window, whatever it kept (a NONE reply included). Read before book() zeroes the meter.
+    try { if (spend.calls()) noteLearningAttempt('reflection', agentId, { runId, replied, produced: kept }); } catch (e) { failNote('learning.cooldown', e); }
     // book the reflection's own spend into the append-only ledger so the day/global pools stay honest (the run
     // already booked the loop's spend before this fired). A second entry for the same runId just sums.
     try { spend.book({ runId, agentId, model: model || '', unmetered }); } catch (_) {}
@@ -4462,6 +4620,7 @@ async function runFailureReview(o) {
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, FAILREVIEW_TIMEOUT_MS);
   const spend = auxSpend('failure-review', o && o.route);
+  let replied = false, kept = false;   // W1.4 (learning-cooldown.js): the model answered (NONE counts) / a lesson survived
   const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
   const propose = async (prompt) => {
     const req = { model, stream: true, signal: ac.signal, messages: [
@@ -4470,7 +4629,9 @@ async function runFailureReview(o) {
     ] };
     if (auxEffort) req.reasoningEffort = auxEffort;
     if (runId) req.runId = runId;   // run attribution (starnet proxy header; other providers ignore it)
-    return spend.stream(provider, req, cost);
+    const text = await spend.stream(provider, req, cost);
+    replied = !!String(text || '').trim();
+    return text;
   };
   try {
     const stored = notebookStore.get('notebook:' + agentId);
@@ -4489,9 +4650,7 @@ async function runFailureReview(o) {
     if (proposals.length) { const dIdx = buildDeclinedIndex(agentId); proposals = proposals.filter(p => p && !dIdx.has(p.content)); }
     proposals = proposals.map(p => scopeToProject(p, o.projectRoot));   // project tier: a failure lesson keys to the repo it was learned in
     if (proposals.length) {
-      // arm the cooldown ONLY when a beat actually fires (zero surviving lessons never spend the window) —
-      // the same arming rule as reflection.
-      lastFailReviewAt.set(agentId, Date.now());
+      kept = true;   // W1.4: the window is armed by the ATTEMPT (finally below), the same rule as reflection
       const highStakesProps = [], normalProps = [];
       for (const p of proposals) (highStakes(p.content) ? highStakesProps : normalProps).push(p);
       // auto-save the normal lessons — silent save = NEUTRAL trust (trustDelta 0); origin 'failure-review' is
@@ -4514,6 +4673,8 @@ async function runFailureReview(o) {
   } catch (e) { console.warn('[cortex] failure review failed:', (e && e.message) || e); }
   finally {
     clearTimeout(timer);
+    // W1.4: every ATTEMPT arms the window and marks this failure class reviewed. Read before book() zeroes the meter.
+    try { if (spend.calls()) noteLearningAttempt('failure-review', agentId, { runId, replied, produced: kept, failureClass: LearningCooldown.failureClass(o) }); } catch (e) { failNote('learning.cooldown', e); }
     // book the review's own spend into the append-only ledger (a second entry for the same runId just sums).
     try { spend.book({ runId, agentId, model: model || '', unmetered }); } catch (_) {}
   }
@@ -4565,17 +4726,19 @@ async function runStudy(o) {
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, STUDY_TIMEOUT_MS);
   const spend = auxSpend('study', o && o.route);
-  const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
+  let replied = false, kept = false;   // W1.4 (learning-cooldown.js): the model answered (NONE counts) / a proposal survived
   const propose = async (prompt) => {
-    const req = { model, stream: true, signal: ac.signal, messages: [
+    const req = { stream: true, signal: ac.signal, messages: [
       { role: 'system', content: 'You update a durable profile of your Commander from finished work. Propose ONLY evidenced, durable belief changes, one per line, each tagged with a dimension and ADD or RETIRE. Skip anything transient, guessed, or already known. If nothing changed, reply NONE.' },
       // Capture stays verbatim in RAM. This is a derived prompt, so the stored-text owner also removes unsaved
       // vendor-shaped keys; the provider's held-only guard deliberately preserves those in a live keys.save turn.
       { role: 'user', content: PromptScrub.scrubStored(prompt) }
     ] };
-    if (auxEffort) req.reasoningEffort = auxEffort;
     if (runId) req.runId = runId;   // run attribution (starnet proxy header; other providers ignore it)
-    return spend.stream(provider, req, cost);
+    // W3.5: the family's small model, one retry on the run model when its reply is unusable (oneshot-model.js)
+    const text = await oneShotStream('study', o, spend, req, t => OneShot.isNone(t) || Study.parse(t).length > 0);
+    replied = !!String(text || '').trim();
+    return text;
   };
   try {
     const block = (typeof commanderDossier !== 'undefined' && commanderDossier.get) ? promptDossier() : '';
@@ -4591,8 +4754,7 @@ async function runStudy(o) {
     if (proposals.length) { const dIdx = buildDeclinedIndex(agentId); proposals = proposals.filter(p => p && !dIdx.has(p.text)); }
     if (proposals.length && !forgetRegistry.admit(o.src || { runId })) { console.log('[study] proposals for run=' + runId + ' dropped: its session was deleted'); proposals = []; }   // the registry's gate: a pass that began before a delete stashes nothing
     if (proposals.length) {
-      // arm the cooldown ONLY when proposals actually survive — a floored/all-dedup run never blocks the next study.
-      lastStudyAt.set(agentId, Date.now());
+      kept = true;   // W1.4: the window is armed by the ATTEMPT (finally below), whatever survived
       stashStudy(agentId, runId, proposals.map(p => ({ id: p.id, dim: p.dim, kind: p.kind, text: p.text, evidence: p.evidence || '', evidenceRef: p.evidenceRef || { runId: p.sourceRunId || runId, kind: 'directive' }, source: 'study', sourceRunId: p.sourceRunId || runId })));
       // NB: NO chanEmit — study needs no bus event. The browser fetches /api/study/proposals on agent.run.end
       // (a frozen event it already listens to), so the shared/events.js contract stays untouched.
@@ -4600,6 +4762,8 @@ async function runStudy(o) {
   } catch (e) { console.warn('[study] pass failed:', (e && e.message) || e); }
   finally {
     clearTimeout(timer);
+    // W1.4: every ATTEMPT arms the window (persisted in study.state.json). Read before book() zeroes the meter.
+    try { if (spend.calls()) noteLearningAttempt('study', agentId, { runId, replied, produced: kept }); } catch (e) { failNote('learning.cooldown', e); }
     try { spend.book({ runId, agentId, model: model || '', unmetered }); } catch (_) {}
   }
 }
@@ -4630,15 +4794,17 @@ async function runThreadMine(o) {
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, THREAD_MINE_TIMEOUT_MS);
   const spend = auxSpend('threadmine', o && o.route);
-  const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
+  let replied = false, kept = false;   // W1.4 (learning-cooldown.js): the model answered (NONE counts) / a thread survived
   const propose = async (prompt) => {
-    const req = { model, stream: true, signal: ac.signal, messages: [
+    const req = { stream: true, signal: ac.signal, messages: [
       { role: 'system', content: 'You surface ideas the Commander raised but never acted on, each with a VERBATIM quote copied word-for-word from the conversation. Never paraphrase or invent. If none, reply NONE.' },
       { role: 'user', content: prompt }
     ] };
-    if (auxEffort) req.reasoningEffort = auxEffort;
     if (runId) req.runId = runId;   // run attribution (starnet proxy header; other providers ignore it)
-    return spend.stream(provider, req, cost);
+    // W3.5: the family's small model, one retry on the run model when its reply is unusable (oneshot-model.js)
+    const text = await oneShotStream('threadmine', o, spend, req, t => OneShot.isNone(t) || threadmine.parse(t).length > 0);
+    replied = !!String(text || '').trim();
+    return text;
   };
   try {
     // known fingerprints = every live (non-declined) thread + the permanent declined denylist — so a duplicate or a
@@ -4658,7 +4824,7 @@ async function runThreadMine(o) {
     // declined in ANOTHER surface (a reflected belief / a study belief / a quest title / a north star) before stash.
     if (proposals.length) { const dIdx = buildDeclinedIndex(agentId); proposals = proposals.filter(p => p && !dIdx.has(p.title)); }
     if (proposals.length) {
-      lastThreadMineAt.set(agentId, Date.now());   // arm the cooldown ONLY when proposals survive (a floored/all-dedup run never blocks the next mine)
+      kept = true;   // W1.4: the window is armed by the ATTEMPT (finally below), whatever survived
       stashThreads(agentId, runId, proposals);
       // NB: NO chanEmit — like study, the browser fetches /api/threads/proposals on agent.run.end (a frozen event
       // it already listens to), so the shared/events.js contract stays untouched.
@@ -4666,8 +4832,49 @@ async function runThreadMine(o) {
   } catch (e) { console.warn('[threads] mine failed:', (e && e.message) || e); }
   finally {
     clearTimeout(timer);
+    // W1.4: every ATTEMPT arms the window. Read before book() zeroes the meter.
+    try { if (spend.calls()) noteLearningAttempt('threadmine', agentId, { runId, replied, produced: kept }); } catch (e) { failNote('learning.cooldown', e); }
     try { spend.book({ runId, agentId, model: model || '', unmetered }); } catch (_) {}
   }
+}
+
+/* ---- W1.4 ONE COOLDOWN RESOLVER for the four post-run LEARNING passes (cost lane, 2026-11-09) ----
+   Reflection, failure review, study and thread mining each kept a window, but armed it only when a proposal survived,
+   so a pass whose model replied NONE (or kept nothing after the floors and dedup) fired again on the very next run.
+   Now every ATTEMPT (a model call went out: the pass's meter counted one) arms its window — noteLearningAttempt, from
+   each run*'s finally — and the policy lives in ONE module (learning-cooldown.js): reflection backs off after replies
+   that kept nothing (its window x1, x4, x10), and feedback always gets through — a like or dislike (the one feedback
+   write path, recordFeedbackMemory) or a cue in the Commander's own latest words opens every window of that agent until each
+   pass's next ANSWERED attempt from a run that ended after it (a pass already running when the feedback came never uses it
+   up, and neither does a call that failed: it arms the window, but the next attempt still skips it), and a failure
+   review also skips its window for a failure class it has not reviewed (with an answer) within its window. The
+   stamps stay here, where the routes and resets already read them; the configured windows are the same live knobs
+   (memoryConfig, THREAD_MINE_COOLDOWN_MS). A window of 0 stays 0. */
+const learningCooldown = LearningCooldown.make({ now: () => Date.now() });
+// may this learning pass spend at this run-end? ctx: { failureClass: the failed run's class (failure review only) }
+function learningPassDue(kind, agentId, ctx) {
+  const c = ctx || {};
+  let open;
+  if (kind === 'reflection') open = Date.now() - (lastReflectAt.get(agentId) || 0) >= memoryConfig.reflectCooldownMs * learningCooldown.scale('reflection', agentId);
+  else if (kind === 'failure-review') open = Date.now() - (lastFailReviewAt.get(agentId) || 0) >= memoryConfig.failureReviewCooldownMs;
+  else if (kind === 'study') open = Date.now() - (lastStudyAt.get(agentId) || 0) >= memoryConfig.studyCooldownMs;
+  else if (kind === 'threadmine') open = Date.now() - (lastThreadMineAt.get(agentId) || 0) >= THREAD_MINE_COOLDOWN_MS;
+  else return false;
+  if (open) return true;
+  const why = learningCooldown.bypass(kind, agentId, { failureClass: c.failureClass || '', windowMs: memoryConfig.failureReviewCooldownMs });
+  if (why) console.log('[learning] ' + kind + ' may spend inside its window: agent=' + agentId + ' (' + why + ')');
+  return !!why;
+}
+// one ATTEMPT of a learning pass ended (its meter counted a call, a failed one too): the policy folds what it got (only an
+// answer uses feedback up), then the window is armed — unless the attempt's run ended before its agent was deleted or
+// reset (a pass that outlived its agent)
+function noteLearningAttempt(kind, agentId, r) {
+  if (!learningCooldown.noted(kind, agentId, r)) return;
+  const at = Date.now();
+  if (kind === 'reflection') lastReflectAt.set(agentId, at);
+  else if (kind === 'failure-review') lastFailReviewAt.set(agentId, at);
+  else if (kind === 'study') { lastStudyAt.set(agentId, at); persistStudyState(); }
+  else if (kind === 'threadmine') lastThreadMineAt.set(agentId, at);
 }
 
 const SKILL_REVIEW_TIMEOUT_MS = num(ENV('SKILL_REVIEW_TIMEOUT_MS'), limitsRegistry.BY_KEY.skillReviewMs.def);
@@ -4726,6 +4933,11 @@ function launchVerdictReview(job) {
     console.log('[skills] verdict-triggered review dropped run=' + job.runId + ': its session was deleted');
     return Promise.resolve(true);
   }
+  // W3.2: the one rule for every skill review (skillReview.reviewCause): a verdict that teaches always qualifies, due or not
+  if (skillReview.reviewCause({ verdict: job.verdict }) !== 'verdict') {
+    console.log('[skills] verdict-triggered review dropped run=' + job.runId + ': verdict ' + job.verdict + ' is not one that teaches');
+    return Promise.resolve(true);
+  }
   console.log('[skills] verdict-triggered review fired run=' + job.runId + ' verdict=' + job.verdict + ' by=' + job.firedBy);
   return rehydrateReviewJob(job).then(runBackgroundSkillReview);
 }
@@ -4745,12 +4957,44 @@ async function rehydrateReviewJob(job) {
   const cfg = sampleRunConfigFor(job.agentId || 'agent');
   if (!cfg || cfg.ok === false || !cfg.model || (!cfg.configured && !cfg.key)) throw new Error('no model configured for ' + (job.agentId || 'agent'));
   const providerId = normalizeProvider(cfg.provider);
-  const provider = await providerForRunConfig(cfg, resolveReasoningEffort(providerId, cfg.reasoningEffort));
+  const runEffort = resolveReasoningEffort(providerId, cfg.reasoningEffort);
+  const provider = await providerForRunConfig(cfg, runEffort);
   return Object.assign({}, job, {
     provider, route: providerId, cost: makeCostEngine({ priceOf: provider.priceOf }),
     model: auxSkillModel(provider, cfg.model),   // the CURRENT config's model: the parked one may belong to a provider since switched away from
+    runEffort,   // the effort that provider is built with: the review loop never goes above it where the model lists it (auxLoopEffort)
     unmetered: !billing.policyOf(providerId).ledgerMetered
   });
+}
+/* W3.2 A THUMBS-UP IS A VERDICT TOO (Andrew's law for the cost lane: feedback is critical, a verdict always qualifies). It
+   qualifies through the one rule (skillReview.reviewCause) on the cadence floor: when the agent's nudge is due, the 👍
+   releases the agent's HELD review (kept due because no run since gave it anything to learn from) onto the run it praised,
+   the procedure that worked. It is the review the run end would have run had the rating been known then: the same prompt (no
+   verdict block: praise is no shortfall), the same guards (a finished run of the station's own work, trusted evidence, the
+   in-flight guard), the same admission (the background lane and its token ceiling) and the same spend (only an admitted
+   review starts the count over). Under the bar a 👍 reviews nothing, as before W3.2. Returns whether a review was set in motion. */
+function releaseHeldReview(runId, verdict, lead) {
+  const packet = verdictReview.peek(runId);   // peeked, never taken: praise does not spend the parked packet
+  // the run end reviews only a finished run, and never a /v1 caller's traffic (surface autonomous)
+  if (!packet || packet.failed || (lead && lead.surface === 'autonomous')) return false;
+  const agentId = String(packet.agentId || 'agent');
+  const due = skillReview.nudgeAfterRun(skillNudge.get(agentId) || 0, { every: SKILL_REVIEW_EVERY }).due;
+  if (skillReview.reviewCause({ verdict, due }) !== 'verdict') return false;
+  const job = Object.assign({}, packet, { runId });
+  if (!forgetRegistry.admit({ streamId: job.streamId, runId, rowId: job.directive && job.directive.rowId, at: Date.now() })) return false;
+  if (!LearningEvidence.buildLearningEvidence(job, redact).eligible) { console.log('[skills] review held: no trusted learning evidence in run=' + runId + '; the nudge stays due agent=' + agentId); return false; }
+  if (skillReviewingNow.has(agentId)) { console.log('[skills] review held: a review of this agent is running; the nudge stays due run=' + runId + ' agent=' + agentId); return false; }
+  console.log('[skills] review qualifies (verdict ' + verdict + ') run=' + runId + ' agent=' + agentId);
+  skillReviewingNow.add(agentId);
+  rehydrateReviewJob(job).then(j => automaticAux(j.route, 'skill-review', agentId, runId, () => {
+    // the run end asks the governor before it queues its passes (governor.admit('aux')); here it is asked before the held
+    // count is spent, so a reached spending cap or token ceiling keeps the nudge due (runBackgroundSkillReview asks again)
+    const blocked = governor.admit('skill-review', { providerId: j.route, agentId, trigger: 'background' });
+    if (blocked) { console.log('[skills] review held: ' + (blocked.why || 'the spending check refused it') + '; the nudge stays due run=' + runId + ' agent=' + agentId); return false; }
+    skillNudge.set(agentId, 0); persistSkillNudge();   // only an admitted review spends the held count
+    return runBackgroundSkillReview(j);
+  })).catch(swallow('aux.skillreview.envelope')).finally(() => { skillReviewingNow.delete(agentId); });
+  return true;
 }
 const SKILL_CURATOR_INTERVAL_MS = num(ENV('SKILL_CURATOR_INTERVAL_MS'), 24 * 60 * 60 * 1000);
 const SKILL_CURATOR_MAX_COST_USD = num(ENV('SKILL_CURATOR_MAX_USD'), limitsRegistry.BY_KEY.skillCuratorUsd.def);
@@ -4765,6 +5009,7 @@ async function runBackgroundSkillReview(o) {
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, SKILL_REVIEW_TIMEOUT_MS);
   const reviewRunId = String(runId || 'run') + '_skill_review_' + crypto.randomUUID();
+  const effort = auxLoopEffort(o, provider, model);   // low, clamped to this model's rungs, never above a run effort they hold
   let result = null, changedSkillbase = false;   // a pass that staged/edited a skill did its work, whatever stopped it
   try {
     const registry = makeRegistry();
@@ -4814,7 +5059,8 @@ async function runBackgroundSkillReview(o) {
       // top-12 by rank() against the run's directive (was: last 12 in raw store order) — the reviewer sees the
       // memories RELEVANT to what this run did; on a queryless run rank degrades to recency+trust, still 12.
       memories: (o.learningEvidence && (o.learningEvidence.tainted || o.learningEvidence.trustedOnly)) ? [] : rank(Array.isArray(reviewNotebook) ? reviewNotebook : [], latestUserText(messages), { now: Date.now(), k: 12 }).slice(0, 12),   // rank adds up to 32 pinned/standing past k; the reviewer gets its top 12 (score order: pins lead)
-      skills: scrubSkillsForPrompt(skillGate.annotate(skillStore.list(agentId, { includeArchived: true })))   // a withheld row is named, never summarized (scan census); each field scrubbed before it is composed
+      skills: scrubSkillsForPrompt(skillGate.annotate(skillStore.list(agentId, { includeArchived: true }))),   // a withheld row is named, never summarized (scan census); each field scrubbed before it is composed
+      finalScrub: (t) => PromptScrub.scrubStored(t)   // the scrub this prompt goes through: a tool output the packet holds the start of is cut only where it changes nothing
     }));
     result = await runAgentLoop({
       messages: [
@@ -4824,14 +5070,14 @@ async function runBackgroundSkillReview(o) {
       provider, emit: () => {}, cost, tools: toolDefs, dispatch, capCtx,
       limits: { maxIters: 6, maxCostUsd: SKILL_REVIEW_MAX_COST_USD, grace: false },
       signal: ac.signal, clock: { now: () => Date.now() },
-      agentId, runId: reviewRunId, model, trigger: 'event'
+      agentId, runId: reviewRunId, model, trigger: 'event', reasoningEffort: effort.sent
     });
   } catch (e) { console.warn('[skills] background review failed:', (e && e.message) || e); throw e; }
   finally {
     clearTimeout(timer);
     if (auxLoopRan(result)) {
       const { billingClass, unmetered } = auxLoopRow(o, result);
-      try { ledger.record({ runId: reviewRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, cachedTokens: result.cachedTokens || 0, model: model || '', aux: 'skill-review', provider: auxRoute(o && o.route), ...auxLoopFloors(result, unmetered), billingClass, unmetered }); } catch (_) {}   // model: the spend row names what it spent on, like every other aux row
+      try { ledger.record({ runId: reviewRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, cachedTokens: result.cachedTokens || 0, model: model || '', reasoningEffort: effort.ran(), aux: 'skill-review', provider: auxRoute(o && o.route), ...auxLoopFloors(result, unmetered), billingClass, unmetered }); } catch (_) {}   // model: the spend row names what it spent on, like every other aux row
     }
   }
   // false asks verdictreview to retry: only a pass that failed before it changed the skillbase (a budget/turn-ceiling/
@@ -4865,6 +5111,7 @@ async function runSkillCurator(o) {
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, SKILL_REVIEW_TIMEOUT_MS);
   const curatorRunId = String(runId || 'run') + '_skill_curator';
+  const effort = auxLoopEffort(o, provider, model);
   let result = null;
   try {
     const registry = makeRegistry();
@@ -4886,14 +5133,14 @@ async function runSkillCurator(o) {
       provider, emit: () => {}, cost, tools: toolDefs, dispatch, capCtx,
       limits: { maxIters: 10, maxCostUsd: SKILL_CURATOR_MAX_COST_USD, grace: false },
       signal: ac.signal, clock: { now: () => Date.now() },
-      agentId, runId: curatorRunId, model, trigger: 'event'
+      agentId, runId: curatorRunId, model, trigger: 'event', reasoningEffort: effort.sent
     });
   } catch (e) { console.warn('[skills] curator failed:', (e && e.message) || e); }
   finally {
     clearTimeout(timer);
     if (auxLoopRan(result)) {
       const { billingClass, unmetered } = auxLoopRow(o, result);
-      try { ledger.record({ runId: curatorRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, cachedTokens: result.cachedTokens || 0, model: model || '', aux: 'skill-curator', provider: auxRoute(o && o.route), ...auxLoopFloors(result, unmetered), billingClass, unmetered }); } catch (_) {}
+      try { ledger.record({ runId: curatorRunId, agentId, turns: result.turns || 0, usd: result.usd || 0, tokens: result.tokens || 0, cachedTokens: result.cachedTokens || 0, model: model || '', reasoningEffort: effort.ran(), aux: 'skill-curator', provider: auxRoute(o && o.route), ...auxLoopFloors(result, unmetered), billingClass, unmetered }); } catch (_) {}
     }
   }
 }
@@ -7197,7 +7444,18 @@ async function lineHandoffFiles(agentId, list, where) {
   if (!/^[A-Za-z0-9_-]{1,40}$/.test(String(agentId || ''))) return [];
   return RunPaths.locateProduced({ fsp, pathMod: path, list, limit: 64, projectRoot: (where && where.projectRoot) || '', jail: path.join(WORKSPACES, String(agentId)) });
 }
-const lineRunner = LineRunner.makeLineRunner({ chain: chainRunner, runOnce, now: () => Date.now(), newId: () => crypto.randomUUID(),
+/* W3.1: a hop of a SCHEDULED fire (profile trigger 'schedule', stream 'cron-<fire run id>') is the fire's own unattended work:
+   it re-enters the scope the fire ran its entry in, as the fire recorded it on its crate (cronItems .unattended: the origin, the
+   ROUTINE's id, start = the fire's run id), so its receipts count on the rail and in the routine's tokens per fire with the
+   fire's. A fire a person asked for recorded none, and a Run Now hop ('manual'), a channel message hop ('event') or a step test
+   is a person's own start. (A trigger's or a hand-off's hops need nothing here: they run inside that start's own scope.) */
+function lineHopRun(o) {
+  const fire = o && o.trigger === 'schedule' ? /^cron-(.+)$/.exec(String(o.streamId || '')) : null;
+  const sc = fire ? ((cronItems.get(fire[1]) || {}).unattended || null) : null;
+  if (!sc) return runOnce(o);
+  return asUnattended(sc.origin, sc.ref, () => runOnce(o), sc.start);
+}
+const lineRunner = LineRunner.makeLineRunner({ chain: chainRunner, runOnce: lineHopRun, now: () => Date.now(), newId: () => crypto.randomUUID(),
   intakeReceiptFor: facts => observe.intakeReceiptFor(facts),
   label: stepTestLabel,
   handoffFiles: lineHandoffFiles,
@@ -8705,31 +8963,44 @@ const cronDriver = makeCronDriver({
   // routine runs unchanged.
   runOnce: (opts) => {
     const first = opts && Array.isArray(opts.messages) && opts.messages[0] && String(opts.messages[0].content || '');
-    if (first && first.indexOf(WORKSHOP_MARK) === 0) {
-      return runWorkshopShift(opts.agentId, { runId: opts.runId, emit: opts.emit, signal: opts.signal });
-    }
-    // AUTOMATION: a routine whose prompt IS a slash command runs the COMMAND, not a model turn. Same redirect
-    // shape as the workshop sentinel above. Deterministic, zero spend, and the answer is the identical text
-    // every other surface prints — "/usage every morning at 9" needs no model and should not pay for one.
-    if (first && runsAsCommand(first, opts.cronScript)) {   // routine-identity.js: '/' and no pre-check script — Run Now applies the same rule
-      // TRUTHFUL SNAPSHOT for the slash lane too (bug-sweep 2026-08-28): runSlashRoutine emits
-      // agent.run.start, and this early return skipped the run table registration below — the one autonomous
-      // lane /api/state/snapshot didn't list, so the 30s reconcile stood the agent down mid-command.
-      const slashRunId = opts && opts.runId ? String(opts.runId) : '';
-      const slashRun = slashRunId ? runTable.admit({ runId: slashRunId, agentId: String((opts && opts.agentId) || 'agent'), source: 'cron', blocksGroup: true }) : null;
-      return Promise.resolve(runSlashRoutine(first, opts)).finally(() => { if (slashRun) slashRun.release(); });
-    }
-    // TRUTHFUL SNAPSHOT: register the scheduled run in the run table for its lifetime. The frontend's
-    // reconnect/30s reconciliation (world.js reconcileFromSnapshot) treats /api/state/snapshot as the
-    // authority on live runs and STANDS DOWN any agent whose run it doesn't list — a scheduled fire
-    // seized its agent to the desk via agent.run.start, then the first snapshot poll released the body
-    // mid-run (the app asserting idle over a provably live run). Run Now (handleCronRun), nightshift,
-    // loops and the channel hubs all already register; this was the one autonomous lane that didn't.
-    const schedRunId = opts && opts.runId ? String(opts.runId) : '';
-    const placed = schedRunId ? cronItems.get(schedRunId) : null;
-    if (placed && opts) opts = Object.assign({}, opts, { lineId: placed.lineId || undefined, dockId: placed.dockId || undefined });   // LINE WATCH: the row says where it worked
-    const scheduledRun = schedRunId ? runTable.admit({ runId: schedRunId, agentId: String((opts && opts.agentId) || 'agent'), source: 'cron', blocksGroup: true }) : null;
-    return Promise.resolve(runOnce(opts)).finally(() => { if (scheduledRun) scheduledRun.release(); });
+    // W3.1: a scheduled fire is unattended work. It runs in its origin scope — the away-workshop routine's shift is an away build
+    // ('workshop'), any other routine 'routine' — so its receipts count toward the rail and its tokens per fire; the fire's run id
+    // is the start, which its work line's hops share: the scope is recorded on the fire's crate (cronItems .unattended), where
+    // lineHopRun and a SEND TO of its job read it. Run Now calls runOnce directly and is neither, and so is the fire a person asked
+    // for (opts.personAsked, the driver's: routine.manage run_now in their own run), which runs as that person's run, unscoped.
+    const asked = !!(opts && opts.personAsked === true);
+    if (opts && 'personAsked' in opts) { opts = Object.assign({}, opts); delete opts.personAsked; }
+    const scope = { origin: first && first.indexOf(WORKSHOP_MARK) === 0 ? 'workshop' : 'routine', ref: String((opts && opts.cronJobId) || ''), start: String((opts && opts.runId) || '') };
+    const fireItem = scope.start ? cronItems.get(scope.start) : null;
+    if (fireItem && !asked) fireItem.unattended = scope;
+    const work = () => {
+      if (first && first.indexOf(WORKSHOP_MARK) === 0) {
+        return runWorkshopShift(opts.agentId, { runId: opts.runId, emit: opts.emit, signal: opts.signal, origin: 'workshop', cronJobId: opts.cronJobId });
+      }
+      // AUTOMATION: a routine whose prompt IS a slash command runs the COMMAND, not a model turn. Same redirect
+      // shape as the workshop sentinel above. Deterministic, zero spend, and the answer is the identical text
+      // every other surface prints — "/usage every morning at 9" needs no model and should not pay for one.
+      if (first && runsAsCommand(first, opts.cronScript)) {   // routine-identity.js: '/' and no pre-check script — Run Now applies the same rule
+        // TRUTHFUL SNAPSHOT for the slash lane too (bug-sweep 2026-08-28): runSlashRoutine emits
+        // agent.run.start, and this early return skipped the run table registration below — the one autonomous
+        // lane /api/state/snapshot didn't list, so the 30s reconcile stood the agent down mid-command.
+        const slashRunId = opts && opts.runId ? String(opts.runId) : '';
+        const slashRun = slashRunId ? runTable.admit({ runId: slashRunId, agentId: String((opts && opts.agentId) || 'agent'), source: 'cron', blocksGroup: true }) : null;
+        return Promise.resolve(runSlashRoutine(first, opts)).finally(() => { if (slashRun) slashRun.release(); });
+      }
+      // TRUTHFUL SNAPSHOT: register the scheduled run in the run table for its lifetime. The frontend's
+      // reconnect/30s reconciliation (world.js reconcileFromSnapshot) treats /api/state/snapshot as the
+      // authority on live runs and STANDS DOWN any agent whose run it doesn't list — a scheduled fire
+      // seized its agent to the desk via agent.run.start, then the first snapshot poll released the body
+      // mid-run (the app asserting idle over a provably live run). Run Now (handleCronRun), nightshift,
+      // loops and the channel hubs all already register; this was the one autonomous lane that didn't.
+      const schedRunId = opts && opts.runId ? String(opts.runId) : '';
+      const placed = schedRunId ? cronItems.get(schedRunId) : null;
+      if (placed && opts) opts = Object.assign({}, opts, { lineId: placed.lineId || undefined, dockId: placed.dockId || undefined });   // LINE WATCH: the row says where it worked
+      const scheduledRun = schedRunId ? runTable.admit({ runId: schedRunId, agentId: String((opts && opts.agentId) || 'agent'), source: 'cron', blocksGroup: true }) : null;
+      return Promise.resolve(runOnce(opts)).finally(() => { if (scheduledRun) scheduledRun.release(); });
+    };
+    return asked ? unattendedScope.exit(work) : asUnattended(scope.origin, scope.ref, work, opts && opts.runId);
   },
   emit: cronEmitNotify, newId: () => crypto.randomUUID(), newAbort: () => new AbortController(), now: () => Date.now(),
   getKey: (provider) => cronKeyFor(provider),
@@ -8769,6 +9040,9 @@ const cronDriver = makeCronDriver({
     const held = routingHold();
     return held ? { ok: false, code: 'routing-held', reason: held.why } : cronPreflightConfig(job, ctx);
   },
+  // W3.1 THE UNATTENDED HOLD: a scheduled fire is unattended work, asked after the capability gate and before any spend. Held, the
+  // occurrence is dropped (a one-shot retries once its claim ages) and its ledger row names the reading or the rail count.
+  admitUnattended: (job, route) => holdRoutineFire(job, route),
   hashText: (text) => crypto.createHash('sha256').update(String(text == null ? '' : text), 'utf8').digest('hex'),
   deliverResult: deliverCronResult,
   // a result something of which went out is busy for the supersede and finishes while paused; one superseded before that
@@ -9084,6 +9358,341 @@ function ledgerPriorWorkVeto(agentId, vet) {
         continuedTitles: vet.continued.map(c => c.title + ' -> ' + c.of + ' (' + c.runId + ')').join(' | ').slice(0, 400) || undefined } });
   } catch (e) { failNote('nightshift.ledger.dup-veto', e); }
 }
+/* ---- THE FUTILE-BEAT SKIP (cost fix W1.6) — the rule lives in sidecar/unattended-admission.js; this is the host's half.
+   A build beat that ended 'duplicate-backlog' against a BUILT, undecided backlog item is remembered with the fingerprint
+   of what it read (futileBeatFingerprint). The pre-spend gate (nightshiftPrecheck) then holds every later BUILD beat as
+   'awaiting-verdict' — no model call, no leash unit — while that fingerprint is unchanged and the item still waits on
+   the Commander's verdict in the live backlog and on the desk. A beat that would run as a reason-only draft is never
+   held, and one that runs forgets the marker. Any change re-admits at once; a beat the Commander fires by hand never
+   asks. Persisted, so a restart does not buy one more futile beat. Ids and a hash only, no session text. */
+const NIGHTSHIFT_STUCK_FILE = path.join(WORKSPACES, 'nightshift.stuck.json');
+function loadNightshiftStuck() {
+  try { const o = loadResilient(NIGHTSHIFT_STUCK_FILE, 'nightshift-stuck'); return (o && o.stuck && typeof o.stuck === 'object' && !Array.isArray(o.stuck)) ? o.stuck : {}; }
+  catch (_) { return {}; }
+}
+let nightshiftStuck = loadNightshiftStuck();   // agentId -> { fp, runId, backlogId, at }
+// a marker a restart carried over is re-proved against the desk once, off the boot path (proveFutileDesk)
+setImmediate(() => { for (const aid of Object.keys(nightshiftStuck)) proveFutileDesk(aid, nightshiftStuck[aid]); });
+
+// what a project focus's scan reads that a cheap read can prove: a git project's HEAD commit (a commit, checkout or pull
+// moves it), read from .git without spawning git; a project that is not a git repo shows the scan only its top-level names.
+// The repo is the one the scan's `git -C <root>` reads: the root's own .git, or the nearest one above it (a focus on a
+// folder inside a repo). An uncommitted edit alone does not move it (the scan's `git status` is a spawn per call, too heavy
+// for every tick). A file that is absent reads as '' — absence is an answer here (no gitfile, no loose ref), not a failure.
+function readSmallText(p) {
+  try { return fs.readFileSync(p, 'utf8'); } catch (_) { return ''; }
+}
+function projectHeadOf(root) {
+  let top = path.resolve(root), dotGit = '';
+  for (let i = 0; i < 40 && !dotGit; i++) {
+    if (fs.existsSync(path.join(top, '.git'))) { dotGit = path.join(top, '.git'); break; }
+    const up = path.dirname(top);
+    if (up === top) break;
+    top = up;
+  }
+  let gitDir = dotGit;
+  const link = dotGit ? /^gitdir:\s*(.+?)\s*$/m.exec(readSmallText(dotGit)) : null;   // a linked worktree: .git is a file naming its git dir
+  if (link) gitDir = path.resolve(top, link[1]);
+  const head = gitDir ? readSmallText(path.join(gitDir, 'HEAD')).trim() : '';
+  if (head) {
+    const ref = /^ref:\s*(\S+)/.exec(head);
+    if (!ref) return head.slice(0, 64);   // detached
+    const commonDir = readSmallText(path.join(gitDir, 'commondir')).trim();
+    const common = commonDir ? path.resolve(gitDir, commonDir) : gitDir;
+    for (const dir of [gitDir, common]) { const sha = readSmallText(path.join(dir, ref[1])).trim(); if (sha) return sha.slice(0, 64); }
+    const line = readSmallText(path.join(common, 'packed-refs')).split(/\r?\n/).find(l => l.endsWith(' ' + ref[1]));
+    return line ? line.split(' ')[0].slice(0, 64) : ref[1];
+  }
+  try { return fs.readdirSync(root).filter(n => !/^\.(git|env)/.test(n)).sort().slice(0, 60).join('/'); } catch (_) { return ''; }
+}
+
+/* everything a build beat reads that the Commander, or the world, can change — as ONE fingerprint, read the same way at
+   the beat's start and at each pre-spend check while a futile beat is remembered. It reads the context pack's INPUTS,
+   never its text (day tags and relative ages there change with the clock alone), and never builds the pack (the 10-19
+   idle-CPU rule for the precheck). Every part is a store read the host already holds in RAM or a small file:
+     work + backlog — the prior-work list the beat's veto runs on and the raw queue its dedup runs on (a verdict, a new task,
+                      a build landing or being picked up all move them); activity — the newest owner runs (a new message);
+     context        — goal, dossier beliefs, open threads; focus — the declared focus and the steer; project — a project
+                      focus's HEAD commit (projectHeadOf); posture + engine — the dial's rungs and the model it would call;
+     persona        — the system text its calls run with (an agent edit, its learned tail, the dossier and goal it carries;
+                      cache-stable by design, so it moves only when they do);
+     verdicts       — what the Commander answered that reaches its prompt through the evidence note: run ratings (append-only
+                      and first-wins, so their count moves on every new like or dislike), their newest answers to
+                      recommendations (the beat's own impression stays 'shown' and is left out), and the learning switch.
+   The beat's own side effects stay out: its runs are internal streams, its refused queue writes nothing, its impression is
+   'shown'. Left out on purpose: the learned interest weights (they decay with the clock alone, and are learned from the
+   owner runs read above), the page-synced work signal (the page re-sends it after every run end, the beat's own included),
+   the track record and the learn weights (the beat's own records move them), and a project's uncommitted edits (the scan's
+   `git status` is a spawn per call, too heavy for every check).
+   Returns null when a read throws: an unproven reading never holds a beat. */
+function futileBeatFingerprint(agentId) {
+  try {
+    const str = v => (v == null ? '' : String(v));
+    const focus = (nightFocusState && nightFocusState.focus) || null;
+    const steer = (nightFocusState && nightFocusState.steer) || null;
+    const owner = (runStore.list(null, { limit: 400 }) || []).filter(r => r && runView('nightshift', r) && !isInternalRun(r)).slice(0, 20).map(r => [str(r.runId), Number(r.ts) || 0]);
+    const snap = commanderPosture.beliefs() || {};
+    const beliefs = {};
+    for (const dim of Object.keys(snap.beliefs || {})) beliefs[dim] = (snap.beliefs[dim] || []).map(b => str(b && b.text));
+    const sum = commanderPosture.summary() || {};
+    const ident = cronIdentityFor(agentId) || {};
+    let rated = -1;
+    try { rated = growthRatings.count(); } catch (_) { rated = -1; }   // an unreadable ratings ledger reads alike at every check (the beat's track record reads none)
+    const answered = recommendationLedger.read().entries.filter(e => e && e.state !== 'shown' && e.state !== 'opened')
+      .sort((a, b) => (Number(b.updatedAt) || 0) - (Number(a.updatedAt) || 0)).slice(0, 20).map(e => [str(e.id), str(e.state)]);
+    const learning = personalizationStore.read() || {};
+    return UnattendedAdmission.fingerprint({
+      work: nightPriorWork(agentId, focus).map(p => [p.status, p.runId, p.backlogId || '', p.title]),
+      backlog: workshopStore.backlogOf(agentId).map(b => [str(b.id), str(b.title).toLowerCase().replace(/\s+/g, ' ').trim(), str(b.builtRunId), str(b.buildingRunId)]).sort(),
+      activity: owner,
+      context: { goal: commanderGoals.get() || null, known: snap.known || [], beliefs, threads: threadsStore.list({ state: 'open' }).map(t => [t.id, t.updatedAt]) },
+      focus: [str(focus && focus.kind), str(focus && focus.ref), str(steer && steer.ref)],
+      project: (focus && focus.kind === 'project' && focus.ref) ? [str(focus.ref), !!isBlessedRoot(focus.ref), isBlessedRoot(focus.ref) ? projectHeadOf(focus.ref) : ''] : null,
+      posture: [str(sum.initiative), str(sum.reach)],
+      engine: [str(cronProviderFor({ agentId })), str(cronModelFor({ agentId }))],
+      persona: (ident.system && String(ident.system)) || str(cronSystemFor(agentId)),
+      verdicts: { rated, answered, learning: [learning.enabled !== false, Number(learning.revision) || 0] }
+    });
+  } catch (e) { failNote('nightshift.futile.fingerprint', e); return null; }
+}
+
+// THE BEAT'S MODE — one predicate, read by the beat itself (runNightshiftBeat), by the pre-spend gate's held-floor check
+// and the futile-beat hold (nightshiftPrecheck), and by status (buildMode): a beat is a real jailed BUILD only when the
+// dial builds unattended AND the away-workshop grant is on; anything else runs as a reason-only draft, which names no
+// room and queues nothing, so it is never held on the saved floor and can never be the futile beat.
+function nightshiftBeatBuilds(agentId, posture) {
+  const p = posture || commanderPosture.summary() || {};
+  return !!(p.buildsUnattended && workshopOf(agentId));
+}
+
+// THE DESK, as the hold may claim it: /api/workshop/pending lists a built item only when validateWorkshopManifest proves
+// its deliverable on disk. That proof is async, so it runs once when the futile beat settles (settleFutileBeat retracts
+// the hold when it fails); between beats this sync read re-checks the deliverable is still there, so a build whose run
+// dir is gone is never claimed to be waiting on the desk. The path is the one that proof resolves (the agent's jail).
+function futileDeskHas(agentId, runId) {
+  const id = String(runId || '');
+  if (!/^[A-Za-z0-9_-]{1,80}$/.test(id)) return false;
+  let dir = '';
+  try { dir = path.join(WORKSPACES, fsJail.safeAgentId(agentId), 'workshop', id); }
+  catch (e) { failNote('nightshift.futile.desk-path', e); return false; }   // an agent id the jail refuses has no desk to claim
+  return fs.existsSync(path.join(dir, 'deliverable.json'));
+}
+
+// the pre-spend question (nightshiftPrecheck, and status through it): would this agent's next beat be the futile one
+// again? -> the precheck's stand-down { ok:false, reason:'awaiting-verdict', why:{ title, runId } } naming the build it
+// would collide with, read from the LIVE backlog — or null to admit. Reads nothing unless a futile beat is remembered,
+// and nothing more when the next beat would not build (a reason-only draft is never the futile beat).
+function futileBeatHold(agentId) {
+  const stuck = nightshiftStuck[agentId];
+  if (!stuck) return null;
+  const builds = nightshiftBeatBuilds(agentId);
+  const item = builds ? workshopStore.backlogOf(agentId).find(b => b && b.builtRunId && b.builtRunId === stuck.runId) : null;
+  const d = UnattendedAdmission.decide({ stuck, builds, fp: builds ? futileBeatFingerprint(agentId) : null,
+    waiting: item ? { title: item.title, runId: item.builtRunId } : null, desk: !!item && futileDeskHas(agentId, item.builtRunId) });
+  return d.admit ? null : { ok: false, reason: d.binding, why: d.why };
+}
+
+// after a beat: remember it when it ended on the dead end against an undecided build, forget it on any other end (a
+// delivery, another stand-down, a throw, a reason-only draft beat: seen and result null). `seen` is the fingerprint read
+// before the beat read anything. A remembered build is then proved the way the desk proves it (proveFutileDesk).
+function settleFutileBeat(agentId, seen, result) {
+  const next = UnattendedAdmission.settle({ fp: seen }, result, Date.now());
+  if (!next && !nightshiftStuck[agentId]) return;
+  const all = Object.assign({}, nightshiftStuck);
+  if (next) all[agentId] = next; else delete all[agentId];
+  nightshiftStuck = all;
+  try { fs.mkdirSync(WORKSPACES, { recursive: true }); saveResilient(NIGHTSHIFT_STUCK_FILE, { v: 1, stuck: all }); }
+  catch (e) { failNote('nightshift.futile.save', e); }
+  if (next) proveFutileDesk(agentId, next);
+}
+
+// the desk's own proof of a remembered build (validateWorkshopManifest, the read /api/workshop/pending lists it by): a build
+// the desk would not list is not awaited, so the marker is forgotten and the next beat runs — the hold is never asserted
+// on a build the Commander cannot find. Async; it leaves a newer marker alone.
+function proveFutileDesk(agentId, mark) {
+  if (!mark || !mark.runId) return;
+  validateWorkshopManifest(agentId, mark.runId).then((man) => {
+    const cur = nightshiftStuck[agentId];
+    if (!man && cur && cur.runId === mark.runId && cur.at === mark.at) settleFutileBeat(agentId, null, null);
+  }, (e) => failNote('nightshift.futile.desk', e));
+}
+
+/* ---- THE UNATTENDED HOLD (cost fix W3.1, approved 2026-11-08: ON by default, for AUTONOMOUS work only) — the rule lives in
+   sidecar/unattended-admission.js; this is the host's half. ONE check, unattendedHold (the only caller of
+   UnattendedAdmission.admit), that every unattended starter asks before it spends, keyed on who started the run:
+     'nightshift'  an away-shift beat the night-shift driver fires       nightshiftPrecheck, the driver's pre-spend gate
+     'routine'     a routine's scheduled fire (a slash or line routine    the cron driver's admitUnattended (holdRoutineFire),
+                   too; a routine the Commander armed is still            after the capability gate, before the fire's run
+                   unattended when it fires)                              id, lease or crate
+     'workshop'    an away build: the away-workshop routine's shift,      the same cron gate; runWorkshopShift and
+                   and the build a FREE plan chains into after an away    runNightshiftActShift, before runImplementBuild
+                   shift or an away beat
+     'loop'        a standing loop's tick                                 loopPrecheck (through loopReadiness): the loop
+                                                                          driver's precheck and the LOOPS row
+     'trigger'     a line trigger's fire (a file in a watched folder, a   the trigger runner's preflight (holdLineStart): a
+                   webhook call)                                          file waits in its folder, a webhook is refused, the
+                                                                          trigger's lastError and blockedBy say the hold
+     (inherited)   a SEND TO hand-off of unattended work: the job that    the hand-off runner's checks (holdLineStart), refused
+                   shipped it ran in an unattended start (a fire, a       on the target line's job record in the hold's words;
+                   trigger, a hand-off of one), so the target line's job  it runs in that start's scope (unattendedStartOf)
+                   is that start's work too
+   Never asked for what a person started: a message (/api/run), Run Now, a beat or a shift fired by hand, an Implement press, a
+   routine.manage run_now made in a person's own run (the fire it makes due is theirs: cron-store personAskedAt), a SEND TO of a
+   person's job, a sample run, a decision at a reviewer's gate. A fire that never calls a model (a script-only routine, a slash
+   command routine) spends nothing and is never held.
+   Background passes (reflection, study, scout, quest refresh, skill review) keep their own sign-in ceiling (auxgovernor).
+   Each unattended start runs in its origin scope (asUnattended), which stamps its usage receipts: the rail counts those, and
+   tokens per beat / per fire average them. A held start is dropped, never queued: after a reset or a RESUME the next one comes
+   on its own schedule, no burst. The switches: STARNET_UNATTENDED_WINDOW_PCT and STARNET_UNATTENDED_RAIL_TOKENS (a number sets
+   the line, 0 or off turns it off); every other number is UnattendedAdmission.THRESHOLDS. */
+const UNATTENDED_LIMITS = UnattendedAdmission.thresholds({ windowPct: ENV('UNATTENDED_WINDOW_PCT'), railTokens: ENV('UNATTENDED_RAIL_TOKENS') });
+const UNATTENDED_ROWS_MAX = 20000;   // unattended receipts kept in memory (the file itself is bounded by usage-receipts' rotation)
+const readingSource = require('./sub-usage.js').readingSource;
+// RESUME: when the Commander last re-armed autonomy while the rail held — the rail counts from there. Survives a restart.
+const UNATTENDED_RESUME_FILE = path.join(WORKSPACES, 'unattended.resume.json');
+let unattendedResumedAt = (() => {
+  try { const o = loadResilient(UNATTENDED_RESUME_FILE, 'unattended-resume'); return (o && Number.isFinite(o.resumedAt)) ? o.resumedAt : null; }
+  catch (_) { return null; }
+})();
+
+// run fn as an unattended start of `origin` (ref: the agent, routine or loop it belongs to; start: the fire's own id when its work
+// runs in more than one scope, else a fresh one) -> fn's result, as a promise. A throw is fn's own, unchanged.
+function asUnattended(origin, ref, fn, start) {
+  const key = (start != null && String(start)) || crypto.randomUUID();
+  unattendedLive.set(key, (unattendedLive.get(key) || 0) + 1);
+  const done = () => { const n = (unattendedLive.get(key) || 1) - 1; if (n > 0) unattendedLive.set(key, n); else unattendedLive.delete(key); };
+  let p;
+  try { p = unattendedScope.run({ origin: origin, ref: ref == null ? '' : String(ref), start: key }, fn); }
+  catch (e) { done(); throw e; }
+  return Promise.resolve(p).finally(done);
+}
+
+function unattendedRecords() {
+  if (!unattendedRows) {
+    let all = [];
+    try { all = usageReceipts.records(); } catch (e) { failNote('unattended.records', e); }
+    unattendedRows = all.filter(r => r && UnattendedAdmission.isUnattended(r.origin)).slice(-UNATTENDED_ROWS_MAX);
+  }
+  return unattendedRows;
+}
+function noteUnattendedReceipt(rec) {
+  if (!unattendedRows || !rec || !UnattendedAdmission.isUnattended(rec.origin)) return;   // not read yet: the first read finds it in the file
+  unattendedRows.push(rec);
+  if (unattendedRows.length > UNATTENDED_ROWS_MAX) unattendedRows.splice(0, unattendedRows.length - UNATTENDED_ROWS_MAX);
+}
+
+// what each live sign-in on the route last said about its windows (sub-usage.js), and where that reading comes from
+function unattendedReadings(provider) {
+  if (!provider) return [];
+  let accounts = [{ id: '' }];
+  try { if (providerAccounts.list(provider).length) accounts = accountChain(provider); }   // stacked sign-ins: a run rotates through the live ones
+  catch (e) { failNote('unattended.accounts', e); }
+  const source = readingSource(provider);
+  return accounts.map(a => ({ account: a.id || 'primary', source: source, entry: subUsage.get(provider, a.id || 'primary') }));
+}
+
+// the rail's count: unattended work's weighted tokens on the routes that may sign in, the trailing day, since the last RESUME
+function unattendedRail(now) {
+  const may = new Map();
+  const signsIn = pid => { if (!may.has(pid)) { let v = false; try { v = !!auxCeilingRoute(pid); } catch (e) { failNote('unattended.rail-route', e); } may.set(pid, v); } return may.get(pid); };
+  return UnattendedAdmission.railTally(unattendedRecords().filter(r => signsIn(r.provider)), now, unattendedResumedAt, UNATTENDED_LIMITS);
+}
+
+/* unattendedHold — THE check. origin: who started the run (UnattendedAdmission.ORIGINS; anything else is a person, never held);
+   ctx: { provider } the route the start would run on. -> null (go), or the hold
+   { ok:false, binding, why: the reading or the rail count, say: the hold in words, ledger: { origin, hold, ...why } }.
+   A check that throws admits: a hold is asserted only on what the harness can read. */
+function unattendedHold(origin, ctx) {
+  if (!UnattendedAdmission.isUnattended(origin)) return null;
+  try {
+    const now = Date.now();
+    const provider = auxRoute((ctx && ctx.provider) || '');
+    const signIn = !!provider && auxCeilingRoute(provider);
+    const d = UnattendedAdmission.admit({ origin: origin, provider: provider, signIn: signIn, now: now, thresholds: UNATTENDED_LIMITS,
+      readings: UNATTENDED_LIMITS.windowPct > 0 ? unattendedReadings(provider) : [],
+      rail: (signIn && UNATTENDED_LIMITS.railTokens > 0) ? unattendedRail(now) : null });
+    if (d.admit) return null;
+    return { ok: false, binding: d.binding, why: d.why, say: UnattendedAdmission.say(d, UNATTENDED_LIMITS), ledger: Object.assign({ origin: origin, hold: d.binding }, d.why) };
+  } catch (e) { failNote('unattended.hold', e); return null; }
+}
+
+// a hold's ledger row where no driver writes one (a routine fire, a chained build). `key` folds a hold that repeats unchanged
+// (a one-shot retried, the next occurrence of a held routine) into the row already written; '' writes every time.
+const unattendedHeldRows = new Map();   // key -> the hold last written for it
+function ledgerUnattendedHold(key, row, hold) {
+  const said = hold.binding + '|' + hold.say;
+  if (key && unattendedHeldRows.get(key) === said) return;
+  if (key) unattendedHeldRows.set(key, said);
+  try { recordAutonomy(Object.assign({ ts: Date.now(), kind: 'skip', binding: hold.binding, reason: hold.binding, detail: Object.assign({ note: hold.say }, hold.ledger) }, row)); }
+  catch (e) { failNote('unattended.ledger', e); }
+}
+
+// the cron driver's admitUnattended: a routine's scheduled fire, or the away-workshop routine's shift (an away build). A fire that
+// never calls a model — a script-only routine (noAgent), or one whose prompt is a slash command (routine-identity.js runsAsCommand,
+// the wrapper's own rule over the same assembled prompt), with no work line after it — spends nothing on a window or the rail, and
+// is never held.
+function holdRoutineFire(job, route) {
+  const id = String((job && job.id) || '');
+  const spendsNothing = !!job && job.runsLine !== true && (job.noAgent === true || runsAsCommand(String((route && route.prompt) || ''), job.script));
+  const hold = spendsNothing ? null : unattendedHold(job && job.meta && job.meta.workshop === true ? 'workshop' : 'routine', { provider: route && route.provider });
+  if (!hold) { unattendedHeldRows.delete('cron:' + id); return null; }
+  ledgerUnattendedHold('cron:' + id, { source: 'cron', jobId: id, agentId: String((job && job.agentId) || '') }, hold);
+  return hold;
+}
+
+// RESUME (re-arming a posture that turns unattended work on — handleAutonomyPosture asks only for one): while the rail holds, its
+// count starts again from now. -> true when it lifted the rail; a re-arm while the rail is not holding resets nothing.
+function resumeUnattendedRail() {
+  if (!(UNATTENDED_LIMITS.railTokens > 0)) return false;
+  const now = Date.now();
+  const rail = unattendedRail(now);
+  if (!(rail.tokens >= UNATTENDED_LIMITS.railTokens)) return false;
+  unattendedResumedAt = now;
+  try { fs.mkdirSync(WORKSPACES, { recursive: true }); saveResilient(UNATTENDED_RESUME_FILE, { v: 1, resumedAt: now }); }
+  catch (e) { failNote('unattended.resume.save', e); }
+  recordAutonomy({ ts: now, source: 'nightshift', kind: 'note', agentId: NIGHTSHIFT_AGENT, reason: 'unattended-rail:resumed',
+    detail: { tokens: rail.tokens, limit: UNATTENDED_LIMITS.railTokens, note: 'autonomy re-armed: the unattended rail counts again from now' } });
+  return true;
+}
+
+// tokens per beat / per fire: what one finished start of origin/ref spent, weighted, over its newest starts (null until one is recorded)
+function unattendedPerStart(origin, ref) {
+  try { return UnattendedAdmission.tokensPerStart(unattendedRecords(), { origin: origin, ref: ref, exclude: unattendedLive }); }
+  catch (e) { failNote('unattended.per-start', e); return null; }
+}
+
+/* THE HOLD FOR A LINE'S OWN START: a line trigger's fire ('trigger'), or a SEND TO hand-off of unattended work (the origin of the start
+   that shipped it). The dock a line picks is not known before it picks (its one resolution advances a counter), so every crewed entry
+   it can route to is asked on its agent's provider, and the start is held only when each one is: one with room, or with no reading,
+   admits. -> the hold (unattendedHold's shape), or null. A check that throws admits. */
+function holdLineStart(origin, lineId) {
+  if (!UnattendedAdmission.isUnattended(origin)) return null;
+  try {
+    const plan = admit.getPlan();
+    if (!plan) return null;
+    const layer = Pipeline.hasDockLayer(plan) ? Pipeline.dockLayer(plan) : null;
+    const agents = Array.from(new Set(crewedDocksOnLine(plan, lineId).map(dk => (layer ? layer.agentOfDock[dk] : dk)).filter(Boolean)));
+    let held = null;
+    for (const agentId of agents) {
+      const hold = unattendedHold(origin, { provider: (sampleRunConfigFor(agentId) || {}).provider || '' });
+      if (!hold) return null;
+      held = held || hold;
+    }
+    return held;
+  } catch (e) { failNote('unattended.line-hold', e); return null; }
+}
+
+/* the unattended start a finished line job belongs to, for its SEND TO: the start whose scope it ran in (a trigger's fire, a hand-off of
+   unattended work), else the scheduled fire whose stream it is ('cron-<run id>': the scope that fire recorded on its crate). null for
+   a person's own job (a message, Run Now, a sample, a fire a person asked for). */
+function unattendedStartOf(rec) {
+  const live = unattendedNow();
+  if (live) return { origin: live.origin, ref: live.ref, start: live.start };
+  const fire = /^cron-(.+)$/.exec(String((rec && rec.streamId) || ''));
+  const sc = fire ? ((cronItems.get(fire[1]) || {}).unattended || null) : null;
+  return sc ? { origin: sc.origin, ref: sc.ref, start: sc.start } : null;
+}
+
 // copy an earlier build's disk-proven files into a continuation's run dir (both jail-resolved inside the agent's own
 // workspace; deliverable.json is never copied — the new run writes its own). Bounded: <=40 files, <=2MB each, <=8MB.
 async function seedContinueDir(agentId, fromRunId, toRunId) {
@@ -9135,6 +9744,18 @@ function autonomyLedgerAppend(entry) {
   // edge-triggered declines (driver): the PREVIOUS logged reason held for heldTicks more identical ticks after it was
   // written — the information the old one-row-per-tick log carried, now in one number instead of thousands of rows.
   if (Number.isFinite(e.heldTicks) && e.heldTicks > 0) { detail.heldTicks = Math.floor(e.heldTicks); if (e.heldBinding != null) detail.heldBinding = String(e.heldBinding); }
+  // W1.6: a beat held by the futile-beat skip names the build it waits on, as the live backlog holds it (futileBeatHold)
+  if (e.binding === UnattendedAdmission.AWAITING_VERDICT && e.why) {
+    if (e.why.title) detail.waitingOn = String(e.why.title);
+    if (e.why.runId) detail.waitingRunId = String(e.why.runId);
+  }
+  // W3.1: a beat held by the unattended hold names what it rests on — the window reading (provider, sign-in, window, %, the reset,
+  // when it was read, its source) or the rail count — and says it in words
+  if ((e.binding === UnattendedAdmission.WINDOW_RESERVE || e.binding === UnattendedAdmission.UNATTENDED_RAIL) && e.why) {
+    Object.assign(detail, e.why, { origin: 'nightshift', hold: e.binding });
+    const note = UnattendedAdmission.say({ admit: false, binding: e.binding, why: e.why }, UNATTENDED_LIMITS);
+    if (note) detail.note = note;
+  }
   if (e.kind === 'outcome') {
     detail.phase = 'outcome'; detail.delivered = !!e.delivered;
     if (e.title) detail.title = e.title; if (e.archetype) detail.archetype = e.archetype;
@@ -9392,12 +10013,12 @@ async function runScoutCycle(o) {
   const ac = new AbortController();
   const timer = setTimeout(() => { try { ac.abort(); } catch (_) {} }, SCOUT_TIMEOUT_MS);
   const spend = auxSpend('scout', o && o.route);
-  const auxEffort = (o && o.reasoningEffort) || null;   // aux-tier: pre-gated by auxReasoningEffort at the call site
-  const propose = async (system, prompt) => {
-    const req = { model, stream: true, signal: ac.signal, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] };
-    if (auxEffort) req.reasoningEffort = auxEffort;
+  // W3.5: each call on the family's small model, one retry on the run model when accept(reply) says the reply is unusable — accept
+  // reads the FORMAT only (the call's own parser without its grounding, dedup or denylist filters, which judge the content)
+  const propose = async (system, prompt, accept) => {
+    const req = { stream: true, signal: ac.signal, messages: [{ role: 'system', content: system }, { role: 'user', content: prompt }] };
     if (runId) req.runId = runId;   // run attribution (starnet proxy header; other providers ignore it)
-    return spend.stream(provider, req, cost);
+    return oneShotStream('scout', o, spend, req, accept);
   };
   try {
     const pack = nightshiftContextPack();
@@ -9411,7 +10032,8 @@ async function runScoutCycle(o) {
       const known = Interests.summary(interestsState, { trustedOnly: true, now: Date.now(), limit: 12 }).map(r => r.label);
       const reply = await propose(
         'You extract the recurring, specific work topics a user\'s real activity shows. Reply ONLY in the requested tagged format.',
-        Interests.buildDirective({ activityLines: activity, knownTopics: known })
+        Interests.buildDirective({ activityLines: activity, knownTopics: known }),
+        t => OneShot.isNone(t) || Interests.parse(t, {}).length > 0
       );
       // a pause or forget that landed during the model call wins: fold, persist, and note nothing (spend is booked below)
       if (!learningUnchangedSince(pz)) return;
@@ -9455,7 +10077,8 @@ async function runScoutCycle(o) {
         existingRecipes: existing, gearKeys: SCOUT_CAP_KEYS,
         launchedOften: Scout.launchHints(scoutState, 5)   // lane B: names annotated "(rated well)" when the Commander's own verdicts earn it
       });
-      const reply = await propose('You are the station\'s recipe author. Follow the format exactly; ground every claim in the provided evidence.', directive);
+      const reply = await propose('You are the station\'s recipe author. Follow the format exactly; ground every claim in the provided evidence.', directive,
+        t => !!Scout.parseRecipe(t, { gearKeys: SCOUT_CAP_KEYS }));
       if (!learningUnchangedSince(pz)) return;   // no attempt stamp, no draft, no ledger row after a mid-call pause/forget
       if (!admitted()) return;   // …or a delete of a session the prompt quoted
       // grounding = the same evidence the directive showed the model — the WHY must cite it (parseRecipe guard). The
@@ -9511,7 +10134,8 @@ async function runScoutCycle(o) {
         capabilityKeys: SCOUT_CAP_KEYS, skillSlugs: skillSlugs,
         topRecommendation: cx.topRecommendation || ''
       });
-      const reply = await propose('You are the station\'s recruiter. Follow the format exactly; ground every claim in the provided evidence.', directive);
+      const reply = await propose('You are the station\'s recruiter. Follow the format exactly; ground every claim in the provided evidence.', directive,
+        t => !!ProspectGen.parse(t, { allowedKit: SCOUT_CAP_KEYS, allowedSkills: skillSlugs }));
       if (!learningUnchangedSince(pz)) return;
       if (!admitted()) return;
       const parsed = ProspectGen.parse(reply, { allowedKit: SCOUT_CAP_KEYS, allowedSkills: skillSlugs, existingClasses: existing });
@@ -10208,6 +10832,43 @@ function stationEpoch() {
   return epoch;
 }
 
+/* FOLLOW-UP FACTS (cost audit W1.3) — what this agent's follow-up controls could act on right now, for the dormant rule in
+   ProjectTools (capability/followups.js): true = a live handle or record exists, false = the host PROVED none, undefined =
+   unknown (the family stays on the wire). Read at a task run's start and by the TOOLSETS preview, from the state the
+   controls themselves act on: this agent's live PTY sessions; its background processes (local and Docker ones live in this
+   process's shellBg; an SSH backend's restart-persistent jobs live on the far machine, so that is unknown); the station's
+   routines and loops (routine.manage / loop.manage act on any of them); and the task board's cards in the agent save,
+   archived ones included (task.manage restores them). Cheap: in-memory counts, and the save is parsed only when its stamp
+   moved (the stationEpoch pattern). */
+let _taskCardsMemo = { stamp: '', has: undefined };
+function taskCardsExist() {
+  const now = saveStore.stamp('agent');
+  if (now && now === _taskCardsMemo.stamp) return _taskCardsMemo.has;
+  const r = saveStore.loadStamped('agent');
+  // no save at all: the board was never saved, so it holds no card. A save that would not read is unknown. The store
+  // answers which (its tagged read), never a file probe of our own (station-record-readers: P1 is station-record.js's).
+  if (!r.doc) return saveStore.loadState('agent').status === 'absent' ? false : undefined;
+  const has = Array.isArray(r.doc.workstreams) && r.doc.workstreams.some(w => w && w.kind === 'task');
+  if (r.stamp) _taskCardsMemo = { stamp: r.stamp, has: has };
+  return has;
+}
+function followupFactsFor(agentId) {
+  const fact = (tag, read) => {
+    try { const v = read(); return typeof v === 'boolean' ? v : undefined; }
+    catch (e) { failNote('tools.followups.' + tag, e); return undefined; }
+  };
+  return {
+    terminal: fact('terminal', () => terminalSessions.countRunning(agentId) > 0),
+    shellBg: fact('shell-bg', () => {
+      const backend = executionEnvironment.backendIdFor(agentId);
+      return (backend === 'local' || backend === 'docker') ? shellBg.count(agentId) > 0 : undefined;
+    }),
+    routines: fact('routines', () => (cronJobs || []).some(j => j && j.id)),
+    loops: fact('loops', () => (loopJobs || []).some(l => l && l.id)),
+    tasks: fact('tasks', taskCardsExist)
+  };
+}
+
 /* nightshiftUserRunCount() — the readiness evidence (pack.userRunCount) WITHOUT building the whole context pack
    (2026-10-19, idle-CPU piece 2). The precheck runs every 60 s night-shift tick once the gates clear, and while
    readiness stays cold it stands down every time — yet it built the full pack to read one number: two clones of the
@@ -10247,9 +10908,14 @@ function nightshiftPrecheck() {
     try {
       if (!cronModelFor({ agentId: NIGHTSHIFT_AGENT }) || !cronHasCredential(provider, cronKeyFor(provider))) return { ok: false, reason: 'no-provider' };
     } catch (_) { return { ok: false, reason: 'precheck-error' }; }
+    // THE UNATTENDED HOLD (W3.1, pre-spend): an away-shift beat is unattended work — held, with no call and no leash unit, while
+    // every sign-in on its route is in its window's reserve before a reset still ahead, or unattended work has spent the rail.
+    // The decline names the reading it rests on (or the count). A beat fired by hand never comes through here.
+    const unattended = unattendedHold('nightshift', { provider: provider });
+    if (unattended) return { ok: false, reason: unattended.binding, why: unattended.why };
     /* HELD FLOOR GATE (pre-spend): a saved floor that cannot be proved right now refuses an unattended BUILD (runNightshiftActShift stands down on the
        same hold), so the beat is declined here, before the leash is spent on it. Only the beat that would BUILD asks — a reason-only draft names no room. */
-    if ((commanderPosture.summary() || {}).buildsUnattended && workshopOf(NIGHTSHIFT_AGENT) && routingHold()) return { ok: false, reason: 'routing-held' };
+    if (nightshiftBeatBuilds(NIGHTSHIFT_AGENT) && routingHold()) return { ok: false, reason: 'routing-held' };
     const snap = commanderPosture.beliefs() || {};
     const summary = { known: Array.isArray(snap.known) ? snap.known : Object.keys((snap.beliefs) || {}) };
     const beliefsByDim = (dim) => (snap.beliefs && snap.beliefs[dim]) || [];
@@ -10258,6 +10924,10 @@ function nightshiftPrecheck() {
     const rd = Autopilot.readiness(summary, beliefsByDim, Date.now(), { activityCount });
     const eligible = Autopilot.eligibleArchetypes(rd.usableDims, { activityGrounded: rd.groundedBy === 'activity' });
     if (rd.tier !== 'hot' || !eligible.length) return { ok: false, reason: 'readiness' };
+    // THE FUTILE-BEAT SKIP (W1.6): the last beat re-proposed a build still waiting on the Commander's verdict, and nothing
+    // it read has changed since — this one would spend its call and its leash unit to end the same way. Held before the spend.
+    const futile = futileBeatHold(NIGHTSHIFT_AGENT);
+    if (futile) return futile;
     return { ok: true };
   } catch (_) { return { ok: false, reason: 'precheck-error' }; }
 }
@@ -10299,9 +10969,17 @@ async function runNightshiftBeat(opts) {
   // UNCHANGED (NS-1 behavior). A tool-run needs the away-workshop WRITE grant (workshopOf) to unlock its jailed
   // writes through the SAME consent broker — without it the run would default-deny every write, so we require it.
   const posture = (commanderPosture.summary() || {});
-  if (posture.buildsUnattended && workshopOf(agentId)) {
-    return runNightshiftActShift(Object.assign({}, opts, { agentId }));
+  if (nightshiftBeatBuilds(agentId, posture)) {
+    // W1.6: what this beat is about to read, fingerprinted before it reads it; how it ended decides whether the next
+    // beat is held as futile (settleFutileBeat) — on every path that runs a build beat, scheduled or fired by hand
+    const seen = futileBeatFingerprint(agentId);
+    let result = null;
+    try { result = await runNightshiftActShift(Object.assign({}, opts, { agentId })); return result; }
+    finally { settleFutileBeat(agentId, seen, result); }
   }
+  // W1.6: a reason-only draft queues nothing, so it can never end on the futile dead end — once one runs, the last beat is
+  // no longer the futile one, and a later build beat (the grant turned back on) is admitted, not held on that older one
+  settleFutileBeat(agentId, null, null);
   // HONEST DEGRADE (2026-07-13): the dial permits real building but the away-workshop grant is missing, so this
   // beat runs as a reason-only draft. Record that in the decision ledger — the old silent fall-through is exactly
   // how "dial at max, station never builds" went unnoticed for days. (The posture route now auto-grants, so this
@@ -10533,6 +11211,10 @@ async function runNightshiftActShift(opts) {
   catch (_) { /* a queue hiccup (e.g. a title the Commander earlier discarded) → stand down honestly */ return { delivered: false, reason: 'queue-refused' }; }
   // a title already lined up (or discarded) is NOT a new item: building anyway produced an orphan run whose
   // markBuilt found no backlog row, so it never reached the desk. Stand down instead of duplicating the work.
+  // W1.6: when the title is taken by a BUILT item, that build is still waiting on the Commander's verdict — name it, so
+  // the futile-beat skip holds the next beats on it instead of re-proposing it every beat (settleFutileBeat).
+  const waitingOn = (queued && queued.reason === 'duplicate' && queued.item && queued.item.builtRunId) ? { runId: String(queued.item.builtRunId), backlogId: String(queued.item.id || '') } : null;
+  if (waitingOn) return { delivered: false, reason: 'duplicate-backlog', waitingOn };
   if (!queued || queued.reason !== 'added') return { delivered: false, reason: 'duplicate-backlog' };
   await workshopStore.claimNext(agentId, runId, isRunLive).catch(swallow('workshop.claim', null));   // stamp buildingRunId (zombie-reap aware)
 
@@ -10596,8 +11278,16 @@ async function runNightshiftActShift(opts) {
   // build and deliver the thing. A failed chain still delivers the plan — never an empty morning.
   if (planAutoBuildAtFree(manifest)) {
     let chained = null;
-    try { chained = await runImplementBuild(agentId, runId, { emit: (typeof opts.emit === 'function' ? opts.emit : undefined), broadcast: !!opts.broadcast }); }
-    catch (e) { chained = { fired: false, reason: 'chain-crashed: ' + ((e && e.message) || e) }; }
+    // W3.1: the build a FREE plan chains into is an away build of its own, asked before it spends (a beat fired by hand never is):
+    // held, the plan is delivered as it stands and the row names the reading
+    const chainHold = unattendedHold(opts.origin, { provider: provider });
+    if (chainHold) {
+      ledgerUnattendedHold('', { source: 'nightshift', agentId: agentId, runId: runId }, Object.assign({}, chainHold, { ledger: Object.assign({ phase: 'free-chain' }, chainHold.ledger) }));
+      chained = { fired: false, reason: chainHold.binding };
+    } else {
+      try { chained = await runImplementBuild(agentId, runId, { emit: (typeof opts.emit === 'function' ? opts.emit : undefined), broadcast: !!opts.broadcast }); }
+      catch (e) { chained = { fired: false, reason: 'chain-crashed: ' + ((e && e.message) || e) }; }
+    }
     if (chained && chained.reason === 'built') {
       return { delivered: true, reason: 'built', title: (chained.manifest || {}).title, archetype: sel.selected.archetype, runId: chained.runId, backlogId, chainedFrom: runId };
     }
@@ -10636,7 +11326,9 @@ const nightshiftDriver = makeNightshiftDriver({
   // unit-tested runTeeView policy — args never leave the sidecar), the same opt-in the force-fire route and
   // manual cron use. Without it a scheduled beat ran with a no-op emit and the station sat visibly dead
   // while the harness worked (2026-07-14: "it doesn't notify me anywhere").
-  beat: (o) => runNightshiftBeat(Object.assign({ broadcast: true }, o || {})),
+  // W3.1: the driver's beat is unattended work — it runs in the 'nightshift' scope (its receipts count toward the rail), and a
+  // build it chains into asks the hold by that origin. A beat fired by hand (POST /api/nightshift/beat) is neither.
+  beat: (o) => asUnattended('nightshift', NIGHTSHIFT_AGENT, () => runNightshiftBeat(Object.assign({ broadcast: true, origin: 'nightshift' }, o || {}))),
   newAbort: () => new AbortController(),
   now: () => Date.now(),
   ledger: (entry) => autonomyLedgerAppend(entry),
@@ -10784,6 +11476,9 @@ function loopPrecheck(loop) {
     if (!cronHasCredential(provider, cronKeyFor(provider))) {
       return { ok: false, reason: 'no credential for ' + (provider || 'the selected provider') + ' — connect it in SETTINGS › AI & MODELS' };
     }
+    // W3.1: a tick is unattended work, held in the hold's own words (the LOOPS row shows them; the ledger row names the reading)
+    const unattended = unattendedHold('loop', { provider: provider });
+    if (unattended) return { ok: false, reason: unattended.say, why: unattended.ledger };
     return { ok: true };
   } catch (e) { return { ok: false, reason: 'precheck error: ' + ((e && e.message) || e) }; }
 }
@@ -11215,7 +11910,8 @@ const loopDriver = makeLoopDriver({
       return false;
     }
   },
-  runOnce: (opts) => runOnce(opts),
+  // W3.1: a loop's iteration is unattended work: it runs in the 'loop' scope (its receipts count toward the rail)
+  runOnce: (opts) => asUnattended('loop', String((opts && opts.streamId) || '').replace(/^loop-/, ''), () => runOnce(opts), opts && opts.runId),
   newId: () => crypto.randomUUID(), newAbort: () => new AbortController(), now: () => Date.now(),
   isHalted: () => loopsHalted,
   // the same-agent run mutex. A loop must never elbow past an interactive run the Commander is watching.
@@ -12063,6 +12759,8 @@ async function runQuestRefreshCycle(why, admittedProviderId) {
       { role: 'system', content: 'You are the station\'s quest master. Follow the format exactly; ground every claim in the provided evidence.' },
       { role: 'user', content: directive }
     ] };
+    const questEffort = auxPassEffort(provider, model);   // a strict-format plan is aux work: the aux effort, like every post-run pass
+    if (questEffort) req.reasoningEffort = questEffort;
     const out = await spend.stream(provider, req, cost);
     if (!refreshAdmitted()) { questRefreshNote({ ...refreshStamp, outcome: 'skipped', reason: 'a session this pass read was deleted while it planned' }); return; }
 
@@ -15612,6 +16310,10 @@ const triggerRunner = makeTriggerRunner({
   watcher: triggerWatcher,
   label: (agentId) => stepTestLabel(agentId),
   folderConflict: (p) => { const root = triggerLineRoots().find(r => p && triggerFolderPolicy.inside(p, r)); return root ? lineOutputError(root) : null; },
+  // W3.1 THE UNATTENDED HOLD: a trigger's fire is unattended work (armed like a routine, fired by no one) — asked in its preflight on
+  // the providers its line can start on, and run as the trigger's own start (origin 'trigger', the trigger's id, the fire's stream)
+  unattendedHold: (t) => { const hold = holdLineStart('trigger', t && t.lineId); return hold ? hold.say : null; },
+  asUnattended: (t, streamId, fn) => asUnattended('trigger', t && t.id, fn, streamId),
   now: () => Date.now(), newId: () => crypto.randomUUID(),
   warn: (m) => console.warn(m)
 });
@@ -15644,6 +16346,10 @@ handoffRunner = makeHandoffRunner({
     latest: (line) => LineJobs.latest(lineJobs, line),
     again: (id, at) => lineJobsSet(state => LineJobs.again(state, id, at))
   },
+  // W3.1 THE UNATTENDED HOLD: a SEND TO of unattended work is that start's work — asked on the target line's providers, run in its scope
+  startOf: (rec) => unattendedStartOf(rec),
+  unattendedHold: (start, toLine) => { const hold = holdLineStart(start && start.origin, toLine); return hold ? hold.say : null; },
+  asUnattended: (start, fn) => asUnattended(start.origin, start.ref, fn, start.start),
   emit: chanEmit, bumpQueue: bumpQueue, queueCap: QUEUE_CAP,
   now: () => Date.now(), newId: () => crypto.randomUUID(),
   warn: (m) => console.warn(m)
@@ -16154,13 +16860,19 @@ async function handleStepTestId(req, res, gm) {
      subscriptions: { <providerId>: { <account ('primary' = account 1)>: { windows: [{ id, label, usedPct|null, resetsAt|null,
                       status }], credits?, overage?, seenAt } } }   (sub-usage.js: Claude Code's stream, ChatGPT's headers)
      rate:          the API providers' rate-limit buckets from their last response (providers/ratelimits.js)
+     starnet:       { <providerId>: { <account>: { <windowId>: { from, tokens, cacheRead, calls, since } } } } — StarNet's OWN
+                    booked tokens on that sign-in since each window opened, from the usage receipts (usage-receipts.js
+                    windowShare). since > from: the receipts begin later, so the count is a floor; since null: none yet.
+                    Tokens only, never a StarNet percentage: the window's % is the provider's word for every client on it.
    A provider or sign-in no call has run on says nothing here — the reader shows "unknown", never "plenty left". */
 function handleUsageProviders(req, res) {
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-  let subscriptions = {}, rate = [];
+  let subscriptions = {}, rate = [], starnet = {};
+  const now = Date.now();
   try { subscriptions = subUsage.snapshot(); } catch (_) { subscriptions = {}; }
   try { rate = rateLimits.snapshot(); } catch (_) { rate = []; }
-  res.end(JSON.stringify({ subscriptions, rate, now: Date.now() }));
+  try { starnet = usageReceipts.windowShare(subscriptions, now); } catch (e) { failNote('usage.receipts.share', e); starnet = {}; }
+  res.end(JSON.stringify({ subscriptions, rate, now, starnet }));
 }
 // Inventory only: the actual owners still enforce every value. A pending restart never pretends to be active.
 function effectiveLimitsStatus() {
@@ -17781,7 +18493,8 @@ async function toolsetsPreview(agentId, extraObjects, placement) {
     realDesktopAuthority: unrestrictedHost && computerControl.available(), executionProfile, widgetScope: '',
     internalBriefTools: ['brief.ask', 'brief.update', 'brief.proceed'].filter(n => registry.get(n)), deferralOff,
     keySaveOffered: false, directDomain: false, leanCrew: ENV('LEAN_CREW'), crewCount: crewCountFor(agentId), connectorDefer: CONNECTOR_DEFER,
-    availability: deferralOff ? {} : { mediaRoute: !!(studioRoute && studioRoute.ok), voiceRoute, ptyRuntime: terminalSessions.available() }
+    availability: deferralOff ? {} : { mediaRoute: !!(studioRoute && studioRoute.ok), voiceRoute, ptyRuntime: terminalSessions.available() },
+    followups: deferralOff ? undefined : followupFactsFor(agentId)   // the same live handles and records the run reads
   };
   const projectedStation = ProjectTools.projectStation({ id: agentId }, origin, role, facts).station;
   facts.dynamicTools = await registerRoomTools(registry, projectedStation, agentId, providerId);
@@ -18776,8 +19489,15 @@ function cronStateSnapshot(now) {
 }
 
 function handleCronList(req, res) {
+  const snap = cronStateSnapshot(Date.now());
+  // W3.1 (additive): tokensPerFire — what one scheduled fire of the routine spent, weighted, over its newest fires; absent until one is
+  // recorded (Run Now is a person's run, and is not one of them)
+  snap.jobs = snap.jobs.map(j => {
+    const t = (j && j.id) ? unattendedPerStart(j.meta && j.meta.workshop === true ? 'workshop' : 'routine', j.id) : null;
+    return t ? Object.assign({}, j, { tokensPerFire: t }) : j;
+  });
   res.writeHead(200, { 'Content-Type': 'application/json', 'Cache-Control': 'no-store' });
-  res.end(JSON.stringify(cronStateSnapshot(Date.now())));
+  res.end(JSON.stringify(snap));
 }
 
 /* GET /api/lifecycle/armed — Lane 4D: the ONE aggregate the desktop tray supervisor polls to decide whether
@@ -19942,8 +20662,16 @@ async function runWorkshopShift(agentId, opts) {
   // so a crash between the two leaves a reviewable plan rather than nothing).
   if (planAutoBuildAtFree(manifest)) {
     let chained = null;
-    try { chained = await runImplementBuild(id, runId, { emit: emit, broadcast: !!o.broadcast }); }
-    catch (e) { chained = { fired: false, reason: 'chain-crashed: ' + ((e && e.message) || e) }; }
+    // W3.1: the build a FREE plan chains into is an away build of its own, asked before it spends (a shift fired by hand never is):
+    // held, the plan is delivered as it stands and the row names the reading
+    const chainHold = unattendedHold(o.origin, { provider: provider });
+    if (chainHold) {
+      ledgerUnattendedHold('', { source: 'cron', jobId: o.cronJobId ? String(o.cronJobId) : undefined, agentId: id, runId: runId }, Object.assign({}, chainHold, { ledger: Object.assign({ phase: 'free-chain' }, chainHold.ledger) }));
+      chained = { fired: false, reason: chainHold.binding };
+    } else {
+      try { chained = await runImplementBuild(id, runId, { emit: emit, broadcast: !!o.broadcast }); }
+      catch (e) { chained = { fired: false, reason: 'chain-crashed: ' + ((e && e.message) || e) }; }
+    }
     if (chained && chained.reason === 'built') {
       noteShift({ reason: 'built', runId: chained.runId, title: (chained.manifest || {}).title });
       return { fired: true, runId: chained.runId, reason: 'built', manifest: chained.manifest, chainedFrom: runId };
@@ -21870,7 +22598,10 @@ async function handleAgentModel(req, res) {
   // personality do (Full Access is given again at the desk). The effort alone is not part of what drives it.
   const raw = agentRosterRaw.get(agentId);
   const dropFull = cur.approvalMode === 'full' && fullAccessDriveOf(Object.assign({}, cur, { model, provider })) !== fullAccessDriveOf(cur);
-  agentRoster.set(agentId, Object.assign({}, cur, { model, provider }, effort ? { reasoningEffort: effort } : {}, dropFull ? { approvalMode: 'ask' } : {}));
+  const next = Object.assign({}, cur, { model, provider }, effort ? { reasoningEffort: effort } : {}, dropFull ? { approvalMode: 'ask' } : {});
+  // LEANER CREW DEFAULTS (W3.3): an effort named here is a hand pick, never a class default the crew rule may lower
+  if (effort) { if (CrewDefaults.isOn(crewDefaultsMode())) next.effortSource = 'pin'; else delete next.effortSource; }
+  agentRoster.set(agentId, next);
   if (dropFull) agentRosterRaw.set(agentId, Object.assign({}, raw && typeof raw === 'object' ? raw : {}, { approvalMode: 'ask' }));
   if (!saveAgentRoster()) { agentRoster.set(agentId, cur); if (dropFull) { if (raw) agentRosterRaw.set(agentId, raw); else agentRosterRaw.delete(agentId); } return json(500, { error: 'could not save the roster' }); }
   if (dropFull) saveApprovalMode(agentId, 'ask');
@@ -22098,6 +22829,8 @@ async function handleAgentDelete(req, res) {
     lastFailReviewAt.delete(agentId); failReviewingNow.delete(agentId); skillReviewingNow.delete(agentId); if (skillNudge.delete(agentId)) persistSkillNudge();
     for (const [rid, b] of studyByRun) { if (b && b.agentId === agentId) studyByRun.delete(rid); }
     latestStudyRun.delete(agentId); lastStudyAt.delete(agentId); studyingNow.delete(agentId); studyDeclinedByAgent.delete(agentId);
+    lastThreadMineAt.delete(agentId); threadMiningNow.delete(agentId);   // W1.4: thread mining's window too (every attempt arms it now)
+    learningCooldown.forget(agentId);   // W1.4: its NONE streak, failure classes and feedback tokens go too, and a pass still running arms nothing
     persistStudyState();
   } catch (_) {}
   return json(200, { ok: true, agentId, rosterRemoved: removed, archived, cronRemoved });
@@ -23571,6 +24304,7 @@ async function handleRun(req, res) {
       windowTokens: body && Number.isFinite(body.windowTokens) ? body.windowTokens : undefined, windowFrom: body && body.windowFrom === 'station' ? 'station' : undefined, windowCaller: TurnWindow.callerOf(body),
       turnId: TurnKinds.isTurnId(body && body.turnId) ? body.turnId : undefined, retryOf: TurnKinds.isTurnId(body && body.retryOf) ? body.retryOf : undefined, turnRowId: (body && Number.isSafeInteger(body.turnRowId) && body.turnRowId > 0) ? body.turnRowId : undefined, ...TurnKinds.clientTurnTime(body, Date.now()), goalContinuation: (body && body.goalContinuation === true) || undefined,   // turn identity: ids only, a bad value dropped; the client's time pair converted once (no clamp); a goal-loop step is filed as one (kind goal-step)
       ...(body && typeof body.quotesStream === 'string' && QUOTE_SID_RE.test(body.quotesStream) ? { quotes: [body.quotesStream], quotesAt: receivedAt } : {}),   // an internal call the page composed from a session's words (the retitle, the goal judge) quotes that session (commit 11; additive body field, a bad id dropped)
+      oneShot: (internal && body && body.oneShot === 'title') ? 'title' : undefined,   // W3.5: the page's session-title run rides the family's small model (runOnceCore; additive body field, internal runs only)
       surface: 'interactive', prompt: promptConsent, pathPrompt: promptPathTrust, summon: summonRequest,   // team.summon → live summonAgent() round-trip; pathPrompt → NS-5 "work in <root>?" bless
       loginPrompt: askHuman,   // attended browser login: browser.login's two consent asks ride the same fail-closed permission.prompt channel
       // the Commander is AT the station (COMMS): this run may drive the shared, signed-in station browser
@@ -23788,10 +24522,11 @@ async function runOnceQueued(o, run) {
       // Refresh ordinary queued chat after the preceding turn has persisted.
       // Preserve the new user message (including attachments); checkpoint and
       // group histories retain their own provider-valid assembly contracts.
+      // TurnView.concat keeps the re-seed's row ids (W1.8 review): the replay window and the earlier-conversation note place it by them
       if (queued && o.resumeSeed !== false && !o.recovery && !o.groupTools && !o.parentRunId
         && (o.messages || []).at(-1)?.role === 'user') {
-        o = { ...o, messages: (o.messages || []).filter(m => m.role === 'system')
-          .concat(turnWindow.reseed(o), o.messages.slice(-1)) };
+        o = { ...o, messages: TurnView.concat((o.messages || []).filter(m => m.role === 'system'),
+          turnWindow.reseed(o), o.messages.slice(-1)) };
       }
       // A queued worker must see the previous turn that just finished, not the
       // history captured when its dispatch was admitted.
@@ -23799,7 +24534,7 @@ async function runOnceQueued(o, run) {
         const thread = overseer.resolve(o.streamId);
         if (thread.projectRoot && !isBlessedRoot(thread.projectRoot)) throw new Error('The target project is no longer trusted.');
         o = { ...o, projectRoot: thread.projectRoot || '', workdir: thread.projectRoot || undefined,
-          messages: turnWindow.reseed(o).concat((o.messages || []).slice(-1)) };
+          messages: TurnView.concat(turnWindow.reseed(o), (o.messages || []).slice(-1)) };
       }
       return runOnceEntryCore(o, run);
     });
@@ -24033,7 +24768,7 @@ async function runOnceCore(o) {
   // run before its next call once no layer holds it (credentialGone). runKey is resolved here, long before its adapter.
   const runWatch = credStore.inFlight();
   const runKeyWatch = { held: credStore.admittedFromStation(o, providerId, runKey), sentByCaller: callerCredential && o.keyInRequest === true };
-  const runKeyGone = adapter => { const id = runWatch.gone(adapter); return id ? engineCredentialError(id, 'this run', true) : ''; };
+  const runKeyGone = adapter => { const id = runWatch.gone(adapter) || runWatch.gone(OneShot.innerOf(adapter)); return id ? engineCredentialError(id, 'this run', true) : ''; };   // a one-shot guard (W3.5) is its watched adapter
   const streamId = o.streamId || null;   // M-mem.2b (browser run only; the headless hub omits it → global memory)
   // Missing/unknown callers are unattended until proven otherwise. Only the watched /api/run
   // path passes the exact interactive value and a live prompt channel.
@@ -24939,6 +25674,9 @@ async function runOnceCore(o) {
     station: require('./overseer.js').isCoordinatorRun({ ...o, agentId, surface })
       ? overseerStation(o.streamId, runId) : stationBridge,
     now: () => Date.now(),   // the dispatch wall clock divides this budget across sequential workers (injected: lint-determinism)
+    // team.subagents wait:true stops early when a note is waiting for THIS run (a Commander steer, a background exit
+    // notice), so the loop folds it next instead of after the wait (cost plan W1.11). A worker's own steer is not this buffer.
+    steerPending: () => (typeof o.steer === 'function' ? 0 : steerBufs.pending(runId)),
     // FAN-OUT CAPACITY: how many NEW distinct agents the admission gate can still accept. A parallel dispatch runs
     // in waves of this size instead of firing all workers at once — the lead holds a slot for the whole dispatch, so
     // at the default cap of 3 a 4-worker parallel dispatch used to run 2 and hand back two never-retried 'refused'
@@ -25129,8 +25867,12 @@ async function runOnceCore(o) {
     // call would nest runOnce in runOnce (a second spend path under no separate cap, streaming to nobody).
     // cronStore.triggerJob, NOT resumeJob — resume RE-ANCHORS the schedule, which for `0 9 * * *` lands on 09:00
     // TOMORROW and fires nothing now (caught by test/routine-manage.e2e.test.js, which read the time back).
+    // W3.1: asked from a person's own run (no unattended start is running around this call), the fire it makes due is that person's:
+    // never held, never counted as unattended (cron-store personAskedAt). Asked from inside one (a fire, a beat, a loop pass, a trigger),
+    // the fire stays unattended work.
     triggerRoutine: async (id) => {
-      await withCronWrite(jobs => cronStore.triggerJob(jobs, id, { now: Date.now(), defaultTz: CRON_HOST_TZ }));
+      const personAsked = !unattendedNow();
+      await withCronWrite(jobs => cronStore.triggerJob(jobs, id, { now: Date.now(), defaultTz: CRON_HOST_TZ, personAsked: personAsked }));
       return cronStore.getJob(cronJobs, id);
     },
     // GHSA-2hpj #5: the note carries the taint of the run that wrote it, and the tool result hands it to the reader's latch
@@ -25273,7 +26015,9 @@ async function runOnceCore(o) {
     registry, authority: userControlAuthority, connectorIds: connectors.ids(), disabledCaps: disabledCapsSet(), unrestrictedHost: unrestrictedHostNow(),
     realDesktopAuthority, executionProfile, widgetScope, internalBriefTools, deferralOff,
     keySaveOffered: !!(isTask && keyTexts && KeyTools.hasKeyCandidate(keyTexts)), directDomain: !!hostScope,
-    leanCrew: ENV('LEAN_CREW'), crewCount: crewCountFor(agentId), connectorDefer: CONNECTOR_DEFER, availability
+    leanCrew: ENV('LEAN_CREW'), crewCount: crewCountFor(agentId), connectorDefer: CONNECTOR_DEFER, availability,
+    // DORMANT FOLLOW-UP CONTROLS (cost audit W1.3): live handles and records, read only where a deferral can apply
+    followups: (isTask && !deferralOff) ? followupFactsFor(agentId) : undefined
   };
   // Host-created group-turn closures scope these tools to this exact live group turn; registering them is this run's effect.
   if (Array.isArray(o.groupTools)) for (const def of o.groupTools) registry.register(def);
@@ -25528,6 +26272,19 @@ async function runOnceCore(o) {
       try {
         if (meta && Array.isArray(meta.quotedStreams) && meta.quotedStreams.length) return null;   // quoted words never become a workspace file (commit 11): the plain clamp stands
         const safeTool = String((meta && meta.tool) || 'tool').replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 40);
+        /* AN EARLIER RUN'S RESULT, REPLAYED (W1.8, sidecar/cross-run-replay.js), is parked by its BYTES: `[untrusted-]<tool>-replay-<16
+           hex of sha256>`, written once (outputArtifacts.parkOnce) and named again by every later replay of the same body, so the
+           stub that names it is the same on every request. No run id: taint.js never reads it as this run's own park. Its provenance
+           is the replayed row's (meta.taintedBy: the row's stamp, or unverifiable), never this run's: the same bytes keep one name
+           whichever run replays them. A result from a source is stamped by its own row (the latch, latchRunTaint(c.name), comes
+           before the results drain), so the stamp is the whole proof. */
+        if (meta && meta.replay === true) {
+          const untrustedRow = !!meta.taintedBy;
+          const digest = crypto.createHash('sha256').update(String(content == null ? '' : content), 'utf8').digest('hex').slice(0, 16);
+          const parked = await outputArtifacts.parkOnce(agentId || 'agent', (untrustedRow ? taintPolicy.UNTRUSTED_PARK_PREFIX : '') + safeTool + '-replay-' + digest, content);
+          if (parked && parked.path && runPaths) parked.path = runPaths.placeJail(parked.path);
+          return parked;
+        }
         /* PROVENANCE IN THE NAME (sec-taint 09-25): bytes from an untrusted source (web / connector result), a
            tainted worker's relayed text, or anything this run parks after it was tainted are saved as
            `untrusted-*`, and taint.isUntrustedSource treats reading such a file back as reading the source itself —
@@ -25724,15 +26481,36 @@ async function runOnceCore(o) {
     .concat(providerFallbacks);
   const fallbacks = unattendedGrants.length ? fallbacksAll.filter(f => f && f.providerId === providerId && f.model === model) : fallbacksAll;
   if (fallbacks.length < fallbacksAll.length && runNotices.length < 4) runNotices.push('its fallbacks to other models were skipped: a routine allowed to run unattended runs only on the model its grants were given for');
+  /* W3.5 — A SESSION TITLE RUNS ON THE FAMILY'S SMALL MODEL. The page marks its title run (oneShot 'title', internal only):
+     oneShotPlan picks the small model from this provider's catalog; the run starts there behind OneShot.guard, and the run's
+     own model heads the fallback chain. A reply that is no title (empty, a refusal, a sentence) or a failed call books its
+     usage under the small model and falls back ONCE to the run model (errorClass oneshot_unusable -> provider.fallback). */
+  let titlePlan = null;
+  if (internal && o.oneShot === 'title') {
+    try { titlePlan = await oneShotPlan('title', { provider, route: providerId, runModel: model }); } catch (e) { failNote('oneshot.title', e); titlePlan = null; }
+    if (titlePlan && !titlePlan.small) titlePlan = null;
+  }
+  if (titlePlan) {
+    fallbacks.unshift(OneShot.fallbackEntry(provider, providerId, titlePlan));   // the run's own model, first: the title's one retry
+    provider = OneShot.guard(provider, titlePlan, t => !!OneShot.titleOf(t));
+    model = titlePlan.model;
+    if (DEBUG_CHANNEL_LOGS) console.log('[oneshot] title: ' + titlePlan.model + ' (the run model ' + titlePlan.runModel + ' takes over once if its reply is unusable)');   // every title: debug only
+  }
   // INTERNAL self-talk (a title, session ideas, a goal plan) is reason-only aux work: it runs on the aux effort, not the
   // effort the Commander picked for their own chat (auxPassEffort). Every adapter clamps a per-request effort to what
   // the model it lands on offers, so a fallback hop stays valid. null = no override (every other run — an /v1
   // outputOnly repair is an external caller's own request, so it is o.internal here, not `internal`).
   // An internal run marked o.keepEffort (work the Commander reads, the goal judge, the wake preflight) keeps their effort.
   const internalEffort = o.internal && !o.keepEffort ? auxPassEffort(provider, model) : null;
-  // …and the effort it RAN on, read after the run: a pick the endpoint refused was resent at the nearest rung it keeps
-  // (OpenRouter learns the refusal), so the record names that rung, never the refused one.
-  const internalEffortRan = () => internalEffort ? AuxGovernor.effortAsRan(internalEffort, providerEfforts(provider, model)) : null;
+  // LEANER CREW DEFAULTS (W3.3): a crew run's class-applied effort, per request like the aux effort above (crewEffort; switch off: null).
+  // capLine, not workflowLine: a terminal routine is not line work (#28's rule, the line budget cap's)
+  const crew = internalEffort ? null : crewEffort(o, agentId, reasoningEffort, [{ provider, model }].concat(fallbacks), capLine);
+  const requestEffort = internalEffort || (crew && crew.sent) || null;
+  // …and the effort it RAN on, read after the run from the adapter it ended on (effortAsRun): a claude-cli run that sent none
+  // ran on the CLI's own default ('cli-default', never the dial's level), an HTTP request carries the adapter's own word for
+  // the dial (Codex minimal is low), and a pick an endpoint refused was resent at the nearest rung it keeps (OpenRouter
+  // learns the refusal), so the record names that rung, never the refused one. The request shape is the loop's (below).
+  const effortRan = () => effortAsRun(provider, model, requestEffort, { tools: o.outputOnly ? [] : toolDefs, isTask: internal ? undefined : isTask });
 
   // ---- context auto-compaction: fold older turns into a summary once the live prompt passes 65% of the model's
   //      window, so a long run shrinks instead of overflowing. The summarizer is ONE model call over the older
@@ -25982,9 +26760,18 @@ async function runOnceCore(o) {
     // NOT RUN, NOT FAILED (rc walk 2026-10-14): the summary is the shared held-call stamp (fork.js TaskIntent.GATE_HELD) the
     // chat draws as a neutral not-run chip, and the model is told this is a routine step (it narrated "Ah, I need to settle
     // the brief first" over a red ✗ team.dispatch chip).
-    if (!gate.ok) return { ok: false, isError: true, content: TaskIntent.GATE_HELD_LEAD + ' ' + String(gate.reason).charAt(0).toUpperCase() + String(gate.reason).slice(1) + ', then make this same call again. This is a routine step: the Commander sees your brief as its own card, so make the brief call with no text before it and never mention the gate.', summary: TaskIntent.GATE_HELD, quietRepair: true };
+    if (!gate.ok) return { ok: false, isError: true, content: TaskIntent.GATE_HELD_LEAD + ' ' + String(gate.reason).charAt(0).toUpperCase() + String(gate.reason).slice(1) + ', then make this same call again (in one response, brief_proceed first). This is a routine step: the Commander sees your brief as its own card, so make the brief call with no text before it and never mention the gate.', summary: TaskIntent.GATE_HELD, quietRepair: true };
     return null;
   };
+  /* THE SETTLE RUNS FIRST (cost audit W1.2, 2026-11-08). The hold above reads the brief at the moment a call runs, and a
+     batch ran in the order the model listed it, so [fs_write, brief_proceed] in one response held the write and paid a
+     whole extra full-context request for the retry. loop.js runs a sequential batch in this order instead (o.batchOrder):
+     the brief_update / brief_proceed calls first, unless the batch also asks (brief_ask) — the ONE rule lives in
+     TaskBriefPolicy.settleFirst. A batch containing brief.* is never parallel (PARALLEL_UNSAFE_FAMILY), so this always
+     applies. Names resolve the way dispatch resolves them (wire, then any registered tool, then as sent). */
+  const briefFirstOrder = internalBriefTools.length
+    ? (calls) => TaskBriefPolicy.settleFirst(calls, c => fromWire.get(c.name) || allWire.get(c.name) || c.name)
+    : null;
   // Per-run latches/counters/artifacts live in `execution`; policy and side effects remain in this host.
   const dispatch = async (c, ctx) => {
     briefAnswerHold = null;   // the model asked for a tool (hidden brief_* calls emit no tool_call): the answer was read
@@ -26931,11 +27718,12 @@ async function runOnceCore(o) {
      the watched browser run, a cron routine, a Workshop shift, a messaging reply. Putting it on handleRun alone
      (as a first draft did) left the AWAY runs — the ones nobody watched and therefore most need a readable name —
      with only the tool description to go on.
-     Gated on the tool actually being GRANTED to this run: instructing a model to call a tool it does not have is
-     the same class of dishonesty as a UI asserting unprovable state, and it would waste tokens on every run that
-     legitimately lacks it. Skipped for `internal` self-talk, whose prompt stays verbatim by contract.
-     A byte-stable constant, so it never shifts the cached system prefix. */
-  const canName = !!(resolved && Array.isArray(resolved.tools) && resolved.tools.indexOf('deliverable_note') >= 0);
+     Gated on the tool actually being ON THE WIRE of this run (cost audit W1.3): instructing a model to call a tool it
+     does not have is the same class of dishonesty as a UI asserting unprovable state, and it would waste tokens on
+     every run that legitimately lacks it. A chat turn carries no tools at all, so a GRANTED deliverable_note used to
+     put the clause on every greeting with nothing to call. Skipped for `internal` self-talk, whose prompt stays
+     verbatim by contract. A byte-stable constant, so it never shifts the cached system prefix. */
+  const canName = wireNames.indexOf('deliverable_note') >= 0;
   const deliverableNote = canName ? DELIVERABLE_NOTE_CLAUSE : '';
   // Cache only the reusable prefix across runs. All task-specific context still follows verbatim;
   // the explicit Claude boundary precedes changing context, while runtime identity remains last
@@ -26987,15 +27775,25 @@ async function runOnceCore(o) {
   if (o.stationEvidence === true && !internal && !taskBrief && !grantedRun) {
     try { const t = stationEvidenceNote(); if (t) stationEvidenceBlock = '\n\n' + t; } catch (e) { failNote('run.stationEvidence', e); }
   }
+  /* THE WORKER PREFIX (cost lane W1.10, 2026-11-09). A delegated run's TASK CONTEXT (its lead's Task Brief, whose
+     <task_brief id="tb_<lead run>"> is per run, the Commander evidence, the lead's query-ranked recall and taste) used to
+     be appended to the worker's identity, so it sat inside cacheSystemPrefix and every dispatch to one agent paid its
+     whole system cold (the Codex route is a hash of that prefix). orchestration.js workerPrompt now hands it here whole,
+     in the same words, as o.delegatedContext ('[TASK CONTEXT]\n…'), and the worker's system keeps only the fixed
+     [DELEGATED EXECUTION] line naming it. It opens this run's <run_context> note (after a learned tail, where it used
+     to end up for a persona with learned heads); STABLE_PREFIX=0 puts it first in the system's per-run tail, after the
+     cached prefix; an internal run (a structured-result repair is outputOnly) keeps its verbatim system and gets it at
+     the end, so it is never dropped. Only host code sets it: /api/run builds its options field by field. */
+  const delegatedBlock = (typeof o.delegatedContext === 'string' && o.delegatedContext.trim()) ? '\n\n' + PromptScrub.scrubStored(o.delegatedContext.trim()) : '';
   // the crew call is NOT a run-context block: it trails the Commander's words as its own <crew_call> note (below)
-  const perRunBlocks = LearnedTail.tail(persona.learned) + runtimeSkillBlock + preloadedSkillBlock + taskBriefContext + stationEvidenceBlock + awayBriefingNote + directDomainBlock + runtimeBlock;
+  const perRunBlocks = LearnedTail.tail(persona.learned) + delegatedBlock + runtimeSkillBlock + preloadedSkillBlock + taskBriefContext + stationEvidenceBlock + awayBriefingNote + directDomainBlock + runtimeBlock;
   const taskSystem = stablePrefix
     ? FinishLine.append(cacheSystemPrefix + serviceKeysBlock + taskDoctrine + journeyBlock + deliverableNote, { isTask, internal, tools: resolved.tools })
-    : FinishLine.append(cacheSystemPrefix + PromptScrub.scrubStored(stationEvidenceBlock + runtimeSkillBlock
+    : FinishLine.append(cacheSystemPrefix + PromptScrub.scrubStored(delegatedBlock + stationEvidenceBlock + runtimeSkillBlock
       + preloadedSkillBlock + serviceKeysBlock + taskIntentNote + awayBriefingNote + directDomainBlock + journeyBlock
       + deliverableNote + crewCallNote + runtimeBlock), { isTask, internal, tools: resolved.tools });   // STABLE_PREFIX=0: the per-run blocks get the run_context belt
   const sys = internal
-    ? (String(system || '') + evidenceBlock)
+    ? (String(system || '') + evidenceBlock + delegatedBlock)
     : stablePrefix ? taskSystem
       : withQuests(taskSystem, PromptScrub.scrubStored(questsBlock));   // ground-truth caps + task-context doctrine share the one final prompt seam
   // The whole per-run note is stored text the host composed (brief, evidence, quests, away briefing, skills, domain
@@ -27065,6 +27863,21 @@ async function runOnceCore(o) {
   let replayedQuoted = false;
   try { replayedQuoted = TrustedLearning.quotedInLearningTail(o.recovery ? msgs : msgs.slice(0, -1)); }
   catch (e) { failNote('learning.replayedQuoted', e); replayedQuoted = true; }
+  /* EARLIER RUNS' RESULTS RIDE AS A HEAD AND A HANDLE (W1.8, sidecar/cross-run-replay.js). Whatever this run replays in the
+     transcript's 'pairs' shape (the resume seed above, a queued re-seed, a channel's history) is resolved here, once, after the
+     two proofs above have read it as it came: each earlier tool result over the 240-character head becomes the W1.7 stub naming
+     a file parked by its bytes (quoted words never: the old re-run wording), and the replay is fitted to the page's row, byte
+     and token window, cut on a user turn in steps. The earlier-conversation note below carries what a cut leaves out, so a cut
+     is made only on a turn whose row the replay's row ids name on this run's stream (where that note places the window). Fails
+     open: a replay that cannot be resolved rides as it came. A recovery checkpoint is never resolved. STARNET_CROSS_RUN_REPLAY=0
+     turns it off. */
+  if (!o.recovery && !o.groupTools && !internal && String(ENV('CROSS_RUN_REPLAY') || '').trim() !== '0') {
+    try {
+      const replay = await CrossRunReplay.resolve(convo, { park: (text, meta) => capCtx.parkOutput(text, Object.assign({}, meta, { replay: true })),
+        streamId: streamId || '', limit: ctxMgr.contextLimit, compactAt: RUN_CONTEXT_DEFAULTS.compactAt, note: failNote });
+      if (replay.messages !== convo) { convo = replay.messages; msgs = sys ? [msgs[0]].concat(convo) : convo.slice(); }
+    } catch (e) { failNote('turn.replay', e); }
+  }
   /* THE TURNS THE WINDOW DROPPED STILL COUNT (consistency audit 2026-10-11, earlier-conversation.js). COMMS sends only
      the newest slice of a long chat, and the compaction below folds only what it is sent — so whatever fell off the
      front (an instruction from turn 3, the design the Commander approved) was gone without a trace. The durable
@@ -27479,7 +28292,7 @@ async function runOnceCore(o) {
       result = await runAgentLoop({
       messages: msgs, provider, emit: loopEmit, cost, tools: o.outputOnly ? [] : toolDefs, dispatch, capCtx,
       isTask: internal ? undefined : isTask,
-      reasoningEffort: internalEffort || undefined,
+      reasoningEffort: requestEffort || undefined,
       // no project folder = no build or test to run: a standalone web page saved in the agent's own workspace is not
       // "code to verify" (loop.js VERIFY-ON-STOP) — the nudge sent agents into file:// browsing and shell reads of
       // their own deliverable after they had said "Done." (live walkthrough 2026-10-13)
@@ -27494,6 +28307,8 @@ async function runOnceCore(o) {
       // A turn that asks for four file reads waited four round trips for them; an all-read-only batch now
       // overlaps. The predicate is above — the loop cannot judge tool scope on its own.
       parallelSafe,
+      // ...and a sequential batch runs its Task Brief settle before the calls it unlocks (briefFirstOrder, above)
+      batchOrder: o.outputOnly ? null : briefFirstOrder,
       // A PROMPT UNDER THE FOLD LINE HAS ROOM, whatever the byte count says. The budget is a stand-in for the prompt's
       // real size and it drifts above it, and once it empties the receipts stop the prompt growing, so the fold that
       // would re-arm it never fires: the run keeps paying for turns it cannot see. Above the line the fold owns it.
@@ -27539,6 +28354,9 @@ async function runOnceCore(o) {
       billingClassOf: runBilling.classify,   // each attempt's payer (billing-class.js); a provider fallback carries its own
       budget: runBudget, context: ctxMgr, summarize, onFold: persistFold, fallbacks, initialFallback,   // onFold: a paid fold's summary is kept before the loop goes on (persistFold above)
       microCompaction: !/^(0|false|off|no)$/i.test(String(ENV('COMPACT_MICRO') || '').trim()),   // free elision tier before any paid fold (off: STARNET_COMPACT_MICRO=0)
+      // W2.1 batched ageing: old tool results and successful write arguments leave the request view in batches that pay
+      // for themselves (history-edit makeAgeing). OFF until an A/B on real models passes (on: STARNET_BATCHED_AGEING=1)
+      batchedAgeing: /^(1|true|yes|on)$/i.test(String(ENV('BATCHED_AGEING') || '').trim()),
       // P0.2 credential rotation: the live key + a hook the loop calls as it rotates away from a failed one,
       // so a rate-limit/auth/billing key gets a cooldown (credPool) and isn't tried first next run.
       // activePrimaryKey, NOT runKey: when the run's own key was still cooling we STARTED on a warm pool key,
@@ -27762,13 +28580,18 @@ async function runOnceCore(o) {
     const rowBillingClass = billing.bookedClass(rowClass, mediaFlags.unmetered);   // paid images make a plan run's row metered
     const cutSpendUnknown = usageMissing && !(finalUsd > 0) && !(finalTokens > 0);
     const entryEndedAt = lineEntryInvocations.has(o) ? Date.now() : null;
-    try { ledger.record({ runId, agentId, turns: finalTurns, usd: finalUsd, tokens: finalTokens, cachedTokens: finalCachedTokens, model: finalModel, billingClass: rowBillingClass, unmetered: mediaFlags.unmetered, unpriced: mediaFlags.unpriced, usageMissing, ...generationFields(result) }); } catch (_) {}
+    try { ledger.record({ runId, agentId, turns: finalTurns, usd: finalUsd, tokens: finalTokens, cachedTokens: finalCachedTokens, model: finalModel, billingClass: rowBillingClass, unmetered: mediaFlags.unmetered, unpriced: mediaFlags.unpriced, usageMissing, ...generationFields(result), reasoningEffort: effortRan() }); } catch (_) {}
     // the shared PER RUN pool takes this run's final spend before the run that started it reads the result (d3a76db3)
     spendPool.settle(runId, runUnmetered ? 0 : finalUsd);
     // managed-credit SETTLE: reconcile the reservation to the real spend — refund the unused headroom to the
     // account (billing.js caps finalUsd at the reservation). Inert/no-op unless this run actually reserved credit.
     // no result = the run THREW before its loop returned (bug 812c3bfb): it is settled as an error, never a finished run
     if (billed) { try { credits.finishRun({ runId, agentId, usd: finalUsd, tokens: finalTokens, turns: finalTurns, reason: (result && result.reason) || 'error' }); } catch (_) {} }
+    /* W1.4 LEARNING ORDER, taken BEFORE the run's row exists (runStore.record below). A rating, a correction or KEEP THIS
+       STYLE on this run needs that row (404 without it), so it always lands after this run's end order and opens the
+       learning windows for the NEXT run's passes, never for this run's own, which never read it. A cue in the Commander's
+       own latest words opens first, so this run's own passes do use that one (the learning block below reads both). */
+    try { if (LearningCooldown.cueIn(commanderWords)) learningCooldown.open(agentId, 'cue'); learningCooldown.ended(runId); } catch (e) { failNote('learning.cooldown', e); }
     // record the run OUTCOME (durable history) — reason + a short title from the triggering user message. Fail-open.
     try {
       // synthetic reviews are not Commander messages; a key saved from the message (keys.save) is named, never kept.
@@ -27787,7 +28610,7 @@ async function runOnceCore(o) {
       }
       try { if (o.streamId && kinds.directiveKind !== 'station') { const files = TurnDelivery.fileRows(transcriptStore, { streamId: o.streamId, agentId, runId, turnId: runStartExtra.turnId, root: o.projectRoot || '', artifacts: execution.artifactList(), note: deliverableNotes.get(runId), quotes: execution.quotes(), taint: execution.rowTaint() || (typeof o.connectorAuthority?.taintedBy === 'function' ? o.connectorAuthority.taintedBy() : null) }); if (files.skipped.length) failNote('turn.files.skipped', new Error(files.skipped.length + ' artifact(s) not published as file rows: ' + files.skipped.map(s => s.why).join(','))); } } catch (e) { failNote('turn.files', e); }   // the run's files, as rows of their own (turn identity commit 10): get, never take, and a failure here skips nothing below (runStore.record, the final drain)
       const runEndedAt = entryEndedAt === null ? Date.now() : entryEndedAt;
-      runStore.record({ runId, parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '', agentId, provider: activeProviderId, wireSource: runWire.source, reason: ((result && result.reason) || 'error'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, cachedTokens: finalCachedTokens, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.syntheticTrigger ? '' : (o.sessionPrompt || ''), deliveryText, dispatchDelivery: o.dispatchDelivery, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort: internalEffortRan() || reasoningEffort, unmetered: mediaFlags.unmetered, unpriced: mediaFlags.unpriced, usageMissing, spendUnknown: cutSpendUnknown, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), cancelledWhile: (result && result.cancelledWhile) || null, completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface, ownerDirective, recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '', handoffEdited: o.handoffEdited === true, stepTest: o.stepTest === true, lineId: o.lineId || '', dockId: o.dockId || '', cronJobId: isRoutineTrigger(trigger) ? String(o.cronJobId || '') : '', pageClosed: pageClosedRuns.get(runId) || null, steerNotes: steerBufs.ledgerOf(runId), wordless: TurnDirective.labelOnly(directive), taintedBy: execution.taintedBy() || '', rowTaintedBy: execution.rowTaint() || '' });   // wordless: the directive was only the label of its files. taintedBy stays the FIRST source (the relay, the refusal wording); rowTaintedBy is the stamp that durable rows written after the run carry (dispatch-delivery). Execution terminal stays separate from the neutral Task Brief outcome used by progression; recoveryOf links a continuation to the interrupted run it resumed
+      runStore.record({ runId, parentRunId: o.parentRunId || '', delegatedBy: o.delegatedBy || '', agentId, provider: activeProviderId, wireSource: runWire.source, reason: ((result && result.reason) || 'error'), clarifying: taskQuestionAsked, turns: finalTurns, tokens: finalTokens, cachedTokens: finalCachedTokens, nudges: (result && result.nudges) || null, usd: finalUsd, title: title, streamId: o.streamId || '', sessionTitle: o.sessionTitle || '', deliveryPrompt: o.syntheticTrigger ? '' : (o.sessionPrompt || ''), deliveryText, dispatchDelivery: o.dispatchDelivery, recipeId: o.recipeId || '', projectRoot: o.projectRoot || '', deliverable: deliverableNotes.take(runId), model: finalModel, reasoningEffort: effortRan(), unmetered: mediaFlags.unmetered, unpriced: mediaFlags.unpriced, usageMissing, spendUnknown: cutSpendUnknown, effortRule: (crew && crew.record) || undefined, artifacts: execution.artifactList(), toolsOk: execution.toolsOk(), toolTrace: execution.toolTraceList(), failureStage: execution.failureStage(), failureCode: execution.failureCode(), uncertainMutations: execution.uncertainMutations(), cancelledWhile: (result && result.cancelledWhile) || null, completionEvidence: finalCompletionEvidence, recoveryAttempts: execution.recoveryAttempts(), startedAt: runStartedAt, endedAt: runEndedAt, durationMs: runEndedAt - runStartedAt, identityFallback, internal, surface, ownerDirective, recoveryOf: o.recovery ? String(o.recovery.sourceRunId || '') : '', handoffEdited: o.handoffEdited === true, stepTest: o.stepTest === true, lineId: o.lineId || '', dockId: o.dockId || '', cronJobId: isRoutineTrigger(trigger) ? String(o.cronJobId || '') : '', pageClosed: pageClosedRuns.get(runId) || null, steerNotes: steerBufs.ledgerOf(runId), wordless: TurnDirective.labelOnly(directive), taintedBy: execution.taintedBy() || '', rowTaintedBy: execution.rowTaint() || '' });   // wordless: the directive was only the label of its files. taintedBy stays the FIRST source (the relay, the refusal wording); rowTaintedBy is the stamp that durable rows written after the run carry (dispatch-delivery). Execution terminal stays separate from the neutral Task Brief outcome used by progression; recoveryOf links a continuation to the interrupted run it resumed
 
       // P0.1/H1.1: persist the full DIALOGUE (not just the outcome) — a durable server-side transcript for EVERY
       // run, incl. headless ones (cron/Telegram/delegated). Append the triggering user directive, then EVERY new
@@ -27901,7 +28724,9 @@ async function runOnceCore(o) {
   // reflection and failure-review on one run.
   const _auxFail = !!(!o.recovery && result && Failreview.reviewableOutcome(_leadOc.outcome) && isTask && !internal && !signal.aborted);
   const _auxNow = Date.now();       // one clock read for the scout cadence fold + curator-due check below
-  const _auxModel = _auxDone ? (reflectModel || resolveEffectiveModel({ result, requestedModel: o.model, usingCodex, codexDefaultModel: CODEX_DEFAULT_MODEL, defaultModel: CRON_DEFAULT_MODEL })) : '';
+  // the run's own model: the one-shot passes' family anchor and their one retry (W3.5, oneShotPlan); _auxModel = the aux tier, else it
+  const _auxRunModel = _auxDone ? resolveEffectiveModel({ result, requestedModel: o.model, usingCodex, codexDefaultModel: CODEX_DEFAULT_MODEL, defaultModel: CRON_DEFAULT_MODEL }) : '';
+  const _auxModel = _auxDone ? (reflectModel || _auxRunModel) : '';
   // per-request effort for the single-shot aux streams: the configured aux tier, else the lowest effort the provider
   // verifiably offers for _auxModel (auxPassEffort) — a strict-format extraction never pays for hidden thinking.
   const _auxEffort = _auxDone ? auxPassEffort(provider, _auxModel) : null;
@@ -27912,8 +28737,8 @@ async function runOnceCore(o) {
   // VERIFIABLY tool-capable on this run's provider (supportsTools === true), else the run's own model as today.
   const _auxSkillModel = auxSkillModel(provider, model);
 
-  // Each pass's OWN gate, computed WITHOUT firing (the EXACT predicates from before — the reflect/study/threadmine
-  // cooldown comparisons are byte-for-byte the originals, so the settings-P1 source-locks still hold). A pass
+  // Each pass's OWN gate, computed WITHOUT firing (the four learning passes read their windows through ONE resolver,
+  // learningPassDue, which keeps the configured reflection comparison the settings-P1 source-lock pins). A pass
   // becomes a budget CANDIDATE iff it would actually SPEND a model call this run-end — so an already-blocked pass
   // never eats a slot. Cortex M-mem.5b reflection · GROWTH Tier 1 study · NS-6 thread-mine — all ride isTask/done/salience.
   /* A LINE HAND-OFF IS NOT THE COMMANDER SPEAKING (2026-09-30). A work line's later stages run on the hand-off frame
@@ -27946,9 +28771,19 @@ async function runOnceCore(o) {
   if (_learn['trusted-capture']) {
     await captureTrustedLearning({ agentId, runId, projectRoot: o.projectRoot || '', input: trustedLearningInput, learningEvidence, outcome: _learn.kind });
   }
+  /* W1.4 ONE COOLDOWN RESOLVER: the four learning passes ask learningPassDue (learning-cooldown.js policy) whether their
+     window lets them spend. Feedback always gets through: a preference or correction cue in the Commander's OWN latest
+     words (commanderWords: host-minted from the owner's own surfaces only, so a routine's or a worker's brief that says
+     "always" opens nothing) opens every learning window of this agent, as a thumbs verdict does (recordFeedbackMemory),
+     until each pass's next answered attempt from a run that ended after it: this run's own pass, or, for a pass held back
+     here (its previous pass still running, or deferred by the budget) or whose call failed, its next one. The cue opened
+     and this run's end took its order in the finally above, before the run's row was recorded, so a pass still running
+     from an earlier run never uses the cue up, and a like or dislike on this run waits for the next run's passes. A
+     failure review also skips its window for a failure class (outcome, stage, code) it has not reviewed within its window. */
+  const _learnFailClass = LearningCooldown.failureClass({ outcome: _leadOc.outcome, failureStage: execution.failureStage(), failureCode: execution.failureCode() });
   const _gateReflect = !!(o.reflect && memoryConfig.reflectEnabled && isTask && _learn.reflection && reflectSalient(result.messages, o.recurring)
       && personalizationStore.read().enabled   // the personalization PAUSE never even offers the candidate (runReflection re-checks the same authority)
-      && !reflectingNow.has(agentId) && (Date.now() - (lastReflectAt.get(agentId) || 0) >= memoryConfig.reflectCooldownMs));
+      && !reflectingNow.has(agentId) && learningPassDue('reflection', agentId));
   // failure-review: reflection's exact gate shape on the FAILURE side — o.reflect (real-work hosts only; delegated
   // workers stay off), the live config master-switch, the personalization PAUSE (checked here so a paused station
   // never even offers the candidate — runFailureReview re-checks the same authority), a salience floor (≥1 tool
@@ -27958,13 +28793,14 @@ async function runOnceCore(o) {
       && Failreview.failureSalient({ toolTrace: execution.toolTraceList(), turns: (result && result.turns) || 0 })
       && !Failreview.providerRefused({ failureStage: execution.failureStage(), failureCode: execution.failureCode(), unsupportedPart: !!(result && result.failureUnsupportedPart) }, { separateModel: !!reflectModel })
       && personalizationStore.read().enabled
-      && !failReviewingNow.has(agentId) && (Date.now() - (lastFailReviewAt.get(agentId) || 0) >= memoryConfig.failureReviewCooldownMs));
+      && !failReviewingNow.has(agentId) && learningPassDue('failure-review', agentId, { failureClass: _learnFailClass }));
   const _gateStudy = !!(Study && o.reflect && memoryConfig.studyEnabled && isTask && _learn.study && Study.studySalient(result.messages, o.recurring)
-      && !studyingNow.has(agentId) && (Date.now() - (lastStudyAt.get(agentId) || 0) >= memoryConfig.studyCooldownMs));
+      && !studyingNow.has(agentId) && learningPassDue('study', agentId));
   const _gateThreadmine = !!(ENV('THREAD_MINE') !== '0' && o.reflect && isTask && _learn.threadmine && threadmine.mineSalient(result.messages)
-      && !threadMiningNow.has(agentId) && (Date.now() - (lastThreadMineAt.get(agentId) || 0) >= THREAD_MINE_COOLDOWN_MS));
+      && !threadMiningNow.has(agentId) && learningPassDue('threadmine', agentId));
   // skill review rides THE SKILL NUDGE (skillreview.nudgeAfterRun), not run size: this run's turns with skill tools on
-  // the wire join the agent's carried count, and the review is a candidate only once the count reaches the bar. A
+  // the wire join the agent's carried count, and the review is a candidate only once the count reaches the bar (and,
+  // since W3.2, only on a run that gives it something to learn from: _reviewWhy below). A
   // due review is RESERVED below: it takes a budget slot first, so it cannot lose every run-end to the beats (the scout
   // alone is a candidate on every finished task) and still counts against the ceiling (issue #105).
   // Counted only while a review could ever fire (review on, bar > 0), and never for a team.spawn clone: its 'sub-'
@@ -27975,7 +28811,15 @@ async function runOnceCore(o) {
   const _nudge = (ENV('SKILL_REVIEW') !== '0' && SKILL_REVIEW_EVERY > 0 && isTask && !o.toolsOptional && !internal && _skillToolsOn && !_throwawayAgent)
     ? skillReview.nudgeAfterRun(skillNudge.get(agentId) || 0, { turns: (result && result.turns) || 0, managed: managedSkills.some(m => skillReview.isWriteAction(m.action)), every: SKILL_REVIEW_EVERY })
     : null;
-  const _gateSkillReview = !!(_auxDone && _nudge && _nudge.due && !skillReviewingNow.has(agentId));
+  /* W3.2 REVIEW ONLY WHEN USEFUL (cost lane, Andrew 2026-11-08). A due count no longer fires the review by itself:
+     skillReview.reviewCause, the one rule for every skill review (launchVerdictReview and a thumbs-up's releaseHeldReview
+     ask it too), names what this run gives it to learn from: a tool error, a correction cue in the Commander's own words,
+     or a new multi-step procedure. A due count on a run that holds none of them is kept for the next run that does, or for
+     a thumbs-up on any run: the count write below carries it (clamped at the bar), and only an admitted review spends it. */
+  const _reviewDue = !!(_auxDone && _nudge && _nudge.due);
+  const _reviewWhy = _reviewDue ? skillReview.reviewCause({ due: true, commanderWords, toolTrace: execution.toolTraceList(), loadedSkills }) : '';
+  if (_reviewDue) console.log('[skills] review ' + (_reviewWhy ? 'qualifies (' + _reviewWhy + ')' : 'held: no tool error, correction or new procedure in this run; the nudge stays due') + ' run=' + runId + ' agent=' + agentId);
+  const _gateSkillReview = !!(_reviewWhy && !skillReviewingNow.has(agentId));
   // curator: candidate only when its 24h interval is DUE (else runSkillCurator early-returns anyway — no spend, no slot).
   const _gateCurator = !!(ENV('SKILL_CURATOR') !== '0' && _auxDone && auxCuratorDue(agentId, _auxNow));
   // scout: the CADENCE COUNTERS fold ALWAYS (below, synchronous bookkeeping — never a model call); the CYCLE is the
@@ -28022,7 +28866,7 @@ async function runOnceCore(o) {
   const _auxPlan = AuxGovernor.decide({ candidates: _auxCandidates, budget: _auxBudget, reserved: ['skill-review'] });
   const _auxSpend = new Set(_auxPlan.spend);
   // the nudge count starts over when its review fires; otherwise it carries (a due count on a run that could not
-  // review, e.g. a failed run, stays due for the next finished one). Written only when it changes.
+  // review, e.g. a failed run or one with nothing to learn from, stays due for the next one that can). Written only when it changes.
   if (_nudge) {
     const _nudgeNext = _nudge.count;   // reset only when the queued review is admitted
     if (_nudgeNext !== (skillNudge.get(agentId) || 0)) { skillNudge.set(agentId, _nudgeNext); persistSkillNudge(); }
@@ -28042,11 +28886,11 @@ async function runOnceCore(o) {
   // run's FIRST request: a key keys.save stored mid-run would ride them raw. Re-guarded here = a fresh snapshot.
   const auxProvider = PromptScrub.guardRequest(provider);
   // Fire ONLY the granted passes — each keeps its exact prior spend semantics + in-flight guard. A deferred pass
-  // is simply skipped: nothing fires, no cooldown is armed (the arming lives INSIDE run* only on a surviving beat),
-  // so it re-qualifies next run.
+  // is simply skipped: nothing fires, no cooldown is armed (the arming lives INSIDE run*, on an attempt whose meter
+  // counted a model call — W1.4), so it re-qualifies next run.
   if (_auxSpend.has('reflection')) {
     reflectingNow.add(agentId);
-    automaticAux(activeProviderId, 'reflection', agentId, runId, () => runReflection({ agentId, runId, messages: result.messages.slice(), route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered, origin: memcore.originOf({ trigger: o.trigger, taskSource: o.taskSource }), projectRoot: o.projectRoot || '' })).catch(swallow('aux.reflection.envelope')).finally(() => { reflectingNow.delete(agentId); });
+    automaticAux(activeProviderId, 'reflection', agentId, runId, () => runReflection({ agentId, runId, messages: result.messages.slice(), route: activeProviderId, provider: auxProvider, model: _auxModel, runModel: _auxRunModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered, origin: memcore.originOf({ trigger: o.trigger, taskSource: o.taskSource }), projectRoot: o.projectRoot || '' })).catch(swallow('aux.reflection.envelope')).finally(() => { reflectingNow.delete(agentId); });
   }
   if (_auxSpend.has('failure-review')) {
     failReviewingNow.add(agentId);
@@ -28061,23 +28905,23 @@ async function runOnceCore(o) {
   if (_auxSpend.has('study')) {
     studyingNow.add(agentId);
     const studyDirective = TurnDirective.wording(directive);   // the captured words: never the loop's screen capture or a repair prompt
-    automaticAux(activeProviderId, 'study', agentId, runId, () => runStudy({ agentId, runId, messages: result.messages.slice(), directive: studyDirective, route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered,
+    automaticAux(activeProviderId, 'study', agentId, runId, () => runStudy({ agentId, runId, messages: result.messages.slice(), directive: studyDirective, route: activeProviderId, provider: auxProvider, model: _auxModel, runModel: _auxRunModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered,
       src: Object.assign({ streamId: o.streamId || '', runId, at: Date.now() }, TurnKinds.quoteStamp(execution.quotes())) })).catch(swallow('aux.study.envelope')).finally(() => { studyingNow.delete(agentId); });
   }
   if (_auxSpend.has('threadmine')) {
     threadMiningNow.add(agentId);
-    automaticAux(activeProviderId, 'threadmine', agentId, runId, () => runThreadMine({ agentId, runId, streamId: o.streamId || '', messages: result.messages.slice(), route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered })).catch(swallow('aux.threadmine.envelope')).finally(() => { threadMiningNow.delete(agentId); });
+    automaticAux(activeProviderId, 'threadmine', agentId, runId, () => runThreadMine({ agentId, runId, streamId: o.streamId || '', messages: result.messages.slice(), route: activeProviderId, provider: auxProvider, model: _auxModel, runModel: _auxRunModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered })).catch(swallow('aux.threadmine.envelope')).finally(() => { threadMiningNow.delete(agentId); });
   }
   if (_auxSpend.has('scout')) {
     scoutingNow = true;
-    automaticAux(activeProviderId, 'scout', agentId, runId, () => runScoutCycle({ runId, agentId, route: activeProviderId, provider: auxProvider, model: _auxModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered })).catch(swallow('aux.scout.envelope')).finally(() => { scoutingNow = false; });
+    automaticAux(activeProviderId, 'scout', agentId, runId, () => runScoutCycle({ runId, agentId, route: activeProviderId, provider: auxProvider, model: _auxModel, runModel: _auxRunModel, reasoningEffort: _auxEffort, cost, unmetered: providerUnmetered })).catch(swallow('aux.scout.envelope')).finally(() => { scoutingNow = false; });
   }
   if (_auxSpend.has('skill-review')) {
     skillReviewingNow.add(agentId);
     automaticAux(activeProviderId, 'skill-review', agentId, runId, () => {
       // Only an admitted review consumes its due nudge; a queued pass stopped by the ceiling stays due.
       skillNudge.set(agentId, 0); persistSkillNudge();
-      return runBackgroundSkillReview({ agentId, runId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: _leadOc.reason, outcome: _leadOc.outcome, projectRoot: o.projectRoot || '', route: activeProviderId, provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered });
+      return runBackgroundSkillReview({ agentId, runId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: _leadOc.reason, outcome: _leadOc.outcome, projectRoot: o.projectRoot || '', route: activeProviderId, provider: auxProvider, model: _auxSkillModel, runEffort: reasoningEffort, cost, loadedSkills, managedSkills, unmetered: providerUnmetered });
     }).catch(swallow('aux.skillreview.envelope')).finally(() => { skillReviewingNow.delete(agentId); });
   }
   if (ENV('SKILL_REVIEW') !== '0' && (_auxDone || _auxFail || _leadOc.outcome === 'cut_short') && isTask && !internal && !_keyGone) {
@@ -28088,10 +28932,10 @@ async function runOnceCore(o) {
     // Parked even when the nudge review above already fired: that pass ran before the verdict existed and is
     // blind to it. The verdict pass is the one that knows the work fell short. Bounded LRU + TTL in verdictreview.js;
     // `great` never spends it; taken once; one extra aux pass per rated-short run, a Commander-initiated signal.
-    if (forgetRegistry.admit(Object.assign({ streamId: o.streamId || '', runId, at: Date.now() }, TurnKinds.quoteStamp(execution.quotes())))) verdictReview.stash(runId, { agentId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: _leadOc.reason, outcome: _leadOc.outcome, projectRoot: o.projectRoot || '', route: activeProviderId, provider: auxProvider, model: _auxSkillModel, cost, loadedSkills, managedSkills, unmetered: providerUnmetered, failed: !_auxDone, directive: TurnDirective.packet(directive, { redact, keys: liveServiceKeys(), row: runTranscript.directiveRow() || retryDirective }), streamId: o.streamId || '' });
+    if (forgetRegistry.admit(Object.assign({ streamId: o.streamId || '', runId, at: Date.now() }, TurnKinds.quoteStamp(execution.quotes())))) verdictReview.stash(runId, { agentId, messages: result.messages.slice(), learningEvidence, toolTrace: execution.toolTraceList(), completionEvidence: finalCompletionEvidence, reason: _leadOc.reason, outcome: _leadOc.outcome, projectRoot: o.projectRoot || '', route: activeProviderId, provider: auxProvider, model: _auxSkillModel, runEffort: reasoningEffort, cost, loadedSkills, managedSkills, unmetered: providerUnmetered, failed: !_auxDone, directive: TurnDirective.packet(directive, { redact, keys: liveServiceKeys(), row: runTranscript.directiveRow() || retryDirective }), streamId: o.streamId || '' });
   }
   if (_auxSpend.has('skill-curator')) {
-    automaticAux(activeProviderId, 'skill-curator', agentId, runId, () => runSkillCurator({ agentId, runId, route: activeProviderId, provider, model: _auxSkillModel, cost, unmetered: providerUnmetered })).catch(swallow('aux.skillcurator.envelope'));
+    automaticAux(activeProviderId, 'skill-curator', agentId, runId, () => runSkillCurator({ agentId, runId, route: activeProviderId, provider, model: _auxSkillModel, runEffort: reasoningEffort, cost, unmetered: providerUnmetered })).catch(swallow('aux.skillcurator.envelope'));
   }
 
   // TRUTHFUL TELEMETRY: when the governor holds the ceiling, record WHICH passes yielded. A deferral is NOT an
@@ -28110,7 +28954,7 @@ async function runOnceCore(o) {
   if (result) {
     if (!result.artifacts) { try { result.artifacts = execution.artifactList(); } catch (_) {} }
     result.model = result.model || model;
-    result.reasoningEffort = internalEffortRan() || reasoningEffort;   // the effort this run actually ran on (self-talk rides the aux effort)
+    result.reasoningEffort = effortRan();   // the effort this run actually ran on (self-talk rides the aux effort; claude-cli's own default is 'cli-default')
     result.toolsOk = execution.toolsOk();
     result.toolTrace = execution.toolTraceList();
     result.startedAt = runStartedAt;
@@ -28659,6 +29503,13 @@ async function handleAutonomyPosture(req, res) {
   let cronHaltPersisted = true;
   try { if (resumeRequested && liftCronHalt()) haltLifted = true; }
   catch (e) { cronHaltPersisted = false; console.warn('[cron] halt-lift persist failed:', (e && e.message) || e); }
+  // W3.1 RESUME: the same "autonomy back on" signal resumes the unattended work the 24-hour rail paused — its count starts again
+  // from now — but only when the posture this write saved turns unattended work ON (actsUnattended: the SMALL JOBS or FREE rung,
+  // the LET IT WORK or FULL POWER card). WAIT, SUGGEST and CHECK WITH ME lift E-STOP halts as before, and resume nothing here.
+  // railResumed (additive) is true only when this write lifted the rail.
+  let railResumed = false;
+  try { if (resumeRequested && (commanderPosture.summary() || {}).actsUnattended === true) railResumed = resumeUnattendedRail(); }
+  catch (e) { failNote('unattended.resume', e); }
   // if the (new) posture permits acting and the timer isn't running yet, arm it NOW (no restart); if it dropped
   // below acting, we LEAVE the timer armed — its own gate returns binding:'posture' and no beat fires, which is
   // cheaper + simpler than tearing the timer down and matches how the driver already no-ops when not permitted.
@@ -28692,7 +29543,7 @@ async function handleAutonomyPosture(req, res) {
   // receipt names what still waits and says "schedules can run" only when the scheduler is armed. null = unknown.
   let haltAfter = null;
   try { haltAfter = haltStatus(); } catch (e) { console.warn('[autonomy] halt read-back failed:', (e && e.message) || e); }
-  return json(200, { ok: true, summary: commanderPosture.summary(), postureWritten: postureWritten, beliefsAdmitted: beliefsAdmitted, ...(beliefsAdmitted ? {} : { beliefsReason: beliefsReason, beliefsForgotten: beliefsForgotten }), resumeRequested: resumeRequested, haltLifted: haltLifted, halt: haltAfter, cronArmed: !!cronArmed, nightshiftArmed: !!nightshiftTimer, nightshiftStatePersisted: nightshiftStatePersisted, cronHaltPersisted: cronHaltPersisted, workshopGranted: workshopGranted });
+  return json(200, { ok: true, summary: commanderPosture.summary(), postureWritten: postureWritten, beliefsAdmitted: beliefsAdmitted, ...(beliefsAdmitted ? {} : { beliefsReason: beliefsReason, beliefsForgotten: beliefsForgotten }), resumeRequested: resumeRequested, haltLifted: haltLifted, halt: haltAfter, cronArmed: !!cronArmed, nightshiftArmed: !!nightshiftTimer, nightshiftStatePersisted: nightshiftStatePersisted, cronHaltPersisted: cronHaltPersisted, workshopGranted: workshopGranted, railResumed: railResumed });
 }
 // GET /api/autonomy/posture — the server copy (posture summary + whether a beliefs snapshot is present). Never
 // echoes the raw beliefs texts back to the browser (it already has them); just reports presence + freshness.
@@ -28749,6 +29600,16 @@ function handleNightshiftStatus(req, res) {
     lastBeatAt: rolled.lastBeatAt || 0,
     nextEligibleAt: decision ? decision.nextEligibleAt : ((rolled.lastBeatAt || 0) + NIGHTSHIFT_BEAT_MS),
     binding: decision ? decision.binding : 'unknown',
+    // W1.6: while the futile-beat skip holds, the build it waits on — read from the live backlog by the same precheck
+    // the tick runs (null whenever nothing is awaited: the hold is never asserted without that undecided build)
+    waitingOn: (decision && decision.binding === UnattendedAdmission.AWAITING_VERDICT && decision.why) ? { title: String(decision.why.title || ''), runId: String(decision.why.runId || '') } : null,
+    // W3.1 (additive): while the unattended hold holds the beat, what it rests on (the window reading, or the rail count) and the
+    // hold in words, from the same precheck the tick runs (null otherwise); tokensPerBeat: what one away-shift beat spent, weighted,
+    // over its newest beats (null until one is recorded)
+    hold: (decision && (decision.binding === UnattendedAdmission.WINDOW_RESERVE || decision.binding === UnattendedAdmission.UNATTENDED_RAIL) && decision.why)
+      ? { binding: decision.binding, why: decision.why, say: UnattendedAdmission.say({ admit: false, binding: decision.binding, why: decision.why }, UNATTENDED_LIMITS),
+          keptPct: decision.binding === UnattendedAdmission.WINDOW_RESERVE ? Math.max(0, 100 - UNATTENDED_LIMITS.windowPct) : null } : null,   // keptPct: the share of the window kept for you
+    tokensPerBeat: unattendedPerStart('nightshift', NIGHTSHIFT_AGENT),
     inFlight: (() => { try { return nightshiftDriver.runInFlight(); } catch (_) { return false; } })(),
     // NS-5b: the declared night FOCUS (single priority) + its cited evidence, so the morning report can LEAD with
     // "priority: <focus> — because <evidence>". Null when no focus has been declared (nothing to cite → improv).
@@ -28759,7 +29620,8 @@ function handleNightshiftStatus(req, res) {
   // in and exactly why — the silent degrade read as "the station never does anything". All provable state.
   const wsGranted = (() => { try { return workshopOf(NIGHTSHIFT_AGENT); } catch (_) { return false; } })();
   out.workshopGranted = wsGranted;
-  out.buildMode = (summary.buildsUnattended && wsGranted) ? 'build' : 'draft';
+  // the beat's own predicate (nightshiftBeatBuilds), so status can never name a mode the beat or its futile-beat hold disagrees with
+  out.buildMode = (() => { try { return nightshiftBeatBuilds(NIGHTSHIFT_AGENT, summary); } catch (_) { return false; } })() ? 'build' : 'draft';
   out.draftReason = out.buildMode === 'build' ? null : (summary.buildsUnattended ? 'no-workshop-grant' : 'reach');
   // the readiness detail behind a binding:'readiness' stand-down (dims usable / recent runs vs the hot bars).
   out.readiness = nightshiftReadinessView();
@@ -30346,7 +31208,8 @@ function handleProviders(req, res) {
   // at spawn, updated live through /api/key) rather than the browser's local store. The Settings key-save
   // confirmation reads this so it names the ACTUAL store honestly (keychain vs this browser) — never claims
   // keychain when the key is in fact held in the browser (truthful-telemetry law).
-  res.end(JSON.stringify({ providers, keychainMode: DESKTOP_SHELL }));
+  // LEANER CREW DEFAULTS (W3.4): the page preselects a summon's tier model only while the station's switch is on (present only then)
+  res.end(JSON.stringify(Object.assign({ providers, keychainMode: DESKTOP_SHELL }, CrewDefaults.isOn(crewDefaultsMode()) ? { crewDefaults: CrewDefaults.ON } : {})));
 }
 
 // One public verdict. Evidence is bound to the exact active pair; OAuth accounts have separate private
@@ -31726,7 +32589,8 @@ async function handleGrowthRatings(req, res) {
   if (!result || result.error) return json(400, { ok: false, error: (result && result.error) || 'rating failed' });
   // CONSISTENCY LOOP: a first-time `ok`/`miss` verdict on a run that was parked at run end fires the quiet skill
   // review NOW, with the verdict (and the Commander's correction when the body carries one) in the prompt. Never
-  // on a duplicate rating, never on `great`. Reported truthfully in the response so the UI can say it happened.
+  // on a duplicate rating. A `great` (W3.2) never arms that review: it releases the agent's held nudge review onto the
+  // run when the nudge is due (releaseHeldReview). Reported truthfully in the response so the UI can say it happened.
   // GOLDEN (slice 4): a first-time `great` FREEZES this run for every skill it loaded — the reference a later run
   // of the same directive is measured against (skills/goldens.js check). Praise never spends the review packet.
   let goldensMinted = 0;
@@ -31768,6 +32632,10 @@ async function handleGrowthRatings(req, res) {
     // chip or the next typed message (POST /api/growth/ratings/correction) — rides into the prompt in their words.
     skillReviewArmed = verdictReview.arm(runId, canonical.verdict, launchVerdictReview, String(body.correction || ''));
     if (skillReviewArmed) console.log('[skills] verdict-triggered review armed run=' + runId + ' verdict=' + canonical.verdict + ' grace=' + verdictReview.graceMs + 'ms');
+    else if (canonical.verdict === skillReview.PRAISE) {
+      // the rating, its XP and its feedback memory are saved by now: a throw here must not answer that saved rating with an error
+      try { skillReviewArmed = releaseHeldReview(runId, canonical.verdict, lead); } catch (e) { failNote('skills.praise.release', e); skillReviewArmed = false; }
+    }
   }
   return json(200, { ok: true, duplicate: !!result.duplicate, rating: result.rating, skillReviewArmed, goldensMinted, feedbackMemory });
 }
@@ -32891,6 +33759,11 @@ async function recordFeedbackMemory(o) {
     if (!personalizationStore.read().enabled) return { stored: false, reason: 'personalization-paused' };
     // the reference is read only for a verdict that is about to be stored (never while learning is paused)
     const ref = o.run ? await captureTasteRef(o.run) : null;
+    // W1.4 FEEDBACK IS CRITICAL: every like or dislike (a verdict, its correction, KEEP THIS STYLE, a workflow's NEEDS
+    // CHANGES: this is their one write path) opens every learning window of the agent, whatever the save below keeps,
+    // until each pass's next answered attempt from a run that ended after it (learning-cooldown.js); a running pass never
+    // uses it. Below the reference read, which never throws (captureTasteRef answers null), so the save is all it precedes.
+    try { learningCooldown.open(agentId, 'feedback'); } catch (e) { failNote('learning.cooldown', e); }
     let out = null;
     await notebookStore.update('notebook:' + agentId, (stored) => {
       const r = FeedbackMemory.apply(stored, { runId: o.runId, verdict: o.verdict, words: redact(String(o.words || '')), directive: redact(String(o.directive || '')), ref, kept: o.kept === true },
@@ -33199,6 +34072,8 @@ async function handleMemoryReset(req, res) {
   // GROWTH Tier 1: also drop any pending STUDY proposals so a fresh Commander never inherits a stranger's belief-update queue.
   for (const [rid, b] of studyByRun) { if (b && b.agentId === agentId) studyByRun.delete(rid); }
   latestStudyRun.delete(agentId); lastStudyAt.delete(agentId); studyingNow.delete(agentId); studyDeclinedByAgent.delete(agentId);
+  lastThreadMineAt.delete(agentId); threadMiningNow.delete(agentId);   // W1.4: nor the last hero's thread-mining window (every attempt arms it now)
+  learningCooldown.forget(agentId);   // W1.4: a fresh hero starts with no NONE backoff or stranger's failure classes, and a pass still running arms nothing
   persistStudyState();
   return json(200, { ok: true, agent: agentId });
 }

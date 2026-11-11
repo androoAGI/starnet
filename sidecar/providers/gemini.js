@@ -315,12 +315,18 @@
        `includeThoughts` is deliberately NEVER set. We do not want the scratchpad on the wire — and its `false`
        default is documented as silently ignored on some models, which is why the reader filters thought parts
        regardless (see the stream loop). */
+    // the level a request for `model` carrying `perRequest` (else the construction default) asks for: OFF on a model that
+    // cannot switch thinking off is that model's floor. applyThinking and effortAsSent read this one function.
+    function effortFor(model, perRequest) {
+      const allowed = geminiEffortsFor(model);
+      const requested = normalizeGeminiEffort(perRequest || defaultEffort);
+      return requested === 'none' && !allowed.includes('none') ? allowed[0] : requested;
+    }
     function applyThinking(body, req) {
       const model = String(req.model || '').toLowerCase();
       if (model.indexOf('gemini') < 0) return;            // a non-Gemini model on a Gemini-shaped endpoint
       const allowed = geminiEffortsFor(model);
-      const requested = normalizeGeminiEffort(req.reasoningEffort || defaultEffort);
-      const want = requested === 'none' && !allowed.includes('none') ? allowed[0] : requested;
+      const want = effortFor(model, req.reasoningEffort);
       const cfg = {};
       if (LEGACY_GEMINI_RE.test(model)) {
         const budget = LEGACY_BUDGET[want];
@@ -621,12 +627,24 @@
     // Resolved from the model NAME: /v1beta/models publishes no capability data, and the dock asks before a
     // catalog fetch has necessarily landed.
     function reasoningEfforts(id) { return geminiEffortsFor(id); }
+    /* effortAsSent(id, perRequest) -> the effort a request for `id` carrying `perRequest` (falsy: none of its own) puts on the
+       wire, read off applyThinking itself: what every station record of a Gemini call names (index.js effortAsRun). Modern:
+       its thinkingLevel (OFF goes out as the model's floor, MINIMAL or LOW); 2.5: the level its thinkingBudget was chosen for,
+       'none' for a budget of 0. null = no thinkingConfig was sent (a non-Gemini model): it ran on the endpoint's default. */
+    function effortAsSent(id, perRequest) {
+      const body = {};
+      applyThinking(body, { model: id, reasoningEffort: perRequest });
+      const cfg = body.generationConfig && body.generationConfig.thinkingConfig;
+      if (!cfg) return null;
+      if (cfg.thinkingLevel) return String(cfg.thinkingLevel).toLowerCase();
+      return cfg.thinkingBudget === 0 ? 'none' : effortFor(String(id || '').toLowerCase(), perRequest);
+    }
 
     function verifyCredential(o) {
       return provider.verifyResponse(doFetch, baseUrl + '/models', { headers: headerBag(key, 'application/json'), signal: o && o.signal },
         j => (Array.isArray(j.models) ? j.models : (Array.isArray(j.data) ? j.data : [])).map(normalizeModel).filter(Boolean), !!key, classifyApiError);
     }
-    return { stream, listModels, verifyCredential, warmCatalog, contextLimit, outputLimit, priceOf, supportsTools, reasoningEfforts };
+    return { stream, listModels, verifyCredential, warmCatalog, contextLimit, outputLimit, priceOf, supportsTools, reasoningEfforts, effortAsSent };
   }
 
   return { makeGeminiProvider, _internals: { messagesToGemini, toGeminiTools, normalizeUsage, normalizeModel, modelPath, cleanBaseUrl, finishFor } };

@@ -34,6 +34,7 @@ test/roster-raise.http.test.js
 test/roster-cas.http.test.js
 test/full-access.e2e.test.js
 test/ask-brief-before-approval.e2e.test.js
+test/brief-same-response.e2e.test.js
 test/toolsets-preview-equals-run.e2e.test.js
 test/output-recovery.e2e.test.js
 test/context-allowance.e2e.test.js
@@ -49,11 +50,15 @@ test/outcomes.http.test.js
 test/scout.e2e.test.js
 test/auxbudget.e2e.test.js
 test/auxmodel.e2e.test.js
+test/oneshot-small-model.invariant.test.js
 test/run-title-directive.e2e.test.js
 test/failreview.e2e.test.js
 test/learning-pause-midflight.e2e.test.js
 test/failreview-budget.e2e.test.js
 test/failreview-provider-refusal.e2e.test.js
+test/learning-cooldown.e2e.test.js
+test/learning-cooldown.race.e2e.test.js
+test/skillreview-useful.e2e.test.js
 test/run-cap-bounds-spawn.e2e.test.js
 test/questrefresh.e2e.test.js
 test/e2e.run.test.js
@@ -142,6 +147,8 @@ test/nightshift-halt-no-fake-draft.e2e.test.js
 test/nightshift-budget.e2e.test.js
 test/nightshift-presence.e2e.test.js
 test/nightshift-floor-visibility.e2e.test.js
+test/nightshift-futile-beat.e2e.test.js
+test/unattended-hold.e2e.test.js
 test/threads.e2e.test.js
 test/cron.session-transcript.e2e.test.js
 test/channels.telegram.e2e.test.js
@@ -251,6 +258,7 @@ test/delegated-connectors.e2e.test.js
 test/prompt-cache-prefix.e2e.test.js
 test/learned-tail.e2e.test.js
 test/aux-token-ceiling.e2e.test.js
+test/effort-truth.e2e.test.js
 test/e2e.overseer.test.js
 test/overseer-publication.http.test.js
 test/save-unreadable.http.test.js
@@ -269,6 +277,7 @@ test/observer.e2e.test.js
 test/cli-agent-routes.e2e.test.js
 test/cli-connect-routes.e2e.test.js
 test/cli-usage-routes.e2e.test.js
+test/usage-receipts.e2e.test.js
 test/cli-station.e2e.test.js
 test/cli-app-launch.e2e.test.js
 test/interrupted-run-in-history.test.js
@@ -311,9 +320,12 @@ test/memory-learning-boundary.http.test.js
 test/skills.candidate-lifecycle.http.test.js
 test/skills.evaluation-spend.http.test.js
 test/lean-prompt.e2e.test.js
+test/dormant-followups.e2e.test.js
+test/loop-truth.e2e.test.js
 test/host-notes.strict-template.e2e.test.js
 test/host-notes.strict-template.whole-run.e2e.test.js
 test/cross-run-cache.e2e.test.js
+test/worker-prefix.e2e.test.js
 test/cron.channel-media.e2e.test.js
 test/routine-delivery.parts.e2e.test.js
 test/routine-delivery.session-return.e2e.test.js
@@ -373,3 +385,4 @@ test/seal-wipe.http.test.js
 test/desk-code-log.http.test.js
 test/seal-held-words.http.test.js
 test/retired-grant-notice.http.test.js
+test/cross-run-replay.invariant.test.js

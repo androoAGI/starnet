@@ -31,6 +31,10 @@
   const DECLARED_IMPACTS = new Set(inputpolicy && inputpolicy.IMPACTS ? Object.keys(inputpolicy.IMPACTS).map(k => inputpolicy.IMPACTS[k]) : []);
   // failopen.note — the tagged SYNC swallow (per-tag count + throttled warn): a fail-open catch must never be invisible.
   const { note: failNote } = (typeof require === 'function') ? require('../failopen.js') : { note: function (tag, e) { console.warn('[failopen] ' + tag + ':', (e && e.message) || e); } };
+  // THE ONE 70/30 CUT (history-edit headTail, W1.7): the same cut as shell.exec, verify, MCP and the loop's turn squeeze,
+  // never splitting a surrogate pair; a browser copy without the resolver makes the same cut inline
+  const headTail = (typeof require === 'function') ? require('../history-edit.js').headTail
+    : function (s, max, noteFor) { const head = Math.floor(max * 0.7), from = s.length - (max - head); return s.slice(0, head) + noteFor(from - head) + s.slice(from); };
 
   /* CENTRAL TOOL-OUTPUT CAP (ref-parity: the reference harness's tool_output_limits). Every builtin clamps its own output today,
      which means the protection is a CONVENTION — a new tool, or an MCP server behind a new connector,
@@ -126,9 +130,8 @@
         + 'in parts. The end of the output follows ...]\n\n';
     // Carved-in: size the kept text from a first draft of the note, with slack for the dropped count gaining digits.
     const room = hostCap ? Math.max(0, hostCap - noteFor(content.length - hostCap).length - 8) : OUTPUT_MAX;
-    const head = Math.floor(room * 0.7), tail = room - head;
-    const note = noteFor(content.length - head - tail);
-    return content.slice(0, head) + note + content.slice(content.length - tail);
+    // the first 70% of the room and the last 30%, the dropped count in the note (headTail: never splits a surrogate pair)
+    return room > 0 ? headTail(content, room, noteFor) : noteFor(content.length);
   }
 
   // `images` rides ALONGSIDE content, never inside it: a tool result is a string on every wire we speak, so
@@ -667,7 +670,12 @@
       // run once, bounded by the per-tool timeout; any throw becomes an isError result. A per-call AbortController
       // (chained to the run's parent signal) is threaded in as ctx.signal so that on TIMEOUT we abort() the work
       // before rejecting — a timed-out tool no longer keeps running/spending in the background.
-      const timeoutMs = tool.timeoutMs || ctx.timeoutMs || 0;
+      // A tool's own backstop is a number, or (args) => ms when its wall clock depends on the call (team.subagents wait:true
+      // blocks for minutes, its plain list does not); 0 = the run's own fast-tool cap (ctx.timeoutMs)
+      const ownTimeoutMs = typeof tool.timeoutMs === 'function'
+        ? (() => { try { const ms = Number(tool.timeoutMs(call.args || {})); return ms > 0 && Number.isFinite(ms) ? ms : 0; } catch (_) { return 0; } })()
+        : tool.timeoutMs;
+      const timeoutMs = ownTimeoutMs || ctx.timeoutMs || 0;
       const scrubResult = resultScrubFor(tool);   // null for workspace / connector tools, or when no scrubber is attached
       const child = childAbort(ctx.signal);
       const ac = child.ctrl;
@@ -736,6 +744,10 @@
         // RELAYED TAINT (additive): a tool that hands back ANOTHER run's text (team.dispatch / team.subagents …)
         // reports that run's host-proven taint; the run host latches it on the ingesting run (see taint.relayedTaint).
         if (shaped && typeof out.taintedBy === 'string' && out.taintedBy) done.taintedBy = out.taintedBy.slice(0, 200);
+        // WHERE A COMMAND RAN (additive, loop truth W1.11): shell.exec names the host folder it spawned in, so the loop can
+        // tell which file `node hello.js` really ran. Metadata beside the result, never part of what the model reads.
+        // A path is whole or absent: a cut one would name a different folder.
+        if (shaped && typeof out.ranIn === 'string' && out.ranIn && out.ranIn.length <= 4096) done.ranIn = out.ranIn;
         if (shaped) { const quoted = quotedList(out.quotedStreams); if (quoted.length) done.quotedStreams = quoted; }   // the sessions this result drew on (commit 11)
         // Only host-minted provenance survives shaping; body text and ordinary metadata fields are not proof.
         if (shaped && responseProvenance) responseProvenance.carry(out, done);
@@ -783,6 +795,8 @@
         const errorElided = e && Number(e.fullContentElided) > 0 ? Number(e.fullContentElided) : 0;
         if (errorElided) { failed.outputElided = errorElided; failed.content = clampOutput(preconditionFrame(failedText, failed.precondition), parked, hostCap, errorElided); }
         if (unknownEffect) failed.effectUnknown = true;
+        // a KILLED command ran too, and where it ran rides along the same way (see ranIn on the success path)
+        if (e && typeof e.ranIn === 'string' && e.ranIn && e.ranIn.length <= 4096) failed.ranIn = e.ranIn;
         // the HOST wrote this refusal (a URL guard, a path rule) — no outside bytes reached the model (taint observation)
         if (e && e.hostAuthored === true) failed.hostAuthored = true;
         // ...so the person may read it too: the tool's own refusal reason rides the result (refusalReason), and the loop

@@ -10124,7 +10124,7 @@ const Chat = (() => {
     Object.freeze({ name: 'personality', desc: 'show or set the active personality', argsHint: '[personality]', action: 'personality' }),
     Object.freeze({ name: 'yolo', desc: 'toggle full-access approval mode', argsHint: '[on|off]', action: 'yolo' }),
     Object.freeze({ name: 'reasoning', desc: 'show or set how hard the model thinks before answering', argsHint: '[none|minimal|low|medium|high|xhigh]', action: 'reasoning' }),
-    Object.freeze({ name: 'fast', desc: 'drop reasoning effort to minimal for quicker, cheaper replies', action: 'fast' }),
+    Object.freeze({ name: 'fast', desc: 'drop reasoning effort to minimal', action: 'fast' }),
     Object.freeze({ name: 'voice', desc: 'show or toggle spoken replies', argsHint: '[on|off|handsfree|status]', action: 'voice' }),
     // no local action by design — the sidecar owns CAP_REGISTRY + the toolset switches (dispatch:'server')
     Object.freeze({ name: 'tools', desc: 'show the tools this agent can actually call', action: 'tools' }),
@@ -10827,7 +10827,16 @@ const Chat = (() => {
   }
   // WARN-not-block (same precedent as /model against the warmed catalog): if the selected model has no reasoning
   // dial, setting one is a no-op — say so rather than letting the confirmation imply an effect it won't have.
+  // The dial reaches a message only on a route whose runs are given it: the provider registry's effortDialReachesRuns, the
+  // one answer the terminal's lines read too (the Claude CLI is given no effort for a message, so its run records say
+  // 'cli-default'). On any other route no line here may promise that it does.
+  function effortReachesModel() {
+    const prov = (typeof Harness !== 'undefined' && Harness.getProv && Harness.getProv()) || '';
+    const reg = typeof SK !== 'undefined' && SK.providers && SK.providers.registry;
+    return !(reg && typeof reg.effortDialReachesRuns === 'function') || reg.effortDialReachesRuns(prov);
+  }
   function reasoningModelNote() {
+    if (!effortReachesModel()) return ' Note: Claude Code runs your messages on its own default effort, so this setting does not change them.';
     try {
       if (typeof ModelDock === 'undefined' || !ModelDock._internals || !ModelDock._internals.supportsReasoning) return '';
       const model = (Harness.getModel && Harness.getModel()) || '';
@@ -10843,7 +10852,7 @@ const Chat = (() => {
     const cur = Harness.getReasoningEffort(prov);
     if (!raw || raw === 'status') {
       return localLine('Reasoning effort: ' + cur + (prov ? ' (for ' + prov + ')' : '') + '. Set it with /reasoning '
-        + REASONING_LEVELS.join('|') + ' — lower answers faster and cheaper, higher thinks longer first.' + reasoningModelNote());
+        + REASONING_LEVELS.join('|') + (effortReachesModel() ? ' — lower answers faster and cheaper, higher thinks longer first.' : '.') + reasoningModelNote());
     }
     const want = reasoningLevelOf(raw);
     if (!want) return localLine('"' + raw + '" is not a reasoning level. Pick one of: ' + REASONING_LEVELS.join(', ') + '.');
@@ -10854,7 +10863,7 @@ const Chat = (() => {
     const now = Harness.getReasoningEffort((Harness.getProv && Harness.getProv()) || prov);
     if (now !== want) return localLine('Could not set reasoning effort to ' + want + ' — it is still ' + now + '.');
     localLine('Reasoning effort: ' + cur + ' → ' + want + (prov ? ' (for ' + prov + ')' : '')
-      + '. Takes effect on your next message.' + reasoningModelNote());
+      + (effortReachesModel() ? '. Takes effect on your next message.' : '.') + reasoningModelNote());
   }
   /* ---- /fast — a shortcut onto that SAME dial.
      StarNet has no separate "fast mode", and inventing one would be a lie — the old handler admitted as much and
@@ -10865,13 +10874,14 @@ const Chat = (() => {
     const prov = (Harness.getProv && Harness.getProv()) || '';
     const cur = Harness.getReasoningEffort(prov);
     if (cur === 'minimal' || cur === 'none') {
+      if (!effortReachesModel()) return localLine('Reasoning effort is already ' + cur + '.' + reasoningModelNote());
       return localLine('Already as fast as it gets — reasoning effort is ' + cur + '. /reasoning medium to let it think longer.');
     }
     if (typeof App === 'undefined' || !App.applyConfig) return localLine('Reasoning effort could not be changed on this surface.');
     App.applyConfig({ reasoningEffort: 'minimal' });
     const now = Harness.getReasoningEffort((Harness.getProv && Harness.getProv()) || prov);
     if (now !== 'minimal') return localLine('Could not switch to minimal reasoning — effort is still ' + now + '.');
-    localLine('Reasoning effort: ' + cur + ' → minimal — quicker, cheaper replies. /reasoning ' + cur + ' to put it back.' + reasoningModelNote());
+    localLine('Reasoning effort: ' + cur + ' → minimal' + (effortReachesModel() ? ' — quicker, cheaper replies' : '') + '. /reasoning ' + cur + ' to put it back.' + reasoningModelNote());
   }
   function voiceCommand(args) {
     if (typeof Voice === 'undefined') return localLine('Voice controls are not available in this surface.');
@@ -12251,7 +12261,7 @@ const Chat = (() => {
     const before = Object.assign({}, Harness.totals());   // COPY (totals is a mutated singleton)
     let res;
     try {
-      res = await Harness.chat({ system: sys, messages: [{ role: 'user', content: prompt }], agentId: ws.agentId || 'agent', isTask: false, placed: [], internal: true, quotesStream: ws.id });   // the title prompt is a digest of this session's messages: the station stamps what the call writes as a quote of the session
+      res = await Harness.chat({ system: sys, messages: [{ role: 'user', content: prompt }], agentId: ws.agentId || 'agent', isTask: false, placed: [], internal: true, oneShot: 'title', quotesStream: ws.id });   // the title prompt is a digest of this session's messages: the station stamps what the call writes as a quote of the session
     } catch (_) { return; }   // network/hiccup → keep the placeholder, no noise
     // fold the quiet call's REAL usage into the origin stream (same truthful-telemetry path as a normal turn)
     try { const a = Harness.totals(); Workstreams.addCost(ws.id, { tokens: a.tokens - before.tokens, usd: a.cost - before.cost, calls: a.calls - before.calls }); } catch (_) {}

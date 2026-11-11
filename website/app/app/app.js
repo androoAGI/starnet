@@ -452,6 +452,7 @@ const App = (() => {
         if (focused && typeof Harness !== 'undefined' && Harness.setReasoningEffort) Harness.setReasoningEffort(eff);
         a.reasoningEffort = eff;
         const storedAgent = agents.get(a.id); if (storedAgent) storedAgent.reasoningEffort = eff;
+        noteEffortSource(a, 'pin'); if (storedAgent && storedAgent !== a) noteEffortSource(storedAgent, 'pin');   // W3.3: a hand pick
       }
       // Away-workshop grant (W3): a plain per-agent consent flag. NOT a system-prompt field — it only
       // changes what an autonomous run is allowed to WRITE inside its own jail. Reaches the sidecar via
@@ -495,7 +496,7 @@ const App = (() => {
     // agent that never had one keeps its class effort.
     const hasEffort = (arguments.length >= 4);
     const e = String(effort || '').trim();
-    if (m ? hasEffort : hadPin) a.reasoningEffort = (m && e) ? e : null;
+    if (m ? hasEffort : hadPin) { a.reasoningEffort = (m && e) ? e : null; noteEffortSource(a, 'pin'); }   // W3.3: a pinned effort is a hand pick
     if (agent && a.id === agent.id) {   // focused agent — apply live so the next run reflects the pin at once
       if (m) {
         if (typeof Harness !== 'undefined' && Harness.setModel) Harness.setModel(m);
@@ -974,6 +975,8 @@ const App = (() => {
       noteWirePin(agent);
       const stored = agents.get(agent.id);
       if (stored) { stored.model = model; stored.provider = provider; stored.reasoningEffort = effort; }
+      // W3.3: a dock press (a model or an effort) is the Commander's own pick; a catalog-driven change keeps the marker it had
+      if (sel.reason === 'model' || sel.reason === 'effort') { noteEffortSource(agent, 'pin'); if (stored && stored !== agent) noteEffortSource(stored, 'pin'); }
       const gtM = el('gt-model'); if (gtM) gtM.textContent = model;
       syncChannels();
       pushRoster();
@@ -1003,7 +1006,8 @@ const App = (() => {
              role: a.role || (a.id === 'agent' ? 'orchestrator' : 'specialist'), voiceTraits: a.voiceTraits || null, customVoice: a.customVoice || '',
              approvalMode: a.approvalMode || 'ask', executionProfile: executionProfileOf(a), workshop: !!a.workshop, purpose: a.purpose || null, specialtyId: a.specialtyId || null, docs: a.docs,
              skills: Array.isArray(a.skills) ? a.skills.slice() : [],   // Class Loadouts S1: per-agent skill package persists
-             stats: a.stats || null, createdAt: a.createdAt };
+             stats: a.stats || null, createdAt: a.createdAt,
+             ...((a.effortSource === 'class' || a.effortSource === 'pin') ? { effortSource: a.effortSource } : {}) };   // W3.3: only when set
   }
   // restore summoned crew from a save (older saves have no `agents[]` → just the hero, exactly as before).
   // DATA only — world bodies are spawned in enterGame once World.init has run.
@@ -1023,6 +1027,7 @@ const App = (() => {
                   approvalMode: s.approvalMode || 'ask', executionProfile: executionProfileOf(s), workshop: !!s.workshop, purpose: s.purpose || null, specialtyId: s.specialtyId || null,
                   skills: Array.isArray(s.skills) ? s.skills.slice() : [],   // Class Loadouts S1: restore the per-agent skill package
                   docs: s.docs, stats: (s.stats && typeof s.stats === 'object') ? s.stats : null, createdAt: s.createdAt || Date.now() };
+      if (s.reasoningEffort && a.reasoningEffort === s.reasoningEffort && (s.effortSource === 'class' || s.effortSource === 'pin')) a.effortSource = s.effortSource;   // W3.3
       agentDocs(a);
       a.systemPrompt = composeSystemPrompt(a);
       agents.set(a.id, a);
@@ -1128,10 +1133,50 @@ const App = (() => {
     const pinned = tier && tierModelMap()[tier];
     return (pinned && String(pinned).trim()) ? String(pinned).trim() : null;
   }
-  function resolveTierModel(tier, baseModel) {
+  function resolveTierModel(tier, baseModel, baseProvider) {
     const pinned = tierModelFor(tier);
     if (pinned) return pinned;
+    const lean = leanTierModel(tier, baseModel, baseProvider);   // W3.4: off (the default) = null, so this is exactly as before
+    if (lean) return lean;
     return baseModel || ((typeof Harness !== 'undefined' && Harness.getModel) ? Harness.getModel() : null) || null;
+  }
+  /* LEANER CREW DEFAULTS (W3.3 + W3.4, frontend/app/crewdefaults.js; ships off): on only while the station's switch is
+     (STARNET_CREW_DEFAULTS, read by the sidecar and reported on GET /api/providers). Harness.init reads it before the crew
+     is restored; a station that could not answer leaves the rows unmarked (the rule keeps their effort) until a later push. */
+  function crewDefaultsMode() { return (typeof Harness !== 'undefined' && Harness.crewDefaults) ? Harness.crewDefaults() : 'off'; }
+  function crewDefaultsOn() { return typeof CrewDefaults !== 'undefined' && CrewDefaults.isOn(crewDefaultsMode()); }
+  // W3.4: the model a summon of this class tier preselects when SETTINGS pins none: the base model's family mid-tier (balanced)
+  // or small (fast) model, from the catalog the base model's provider listed (ModelDock.catalogIds: never this page's offline
+  // seed). The base pair is the one the new agent would copy (an unpinned row runs on the station default's provider, the
+  // pushRoster rule). null = keep today's choice (the switch is off, a reasoning class, an unknown family, no such tier).
+  function leanTierModel(tier, baseModel, baseProvider) {
+    if (!crewDefaultsOn()) return null;
+    const H = typeof Harness !== 'undefined' ? Harness : null;
+    const base = baseModel || (H && H.getModel ? H.getModel() : '');
+    const prov = (baseModel && baseProvider) || stationDefaultWire().provider || (H && H.getProv ? H.getProv() : '');
+    const ids = (base && prov && typeof ModelDock !== 'undefined' && ModelDock.catalogIds) ? ModelDock.catalogIds(prov) : null;
+    return ids ? CrewDefaults.tierPick({ mode: crewDefaultsMode(), tier, base, catalog: ids }) : null;
+  }
+  // the summon card's view of that pick for the agent on the line (the model summonAgent copies), or null
+  function leanTierModelFor(tier) { return (agent && !tierModelFor(tier)) ? leanTierModel(tier, agent.model, agent.provider) : null; }
+  // W3.3: where an agent's effort came from: 'class' (applyLoadout wrote the class default) or 'pin' (a hand pick). Written
+  // only while the switch is on. While it is off, a call here (a hand pick, a loadout) drops THIS agent's marker, so a push
+  // while on re-derives it (effortSourceOf: an effort equal to the class default reads as 'class'); a marker an earlier lean
+  // period wrote on another agent stays on it and in the save, and effortSourceOf sends none while off
+  function noteEffortSource(a, source) {
+    if (!a) return;
+    if (source && a.reasoningEffort && crewDefaultsOn()) a.effortSource = source;
+    else if (a.effortSource) delete a.effortSource;
+  }
+  // the marker a roster row carries to the sidecar's crew effort rule, only while the switch is on: an agent's own marker, else
+  // (an agent from before the switch) an effort equal to its class default is the class's and anything else is a pin
+  // (Andrew 2026-11-08). The Overseer's effort is the Commander's own dial: never a class default.
+  function effortSourceOf(a) {
+    if (!a || !a.reasoningEffort || !crewDefaultsOn()) return {};
+    if (a.effortSource === 'class' || a.effortSource === 'pin') return { effortSource: a.effortSource };
+    const spec = (a.id !== 'agent' && a.specialtyId && typeof Specialties !== 'undefined' && Specialties.get) ? Specialties.get(a.specialtyId) : null;
+    const norm = e => String(e || '').trim().toLowerCase();
+    return { effortSource: (spec && spec.reasoningEffort && norm(spec.reasoningEffort) === norm(a.reasoningEffort)) ? 'class' : 'pin' };
   }
   // fold the class loadout (model tier + effort + skills) onto an agent record. A class's `kit` is NOT placed
   // per-agent — it names the shared STATION gear the class draws on under the overseer (informational, shown in
@@ -1141,10 +1186,11 @@ const App = (() => {
     // an EXPLICIT creation-time pick (bay modelPin) beats the class-tier default — the class supplies
     // defaults, never locks; it must not clobber a model/effort the Commander chose by hand at summon.
     if (!(pin && pin.model)) {
-      const m = resolveTierModel(spec.model, a.model);
+      const m = resolveTierModel(spec.model, a.model, a.provider);
       if (m) a.model = m;
     }
     if (spec.reasoningEffort && !(pin && pin.effort)) a.reasoningEffort = spec.reasoningEffort;   // applied default; user can re-tune per agent
+    noteEffortSource(a, (spec.reasoningEffort && !(pin && pin.effort)) ? 'class' : 'pin');   // W3.3: the class's default, or a pick (the bay's, or the copied one)
     // per-agent skills: the class package. Recorded on the agent + pushed in the roster (sidecar unions them
     // ADD-only over the global prefs). Deduped copy so the frozen catalog array is never shared/mutated.
     if (Array.isArray(spec.skills) && spec.skills.length) {
@@ -1597,7 +1643,7 @@ const App = (() => {
       const list = liveAgents().map(a => ({ agentId: a.id, system: a.systemPrompt || '', name: a.name || a.id, model: a.model || '', provider: (a.model || a.id === 'agent') ? (a.provider || fallbackProv) : '', role: rosterRole(a), approvalMode: (a.approvalMode === 'full' ? 'full' : 'ask'), executionProfile: executionProfileOf(a),
         track: rosterTrack(a),    // S3: this agent's EARNED track record, so the lead's dispatch briefing can pick on evidence (see rosterTrack)
         workshop: !!a.workshop,   // W3: the away-build grant travels with the roster so the consent broker can honor it
-        skills: Array.isArray(a.skills) ? a.skills : [], reasoningEffort: a.reasoningEffort || null }));   // #4: each agent's OWN provider; Class Loadouts S1: per-agent skill package + applied effort
+        skills: Array.isArray(a.skills) ? a.skills : [], reasoningEffort: a.reasoningEffort || null, ...effortSourceOf(a) }));   // #4: each agent's OWN provider; Class Loadouts S1: per-agent skill package + applied effort; W3.3: its marker (switch on only)
       // P1.1 (UPDATE_STATE_SAFETY_AUDIT): stamp a freshness `updatedAt` so the sidecar can refuse a STALE push (a
       // background tab / out-of-sync frontend whose roster is older than what the store already accepted). The
       // sidecar records the stamp of the last accepted write and 200s { ok:false, stale:true } on an older one;
@@ -1688,6 +1734,8 @@ const App = (() => {
     // per-agent prop it needs to sit and work. See summonAgent: the seed is that agent's desk and nothing
     // else; the Commander can move or reclaim it in BUILD MODE like any placed prop.
     let a = null;
+    // W3.4: a lean summon's tier pick reads the base provider's cached catalog: warm it first (a no-op while the switch is off)
+    if (crewDefaultsOn() && typeof ModelDock !== 'undefined' && ModelDock.catalog) { try { await ModelDock.catalog(); } catch (_) {} }
     try { a = summonAgent(spec, { activate: false, desk: true }); } catch (_) { a = null; }
     if (!a) return null;
     let rosterLanded = false;
@@ -6485,6 +6533,7 @@ const App = (() => {
   // and per-agent config (/agents, /model, /personality, …).
   return { show, refreshUsage, persist, pushRoster, refreshRail: renderRail, sessionDisplayName, openWorkstream, waitingSessionOf, launchRecipe, summonAgent, summonForRequest, crewCount: () => agents.size,
     tierModelFor,   // org P22 fix: the bay's MODEL helper names a SETTINGS tier pin instead of promising a copy
+    leanTierModelFor,   // W3.4: the summon card names the tier model a lean summon preselects (null while the switch is off)
     // a team.spawn clone ('sub-<id>', never on the roster) is a HELPER: its raw id was the name on its approval card and NEEDS
     // YOU once its ask could outlive the lead's turn (live walk 2026-10-14); the sidecar says "a helper" for it too
     agentName: id => { const a = agents.get(id); return a ? (a.name || a.id) : (/^sub-/.test(String(id || '')) ? 'HELPER' : null); },

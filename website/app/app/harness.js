@@ -596,7 +596,9 @@ const Harness = (() => {
   const readinessCache = SK.providerReadiness.makeCache();
   let creditsEpoch = 0;
   let readinessFlight = null;
+  let crewDefaultsMode = 'off';   // LEANER CREW DEFAULTS (W3.3 + W3.4): the station's switch, as GET /api/providers last said it
   function readiness(provider) { return readinessCache.read(normalizeProviderId(provider || getProv())); }
+  function crewDefaults() { return crewDefaultsMode; }
   function refreshProviderReadiness() {
     if (readinessFlight) return readinessFlight;
     const ticket = readinessCache.ticket();
@@ -607,6 +609,7 @@ const Harness = (() => {
         const r = await fetch('/api/providers', { cache: 'no-store', signal: ctl.signal });
         if (!r.ok) throw new Error('station status unavailable');
         const j = await r.json();
+        crewDefaultsMode = (j && j.crewDefaults === 'lean') ? 'lean' : 'off';
         if (!readinessCache.accept(j.providers, ticket)) readinessCache.offline();
       } catch (_) { readinessCache.offline(); }
       finally {
@@ -1463,7 +1466,7 @@ const Harness = (() => {
      stream of newline-delimited JSON events — the FROZEN agent.* U.bus events the harness emits.
      Each event is re-emitted on U.bus (for telemetry) and mapped to the caller's callbacks.
      onToken(delta) per text delta · onToolCall/onToolResult per tool step · onUsage per turn. */
-  async function chat({ system, messages, onToken, onTerminalReset, onUsage, onToolCall, onToolResult, onRunId, onDeliverable, onPermission, onSummon, agentId, isTask, recurring, signal, streamId, recipeId, workbench, placed, stationPlaced, internal, evidence, keepEffort, projectRoot, taskAction, postconditions, recovery, connectorContinuationOf, goalContinuation, quotesStream, retryUserRunId, voiceTurn, turnId, retryOf, turnAt, clientNow, turnRowId, windowTokens, windowFrom }) {
+  async function chat({ system, messages, onToken, onTerminalReset, onUsage, onToolCall, onToolResult, onRunId, onDeliverable, onPermission, onSummon, agentId, isTask, recurring, signal, streamId, recipeId, workbench, placed, stationPlaced, internal, evidence, keepEffort, oneShot, projectRoot, taskAction, postconditions, recovery, connectorContinuationOf, goalContinuation, quotesStream, retryUserRunId, voiceTurn, turnId, retryOf, turnAt, clientNow, turnRowId, windowTokens, windowFrom }) {
     const model = getModel(), provider = getProv(), key = getKey(provider), reasoningEffort = getReasoningEffort(provider);
     // Codex authenticates by an OAuth token (server-side); the desktop build keeps the key in the
     // sidecar's env (keychain). Neither needs a key sent from here.
@@ -1522,6 +1525,8 @@ const Harness = (() => {
       if (internal) reqBody.internal = true;
       // self-talk runs on the cheap aux reasoning effort; keepEffort (work they read, the goal judge, the preflight) keeps theirs
       if (internal && keepEffort) reqBody.keepEffort = true;
+      // the session title (W3.5): the station runs it on the small model of the run's provider family, the run model once if unusable
+      if (internal && oneShot === 'title') reqBody.oneShot = 'title';
       // a SPOKEN reply: the sidecar may answer it on SETTINGS › Models › VOICE CHAT MODEL (this turn only)
       if (voiceTurn && !internal) reqBody.voiceTurn = true;
       /* THE EVIDENCE PACK, for the runs that must GUESS (rec perfection W2). An internal run gets a verbatim
@@ -1648,7 +1653,10 @@ const Harness = (() => {
         // XP / tasksDone / FloorStats products / the quest log / the suggestion cooldown never count the agent
         // thinking to itself (truthful-telemetry + honest-loot). The caller's own promise result is unaffected — the
         // switch below still latches runId/endReason locally from these same events.
-        const suppressBus = internal && (name === 'agent.run.start' || name === 'agent.run.end');
+        // W3.5: an internal session title's one planned retry on the run model (provider.fallback, reason oneshot_unusable)
+        // is that pass's own design, not a failover: no warn toast, REROUTE ticker or floor failover count. Its receipts and
+        // agent.cost still name both models.
+        const suppressBus = internal && (name === 'agent.run.start' || name === 'agent.run.end' || (name === 'provider.fallback' && payload.reason === 'oneshot_unusable'));
         if (!suppressBus && typeof U !== 'undefined' && U.bus) { try { U.bus.emit(name, payload); } catch (_) {} }
         switch (name) {
           // latch the LEAD's runId on the FIRST run.start only. Stage 2: a delegated worker's run.start/end/error
@@ -2309,7 +2317,7 @@ const Harness = (() => {
     // a desk challenge the station handed something other than this page's own fetch (a lead's station.power change,
     // stationcommands.js station.desk_confirm): the same confirmation a click on that setting gets
     confirmAtDesk: c => deskConfirm.confirmAtDesk(c),
-    getSelectionRevision, getKey, setKey, setKeyPool, validateAndSetKeyPool, keyPoolSize, storeChannelToken, getModel, setModel, getProv, setProv, getBaseUrl, setBaseUrl, getReasoningEffort, setReasoningEffort, clearLegacyReasoningOff, clearReasoningEffort, normalizeReasoningEffort, init, configured, readiness, refreshProviderReadiness, refreshCreditsConfigured, creditsEpoch: () => creditsEpoch, hasStoredCredential, setDesktopConfigured,
+    getSelectionRevision, getKey, setKey, setKeyPool, validateAndSetKeyPool, keyPoolSize, storeChannelToken, getModel, setModel, getProv, setProv, getBaseUrl, setBaseUrl, getReasoningEffort, setReasoningEffort, clearLegacyReasoningOff, clearReasoningEffort, normalizeReasoningEffort, init, configured, readiness, refreshProviderReadiness, crewDefaults, refreshCreditsConfigured, creditsEpoch: () => creditsEpoch, hasStoredCredential, setDesktopConfigured,
     listModels, probeProvider, validateAndSetKey, priceOf, turnIdentityCaps, compactAtOf, contextLimitOf, runWindowOf, contextState, contextRevision: () => contextRev, chat, cancel, haltAll, consent, consentAck, consentArgs, consentAnswer, summonAck, notebook,
     runStreamState: () => runStream.state(),   // the page's ONE run stream: { open, id, runs, unsupported, heldBack }
     streamPost,   // a run a button starts (Run now / Retry / an app refresh / a workshop build), on the page's ONE run stream

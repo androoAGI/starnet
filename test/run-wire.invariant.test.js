@@ -193,7 +193,7 @@ function expect(entry, sc, agentId, got, opts) {
       const agents = new Map([...host.agentRoster].map(([id, a]) => [id, Object.assign({ id }, a)]));
       const Harness = makeHarness();
       const pushRoster = () => { for (const [id, a] of agents) host.agentRoster.set(id, Object.assign({}, a)); };   // what reaches the sidecar
-      const p = new Function('agents', 'Harness', 'pushRoster', "let agent = null; let wirePinOwner = ''; const noteWirePin = () => {}; const persist = () => {};\n"
+      const p = new Function('agents', 'Harness', 'pushRoster', "let agent = null; let wirePinOwner = ''; const noteWirePin = () => {}; const noteEffortSource = () => {}; const persist = () => {};\n"
         + lift('stationDefaultWire') + lift('focusWire') + lift('applyWire') + lift('setAgentModelPin') + '\nreturn { focusWire, applyWire, setAgentModelPin };')(agents, Harness, pushRoster);
       A.ok(p.setAgentModelPin('smith', '', ''), 'the 3-argument clear is accepted');
       p.applyWire(p.focusWire(agents.get('smith')));

@@ -37,6 +37,18 @@
      deps.defaultModel     -> string             // boot-frozen SKYNET_DEFAULT_MODEL fallback when job.model is null
      deps.identityForAgent -> (agentId, job) -> { system?, model? } | null
                                                  // optional selected-agent identity (browser roster / persisted mirror)
+     deps.admitUnattended  -> (job, { provider, model, prompt }) -> hold | null
+                                                 // OPTIONAL W3.1 unattended hold (index.js holdRoutineFire ->
+                                                 //   sidecar/unattended-admission.js): a scheduled fire is unattended
+                                                 //   work, asked after the capability gate and before ANY spend (run id,
+                                                 //   lease, cron.fire, crate). A hold drops this occurrence exactly like a
+                                                 //   monitor skip — the host ledgers it — and the next comes on schedule
+                                                 //   (a one-shot's claim is released and it is rechecked after
+                                                 //   blockedRetryMs, like a blocked one): no burst. A check that throws
+                                                 //   admits (a reading it cannot read never holds). The fire a PERSON
+                                                 //   asked for (cron-store triggerJob personAskedAt) is never asked:
+                                                 //   its runOnce opts carry personAsked:true, so the host runs it as
+                                                 //   that person's run, outside the unattended scope.
      deps.agentExists      -> (agentId) -> bool  // OPTIONAL deleted-agent guard: false = the job's agent no longer
                                                  //   exists (durable roster miss), so the job is REMOVED instead of
                                                  //   fired — an orphaned routine must never keep spending/minting
@@ -222,6 +234,7 @@
       try { return deliveryStarted(jobId, runId) === true; } catch (e) { failNote('cron.delivery.started', e); return false; }
     }
     const preflightConfig = typeof d.preflightConfig === 'function' ? d.preflightConfig : null;
+    const admitUnattended = typeof d.admitUnattended === 'function' ? d.admitUnattended : null;
     const hashText = typeof d.hashText === 'function' ? d.hashText : function (s) { return String(s == null ? '' : s); };
     const blockedRetryMs = (function () { const n = parseInt(d.blockedRetryMs, 10); return Number.isFinite(n) && n > 0 ? n : 60000; })();
     // Fault-injection seam: false models a process stop after the final receipt is durable, before delivery.
@@ -518,7 +531,7 @@
     /* fireJob — launch one due job through the run host. Returns true iff a run was actually launched (false on a
        no-capability skip). The run settles asynchronously; its lease is released in finishFire on EVERY terminal
        path (resolve or reject), so a throwing/zombie run never permanently wedges the job. */
-    function fireJob(job, scheduledFor, nowMs) {
+    function fireJob(job, scheduledFor, nowMs, asked) {
       // DELETED-AGENT GUARD (2026-07-16): a job whose agent no longer exists must not fire — before this,
       // an orphaned routine kept running forever after DELETE AGENT (real spend, ghost rail sessions and
       // floor crates under the dead agentId). The host's agentExists reads the durable roster (fail-open
@@ -628,6 +641,21 @@
         }
       }
 
+      // W3.1 THE UNATTENDED HOLD: a scheduled fire is unattended work. Held, it spends nothing and names its reading in the
+      // host's ledger row; the occurrence is dropped like a monitor skip (advance-before-run already moved nextRunAt). A held
+      // one-shot is not in flight: the claim this tick stamped is released and it is rechecked later (a trigger makes it due
+      // at once). `asked`: the fire a person asked for (applyTick read its personAskedAt) is that person's, never held.
+      if (admitUnattended && asked !== true) {
+        let held = null;
+        try { held = admitUnattended(job, { provider: provider, model: model, prompt: assembledPrompt }); } catch (e) { failNote('cron.admitUnattended', e); held = null; }
+        if (held) {
+          if (job.schedule && job.schedule.kind === 'once') {
+            try { setJobs(cronStore.releaseHeldOnce(getJobs(), job.id, { retryAt: nowMs + blockedRetryMs })); } catch (e) { failNote('cron.releaseHeldOnce', e); }
+          }
+          return false;
+        }
+      }
+
       const runId = newId();
       const ac = newAbort();
       // NS-0: heartbeatAt starts at the fire instant and is RENEWED on every run-progress event (see sink).
@@ -728,6 +756,9 @@
           // Run Now (routine-identity.js): cronJobId/cronJobName, the recipe's provenance (recipeId), and the IDEMPOTENCY
           // SCOPE — the same tick retried/resumed must not re-send a connector write, the NEXT tick may (job + fire time).
           ...identity,
+          // W3.1: the fire a person asked for (routine.manage run_now in their own run) runs as that person's run, never in the
+          // unattended scope; absent on every other fire, so their opts are unchanged
+          ...(asked === true ? { personAsked: true } : null),
           // SOP recipes: a routine minted from a recipe with acceptance rows carries the typed postconditions
           // contract in its meta bag; the host evaluates it at run end exactly as for an interactive launch.
           postconditions: (job.meta && job.meta.postconditions != null) ? job.meta.postconditions : undefined,
@@ -979,6 +1010,7 @@
       //    crash-restart protection is a fire-CLAIM stamped here and persisted in the SAME write, BEFORE launch.
       //    cron.planTick then suppresses a one-shot carrying a fresh claim (in flight) and reclaims a zombie one
       //    past maxRunMs. A deferred or already-leased one-shot is NOT claimed this tick (it isn't firing yet).
+      const asked = new Set();   // W3.1: the fires this tick that a person asked for (taken below, in the advance write)
       {
         const advanceById = Object.create(null);
         for (const nx of plan.next) { if (!deferredSet.has(nx.jobId)) advanceById[nx.jobId] = nx.nextAt; }
@@ -992,13 +1024,27 @@
         // NOTE: a one-shot that turns out NO-CAPABILITY in step 5 (fireJob returns false → no run launched)
         // still carries this claim. That is intentional and safe: it converts per-tick re-attempts into a
         // bounded ~maxRunMs backoff, after which the zombie reclaim retries — a non-firing one-shot either way.
-        if (Object.keys(advanceById).length || claimOnce.size) {
+        // W3.1 A PERSON'S FIRE: a job carrying personAskedAt (cron-store triggerJob, asked from a person's own run) is taken
+        // here, in this same write, whichever way its occurrence goes (fired, or dropped as already running). Only the
+        // occurrence the mark names (scheduledFor === personAskedAt) and that actually fires is the person's (`asked`).
+        const consumeAsked = [];
+        for (const f of plan.fire) {
+          if (deferredSet.has(f.jobId)) continue;
+          const job = cronStore.getJob(getJobs(), f.jobId);
+          if (!job || job.personAskedAt == null) continue;
+          consumeAsked.push(f.jobId);
+          if (!leases.has(f.jobId) && Date.parse(job.personAskedAt) === f.scheduledFor) asked.add(f.jobId);
+        }
+        if (Object.keys(advanceById).length || claimOnce.size || consumeAsked.length) {
           let jobs = getJobs();
           for (const id in advanceById) {
             jobs = jobs.map(function (j) { return (j && j.id === id) ? Object.assign({}, j, { nextRunAt: iso(advanceById[id]) }) : j; });
           }
           // stamp + persist the one-shot fire-claim through the store reducer (keeps the claim shape in one place).
           for (const id of claimOnce) { jobs = cronStore.claimOnceFire(jobs, id, { now: nowMs }); }
+          for (const id of consumeAsked) {
+            jobs = jobs.map(function (j) { if (!(j && j.id === id)) return j; const n = Object.assign({}, j); delete n.personAskedAt; return n; });
+          }
           // TRANSACTIONAL DISPATCH (2026-07-15 reliability audit): a launch is CONDITIONAL on a verified
           // durable advance/claim. setJobs returns false when the persist did NOT reach disk (the host also
           // rolls its mirror back to the disk state so the jobs stay DUE); a void/true return means persisted
@@ -1027,7 +1073,7 @@
         if (leases.has(job.id)) { try { emit('cron.skipped', { jobId: job.id, reason: 'already-running' }); } catch (_) {} skips++; continue; }
         if (deferredSet.has(job.id)) continue;             // over the cap: held back (counted in `deferred`), skip already emitted in step 2b
         try {
-          if (fireJob(job, f.scheduledFor, nowMs)) fires++; else skips++;   // false = no-capability (already emitted)
+          if (fireJob(job, f.scheduledFor, nowMs, asked.has(job.id))) fires++; else skips++;   // false = no-capability (already emitted)
         } catch (e) {
           /* ONE JOB'S THROW MUST NOT ABORT THE TICK (bug-sweep 2026-08-28): step 3 already persisted EVERY
              planned job's advance, so a throw here (an unguarded injected dep — identity/persona/provider —

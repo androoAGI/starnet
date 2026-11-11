@@ -431,8 +431,9 @@ for (let i = 0; i < 8; i++) LONG.push({ role: 'assistant', content: 'progress no
       const noEntryWork = () => { throw new Error('ordinary credential queue must not prepare/checkpoint/execute a private line entry'); };
       const lineEntryInvocations = require('../sidecar/routing/line-entry-invocation.js').makeEntryInvocation({
         prepare: noEntryWork, checkpoint: noEntryWork, run: noEntryWork, authority: null });
-      const enter = new Function('credStore', 'runWireOfRun', 'overseer', 'runOnceTrackedBelt', 'transcriptStore', 'turnWindow', 'RunTable', 'runTable', 'RunOutcome', 'endedOutcomes', 'failNote', 'lineEntryInvocations', wrapper + '\nreturn runOnce;')(
-        store, o => ({ provider: o.provider }), overseer, tracked, transcriptStore, turnWindow,
+      // TurnView: the queued re-seed joins its rows with TurnView.concat (W1.8), so the compiled wrapper needs the module too
+      const enter = new Function('credStore', 'runWireOfRun', 'overseer', 'runOnceTrackedBelt', 'transcriptStore', 'turnWindow', 'TurnView', 'RunTable', 'runTable', 'RunOutcome', 'endedOutcomes', 'failNote', 'lineEntryInvocations', wrapper + '\nreturn runOnce;')(
+        store, o => ({ provider: o.provider }), overseer, tracked, transcriptStore, turnWindow, require('../sidecar/turn-view.js'),
         RunTable, table, require('../frontend/app/runoutcome.js'), new Map(), () => {}, lineEntryInvocations);
       const pending = enter({ provider: 'custom', key, streamId: 'queued-credential', messages: [{ role: 'user', content: 'continue' }], keyInRequest: kind === 'caller' });
       A.ok(typeof release === 'function', kind + ': the production wrapper reached its queue');
@@ -515,7 +516,7 @@ for (let i = 0; i < 8; i++) LONG.push({ role: 'assistant', content: 'progress no
       'C: ...and each of those credentials is watched on its key, the run\'s own with the run key\'s verdict');
     A.ok(/const toolKeyGone = \(cred, tool\) => \(\) => \{ const id = runWatch\.gone\(cred\); return id \? engineCredentialError\(id, 'this run', tool\) : ''; \};/.test(core), 'C: ...answering with the tool\'s form of the in-flight sentence');
     A.ok(/\n      credentialGone: runKeyGone,/.test(core), 'C: the loop is handed credentialGone');
-    A.ok(/const runKeyGone = adapter => \{ const id = runWatch\.gone\(adapter\); return id \? engineCredentialError\(id, 'this run', true\) : ''; \};/.test(core), 'C: ...answering with the in-flight sentence');
+    A.ok(/const runKeyGone = adapter => \{ const id = runWatch\.gone\(adapter\) \|\| runWatch\.gone\(OneShot\.innerOf\(adapter\)\); return id \? engineCredentialError\(id, 'this run', true\) : ''; \};/.test(core), 'C: ...answering with the in-flight sentence (through a session title\'s one-shot guard too, W3.5: OneShot.innerOf)');
     A.ok(/const keyGone = runKeyGone\(auxVisionProvider\); if \(keyGone\) throw new Error\(keyGone\);/.test(core), 'C: the aux vision call (image_analyze on the run\'s own adapter) asks too');
     A.ok(/const _keyGone = !!runKeyGone\(provider\);\n  if \(_keyGone\) _auxCandidates\.length = 0;/.test(core) && /isTask && !internal && !_keyGone\) \{/.test(core),
       'C: the post-run passes and the parked verdict review, which ride the run\'s adapter, are skipped once its key is gone');

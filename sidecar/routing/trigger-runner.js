@@ -25,7 +25,13 @@
      deps.emit(name, payload), deps.bumpQueue(agentId, d) -> depth, deps.queueCap
      deps.watcher (trigger-folder makeFolderWatcher), deps.now(), deps.newId(), deps.warn(msg)
      deps.label(agentId) -> display name|null     for the sentences the owner reads (lastError)
-     deps.folderConflict(path) -> reason|null  a watched folder inside a line's working folder (checked every fire) */
+     deps.folderConflict(path) -> reason|null  a watched folder inside a line's working folder (checked every fire)
+     deps.unattendedHold(t) -> the hold's words|null   OPTIONAL W3.1 (index.js holdLineStart, origin 'trigger'): a trigger's fire
+                                              is unattended work, asked last in the preflight, so a held fire is said like any
+                                              closed gate (a folder file waits unfired, a webhook is refused, lastError and
+                                              blockedBy say why) and nothing waits to burst out after the reset
+     deps.asUnattended(t, streamId, fn) -> fn()'s result   OPTIONAL W3.1: runs the fire (its entry, its line, a hand-off it
+                                              ships) as the trigger's unattended start, so its usage receipts say who started it */
 'use strict';
 const T = require('./triggers.js');
 const { makeLineRunner } = require('./line-runner.js');
@@ -139,6 +145,13 @@ function makeTriggerRunner(deps) {
     let cap = null;
     try { cap = dayCap(t.lineId); } catch (e) { cap = null; warn('[triggers] day-cap read failed: ' + ((e && e.message) || e)); }
     if (cap && typeof cap.cap === 'number' && cap.cap > 0 && (cap.spent || 0) >= cap.cap) return 'the line reached its $' + cap.cap.toFixed(2) + ' daily limit — it fires again tomorrow';
+    // W3.1 THE UNATTENDED HOLD: armed like a routine and fired by no one, a trigger's fire is unattended work (a check that
+    // throws admits: a hold is said only on a reading the station holds)
+    if (typeof d.unattendedHold === 'function') {
+      let why = null;
+      try { why = d.unattendedHold(t); } catch (e) { why = null; warn('[triggers] unattended hold check failed: ' + ((e && e.message) || e)); }
+      if (why) return String(why);
+    }
     return null;
   }
 
@@ -334,7 +347,9 @@ function makeTriggerRunner(deps) {
     // never leave the OLD "✓ reached the OUTBOX" standing beside the NEW lastFiredAt (sweep 2026-09-25)
     patch(t.id, cur => ({ fires: cur.fires + 1, lastFiredAt: startedAt, lastOutcome: null }));
     const hub = hubFor(t.id, s);
-    const settled = Promise.resolve(hub.onInbound({ chatId: 'trg-' + t.id, userId: 'trigger', text: item.text, chatType: 'dm' }))
+    // W3.1: the fire runs as the trigger's unattended start (its first synchronous slice still runs here, so the resolution below holds)
+    const enter = () => hub.onInbound({ chatId: 'trg-' + t.id, userId: 'trigger', text: item.text, chatType: 'dm' });
+    const settled = Promise.resolve(typeof d.asUnattended === 'function' ? d.asUnattended(t, streamId, enter) : enter())
       .catch(e => ({ error: (e && e.message) || String(e) }));
     // resolution lands in onInbound's first synchronous slice (the one-resolver law); the crate follows it
     const info = s.current.resolved;

@@ -29,6 +29,7 @@ const src = ['function settleRefusedRaise(ids, why)', 'function pushRoster()', '
     Harness: { getProv: () => 'openrouter' },
     StationUI: { setRoster() {}, notify: (m, k) => notes.push(m) },
     liveAgents: () => crew, stationDefaultWire: () => ({ provider: 'openrouter' }), rosterRole: () => 'r', executionProfileOf: () => 'standard', rosterTrack: () => '',
+    effortSourceOf: () => ({}),   // LEANER CREW DEFAULTS off: a row carries no effort marker (crew-defaults.invariant holds it on)
     agents: new Map(crew.map(a => [a.id, a])), agent: crew[0], persist: () => true
   });
   vm.runInContext('let lastRosterPush = Promise.resolve(); let rosterPushFailed = false; let rosterRefusal = null; let rosterAccepted = new Map(); const pendingRaise = new Set(); const pendingProfileRaise = new Set(); const NARROW_EXECUTION_PROFILES = ["station-gear", "safe-cell"];\n' + src +

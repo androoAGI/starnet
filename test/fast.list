@@ -56,6 +56,8 @@ test/project-memory-boundary.test.js
 test/memory-truth.test.js
 test/memory-truth.table.test.js
 test/learning-eligibility.matrix.test.js
+test/learning-cooldown.test.js
+test/oneshot-model.test.js
 test/memory-rank.tokenize-once.test.js
 test/memcore.test.js
 test/cost.test.js
@@ -187,6 +189,7 @@ test/claude-cli-text-protocol.test.js
 test/claude-cli-persist.test.js
 test/claude-cli-persist-review.test.js
 test/claude-cli-persist-loop.test.js
+test/claude-cli-cache-keepers.test.js
 test/claude-cli-lifecycle.test.js
 test/provider-accounts.test.js
 test/claude-cli-login.test.js
@@ -201,6 +204,10 @@ test/provider.registry.test.js
 test/managed-cache.test.js
 test/ratelimits.test.js
 test/sub-usage.test.js
+test/usage-receipts.test.js
+test/usage-receipts.invariant.test.js
+test/cache-ttl.invariant.test.js
+test/crew-defaults.invariant.test.js
 test/provider.codex-auth.test.js
 test/purge-leaked-codex-tokens.test.js
 test/provider.oauth-device.test.js
@@ -240,6 +247,7 @@ test/auto-steer.test.js
 test/loop.verify-on-stop.test.js
 test/loop.acceptance-on-stop.test.js
 test/loop.parallel-tools.test.js
+test/loop.batch-order.test.js
 test/loop.tool-images.test.js
 test/loop.media-cost.test.js
 test/loop.cached-tokens.test.js
@@ -664,6 +672,7 @@ test/media-project-placement.test.js
 test/conveyor-image-handoff.test.js
 test/delegated-command-gap.test.js
 test/authority-census.test.js
+test/dormant-followups.test.js
 test/register-impact.test.js
 test/process-operation-copy.test.js
 test/channel-tools-readout.test.js
@@ -702,6 +711,7 @@ test/world-say-head.test.js
 test/taskintent.test.js
 test/taskbrief.clarify.test.js
 test/taskbrief.answer-hold.test.js
+test/taskbrief.settle-first.test.js
 test/understandingstore.test.js
 test/study.test.js
 test/goals.test.js
@@ -793,6 +803,8 @@ test/nightshift.test.js
 test/nightshift-driver.test.js
 test/nightshift-localday.test.js
 test/nightshift-decline-edge.test.js
+test/unattended-admission.test.js
+test/unattended-hold.test.js
 test/contextpack.test.js
 test/nightreport.test.js
 test/nightshift-chosen-autonomy.test.js
@@ -992,6 +1004,7 @@ test/recruit-identity-ui.test.js
 test/subagents.test.js
 test/orchestration.test.js
 test/delegation-refusal-177.test.js
+test/worker-prefix.test.js
 test/builder-lend.test.js
 test/crew-call.test.js
 test/crew-diet.test.js
@@ -1571,6 +1584,7 @@ test/cli-link.test.js
 test/cli-path-hook.test.js
 test/loop.truncated-args-refuse.test.js
 test/loop.verify-on-stop-failed-check.test.js
+test/loop-truth.invariant.test.js
 test/loop.grace-no-tools.test.js
 test/loop.batch-dedupe.test.js
 test/errorclass.overflow-phrasings.test.js
@@ -1732,6 +1746,10 @@ test/needs-you-bell-settle.test.js
 test/org-crew-comms.test.js
 test/internal-run-not-working.test.js
 test/aux-effort.test.js
+test/skillreview-diet.test.js
+test/skillreview-cause.test.js
+test/effort-dial-copy.test.js
+test/effort-as-sent.test.js
 test/starter-drift.test.js
 test/openrouter-effort-heal.test.js
 test/stop-truth.test.js
@@ -1823,3 +1841,8 @@ test/taint-standing-files.test.js
 test/shell-taint-hooks.test.js
 test/exact-command-grants.test.js
 test/remote-pair-secret.test.js
+test/history-edit.test.js
+test/history-edit.invariant.test.js
+test/cross-run-replay.test.js
+test/batched-ageing.test.js
+test/batched-ageing.invariant.test.js

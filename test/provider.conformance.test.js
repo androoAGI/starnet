@@ -22,9 +22,10 @@
      D. a chat template that still refuses (template_refusal): one resend with no system message, remembered; a Jinja
         500 that refuses everything ends the turn after two requests, naming the template — never the server_error ladder;
         a hosted API's own role validator and a template ENGINE failure are not template refusals;
-     KNOWN GAPS, pinned so the fix that closes one flips its assertion: E17 (a binding model's thinking blocks dropped when
-        a stop control empties the tool set — the prefix-stability lane, PW-4) and Mistral's validator (nothing but an
-        assistant turn may follow a tool result, so a host note there is refused — Andrew's call how to carry it);
+     KNOWN GAP, pinned so the fix that closes it flips its assertion: Mistral's validator (nothing but an assistant turn
+        may follow a tool result, so a host note there is refused — Andrew's call how to carry it). E17 (a binding model's
+        thinking blocks dropped when a stop control empties the tool set, PW-4) is closed: the history-edit resolver
+        (W1.7) strips what the change invalidated before the request, so nothing is dropped;
      E. the whole suite runs in under 30 s.
    No network, no sidecar, no keys: real vendor acceptance is NOT exercised here (the simulators encode the published
    rules and the refusals users reported). */
@@ -198,12 +199,13 @@ async function runScenario(ad) {
       A.ok(usage.length >= 2, label + ': the loop booked each turn\'s usage');
     }
     if (sim.state.dropped) console.log('[conformance] ' + label + ': the server dropped ' + sim.state.dropped + ' replayed thinking block(s) after a prefix change (block_binding drop_block)');
-    /* KNOWN GAP — E17, the prefix-stability lane (PW-4). A stop control (probe_stop) empties the tool set mid-run, which
-       changes the prefix a binding model's thinking signatures cover, so the server drops every replayed thinking block
-       from then on (block_binding drop_block keeps the request from being refused). Pinned, not hidden: when the
-       tool set stops changing mid-run this assertion FAILS — the gap is closed; make it assert 0. */
-    if (ad.simOpts && ad.simOpts.bindsThinking) A.ok(sim.state.dropped > 0, label + ': KNOWN GAP E17 / PW-4 still open — a stop control empties the tool set and the server drops ' + sim.state.dropped + ' replayed thinking block(s); if this fails, the gap is closed: assert 0');
-    else A.eq(sim.state.dropped, 0, label + ': no replayed thinking block was dropped');
+    /* E17 / PW-4, CLOSED by the history-edit resolver (W1.7). A stop control (probe_stop) empties the tool set mid-run, which
+       changes the prefix a binding model's thinking signatures cover: the server used to drop every replayed thinking block
+       from then on (block_binding drop_block kept the request from being refused), the turns after the change included.
+       The loop's request view now strips exactly the blocks that change invalidated, before the request, so the server has
+       nothing to drop and every block produced after the change replays (history-edit.invariant.test.js proves which). The
+       reasoning from before the change still does not go back: the tool set still changes mid-run. */
+    A.eq(sim.state.dropped, 0, label + ': no replayed thinking block was dropped' + (ad.simOpts && ad.simOpts.bindsThinking ? ' (E17: what the emptied tool set invalidated is stripped before the request)' : ''));
     // no request ever left with a role the wire refuses at its end
     A.ok(accepted.every(r => r.violations.length === 0), label + ': every request met the contract');
   }

@@ -26,6 +26,8 @@
   const runCommand = shell.runCommand, escapesWorkspace = shell.escapesWorkspace,
     commandSafetyRisk = shell.commandSafetyRisk, safeAgentId = shell.safeAgentId, resolveShellCwd = shell.resolveShellCwd;
   const interpret = verifyCore.interpret;
+  // a cut check output keeps its head AND its tail inside the same cap (history-edit headTail, W1.7); a browser copy keeps the head
+  const headTail = (typeof require === 'function') ? require('../../history-edit.js').headTail : function (s, max) { s = String(s); return s.length > max ? s.slice(0, max) : s; };
   const RunPaths = typeof require === 'function' ? require('../../run-paths.js') : null;
   const WIN = (typeof process !== 'undefined' && process.platform) === 'win32';
   function clamp(n, lo, hi) { n = Number(n); if (!isFinite(n)) return lo; return Math.max(lo, Math.min(hi, n)); }
@@ -94,14 +96,16 @@
           : runCommand({ spawn: spawn, cmd: cmd, cwd: cwd, timeoutMs: timeoutMs, maxBytes: MAX_BYTES, signal: ctx.signal, clock: { now: now }, isWin: isWin, env: ownEnv || undefined }); });
         return run.then(function (res) {
           const verdict = interpret(res);
-          const body = redact(res.out || '(no output)');
+          // HEAD AND TAIL (W1.7, as shell.exec): a cut check output keeps its end, where the failing tests and the summary line are
+          const fullText = res.truncated && typeof res.fullOut === 'string' ? redact(res.fullOut || '(no output)') : null;
+          const body = fullText != null && res.fullOut ? headTail(fullText, MAX_BYTES) : redact(res.out || '(no output)');
           // the bounded capture (output-capture.js) dropped the middle of a huge output: say so, never imply the saved copy is whole
           const elided = Number(res.fullOutElided) > 0 ? Number(res.fullOutElided) : 0;
           const content = (verdict.passed ? '✓ PASSED' : '✗ FAILED') + ' — `' + cmd + '`\n' + body
             + '\n[exit ' + res.exitCode + (res.truncated ? ', output truncated' : '') + (elided ? ', ' + elided + ' characters from the middle of the output were not kept' : '')
             + (res.timedOut ? ', TIMED OUT' : '') + ']';
           const fullContent = res.truncated && typeof res.fullOut === 'string'
-            ? (verdict.passed ? '✓ PASSED' : '✗ FAILED') + ' — `' + cmd + '`\n' + redact(res.fullOut || '(no output)')
+            ? (verdict.passed ? '✓ PASSED' : '✗ FAILED') + ' — `' + cmd + '`\n' + fullText
               + '\n[exit ' + res.exitCode + (res.timedOut ? ', TIMED OUT' : '') + ']'
             : undefined;
           try {

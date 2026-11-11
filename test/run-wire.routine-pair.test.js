@@ -192,7 +192,8 @@ A.eq(api.routineWireRow(jobs[4]), null, 'a script-only routine shows no pair: it
 {
   const loopDeps = Object.assign({}, deps, {
     fs: { existsSync: () => true }, isBlessedRoot: () => true, loopJobs: [],
-    cronHasCredential: () => true, cronKeyFor: () => 'sk-or'
+    cronHasCredential: () => true, cronKeyFor: () => 'sk-or',
+    unattendedHold: () => null   // W3.1: no window reading and no rail here (the hold's own proof: unattended-hold + unattended-hold.e2e)
   });
   const names = ['runWireEnv', 'runWireFor', 'runWireOfRun', 'routineWireOf', 'cronWireFor', 'cronProviderFor', 'loopPrecheck'];
   const L = new Function(...Object.keys(loopDeps), names.map(n => sidecarFunctionSource(n)).join('\n') + '\nreturn { ' + names.join(', ') + ' };')(...Object.values(loopDeps));

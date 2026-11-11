@@ -256,7 +256,8 @@ const SEED = {
   A.ok(/const grounding = \[evidenceCtx\.goalNote, dossierBlock,/.test(qref) && qref.indexOf('JSON.stringify(evidenceCtx.progress)') >= 0, 'P6: the quest-refresh veto reads the SAME scrubbed evidence object');
   A.ok(/PromptScrub\.setHeldSource\(/.test(all) && /stationSecretValues\(\{ credentialUnder: \['headers', 'env'\] \}\)/.test(all), 'P6: the prompt held list is the CREDENTIAL list (connector header/env values only when they are credentials)');
   A.ok(/let system = PromptScrub\.scrubStored\(rawSystem\);/.test(core), 'P6: the persona system prompt is scrubbed at runOnceCore\'s intake (the page bakes the raw dossier into it)');
-  A.ok(/cacheSystemPrefix \+ PromptScrub\.scrubStored\(stationEvidenceBlock \+/.test(core) && /withQuests\(taskSystem, PromptScrub\.scrubStored\(questsBlock\)\)/.test(core), 'P6: STABLE_PREFIX=0 gets the same belt over its per-run blocks');
+  A.ok(/cacheSystemPrefix \+ PromptScrub\.scrubStored\(delegatedBlock \+ stationEvidenceBlock \+/.test(core) && /withQuests\(taskSystem, PromptScrub\.scrubStored\(questsBlock\)\)/.test(core), 'P6: STABLE_PREFIX=0 gets the same belt over its per-run blocks');
+  A.ok(/const delegatedBlock = [^;]*PromptScrub\.scrubStored\(o\.delegatedContext\.trim\(\)\)/.test(core), 'P6: a delegated run\'s [TASK CONTEXT] block is scrubbed where it is composed (the internal path appends it to its system)');
   A.ok(titleOwner.indexOf('keys), { whole: true })') >= 0, 'P6: the run title (uncut there) skips the cut-key pass');
   A.ok(/const auxProvider = PromptScrub\.guardRequest\(provider\);/.test(core) && !/runReflection\(\{[^}]*\bprovider,/.test(core) && (core.match(/provider: auxProvider/g) || []).length >= 7, 'P6: post-run aux passes resend the run\'s messages through a FRESH held snapshot');
   A.ok(/PromptScrub\.scrubStored\(m\.content\)/.test(S.sidecarFunctionSource('nightshiftChat')), 'P6: every night directive is scrubbed whole as a belt');

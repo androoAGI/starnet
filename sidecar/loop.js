@@ -25,6 +25,9 @@
   // fold-fidelity helpers (verbatim user section, usage anchor, provider-reported window). Node-only like failopen;
   // absent (a browser build that never runs the loop) = compaction stays off rather than folding unfaithfully.
   const fidelity = (typeof require === 'function') ? require('./compaction-fidelity.js') : null;
+  // THE ONE HISTORY-EDIT RESOLVER (W1.7): the request view that strips only the thinking an edit invalidated, and the
+  // elision stub that keeps a handle. Node-only like fidelity: absent, requests go out as before and nothing folds.
+  const HistoryEdit = (typeof require === 'function') ? require('./history-edit.js') : null;
   const SteeringMessage = (typeof require === 'function') ? require('../frontend/app/steering-message.js') : null;
   // the per-run <run_context> note's predicate (providers/provider.js owns the fence) — compaction pins that note
   const isRunContextNote = (typeof require === 'function') ? require('./providers/provider.js').isRunContextNote : null;
@@ -184,6 +187,27 @@
     return true;
   }
 
+  /* A HOST-CHOSEN RUN ORDER for a sequential batch (cost audit W1.2, 2026-11-08). A gate can read state that another call
+     in the SAME batch changes: the Task Brief gate holds a write until brief_proceed has run, so a model that listed its
+     write first paid a whole extra request to make it again. The loop cannot know which calls unlock which, so the host
+     injects the order (o.batchOrder, index.js briefFirstOrder) the way it injects parallelSafe; the loop only accepts an
+     exact permutation of the batch and runs the listed order on anything else. What the MODEL sees never moves: its
+     assistant turn keeps the calls as listed, and the results go back in that same order (inCallOrder). No injected
+     order = the listed order, byte-identical to before. */
+  function batchRunOrder(calls, orderFn) {
+    if (typeof orderFn !== 'function' || calls.length < 2) return calls;
+    let order = null;
+    try { order = orderFn(calls); } catch (e) { failNote('loop.batchOrder', e); return calls; }
+    if (order === calls || !Array.isArray(order) || order.length !== calls.length) return calls;
+    const left = new Set(calls);
+    for (const c of order) if (!left.delete(c)) return calls;   // a stranger or a repeat: not a permutation
+    return order;
+  }
+  function inCallOrder(results, calls) {
+    const at = new Map(calls.map((c, i) => [c.id, i]));
+    return results.slice().sort((a, b) => at.get(a.callId) - at.get(b.callId));
+  }
+
   /* PER-TURN AGGREGATE OUTPUT BUDGET.
      tools/registry.js caps each result on its own (80k). That was enough while calls ran strictly one at a
      time — the model saw a big result and could choose to narrow the next call. Parallel batches removed that
@@ -228,6 +252,8 @@
       }
       return content.slice(0, budget - short.length) + short;
     }
+    // the registry's 70/30 cut, through the one implementation (history-edit headTail: never splits a surrogate pair)
+    if (HistoryEdit) return HistoryEdit.headTail(content, room, () => note);
     const head = Math.floor(room * 0.7), tail = room - head;
     return content.slice(0, head) + note + content.slice(content.length - tail);
   }
@@ -281,7 +307,7 @@
         const r = results[i];
         if (give >= r.content.length || r.parkedPath) continue;
         let p = null;
-        try { p = await capCtx.parkOutput(r.content, { tool: nameOf.get(r.callId) || 'tool', reason: 'turn-output-budget' }); }
+        try { p = await capCtx.parkOutput(r.content, Object.assign({ tool: nameOf.get(r.callId) || 'tool', reason: 'turn-output-budget' }, provenanceOf(r))); }
         catch (e) { failNote('loop.turnBudget.park', e); p = null; }
         if (p && p.path) results[i] = Object.assign({}, r, { parkedPath: String(p.path) });
       }
@@ -297,14 +323,21 @@
      capture turn's text label), the run journal and the compaction drain all keep seeing the message objects
      exactly as before, so nothing durable changes and a recovered run evicts the same way. Once a capture falls
      out of the newest `keep` it stays out, so the request prefix is stable turn to turn (prompt caching holds).
-     Returns `messages` ITSELF when nothing is evicted — byte-identical requests for every run without captures. */
+     Returns `messages` ITSELF when nothing is evicted — byte-identical requests for every run without captures.
+     IN STEPS (cost audit W1.9, 2026-11-08): aging one capture out at each new one changed the request at that capture
+     every time, so every capture past the `keep`-th re-wrote the prompt cache from there to the end (the kept captures'
+     pixels included). Captures now age out `step + 1` at a time: between `keep` and `keep + step` capture turns ride as
+     pixels, and the prefix changes once every `step + 1` captures. step 0 (or keep 0) = one at a time, as before.
+     A provider that holds the run's history itself (claude-cli's persistent child, holdsHistory) gets no eviction until
+     its view holds HELD_IMAGE_TURNS capture turns: inside a live child every edited earlier message costs a fresh child
+     that rewrites the whole run. */
   function isScreenCapture(m) {
     if (!m || m.role !== 'user' || !Array.isArray(m.content) || !m.content.length) return false;
     const first = m.content[0];
     if (!first || typeof first.text !== 'string' || !TurnKinds || TurnKinds.classify({ role: 'user', content: first.text }).kind !== 'capture') return false;
     return m.content.some(p => p && p.type === 'image_url');
   }
-  function screenshotPlaceholder(m, keep, meta) {
+  function screenshotPlaceholder(m, keep, meta, stepped) {
     const imgs = m.content.filter(p => p && p.type === 'image_url');
     let chars = 0;
     const mimes = [];
@@ -318,19 +351,29 @@
     const by = meta && Array.isArray(meta.tools) && meta.tools.length ? ' returned by ' + meta.tools.join(', ') : '';
     const at = meta && meta.turn ? ' on turn ' + meta.turn : '';
     return '[earlier screen capture removed from view to save context: ' + imgs.length + ' image' + (imgs.length === 1 ? '' : 's')
-      + ' (' + (mimes.join(', ') || 'image') + ', ~' + kb + ' KB)' + by + at + '. Only the ' + keep + ' most recent screen capture'
-      + (keep === 1 ? '' : 's') + ' stay' + (keep === 1 ? 's' : '') + ' visible as pixels; the tool results above still say what was captured. '
+      + ' (' + (mimes.join(', ') || 'image') + ', ~' + kb + ' KB)' + by + at + '. Only the '
+      // stepped: how many stay varies between steps, and a placeholder must read the same on every later request
+      + (stepped ? 'most recent screen captures stay' : keep + ' most recent screen capture' + (keep === 1 ? '' : 's') + ' stay' + (keep === 1 ? 's' : ''))
+      + ' visible as pixels; the tool results above still say what was captured. '
       + 'Take a new screenshot if you need to see the screen again.]';
   }
-  function evictStaleScreenshots(messages, keep, metaOf) {
+  // How many of the oldest of `n` capture turns are out of view (see IN STEPS above).
+  function evictedCaptures(n, keep, step) {
+    if (!(keep >= 0) || n <= keep) return 0;
+    const k = keep > 0 && step > 0 ? Math.floor(step) + 1 : 1;
+    return Math.floor((n - keep) / k) * k;
+  }
+  function evictStaleScreenshots(messages, keep, metaOf, step) {
     if (!Array.isArray(messages) || !(keep >= 0)) return messages;
     const idx = [];
     for (let i = 0; i < messages.length; i++) if (isScreenCapture(messages[i])) idx.push(i);
-    if (idx.length <= keep) return messages;
+    const gone = evictedCaptures(idx.length, keep, step);
+    if (!gone) return messages;
+    const stepped = keep > 0 && step > 0;
     const out = messages.slice();
-    for (const i of idx.slice(0, idx.length - keep)) {
+    for (const i of idx.slice(0, gone)) {
       const m = messages[i];
-      out[i] = Object.assign({}, m, { content: screenshotPlaceholder(m, keep, typeof metaOf === 'function' ? metaOf(m) : null) });
+      out[i] = Object.assign({}, m, { content: screenshotPlaceholder(m, keep, typeof metaOf === 'function' ? metaOf(m) : null, stepped) });
     }
     return out;
   }
@@ -348,6 +391,18 @@
   // a HOST refusal's own reason (registry.js refusalReason) rides its tool_result, so the tool's line says why instead
   // of a bare "✗ error" (run-paths-polish P2); the host scrubs host paths out of it before it is shown (index.js loopEmit)
   const refusalOf = r => (r && r.isError && typeof r.reason === 'string' && r.reason ? { reason: r.reason } : {});
+  /* PROVENANCE RIDES THE RESULT (W1.7). A later elision may park this body (history-edit elideToolResult), and a park
+     must know what the registry knew: words quoted from another session are never written to a workspace file, and a
+     relayed taint names the file untrusted. Additive and only when present, so every other result is unchanged. */
+  const provenanceOf = r => {
+    const out = {};
+    if (r && Array.isArray(r.quotedStreams) && r.quotedStreams.length) out.quotedStreams = r.quotedStreams.slice();
+    if (r && typeof r.taintedBy === 'string' && r.taintedBy) out.taintedBy = r.taintedBy;
+    return out;
+  };
+  // where a command ran, as the shell itself reports it (shell.exec ranIn, host-minted, never content): verify-on-stop
+  // resolves a run's script against it (LOOP TRUTH). Kept on the loop's result only — the transcript never sees it.
+  const ranInOf = r => (r && typeof r.ranIn === 'string' && r.ranIn ? { ranIn: r.ranIn } : {});
 
   /* A HIDDEN TOOL'S ERROR IS NOT NEWS FOR THE COMMANDER (rc walk 2026-10-14). The Task Brief tools draw no chip, so a model that
      narrated fixing one ("Let me fix that—sources needs to be an array:", "Let me correct that:") put a sentence in COMMS about
@@ -389,7 +444,7 @@
         return { c, r, ms: Math.max(0, (meta.clock ? meta.clock.now() : 0) - t0) };
       }));
       for (const s of settled) {
-        results.push({ callId: s.c.id, isError: !!s.r.isError, ok: !!s.r.ok, content: s.r.content, summary: s.r.summary || (s.r.isError ? 'error' : 'ok'), control: s.r.control || null, images: s.r.images || null, parkedPath: s.r.parkedPath || null, ...(s.r.outputElided > 0 ? { outputElided: s.r.outputElided } : {}), ...(s.r.quietRepair ? { quietRepair: true } : {}) });
+        results.push({ callId: s.c.id, isError: !!s.r.isError, ok: !!s.r.ok, content: s.r.content, summary: s.r.summary || (s.r.isError ? 'error' : 'ok'), control: s.r.control || null, images: s.r.images || null, parkedPath: s.r.parkedPath || null, ...(s.r.outputElided > 0 ? { outputElided: s.r.outputElided } : {}), ...(s.r.quietRepair ? { quietRepair: true } : {}), ...provenanceOf(s.r), ...ranInOf(s.r) });
         if (meta.hiddenTools && meta.hiddenTools.has(s.c.name)) continue;
         emit('agent.tool_result', {
           agentId: meta.agentId, runId: meta.runId, callId: s.c.id, ok: !!s.r.ok,
@@ -399,7 +454,9 @@
       return parkForTurnBudget(results, calls, capCtx, meta.turnOutputMax);
     }
 
-    for (const c of calls) {
+    // the host may run this batch in another order (batchRunOrder: the Task Brief settle before the calls it unlocks)
+    const order = batchRunOrder(calls, meta.batchOrder);
+    for (const c of order) {
       if (finalControl) {
         results.push({ callId: c.id, isError: true, ok: false, content: 'skipped: the Task Brief paused for the Commander', summary: 'skipped', control: null });
         continue;
@@ -432,7 +489,7 @@
       }
       r = quietHiddenError(c, r || { ok: false, isError: true, content: 'tool returned nothing', summary: 'error' }, meta);
       const t1 = meta.clock ? meta.clock.now() : 0;
-      results.push({ callId: c.id, isError: !!r.isError, ok: !!r.ok, content: r.content, summary: r.summary || (r.isError ? 'error' : 'ok'), control: r.control || null, images: r.images || null, parkedPath: r.parkedPath || null, ...(r.outputElided > 0 ? { outputElided: r.outputElided } : {}), ...(r.quietRepair ? { quietRepair: true } : {}) });
+      results.push({ callId: c.id, isError: !!r.isError, ok: !!r.ok, content: r.content, summary: r.summary || (r.isError ? 'error' : 'ok'), control: r.control || null, images: r.images || null, parkedPath: r.parkedPath || null, ...(r.outputElided > 0 ? { outputElided: r.outputElided } : {}), ...(r.quietRepair ? { quietRepair: true } : {}), ...provenanceOf(r), ...ranInOf(r) });
       if (r.control && r.control.final) finalControl = r.control;
       if (r.control && r.control.stopTools) stopToolsControl = r.control;
       if (!hidden) emit('agent.tool_result', {
@@ -440,7 +497,7 @@
         ms: Math.max(0, t1 - t0), summary: r.summary || (r.isError ? 'error' : 'ok'), isError: !!r.isError, ...refusalOf(r)
       });
     }
-    return parkForTurnBudget(results, calls, capCtx, meta.turnOutputMax);
+    return parkForTurnBudget(order === calls ? results : inCallOrder(results, calls), calls, capCtx, meta.turnOutputMax);
   }
 
   // Pure heuristic for the continuation guard: does a final, tool-free text ANNOUNCE work the model never did?
@@ -677,6 +734,253 @@
     }
     return !exitEvidenceFailed(content, summary);
   }
+  /* LOOP TRUTH (cost plan W1.11, 2026-11-09). A stop nudge buys the model another paid turn, and what it says is a HOST
+     statement: it may state only what this run's own ledger proves. Two premises were false — "ending without running
+     anything" after a run the host itself stamped [exit 0] (or KILLED), and "the previous path failed" for a call the Task
+     Brief gate HELD, where nothing ran — so both are worded here, from the ledger, by ONE resolver (nudgePremise).
+
+     A SIMPLE INTERPRETER RUN IS EVIDENCE FOR THE FILE IT RAN. `node hello.js` exiting 0 proves more about hello.js than
+     `node --check hello.js`, which has always cleared the ledger: the file ran to completion. It speaks for THAT file only
+     (a run of a.js vouches for nothing about b.js), and only when the host can prove both halves:
+       · WHICH FILE RAN — resolved paths, never names (review round 1: a suffix match let `node index.js` at the root clear
+         a changed src\index.js, and a persistent `cd` did the same). The script resolves against the folder the shell
+         itself reports it ran in (shell.exec's `ranIn`: the local backend only, already counting a cwd argument and this
+         run's `cd`); the changed file against the run's own base (capCtx.paths.base(): what a relative fs path means in
+         this run, run-paths.js). No `ranIn` (a sandbox backend, a stub), no base, or a path the shell expands (~, $VAR,
+         %VAR%, a glob) = unresolvable = it proves nothing. A same-named file anywhere else never matches.
+       · HOW IT ENDED — the host's own receipt (the last [exit …] marker, else the "exit N (…)" summary).
+     Never evidence: a pipe, chain or subshell (the exit code is not the file's), inline code (-e, -c, -m), a background
+     start (no exit yet), or no receipt at all. A run of a changed file that exits non-zero or is KILLED did NOT pass.
+     EVIDENCE HAS A RANK, IN WHATEVER ORDER IT ARRIVES (review round 1: a clean `node src/app.js` erased a failed `npm test`
+     run before it; round 2: it hid a failed one run after it). A check of the whole change (verify_run, a test/build/lint
+     command) speaks for every changed file; a run speaks for its own file. Only a passing whole-change check lets the
+     ledger forget: a file a run proved stays proven BY A RUN, so a later failing whole-change check, or a later failing run
+     of that same file, puts it back on the list. A failing whole-change check stands until a whole-change check passes: a
+     clean run of one file replaces neither it nor the file's debt. A failing run of a file stands until that file runs
+     clean or a whole-change check passes. A patch file is the patch check's: a passing `git apply --check` proves it, and a
+     failing project check (which does not run an unapplied patch) neither keeps it owed nor puts it back. makeVosLedger
+     holds these rules; nudgePremise words what it holds. */
+  // inline: the code is not a file (abort); value: a flag that takes the next token; chdir: the interpreter moves to another
+  // folder before it opens the script, so the script no longer resolves against ranIn (abort: which file ran is unknown)
+  const VOS_INTERPRETERS = {
+    node: { inline: /^(?:-e|--eval|-p|--print|-i|--interactive|-c|--check|--test|-v|--version|-h|--help)$/, value: /^(?:-r|--require|--import|--loader|--experimental-loader|-C|--conditions)$/ },
+    python: { inline: /^(?:-c|-m|-i|-h|--help|-V|--version)$/, value: /^(?:-W|-X)$/ },
+    bash: { inline: /^(?:-c|-s|-i)$/, value: /^(?:-o|\+o)$/ },
+    ruby: { inline: /^(?:-e|-i|-h|--help|-v|--version)$/, value: /^(?:-r|-I)$/, chdir: /^-[Cx]/ },
+    php: { inline: /^(?:-r|-a|-h|-v)$/, value: /^(?:-c|-d)$/ },
+    deno: { sub: 'run', inline: /^$/, value: /^$/ },
+    bun: { sub: 'run?', inline: /^(?:-e|--eval|-p|--print)$/, value: /^$/, chdir: /^--cwd(?:=|$)/ },
+    go: { sub: 'run', inline: /^$/, value: /^$/, chdir: /^-C/ }
+  };
+  VOS_INTERPRETERS.python3 = VOS_INTERPRETERS.py = VOS_INTERPRETERS.python;
+  VOS_INTERPRETERS.sh = VOS_INTERPRETERS.bash;
+  const VOS_REDIRECT_RE = /\s+(?:\d?>>?\s*&\d\b|\d?>>?\s*(?:"[^"]*"|'[^']*'|[^\s|&;<>]+)|<\s*(?:"[^"]*"|'[^']*'|[^\s|&;<>]+))/g;
+  // The interpreter and the script a simple interpreter command runs: { exe, script }, or null for anything else.
+  function vosInterpreterTarget(args) {
+    if (!args || typeof args !== 'object') return null;
+    const cmd = String(args.command || args.cmd || args.script || '').trim();
+    if (!cmd || /[\r\n]/.test(cmd)) return null;
+    const bare = (' ' + cmd).replace(VOS_REDIRECT_RE, ' ');
+    if (/[|&;<>`]|\$\(/.test(bare)) return null;
+    const tokens = [];
+    for (const m of bare.matchAll(/"([^"]*)"|'([^']*)'|(\S+)/g)) tokens.push(m[1] != null ? m[1] : (m[2] != null ? m[2] : m[3]));
+    let i = 0;
+    while (i < tokens.length && /^[A-Za-z_][A-Za-z0-9_]*=/.test(tokens[i])) i++;
+    const exe = String(tokens[i++] || '').split(/[\\/]/).pop().toLowerCase().replace(/\.(?:exe|cmd|bat)$/, '');
+    const spec = Object.prototype.hasOwnProperty.call(VOS_INTERPRETERS, exe) ? VOS_INTERPRETERS[exe] : null;
+    if (!spec) return null;
+    if (spec.sub === 'run' && tokens[i++] !== 'run') return null;
+    if (spec.sub === 'run?' && tokens[i] === 'run') i++;
+    for (; i < tokens.length; i++) {
+      const t = tokens[i];
+      if (!/^[-+]/.test(t) || t === '-') break;
+      if (spec.inline.test(t.split('=')[0]) || (spec.chdir && spec.chdir.test(t))) return null;
+      if (spec.value.test(t)) i++;
+    }
+    const script = tokens[i] || '';
+    return script && script !== '-' && !/^[a-z][a-z0-9+.-]*:\/\//i.test(script) ? { exe, script } : null;
+  }
+  /* The absolute, comparable form of path `p`, resolved against the absolute folder `dir` when `p` is relative; '' when
+     that cannot be known (a relative path with no absolute `dir`, a drive-relative C:foo, a network path). A drive path is
+     a Windows path and compares case-insensitively; any other path keeps its case (Hello.js is not hello.js there). */
+  const VOS_ABS_RE = /^(?:[a-z]:\/|\/(?!\/))/i;
+  function vosAbsPath(p, dir) {
+    let s = String(p == null ? '' : p).trim().replace(/\\/g, '/');
+    if (!s || /^\/\//.test(s) || /^[a-z]:(?!\/)/i.test(s)) return '';
+    if (!VOS_ABS_RE.test(s)) {
+      const d = String(dir == null ? '' : dir).trim().replace(/\\/g, '/');
+      if (!VOS_ABS_RE.test(d)) return '';
+      s = d + '/' + s;
+    }
+    const root = VOS_ABS_RE.exec(s)[0];
+    const out = [];
+    for (const seg of s.slice(root.length).split('/')) {
+      if (!seg || seg === '.') continue;
+      if (seg === '..') out.pop(); else out.push(seg);
+    }
+    const abs = root + out.join('/');
+    return /^[a-z]:\//i.test(abs) ? abs.toLowerCase() : abs;
+  }
+  // a script token the shell rewrites before the interpreter sees it (home, a variable, a glob): which file ran is unknowable
+  const VOS_SHELL_EXPANDS_RE = /^~|[$%*?[{!]/;
+  /* Does a run of `script` by interpreter `exe`, in the folder the shell reports (`ranIn`), run the changed file `touched`
+     (as the model named it, which means a path under the run's `base` when relative)? Resolved paths only: never a
+     namesake, never a guess. `node app` runs app.js (node's own entry lookup); no other interpreter adds an extension. */
+  function vosRunsPath(script, touched, ranIn, base, exe) {
+    if (!ranIn || VOS_SHELL_EXPANDS_RE.test(String(script == null ? '' : script).trim())) return false;
+    const s = vosAbsPath(script, ranIn), t = vosAbsPath(touched, base);
+    if (!s || !t) return false;
+    return s === t || (exe === 'node' && !/\.[^/.]*$/.test(s.slice(s.lastIndexOf('/') + 1)) && s + '.js' === t);
+  }
+  // the host's own receipt that a command ran to completion and exited 0
+  function vosExitZero(result) {
+    if (!result || !result.ok || result.isError) return false;
+    const marker = lastExitMarker(String(result.content == null ? '' : result.content));
+    if (marker) return /^0$/.test(marker.code) && !/KILLED|TIMED\s*OUT/i.test(marker.rest);
+    return /^\s*exit\s+0\b/i.test(String(result.summary == null ? '' : result.summary));
+  }
+  // a shell / verify call RAN when it succeeded or carries the host's exit receipt (a KILLED command is an error that ran)
+  const vosRan = result => !!result && ((result.ok && !result.isError) || !!lastExitMarker(String(result.content == null ? '' : result.content)));
+  /* what the ledger keeps about a command that ran (the verify premise names it for the code it is no check of), or null
+     when it did not run: a background start ran only when the shell's own receipt says so ('bg started …'), never when
+     the shell refused it ('bg refused': too many background processes) or could not make one ('unavailable'). */
+  function vosRanNote(label, args, result) {
+    const cmd = clip(String(label || 'shell_exec'), 60);
+    if (args && args.background === true) return /^\s*bg started\b/i.test(String(result && result.summary != null ? result.summary : '')) ? { cmd, exit: '', background: true } : null;
+    const marker = lastExitMarker(String(result && result.content != null ? result.content : ''));
+    if (marker) return { cmd, exit: marker.code, killed: /KILLED|TIMED\s*OUT/i.test(marker.rest) };
+    const sm = /^\s*exit\s+(\S+)/i.exec(String(result && result.summary != null ? result.summary : ''));
+    return { cmd, exit: sm ? sm[1] : '' };
+  }
+  /* THE VERIFY-ON-STOP LEDGER: what this run has proven about the code it changed (one resolver for every rule in LOOP
+     TRUTH above; pure — the loop feeds it what each call did, nudgePremise words what it holds).
+       change(path)               a code path was changed (as the model named it)
+       check(scope, passed, cmd)  a whole-change check ran: scope 'all', or 'patch' (git apply --check: patch files only)
+       run(paths, passed, cmd)    a run of these changed paths ended, passed or not (the host's receipt)
+       ran(note)                  a command ran ({ cmd, exit, killed?, background? }); the premise lists it only while no
+                                  failure stands, so only for code it is no check of (a file it proved is no longer owed)
+       facts()                    -> { failedCheck, passedSince, ran, ranEarlier }: nudgePremise's input
+     A changed path is OWED, PROVEN BY A RUN of it since its last change, or FORGOTTEN (a whole-change check passed since its
+     last change, or a patch check proved the patch file). A failing check is kept per scope ('all', 'patch', each changed
+     file) and leaves only by evidence that supersedes it: a passing check of the same scope or of the whole change. Before
+     a failure is kept it re-arms what it speaks for: a failing whole-change check puts every run-proven file back on the
+     list, a failing run its own file — whatever order the evidence came in (review round 2). When nothing is owed the
+     failures are forgotten (none speaks for an owed file), exactly as a passing check always cleared the whole set and its
+     failure; the run proofs are kept, so a later failure still re-arms them. Only a passing whole-change check forgets
+     those too. */
+  const VOS_RAN_SHOWN = 3;   // the premise names the last 3 commands that ran, then "and N earlier"
+  function makeVosLedger() {
+    const unverified = new Set();   // changed code paths owed a proof
+    const changed = new Set();      // every code path this run changed (which changed file a run ran is decided against it)
+    const provenByRun = new Set();  // changed paths proven only by a clean run of them since they changed: a later failure re-arms them
+    const failedCheck = { all: null, patch: null };   // a failing whole-change / patch check that still stands: { cmd, seq }
+    const failedRun = new Map();    // a changed path -> its failing run that still stands: { cmd, seq }
+    const ranList = [];
+    let ranEarlier = 0, seq = 0, passSeq = 0;
+    // a failure speaks for these paths: one only a run proved is owed again
+    function rearm(paths) { for (const p of paths) if (provenByRun.delete(p)) unverified.add(p); }
+    function settle() {
+      for (const p of Array.from(failedRun.keys())) if (!unverified.has(p)) failedRun.delete(p);
+      if (unverified.size) return;
+      failedCheck.all = failedCheck.patch = null;
+      ranList.length = 0; ranEarlier = 0; passSeq = 0;
+    }
+    return {
+      get size() { return unverified.size; },
+      paths: () => Array.from(unverified),
+      changedPaths: () => Array.from(changed),
+      change(p) { unverified.add(p); changed.add(p); provenByRun.delete(p); },
+      check(scope, passed, cmd) {
+        const key = scope === 'patch' ? 'patch' : 'all';
+        if (!passed) {
+          if (key === 'all') rearm(Array.from(provenByRun));   // the whole change failed: a clean run of one file no longer proves it
+          if (unverified.size) failedCheck[key] = { cmd, seq: ++seq };
+          return;
+        }
+        if (key === 'all') { unverified.clear(); provenByRun.clear(); }
+        else { for (const p of Array.from(unverified)) if (VOS_PATCH_PATH_RE.test(p)) unverified.delete(p); failedCheck.patch = null; passSeq = ++seq; }
+        settle();
+      },
+      run(paths, passed, cmd) {
+        paths = (paths || []).filter(p => changed.has(p));
+        if (!passed) rearm(paths);   // the same file failed after a run of it passed: the later run speaks
+        const owed = paths.filter(p => unverified.has(p));
+        // nothing owed: a whole-change check passed since the change (a run does not outrank it), or a run already proved it
+        if (!owed.length) return;
+        if (!passed) { const s = ++seq; for (const p of owed) failedRun.set(p, { cmd, seq: s }); return; }
+        for (const p of owed) { failedRun.delete(p); if (!failedCheck.all) { unverified.delete(p); provenByRun.add(p); } }
+        passSeq = ++seq;
+        settle();
+      },
+      ran(note) {
+        if (!unverified.size || !note) return;
+        ranList.push(note);
+        if (ranList.length > VOS_RAN_SHOWN) { ranList.shift(); ranEarlier++; }
+      },
+      facts() {
+        let last = null;
+        for (const f of [failedCheck.all, failedCheck.patch].concat(Array.from(failedRun.values()))) if (f && (!last || f.seq > last.seq)) last = f;
+        if (last) return { failedCheck: last.cmd, passedSince: passSeq > last.seq, ran: [], ranEarlier: 0 };
+        return { failedCheck: '', passedSince: false, ran: ranList.slice(), ranEarlier };
+      }
+    };
+  }
+  const NOTHING_RAN = 'and are ending without running anything against it.';
+  const RUN_A_CHECK = ' Code that compiles is not code that works, and an unverified claim of "done" is the one thing this station never ships. Run the narrowest real check that proves the change — the project\'s own test/build command via verify_run, or shell_exec if that fits better — then report what it actually returned. If you genuinely cannot run a check here, say so plainly and state what you did NOT verify.';
+  const FIX_THE_FAILURE = ' A failing check is evidence the change is not done. Fix the cause and rerun the check until it passes, then report what it actually returned. If it cannot be made to pass here, say so plainly: report the failure and state that the change is NOT verified.';
+  /* THE ONE PREMISE RESOLVER. kind 'verify_before_done' reads makeVosLedger().facts(); kind 'failure_recovery' reads
+     { failed, held, search } (the recovery ledger). Every sentence it returns is a ledger fact:
+       · a failed check is named as failed. "The last check … and no passing check has run since" only while nothing has
+         passed since it; once something passed after it that does not replace it (a run of some file, a patch check),
+         "a check … did NOT pass and has not passed since" — both halves still true;
+       · a command that ran is named, never denied (every command the loop saw run is kept, a run of a changed file too:
+         while no failure stands, the files it proved are no longer owed, so it is listed only for the code it is no
+         check of); "without running anything" is said only when no command ran since the oldest change still owed;
+       · a call the brief gate held is held, never failed, and it — not the whole batch — did not run. */
+  function nudgePremise(kind, f) {
+    f = f || {};
+    if (kind === 'failure_recovery') {
+      const failed = Array.isArray(f.failed) ? f.failed : [], held = Array.isArray(f.held) ? f.held : [];
+      if (!failed.length && held.length) {
+        const many = held.length > 1;
+        return 'The previous call' + (many ? 's (' + held.join(', ') + ') were' : ' (' + held[0] + ') was')
+          + ' held by the Task Brief gate, not failed: ' + (many ? 'they' : 'it') + ' did not run. Settle the brief with brief_proceed (or ask the one material question with brief_ask), then make the same call' + (many ? 's' : '') + ' again. If you end here instead, say plainly that ' + (many ? 'they' : 'it') + ' did not run.';
+      }
+      return 'The previous path failed (' + (failed.join(', ') || 'the previous tool') + '), but one failed tool is not proof that the Commander\'s task is impossible. Do not end by handing avoidable setup work to the Commander. Inspect the exact error, then make an ACTUAL alternate call now using a different query, arguments, strategy, or tool.'
+        + (f.search ? ' Use tool_search when a deferred capability or alternate tool may exist; do not claim a tool is absent before searching.' : '')
+        + ' Retry only when the failure is plausibly transient; never repeat identical failing arguments blindly. Stay inside the current safety, consent, credential, and scope boundaries. Ask only for irreducible human input. If no authorized route remains after you have genuinely exhausted alternatives, report the exact blocker and the paths you tried.';
+    }
+    if (kind === 'verify_before_done') {
+      // Same tag and budget whatever the premise. A model whose check FAILED did run something — telling it "you ran
+      // nothing" would be a false statement from the host.
+      if (f.failedCheck) {
+        return (f.passedSince
+          ? 'and are ending although a check you ran against it (' + f.failedCheck + ') did NOT pass and has not passed since.'
+          : 'and are ending although the last check you ran against it (' + f.failedCheck + ') did NOT pass, and no passing check has run since.') + FIX_THE_FAILURE;
+      }
+      const ran = Array.isArray(f.ran) ? f.ran : [];
+      if (!ran.length) return NOTHING_RAN + RUN_A_CHECK;
+      const earlier = (Number(f.ranEarlier) > 0 ? Math.floor(Number(f.ranEarlier)) : 0) + Math.max(0, ran.length - VOS_RAN_SHOWN);
+      const shown = ran.slice(-VOS_RAN_SHOWN).map(r => r.cmd + (r.background ? ' (started in the background)' : r.killed ? ' (killed)' : (r.exit != null && r.exit !== '') ? ' (exit ' + r.exit + ')' : ''));
+      return 'and are ending after running only commands the host does not count as a check of it: ' + shown.join(', ') + (earlier ? ' and ' + earlier + ' earlier' : '') + '.' + RUN_A_CHECK;
+    }
+    return '';
+  }
+  /* EVERY TURN-BUYING HOST NOTE IS COUNTED (cost plan W1.11). The loop's stop checks (and the output-limit continuation and
+     the grace turn) each ask the model for another call; nothing recorded how often, so none of them could be priced. The
+     loop counts each by its tag when it is ADDED to the run's conversation (nudged() on its push line), returns the counts
+     as `nudges`, and the run row keeps them. That is notes issued, not calls bought: a note added just before a stop (the
+     turn cap with no grace turn, a spend ceiling) reaches no model call, and a verify note and the grace turn's
+     <iteration_limit> can share one. Notes that ride a turn the run is already taking (loop_guard after a tool result, a
+     hook's context, a steer's policy line) are not counted: they ask for nothing. test/loop-truth.invariant.test.js holds
+     every fenced tag in this file to one of the two. */
+  const NUDGE_TAGS = Object.freeze(['memory_receipt', 'tool_markup', 'continue_after_tools', 'empty_reply', 'continuation', 'failure_recovery',
+    'verify_before_done', 'verify_external_before_done', 'verify_sources_before_done', 'acceptance_before_done', 'resume_after_message',
+    'iteration_limit', 'output_continuation']);
+  const TASK_INTENT = (typeof require === 'function') ? require('../frontend/app/fork.js').TaskIntent
+    : ((typeof globalThis !== 'undefined' && globalThis.Fork && globalThis.Fork.TaskIntent) || null);
+  // a call the Task Brief gate HELD did not run (fork.js TaskIntent.GATE_HELD, stamped by the host's briefHoldFor)
+  const isGateHeld = r => !!(TASK_INTENT && typeof TASK_INTENT.isGateHeld === 'function' && TASK_INTENT.isGateHeld(r));
   function isCheckShapedCall(call) {
     const key = vosKey(call && call.name);
     if (VOS_VERIFIERS.has(key)) return true;
@@ -1057,7 +1361,7 @@
     // Its estimateMessages measures what is SENT: stale screen captures count as their placeholder, not as pixels
     // the provider never receives (SCREENSHOTS AGE OUT OF VIEW). Everything else is the manager itself.
     const context = (o.context && typeof o.context.estimateMessages === 'function')
-      ? Object.create(o.context, { estimateMessages: { value: (msgs) => o.context.estimateMessages(evictStaleScreenshots(msgs, TOOL_IMAGE_KEEP, m => (screenshotMeta ? screenshotMeta.get(m) : null))) } })
+      ? Object.create(o.context, { estimateMessages: { value: (msgs) => o.context.estimateMessages(viewOf(msgs)) } })
       : o.context;
     const summarize = o.summarize;
     /* OPTIONAL: told about every PAID fold that committed (never the free micro tier, the deterministic fallback note or a
@@ -1225,7 +1529,14 @@
     const _fr = limits.failureRecovery;
     const FR_MAX = (_fr === false) ? 0 : (_fr && _fr.max != null ? Math.max(0, Math.floor(_fr.max)) : 2);
     let frUsed = 0;
-    let failureRecoveryPending = null;
+    let failureRecoveryPending = null;   // { names: tools that FAILED, held: tools the Task Brief gate HELD (nothing ran) }
+    // A held call is not a failure: its note says held, and it is sent at most once (the hold's own result already says
+    // what to do). The failure ladder above keeps its own budget. limits.failureRecovery === false disables both.
+    const FR_HELD_MAX = 1;
+    let frHeldUsed = 0;
+    // every turn-buying host note, counted by its tag (NUDGE_TAGS): returned as `nudges`, kept on the run row
+    const nudgeCounts = Object.create(null);
+    const nudged = (tag) => { nudgeCounts[tag] = (nudgeCounts[tag] || 0) + 1; };
     // VERIFY-ON-STOP ledger: code paths this run has CHANGED but not since proven. Any successful verification
     // empties it. limits.verifyOnStop === false disables; { max } raises the nudge budget (default 1).
     /* OPTIONAL HOOK SPINE (sidecar/hooks.js). The Commander's own code, on the model-call boundary. Absent =
@@ -1244,9 +1555,63 @@
     // limits.toolImageKeep: a number overrides (0 = send none); false disables eviction (every capture rides forever).
     const _tik = limits.toolImageKeep;
     const TOOL_IMAGE_KEEP = (_tik === false) ? -1 : ((typeof _tik === 'number' && _tik >= 0) ? Math.floor(_tik) : 2);
+    // limits.toolImageStep: how many more capture turns may ride as pixels before the older ones leave together (IN STEPS);
+    // 0 = one at a time, the old view.
+    const _tis = limits.toolImageStep;
+    const TOOL_IMAGE_STEP = (typeof _tis === 'number' && _tis >= 0) ? Math.floor(_tis) : 4;
     const screenshotMeta = (typeof WeakMap === 'function') ? new WeakMap() : null;   // capture turn -> { tools, turn }
-    // What the provider is sent: `messages` with stale screen captures replaced by placeholders (a view — never an edit).
-    const wireMessages = () => evictStaleScreenshots(messages, TOOL_IMAGE_KEEP, m => (screenshotMeta ? screenshotMeta.get(m) : null));
+    // tool message -> what a later elision needs to give its body a handle (history-edit elideToolResult): the file the
+    // host already parked the output to, and the provenance a park of the body must carry
+    const toolOrigin = (typeof WeakMap === 'function') ? new WeakMap() : null;
+    /* BATCHED AGEING (history-edit makeAgeing, W2.1): old tool results and the long arguments of writes that succeeded
+       leave what is SENT, in batches that pay for themselves (see the preflight below); `messages` keeps every full body.
+       Off unless the host turns it on (o.batchedAgeing: STARNET_BATCHED_AGEING), and then every request is byte-identical
+       to a run without it until the first batch. */
+    const ageing = (o.batchedAgeing === true && HistoryEdit && typeof HistoryEdit.makeAgeing === 'function')
+      ? HistoryEdit.makeAgeing({ originOf: m => (toolOrigin ? toolOrigin.get(m) || null : null) }) : null;
+    /* THE REQUEST VIEW (history-edit makeRequestView): on a provider that binds thinking to its prefix, the blocks an
+       edit invalidated are deleted from their turns (once, in place; from an aged copy's original too), and so is every
+       block the run's first request would replay (a recovered history: the view never saw the prefix it was made on);
+       every other provider gets `wireMessages()` untouched. */
+    const requestView = HistoryEdit ? HistoryEdit.makeRequestView(ageing ? { ownerOf: ageing.originalOf } : undefined) : null;
+    const bindsThinking = () => {
+      if (!provider || typeof provider.bindsThinking !== 'function') return false;
+      try { return provider.bindsThinking(model) === true; } catch (e) { failNote('loop.bindsThinking', e); return false; }
+    };
+    // What the provider is sent, and what the context meter measures: `messages` with stale screen captures replaced by
+    // placeholders and aged bodies by their stubs (views — never an edit). Asked of the CURRENT provider each time (a
+    // fallback can change it): one that holds the run's history itself (claude-cli's persistent child) is sent every
+    // capture as it was, up to HELD_IMAGE_TURNS capture turns; past that all but the newest keep leave at once (an API
+    // request takes at most 100 images, and the child re-sends its whole history every turn).
+    const HELD_IMAGE_TURNS = 20;
+    const holdsHistory = () => { try { return !!(provider && typeof provider.holdsHistory === 'function' && provider.holdsHistory()); } catch (e) { failNote('loop.provider.holdsHistory', e); return false; } };
+    /* Where the CURRENT provider's cache can be read after a history edit (history-edit readFloor): the anchors its adapter
+       stamps for this model, or null on an automatic-prefix route. One that cannot say is taken to anchor (the dearer
+       assumption: an edit then counts as re-writing everything after the system prompt). */
+    const cacheAnchors = () => {
+      if (!provider || typeof provider.cacheAnchors !== 'function') return null;
+      try { return provider.cacheAnchors(model) || null; } catch (e) { failNote('loop.provider.cacheAnchors', e); return { history: false, system: 'prefix' }; }
+    };
+    const screensView = (msgs) => evictStaleScreenshots(msgs, TOOL_IMAGE_KEEP, m => (screenshotMeta ? screenshotMeta.get(m) : null),
+      (TOOL_IMAGE_KEEP > 0 && holdsHistory()) ? Math.max(TOOL_IMAGE_STEP, HELD_IMAGE_TURNS - TOOL_IMAGE_KEEP) : TOOL_IMAGE_STEP);
+    const viewOf = (msgs) => (ageing ? ageing.view(screensView(msgs)) : screensView(msgs));
+    const wireMessages = () => viewOf(messages);
+    /* THE HOST PARKER, NOTED (W1.7): a park that fails leaves its body unsaved, and says so. The host parker (index.js)
+       swallows its own errors and answers null; elideToolResult never asks it to save quoted words (its one refusal), so
+       a null or a missing path is a failed write, noted like a throw. onNothing(tool) words the note. */
+    const notedParker = (onNothing) => (capCtx && typeof capCtx.parkOutput === 'function')
+      ? async (text, meta) => {
+        let p = null;
+        try { p = await capCtx.parkOutput(text, meta); } catch (e) { failNote('loop.historyEdit.park', e); return null; }
+        if (!p || !p.path) failNote('loop.historyEdit.park', onNothing(String((meta && meta.tool) || 'tool')));
+        return p;
+      }
+      : null;
+    // batched ageing parks what no other handle covers; a body whose park fails rides whole, and is never tried again
+    const ageingParker = ageing ? notedParker(tool => 'the host parker saved nothing for a ' + tool + ' body at batched ageing; it rides whole in the request') : null;
+    // one message's size by the context manager's own ruler (the raw estimator: never through viewOf, which would swap an
+    // aged copy in); null = no ruler, and ageing measures characters
+    const ageingRuler = (ageing && o.context && typeof o.context.estimateMessages === 'function') ? (m => o.context.estimateMessages([m])) : null;
     /* Per-turn aggregate tool output (see applyTurnBudget). 200k characters is ~2.5 full-size single results,
        so an ordinary turn never notices it and only a wide parallel fan-out gets trimmed. 0 disables.
        A FUNCTION is read fresh each turn: the host passes 30% of the live model window (tools/registry.js
@@ -1261,12 +1626,15 @@
     }
     const _vos = limits.verifyOnStop;
     const VOS_MAX = (_vos === false) ? 0 : (_vos && _vos.max != null ? _vos.max : 1);
-    const vosUnverified = new Set();
+    // the changed code still owed a check, the failed checks that still stand, and what else ran (makeVosLedger)
+    const vos = makeVosLedger();
+    // what a relative fs path means in this run (run-paths.js base(): the project root, else the private workspace) — the
+    // other half of resolving which file a run ran. No run path object (an aux loop, a rig) = '' = runs prove nothing.
+    const vosBase = (() => { try { const p = capCtx && capCtx.paths; return p && typeof p.base === 'function' ? String(p.base() || '') : ''; } catch (_) { return ''; } })();
     const vosExternalUnverified = new Map();
     const vosSourcesUnfetched = new Map();
     const sourceGroundingTask = sourceGroundingRequested(messages);
     let vosUsed = 0;
-    let vosFailedCheck = '';   // the most recent check that ran against unverified code and did NOT pass ('' = none)
     let vosExternalUsed = 0;
     let vosSourceUsed = 0;
     /* ACCEPTANCE-ON-STOP (SOP lane, 2026-08-21). A run launched from an SOP recipe carries a typed acceptance
@@ -1742,6 +2110,9 @@
       if (extra && extra.failureCode) out.failureCode = String(extra.failureCode).slice(0, 80);
       if (extra && extra.failureUnsupportedPart === true) out.failureUnsupportedPart = true;
       if (accUsed > 0) out.acceptanceNudges = accUsed;   // SOP: how many times the host sent the model back to its checks
+      // LOOP TRUTH (W1.11): every turn-buying host note, by tag — present only when one fired (the run row keeps it)
+      const nudgeTags = Object.keys(nudgeCounts);
+      if (nudgeTags.length) { out.nudges = {}; for (const tag of nudgeTags) out.nudges[tag] = nudgeCounts[tag]; }
       return out;
     }
 
@@ -1770,23 +2141,45 @@
        model CONFABULATE what the results had said — 20 of 30 values invented. The first lines of a tool result
        are where its fact usually sits (path, status line, the matched text), so the elision keeps ELIDE_HEAD
        chars of it and the marker says exactly what was dropped. ~60 tokens per result; still a 10-50x shrink. */
-    const ELIDE_HEAD = 240;
-    const ELIDED = '[tool result elided at compaction — ';
-    const isElided = (m) => m && m.role === 'tool' && typeof m.content === 'string' && m.content.indexOf(ELIDED) === 0;
-    function elideTools(older) {
+    /* THE STUB KEEPS A HANDLE (W1.7). The stub is built by history-edit elideToolResult — the one builder, shared with
+       cross-run replay — and names a saved file whose fs.read gives the elided bytes back: where the host parked the
+       output before cutting it, or a park of the exact body made by the commit pass. Never the source it came from: a
+       file read earlier may have been edited since, and fs.read's page follows the live window. A body the head keeps
+       whole is left as it is: its stub could only add bytes. */
+    async function elideTools(older, park) {
       const names = new Map();
       let elided = 0;
-      const out = older.map(m => {
+      const out = [];
+      for (const m of older) {
         if (m && m.role === 'assistant' && Array.isArray(m.tool_calls)) for (const c of m.tool_calls) names.set(c && c.id, (c && c.function && c.function.name) || 'tool');
-        if (!m || m.role !== 'tool' || isElided(m)) return m;
-        const body = typeof m.content === 'string' ? m.content : JSON.stringify(m.content || '');
-        const name = names.get(m.tool_call_id) || 'tool';
+        if (!m || m.role !== 'tool' || HistoryEdit.isElided(m)) { out.push(m); continue; }
+        // a result batched ageing already took out of the view keeps that stub: the same bytes on the wire, no second park
+        const aged = ageing ? ageing.agedOf(m) : null;
+        if (aged) { elided++; out.push(Object.assign({}, m, { content: aged.content })); continue; }
+        /* no origin = a body this run did not produce (a resumed history): nothing says whose words it quotes or what
+           tainted it, so it is never parked and keeps the old wording */
+        const origin = toolOrigin ? toolOrigin.get(m) : null;
+        const stub = await HistoryEdit.elideToolResult(m.content, {
+          name: names.get(m.tool_call_id) || 'tool',
+          parkedPath: origin ? origin.parkedPath : null, parkMeta: origin ? origin.parkMeta : null, park: origin ? park : null
+        });
+        if (!stub) { out.push(m); continue; }
         elided++;
-        const head = body.length > ELIDE_HEAD ? body.slice(0, ELIDE_HEAD).replace(/\s+$/, '') + '…' : body;
-        return Object.assign({}, m, { content: ELIDED + name + ', ' + Buffer.byteLength(body, 'utf8') + ' bytes; first ' + Math.min(ELIDE_HEAD, body.length) + ' chars kept below; re-run the tool for the full output]' + String.fromCharCode(10) + head });
-      });
+        out.push(Object.assign({}, m, { content: stub.content }));
+      }
       return { older: out, elided };
     }
+    /* THE MEASURING PASS PRICES THE STUB THE COMMIT WRITES (W1.7). A saved stub names its file, so the dry pass (which
+       must leave no file behind) hands elideToolResult a parker that writes nothing and answers with a stand-in name at
+       least as long as the host's in its usual shapes (index.js capCtx.parkOutput: [untrusted-]<tool>-<run id>-<seq>
+       under .output, placed where this run reads it). The trial is then measured on stubs as long as the committed
+       ones, and the commit re-measures what it wrote for agent.compact. */
+    const standInPark = async (text, meta) => {
+      const rel = '.output/untrusted-' + String((meta && meta.tool) || 'tool').replace(/[^A-Za-z0-9_.-]/g, '_').slice(0, 40)
+        + '-' + String(runId).replace(/[^A-Za-z0-9_-]/g, '') + '-0000.txt';
+      try { return { path: (capCtx && capCtx.paths && typeof capCtx.paths.placeJail === 'function' && capCtx.paths.placeJail(rel)) || rel }; }
+      catch (_) { return { path: rel }; }
+    };
     /* An elided copy STANDS IN for its original, so it inherits the original's host-attached identity markers:
        non-enumerable own symbol keys, which Object.assign above does not copy. The one that matters is
        transcriptstore.js's PERSISTED marker — with it the run-end drain treats the copy as already recorded (its
@@ -1937,7 +2330,9 @@
       const summaryNote = (text) => ({ role: 'system', content: '<conversation_summary>\n' + fidelity.joinSummary(text, userSection()) + '\n</conversation_summary>' });
       // ---- micro tier: free; measured on a copy; committed only if it clears the threshold on its own ----
       if (microCompaction && threshold > 0) {
-        const micro = elideTools(plan.older);
+        // a park that fails leaves that stub on the old wording, and says so (notedParker)
+        const parker = notedParker(tool => 'the host parker saved nothing for a ' + tool + ' result at elision; its stub keeps the old wording');
+        const micro = await elideTools(plan.older, parker ? standInPark : null);   // the dry pass: measures only, parks nothing
         if (micro.elided > 0) {
           // the micro tier folds no user message: the previous note (its carried section included) stays as it was
           const trial = appendTodo(prefix.concat(prevNote ? [prevNote] : [], micro.older, plan.tail));
@@ -1962,10 +2357,18 @@
             if (summarize && typeof summarize.drain === 'function') {
               try { summarize.drain(plan.older); } catch (e) { failNote('loop.compaction.microDrain', e); return false; }
             }
-            carryMarkers(plan.older, micro.older);   // the drained originals' persisted marker rides onto the elided copies
-            messages.length = 0; for (const mm of trial) messages.push(mm);
+            /* THE COMMIT PASS parks what no other handle covers (the dry pass above only measured, on stand-in names). The
+               same results are elided in the same order; agent.compact reports the numbers measured on what is actually
+               committed (a park that failed leaves its stub shorter, with the old wording). */
+            const done = parker ? await elideTools(plan.older, parker) : micro;
+            const swap = new Map();
+            micro.older.forEach((m, k) => { if (m !== done.older[k]) swap.set(m, done.older[k]); });
+            const committed = swap.size ? trial.map(m => swap.get(m) || m) : trial;
+            carryMarkers(plan.older, done.older);   // the drained originals' persisted marker rides onto the elided copies
+            messages.length = 0; for (const mm of committed) messages.push(mm);
             usageReading = null;
-            emit('agent.compact', { agentId, runId, beforeTokens, afterTokens, removed: Math.max(0, beforeTokens - afterTokens), reason: 'micro', elided: micro.elided });
+            const committedTokens = committed === trial ? afterTokens : context.estimateMessages(committed);
+            emit('agent.compact', { agentId, runId, beforeTokens, afterTokens: committedTokens, removed: Math.max(0, beforeTokens - committedTokens), reason: 'micro', elided: done.elided });
             return true;
           }
         }
@@ -2256,7 +2659,7 @@
         if (graceUsed || !graceEnabled) return end('max_iters');
         graceUsed = true;                                 // spend ONE grace turn on a final, tool-free answer
         graceTurn = true;
-        messages.push({ role: 'system', content: '<iteration_limit>You have reached the maximum number of tool-using turns (' + maxIters + '). Do NOT call any more tools. Give your best final answer to the user now using what you already have.</iteration_limit>' });
+        messages.push({ role: 'system', content: '<iteration_limit>You have reached the maximum number of tool-using turns (' + maxIters + '). Do NOT call any more tools. Give your best final answer to the user now using what you already have.</iteration_limit>' }); nudged('iteration_limit');
         // fall through: the grace turn runs below. Tools stay ON THE WIRE (see GRACE TURN NEVER DISPATCHES after
         // the stream) — but any call it emits is dropped, never executed, and the run ends max_iters.
       }
@@ -2315,6 +2718,25 @@
           messages.push({ role: 'system', content: '<hook_context>' + pre.context + '</hook_context>' });
         }
       }
+      /* BATCHED AGEING (W2.1): a batch of old bodies may leave the view before this request (history-edit makeAgeing:
+         behind the newest four tool turns, 60k characters at a time, never for a run projected at 24 requests or fewer,
+         and only when R x F x r > T x (w - r) on this route, R at most 12 requests, T counted from where this route's
+         next read can land: readFloor). After any fold (whose own edit goes first) and every note this turn appends, so
+         it prices the request that goes out. The request view strips the thinking it unbinds. */
+      if (ageing) {
+        try {
+          const batch = await ageing.plan(screensView(messages), {
+            requests: turns, maxIters, holdsHistory: holdsHistory(), park: ageingParker, measure: ageingRuler, standIn: standInPark,
+            anchors: cacheAnchors(), isHistoryEnd: isRunContextNote, stable: typeof o.cacheSystemPrefix === 'string' ? o.cacheSystemPrefix : '',
+            rates: () => ((cost && typeof cost.cacheRates === 'function') ? cost.cacheRates(model) : null)
+          });
+          if (batch) failNote('loop.historyEdit.aged', 'batched ageing from message ' + batch.editAt + ': ' + batch.results + ' tool result(s) and '
+            + batch.args + ' write argument(s) left the request view (' + batch.freedChars + ' characters; the run keeps every full body); payback '
+            + Math.round(batch.saving) + ' > ' + Math.round(batch.rewrite) + ' = ' + batch.remaining + ' requests credited x ' + Math.round(batch.freed)
+            + ' freed x read ' + batch.read + (batch.assumed ? ' (assumed)' : '') + ' against ' + Math.round(batch.suffix) + ' re-written from message '
+            + batch.from + ' x (write ' + batch.write + ' - read) on ' + String(model));
+        } catch (e) { failNote('loop.historyEdit.ageing', e); }
+      }
       const turnStart = turns;
       turns++;
 
@@ -2365,6 +2787,7 @@
         let sawStreamEvent = false;   // any event from this attempt's stream: provider.retry `stage` + the waiting phase
         let streamClosed = false;     // the provider's stream ran to its own end (not cut off by a cancel)
         let billedPerCall = true;     // false once the adapter says this call bills nothing per call (a subscription sign-in)
+        let unboundDrop = null;       // the API dropped replayed thinking for a prefix change the view did not make (done.bindingDropped)
         /* The wait this attempt opens ends at the first visible output (a streamed token) or when the attempt
            settles. A retried attempt announces itself with an immediate sinceMs:0 beat, so a "retry in 30s"
            line is replaced the moment the retry actually goes out instead of lingering until the next tick. */
@@ -2374,7 +2797,13 @@
         const argsStream = new Map();           // tool index -> { name, chars, startedAt, noted } while its arguments stream
         let runaway = null, adapterWait = null;
         try {
-          const req = { model, messages: wireMessages(), tools, signal: attempt.signal, stream: true };   // stale screen captures -> placeholders
+          // stale screen captures -> placeholders; then the thinking any history edit invalidated is stripped (binding models)
+          const view = requestView ? requestView.messages(wireMessages(), { tools, binds: bindsThinking() }) : null;
+          // a strip is recorded where the API's own drops were (providers.anthropic.thinking_dropped): a strip on every turn shows
+          if (view && view.stripped > 0) failNote('loop.historyEdit.thinkingStripped', view.unproven
+            ? 'the run\'s first request on ' + String(model) + ' replays the thinking of ' + view.stripped + ' turn(s) it never saw produced (a recovered history: its tools, system prompt or turns may differ from when that thinking was made); those blocks were removed before the request'
+            : 'a history edit at message ' + view.editAt + ' unbound the thinking of ' + view.stripped + ' earlier turn(s) on ' + String(model) + '; those blocks were removed before the request');
+          const req = { model, messages: view ? view.messages : wireMessages(), tools, signal: attempt.signal, stream: true };
           if (typeof o.isTask === 'boolean') req.isTask = o.isTask;
           if (o.runId) req.runId = o.runId;   // run attribution: only a profile that names a runIdHeader sends it (starnet)
           if (o.cacheSystemPrefix) req.cacheSystemPrefix = o.cacheSystemPrefix;
@@ -2441,12 +2870,20 @@
               }
             }
             else if (ev.type === 'usage') { usage = ev.usage; noteGeneration(usage && usage.generation_id); if (cost) emit('cost.estimate', Object.assign({ agentId, runId }, cost.estimate(usage, model))); }
-            else if (ev.type === 'done') { lastFinishReason = ev.finishReason; sawTruncation = !!ev.truncated; }   // A3: remember WHY the turn stopped
+            else if (ev.type === 'done') { lastFinishReason = ev.finishReason; sawTruncation = !!ev.truncated; if (ev.bindingDropped) unboundDrop = ev.bindingDropped; }   // A3: remember WHY the turn stopped
             else if (ev.type === 'tool_done') argsStream.delete(ev.index);   // its arguments are whole: no longer streaming
           }
           streamClosed = !signal.aborted;
         } catch (e) { streamErr = e; }
         finally { waiting.stop(); }
+        /* THE BACKSTOP (history-edit view.unbound): a prefix change the view did not make still reached the API, which
+           dropped the first stale block and every later one, for this request only: kept, they would be dropped again on
+           every request. They go now, from the first dropped block's turn, with this response's own. */
+        if (unboundDrop && requestView) {
+          const lost = requestView.unbound(messages, unboundDrop.first);
+          acc.reasoning = [];
+          failNote('loop.historyEdit.unbound', 'the API dropped ' + unboundDrop.blocks + ' replayed thinking block(s) on ' + String(model) + ' for a prefix change the request view did not make; the thinking of ' + lost + ' earlier turn(s) and of this response was removed, so the next request replays none of it');
+        }
         if (runaway && !signal.aborted) {
           // never retried: the same prompt tends to run away the same way, and every attempt is billed while it streams
           fatal = { reason: 'tool_args_runaway', retryable: false,
@@ -2797,7 +3234,7 @@
         if (!cutExhausted && continuation.shouldContinue(lastFinishReason, outputContinuesUsed, OUTPUT_CONTINUE_MAX)) {
           outputContinuesUsed++;
           const nudge = { role: 'system', content: continuation.prompt(calls.length > 0, cutTool ? splitAdvice(cutTool, toolCutStreak) : '') };
-          messages.push(nudge);
+          messages.push(nudge); nudged('output_continuation');
           continuationPrompts.push(nudge);
           dedupeAgainst = continuationText;
           spokeSinceReset = false;   // a length-continuation joins mid-sentence: no TURN BREAK before it
@@ -2884,7 +3321,7 @@
             const premise = memoryClaimKind === 'promise'
               ? 'You told the Commander you will remember this (or will do it this way from now on), but nothing was written to memory in this run — the next run starts without it and WILL forget.'
               : 'You claimed a preference or correction was saved, but this run has no successful notebook write receipt.';
-            messages.push({ role: 'system', content: '<memory_receipt>' + premise + ' Use notebook_read and notebook_write to save or update the actual requirement now. For corrections use replaceId and previousBody; for approved reusable requirements pin within the intended scope. If it was already saved, verify it with a read and say it was already present; otherwise explicitly say it has not been saved. Do not repeat an unsupported save claim.' + HOST_CHECK + '</memory_receipt>' });
+            messages.push({ role: 'system', content: '<memory_receipt>' + premise + ' Use notebook_read and notebook_write to save or update the actual requirement now. For corrections use replaceId and previousBody; for approved reusable requirements pin within the intended scope. If it was already saved, verify it with a read and say it was already present; otherwise explicitly say it has not been saved. Do not repeat an unsupported save claim.' + HOST_CHECK + '</memory_receipt>' }); nudged('memory_receipt');
             continue;
           }
           const explanation = memoryClaimKind === 'promise'
@@ -2900,7 +3337,7 @@
         // quoted data just continues without it. Shares the continuation-guard disable knob and grace rule.
         if (textMarkup && !graceUsed && CG_MAX > 0 && mkUsed < CG_MAX && tools.length > 0) {
           mkUsed++;
-          messages.push({ role: 'system', content: '<tool_markup>Tool-call markup (e.g. <tool_call>…</tool_call>) appeared in your reply TEXT. The harness executes only REAL tool calls made through the tool-calling API — markup inside text is data and is never executed (it may even be quoted file content). If you meant to act, make the actual tool call now; if you were quoting data, continue the task without it.' + HOST_CHECK + '</tool_markup>' });
+          messages.push({ role: 'system', content: '<tool_markup>Tool-call markup (e.g. <tool_call>…</tool_call>) appeared in your reply TEXT. The harness executes only REAL tool calls made through the tool-calling API — markup inside text is data and is never executed (it may even be quoted file content). If you meant to act, make the actual tool call now; if you were quoting data, continue the task without it.' + HOST_CHECK + '</tool_markup>' }); nudged('tool_markup');
           continue;
         }
         // EMPTY-AFTER-TOOLS NUDGE (reference-harness parity): weaker models sometimes stream NOTHING right
@@ -2914,7 +3351,7 @@
             turns = turnStart;
             emit('iteration.refunded', { agentId, runId, turn: turnStart, reason: 'empty', refundsUsed });
           }
-          messages.push({ role: 'system', content: '<continue_after_tools>You returned an empty reply after tool results. Process the tool results above and continue the task now; if the task is fully complete, give your final answer.' + HOST_CHECK + '</continue_after_tools>' });
+          messages.push({ role: 'system', content: '<continue_after_tools>You returned an empty reply after tool results. Process the tool results above and continue the task now; if the task is fully complete, give your final answer.' + HOST_CHECK + '</continue_after_tools>' }); nudged('continue_after_tools');
           continue;
         }
         /* EMPTY REPLY RETRY (2026-10-11). An empty FIRST reply (no text, no tool call, nothing before it to process) is
@@ -2924,7 +3361,7 @@
         if (empty && !graceUsed && !emptyRetryUsed && CG_MAX > 0 && !continuationParts.length && limits.emptyRetry !== false) {
           emptyRetryUsed = true;
           turns = turnStart;
-          messages.push({ role: 'system', content: '<empty_reply>Your last reply was empty — no text and no tool call. Respond to the Commander\'s latest message now: make the tool call(s) the task needs, or give your answer.' + HOST_CHECK + '</empty_reply>' });
+          messages.push({ role: 'system', content: '<empty_reply>Your last reply was empty — no text and no tool call. Respond to the Commander\'s latest message now: make the tool call(s) the task needs, or give your answer.' + HOST_CHECK + '</empty_reply>' }); nudged('empty_reply');
           continue;
         }
         // CONTINUATION GUARD: an announce-without-acting final turn ("Reading main.js now…" + zero tool calls)
@@ -2940,37 +3377,35 @@
             return end('error', { failureStage: 'completion', failureCode: 'incomplete_work' });
           }
           cgUsed++;
-          messages.push({ role: 'system', content: '<continuation>Your last message only ANNOUNCED an action but you called no tools — ending your reply without tool calls ends the run with the work not done. Do not narrate intentions. If work remains, make the actual tool call(s) NOW in this same turn. If you promised future or multi-day work, create the appropriate durable routine/task now when that tool is available; otherwise say plainly that no background work was started. If the task is truly complete, give your final answer without announcing further actions.' + HOST_CHECK + '</continuation>' });
+          messages.push({ role: 'system', content: '<continuation>Your last message only ANNOUNCED an action but you called no tools — ending your reply without tool calls ends the run with the work not done. Do not narrate intentions. If work remains, make the actual tool call(s) NOW in this same turn. If you promised future or multi-day work, create the appropriate durable routine/task now when that tool is available; otherwise say plainly that no background work was started. If the task is truly complete, give your final answer without announcing further actions.' + HOST_CHECK + '</continuation>' }); nudged('continuation');
           continue;
         }
         // FAILURE RECOVERY: a model saw a real tool error and is trying to end before attempting another
         // authorized path. Reject that premature stop at the engine seam, not just in prompt prose. A later
         // successful call clears the pending failure; a model that still cannot recover gets two chances and
-        // may then report the exact blocker honestly.
-        if (!empty && !graceUsed && failureRecoveryPending && frUsed < FR_MAX && tools.length > 0 && !endsOnChoiceMarker(text)) {
-          frUsed++;
-          const failed = failureRecoveryPending.names.join(', ') || 'the previous tool';
+        // may then report the exact blocker honestly. A call the Task Brief gate HELD did not fail and did not run
+        // (LOOP TRUTH, W1.11): when only held calls are pending the note says exactly that, once (FR_HELD_MAX).
+        const frHeldOnly = !!failureRecoveryPending && !failureRecoveryPending.names.length;
+        if (!empty && !graceUsed && failureRecoveryPending && (frHeldOnly ? (FR_MAX > 0 && frHeldUsed < FR_HELD_MAX) : frUsed < FR_MAX)
+            && tools.length > 0 && !endsOnChoiceMarker(text)) {
+          if (frHeldOnly) frHeldUsed++; else frUsed++;
           const hasSearch = tools.some(t => wireKey(t && t.function && t.function.name) === 'tool_search');
-          const search = hasSearch
-            ? ' Use tool_search when a deferred capability or alternate tool may exist; do not claim a tool is absent before searching.'
-            : '';
-          messages.push({ role: 'system', content: '<failure_recovery>The previous path failed (' + failed + '), but one failed tool is not proof that the Commander\'s task is impossible. Do not end by handing avoidable setup work to the Commander. Inspect the exact error, then make an ACTUAL alternate call now using a different query, arguments, strategy, or tool.' + search + ' Retry only when the failure is plausibly transient; never repeat identical failing arguments blindly. Stay inside the current safety, consent, credential, and scope boundaries. Ask only for irreducible human input. If no authorized route remains after you have genuinely exhausted alternatives, report the exact blocker and the paths you tried.' + HOST_CHECK + '</failure_recovery>' });
+          const recovery = nudgePremise('failure_recovery', { failed: failureRecoveryPending.names, held: failureRecoveryPending.held, search: hasSearch });
+          messages.push({ role: 'system', content: '<failure_recovery>' + recovery + HOST_CHECK + '</failure_recovery>' }); nudged('failure_recovery');
           continue;
         }
         // VERIFY-ON-STOP: the run CHANGED code and is now trying to finish without having run anything against
         // it. Spend one bounded turn asking for evidence instead of shipping an unproven claim of done. Gated
         // on a verification tool actually being wired — demanding proof the run has no way to produce would
         // just burn a turn. Never on the grace turn, which is contracted to be tool-free.
-        if (!empty && !graceUsed && vosUsed < VOS_MAX && vosUnverified.size
+        if (!empty && !graceUsed && vosUsed < VOS_MAX && vos.size
             && tools.some(t => { const n = vosKey(t && t.function && t.function.name); return VOS_VERIFIERS.has(n) || n === 'shell_exec'; })) {
           vosUsed++;
-          const touched = Array.from(vosUnverified).slice(0, 8).join(', ');
-          // Same tag and budget either way; only the premise changes. A model whose check FAILED did run
-          // something — telling it "you ran nothing" would be a false statement from the host.
-          const premise = vosFailedCheck
-            ? 'and are ending although the last check you ran against it (' + vosFailedCheck + ') did NOT pass, and no passing check has run since. A failing check is evidence the change is not done. Fix the cause and rerun the check until it passes, then report what it actually returned. If it cannot be made to pass here, say so plainly: report the failure and state that the change is NOT verified.'
-            : 'and are ending without running anything against it. Code that compiles is not code that works, and an unverified claim of "done" is the one thing this station never ships. Run the narrowest real check that proves the change — the project\'s own test/build command via verify_run, or shell_exec if that fits better — then report what it actually returned. If you genuinely cannot run a check here, say so plainly and state what you did NOT verify.';
-          messages.push({ role: 'system', content: '<verify_before_done>You changed code in this run (' + touched + ') ' + premise + HOST_CHECK + '</verify_before_done>' });
+          const touched = vos.paths().slice(0, 8).join(', ');
+          // Same tag and budget whatever the premise; the premise is the ledger's (nudgePremise): a failed check, the
+          // commands that did run, or — only when nothing ran — "without running anything".
+          const premise = nudgePremise('verify_before_done', vos.facts());
+          messages.push({ role: 'system', content: '<verify_before_done>You changed code in this run (' + touched + ') ' + premise + HOST_CHECK + '</verify_before_done>' }); nudged('verify_before_done');
           continue;
         }
         // EXTERNAL VERIFY-ON-STOP: a successful custom-connector mutation is not proof that the requested
@@ -3000,7 +3435,7 @@
           vosExternalUsed++;
           const touched = externalTouched.slice(0, 8).join(', ');
           const artifactRule = externalArtifactTouched ? ' This action changed a file, document, workbook, or other artifact; a generic status/read call does not prove that artifact is fresh. Use the connector\'s dedicated verify/check/confirm tool.' : ' Use the connector\'s narrowest read/check/verify tool now.';
-          messages.push({ role: 'system', content: '<verify_external_before_done>You used an external connector action in this run (' + touched + ') and are ending without a later read-back or verification call. A successful action response is not independent proof that the requested state persisted.' + artifactRule + ' Then report only what that result proves. If no meaningful read-back can verify this action, say plainly that the external state was NOT independently verified instead of claiming it was.' + HOST_CHECK + '</verify_external_before_done>' });
+          messages.push({ role: 'system', content: '<verify_external_before_done>You used an external connector action in this run (' + touched + ') and are ending without a later read-back or verification call. A successful action response is not independent proof that the requested state persisted.' + artifactRule + ' Then report only what that result proves. If no meaningful read-back can verify this action, say plainly that the external state was NOT independently verified instead of claiming it was.' + HOST_CHECK + '</verify_external_before_done>' }); nudged('verify_external_before_done');
           continue;
         }
         // SOURCE VERIFY-ON-STOP: search/list/inspect output discovers candidates; it does not prove the
@@ -3015,7 +3450,7 @@
         }
         if (!empty && !graceUsed && vosSourceUsed < VOS_MAX && unfetchedSources.length) {
           vosSourceUsed++;
-          messages.push({ role: 'system', content: '<verify_sources_before_done>You are ending a sourced/research task after using only a connector search, list, or inspect tool. Discovery metadata and snippets are not source retrieval. Use the connector\'s fetch/read tool to retrieve every source you cite, then make each claim only from what those source reads actually returned. If a source cannot be retrieved, label that claim unverified instead of citing the discovery result as proof.' + HOST_CHECK + '</verify_sources_before_done>' });
+          messages.push({ role: 'system', content: '<verify_sources_before_done>You are ending a sourced/research task after using only a connector search, list, or inspect tool. Discovery metadata and snippets are not source retrieval. Use the connector\'s fetch/read tool to retrieve every source you cite, then make each claim only from what those source reads actually returned. If a source cannot be retrieved, label that claim unverified instead of citing the discovery result as proof.' + HOST_CHECK + '</verify_sources_before_done>' }); nudged('verify_sources_before_done');
           continue;
         }
         if (!empty && !graceUsed && acceptanceProbe && accUsed < ACC_MAX) {
@@ -3027,7 +3462,7 @@
           if (failing.length) {
             accUsed++;
             const lines = failing.slice(0, 20).map(c => '- ' + (c.id || c.type) + ' [' + c.type + (c.path ? ' ' + c.path : '') + (c.command ? ' `' + c.command + '`' : '') + (c.connector ? ' ' + c.connector + (c.tool ? '/' + c.tool : '') : '') + ']: ' + (c.code || 'not_proven'));
-            messages.push({ role: 'system', content: '<acceptance_before_done>You are ending this task but the host\'s acceptance checks for it do not all hold yet. These are mechanical postconditions the Commander attached to this procedure; the task is not done until every one passes:\n' + lines.join('\n') + '\nMake each failing check hold now (produce/fix the named artifact in this run, or run the exact named check command so it passes), then finish. If one genuinely cannot be satisfied, say so plainly and name which — never claim it holds.' + HOST_CHECK + '</acceptance_before_done>' });
+            messages.push({ role: 'system', content: '<acceptance_before_done>You are ending this task but the host\'s acceptance checks for it do not all hold yet. These are mechanical postconditions the Commander attached to this procedure; the task is not done until every one passes:\n' + lines.join('\n') + '\nMake each failing check hold now (produce/fix the named artifact in this run, or run the exact named check command so it passes), then finish. If one genuinely cannot be satisfied, say so plainly and name which — never claim it holds.' + HOST_CHECK + '</acceptance_before_done>' }); nudged('acceptance_before_done');
             continue;
           }
         }
@@ -3066,7 +3501,7 @@
             && spentUsd < maxCostUsd && unpricedTokens < maxUnpricedTokens && turns < maxIters) {
           steerReplyPending = false;
           if (continuationParts.length) { collapseContinuation(assistant); continuationParts.length = 0; continuationPrompts.length = 0; continuationText = ''; }
-          messages.push({ role: 'system', content: '<resume_after_message>The mid-task reply has been delivered. Continue any unfinished work on the original objective with the latest user updates. If the objective is already complete, explicitly cancelled, or genuinely blocked, finish with that truthful outcome; do not invent more work.</resume_after_message>' });
+          messages.push({ role: 'system', content: '<resume_after_message>The mid-task reply has been delivered. Continue any unfinished work on the original objective with the latest user updates. If the objective is already complete, explicitly cancelled, or genuinely blocked, finish with that truthful outcome; do not invent more work.</resume_after_message>' }); nudged('resume_after_message');
           continue;
         }
         if (continuationParts.length) collapseContinuation(assistant);
@@ -3086,7 +3521,7 @@
       toolTurnsRun++;
       toolCutStreak = 0;   // a complete call got through: the next cut is a new problem, with its own advice
       try {
-        results = await executeCalls(calls, dispatch, capCtx, emit, { agentId, runId, clock, signal, hiddenTools: new Set(o.hiddenTools || []), parallelSafe: (typeof o.parallelSafe === 'function') ? o.parallelSafe : null, turnOutputMax: turnOutputMaxNow() });
+        results = await executeCalls(calls, dispatch, capCtx, emit, { agentId, runId, clock, signal, hiddenTools: new Set(o.hiddenTools || []), parallelSafe: (typeof o.parallelSafe === 'function') ? o.parallelSafe : null, batchOrder: (typeof o.batchOrder === 'function') ? o.batchOrder : null, turnOutputMax: turnOutputMaxNow() });
         assertPaired(calls, results); // (7) HARD INVARIANT
       } catch (e) {
         emit('agent.run.error', { agentId, runId, message: String((e && e.message) || e), transient: false, failureCode: (e && e.fatalToRun) ? 'durability_boundary' : 'tool_dispatch_failure' });
@@ -3095,7 +3530,10 @@
       for (const r of results) {
         // a merged duplicate has no result of its own: the kept call's result says the copies were not dispatched
         const merged = mergedDupes.get(r.callId) || 0;
-        messages.push(toolResultMsg(r.callId, r.isError, merged ? String(r.content == null ? '' : r.content) + duplicateNote(merged) : r.content));
+        const resultMsg = toolResultMsg(r.callId, r.isError, merged ? String(r.content == null ? '' : r.content) + duplicateNote(merged) : r.content);
+        // ok: the call succeeded (batched ageing ages only a successful write's arguments)
+        if (toolOrigin) toolOrigin.set(resultMsg, { parkedPath: r.parkedPath || null, parkMeta: provenanceOf(r), ok: !!r.ok && !r.isError });
+        messages.push(resultMsg);
       }
       for (const call of calls) {
         const receipt = results.find(r => r.callId === call.id);
@@ -3139,7 +3577,8 @@
 
          Bounded to TOOL_IMAGE_MAX per turn — an image is thousands of tokens, and a loop that screenshots
          every turn would otherwise eat the context window it was supposed to be reasoning inside. Across turns they
-         age out of what is SENT (SCREENSHOTS AGE OUT OF VIEW: only the newest TOOL_IMAGE_KEEP stay as pixels). */
+         age out of what is SENT (SCREENSHOTS AGE OUT OF VIEW: the newest TOOL_IMAGE_KEEP, up to TOOL_IMAGE_STEP more
+         between steps, stay as pixels; a provider that holds the run's history keeps up to HELD_IMAGE_TURNS). */
       if (toolImages) {
         const shots = [];
         const shotTools = [];   // which calls' pixels these are — named by the placeholder once this capture ages out
@@ -3172,23 +3611,39 @@
       // rather than one path — a project's check runs the project, not a file. A check clears it only when it
       // PASSED (vosCheckPassed): a failing one leaves the debt standing and is remembered, so the stop nudge
       // tells the model the truth — its check failed — instead of "you ran nothing".
+      // LOOP TRUTH (W1.11): a shell/verify call that carries the host's exit receipt RAN even when its result is an error
+      // (a KILLED check is a check that did not pass, never "nothing ran"). What each call proves is decided here and kept
+      // by the ledger (makeVosLedger): a check speaks for the whole change, a run for the changed file the host proves it
+      // ran, and EVERY command that ran is also kept, so the premise names it for the code it is no check of (review round
+      // 2: a clean `node main.js` left the changed lib.js told it was "ending without running anything").
       if (VOS_MAX > 0) {
         const okById = {}, resultById = {};
         for (const r of results) { okById[r.callId] = !!r.ok && !r.isError; resultById[r.callId] = r; }
         for (const c of calls) {
-          if (!okById[c.id]) continue;
-          const k = vosKey(c.name);
-          if (VOS_VERIFIERS.has(k) || (k === 'shell_exec' && vosIsCheckCommand(c.args))) {
-            if (vosCheckPassed(c, resultById[c.id])) {
-              if (k === 'shell_exec' && vosIsPatchOnlyCheck(c.args)) { for (const p of Array.from(vosUnverified)) if (VOS_PATCH_PATH_RE.test(p)) vosUnverified.delete(p); }
-              else vosUnverified.clear();
-              vosFailedCheck = '';
-            }
-            // `summarize` is shadowed in this scope by the compaction summarizer (o.summarize) — use clip().
-            else if (vosUnverified.size) vosFailedCheck = clip(k === 'shell_exec' ? ((c.args && (c.args.command || c.args.cmd || c.args.script)) || k) : ((c.args && c.args.cmd) || k), 80);
+          const k = vosKey(c.name), r = resultById[c.id], args = c.args || {};
+          const ranWithReceipt = (VOS_VERIFIERS.has(k) || k === 'shell_exec') && vosRan(r);
+          if (!okById[c.id] && !ranWithReceipt) continue;
+          const cmdRaw = k === 'shell_exec' ? ((args.command || args.cmd || args.script) || k) : (args.cmd || k);
+          // `summarize` is shadowed in this scope by the compaction summarizer (o.summarize) — use clip().
+          const cmdText = clip(cmdRaw, 80);
+          // a check started in the background has no verdict yet: it is a command that ran, never a pass
+          if (VOS_VERIFIERS.has(k) || (k === 'shell_exec' && args.background !== true && vosIsCheckCommand(args))) {
+            vos.check(k === 'shell_exec' && vosIsPatchOnlyCheck(args) ? 'patch' : 'all', vosCheckPassed(c, r), cmdText);
+            vos.ran(vosRanNote(cmdRaw, args, r));   // named only for code it is no check of (a patch check, for the code)
             continue;
           }
-          if (VOS_MUTATORS.has(k)) { const p = vosPathOf(c.args); if (vosIsCodePath(p) && !(o.standaloneWorkspace === true && VOS_PAGE_RE.test(p))) vosUnverified.add(p); }
+          if (k === 'shell_exec') {
+            const note = vosRanNote(cmdRaw, args, r);
+            if (!note) continue;   // a background start the shell refused or could not make: nothing ran
+            const target = args.background === true ? null : vosInterpreterTarget(args);
+            const runsOf = target ? vos.changedPaths().filter(p => vosRunsPath(target.script, p, r && r.ranIn, vosBase, target.exe)) : [];
+            // a run of a changed file with the host's receipt of how it ended is that file's evidence (the ledger ranks it);
+            // one without a receipt proves nothing. Either way it ran, and is named for the files it proves nothing about.
+            if (runsOf.length && (note.killed || note.exit !== '')) vos.run(runsOf, vosExitZero(r), cmdText);
+            vos.ran(note);
+            continue;
+          }
+          if (VOS_MUTATORS.has(k)) { const p = vosPathOf(args); if (vosIsCodePath(p) && !(o.standaloneWorkspace === true && VOS_PAGE_RE.test(p))) vos.change(p); }
           const externalEffect = vosExternalEffect(c.name);
           if (externalEffect && externalEffect.role === 'observe') {
             const pending = vosExternalUnverified.get(externalEffect.connector);
@@ -3257,12 +3712,13 @@
 
       // Arm recovery only for non-terminal technical failures. One successful alternate call disarms it;
       // a mixed batch retains only the names that failed so the next turn knows what still needs another route.
-      const recoverableFailures = [];
+      // A call the Task Brief gate HELD is pending too (the work is still undone), but as held, never as failed.
+      const recoverableFailures = [], heldCalls = [];
       for (const c of calls) {
         const r = results.find(x => x.callId === c.id);
-        if (r && r.isError && !terminalHumanDecision(r)) recoverableFailures.push(String(c.name || 'tool'));
+        if (r && r.isError && !terminalHumanDecision(r)) (isGateHeld(r) ? heldCalls : recoverableFailures).push(String(c.name || 'tool'));
       }
-      if (recoverableFailures.length) failureRecoveryPending = { names: Array.from(new Set(recoverableFailures)) };
+      if (recoverableFailures.length || heldCalls.length) failureRecoveryPending = { names: Array.from(new Set(recoverableFailures)), held: Array.from(new Set(heldCalls)) };
       else if (results.some(r => r && r.ok && !r.isError)) failureRecoveryPending = null;
 
       // (8) LOOP GUARD — break out of a run that keeps making the SAME failing tool call. Warn once, then stop.
@@ -3301,5 +3757,5 @@
     }
   }
 
-  return { runAgentLoop, _internals: { waitsOnPeers, parseCall, repairCalls, normalizeBatch, uniqueCallIds, dropDuplicateCalls, assistantTurn, toolResultMsg, assertPaired, executeCalls, announcesIntent, memorySaveClaim, terminalHumanDecision, scrubTextToolCallMarkup, vosIsCodePath, vosIsCheckCommand, vosIsPatchOnlyCheck, vosKey, vosExternalRole, vosExternalArtifactMutation, vosExternalSourceRole, sourceGroundingRequested, explicitNonzeroExit, vosCheckPassed, failedCheckRepairNote, deterministicCheckSignature, parallelizable, applyTurnBudget, squeeze, turnAllowances, parkForTurnBudget, evictStaleScreenshots, isScreenCapture } };
+  return { runAgentLoop, _internals: { waitsOnPeers, parseCall, repairCalls, normalizeBatch, uniqueCallIds, dropDuplicateCalls, assistantTurn, toolResultMsg, assertPaired, executeCalls, announcesIntent, memorySaveClaim, terminalHumanDecision, scrubTextToolCallMarkup, vosIsCodePath, vosIsCheckCommand, vosIsPatchOnlyCheck, vosKey, vosExternalRole, vosExternalArtifactMutation, vosExternalSourceRole, sourceGroundingRequested, explicitNonzeroExit, vosCheckPassed, vosInterpreterTarget, vosAbsPath, vosRunsPath, makeVosLedger, nudgePremise, NUDGE_TAGS, failedCheckRepairNote, deterministicCheckSignature, parallelizable, batchRunOrder, inCallOrder, applyTurnBudget, squeeze, turnAllowances, parkForTurnBudget, evictStaleScreenshots, isScreenCapture } };
 });

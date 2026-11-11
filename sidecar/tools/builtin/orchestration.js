@@ -555,12 +555,23 @@
           : 'ASK FIRST. Writes and network calls (and commands, when shell_exec is in your tool list) are shown to the Commander for approval when you call the '
             + 'tool — so still just make the tool call, but expect a pause, and carry on without it if it is declined.');
     }
-    function workerSystem(base) {
+    /* THE WORKER PREFIX (cost lane W1.10, 2026-11-09). Nothing volatile in a cached prefix. A delegated run's system
+       prompt is the prefix every provider reads from cache (the Codex route is a hash of it; claude-cli and OpenRouter
+       cache it), and the TASK CONTEXT changes with every dispatch: the lead's Task Brief (its <task_brief
+       id="tb_<lead run>"> is per run), the Commander evidence, the lead's query-ranked recall and the Commander's taste.
+       Appended to the identity, it made two dispatches of one agent differ a few hundred chars in, so every dispatch
+       paid the worker's whole system cold. ONE resolver for every delegated surface (dispatch and its structured-result
+       repair, spawn, resume): the system is the identity, the approval posture and, when a context exists, the fixed
+       [DELEGATED EXECUTION] line, byte-identical across dispatches of one agent. The context itself is handed to the
+       run host whole, in the same words, as `delegatedContext`; runOnce places it in the opening message's per-run
+       <run_context> note (index.js THE WORKER PREFIX), never in the worker's own words (its directive, title and
+       transcript row). With no context the system keeps its old bytes. test/worker-prefix(.e2e).test.js pin it. */
+    const DELEGATED_EXECUTION = '[DELEGATED EXECUTION] Treat the [TASK CONTEXT] block handed to you with this task as settled input from the Commander. Do not ask the Commander another discovery question. If a truly blocking gap remains, report that gap to the lead agent.';
+    function workerPrompt(base) {
       const identity = String(base || '') + postureNote();
       const liveContext = typeof deps.getTaskContext==='function' ? String(deps.getTaskContext() || '') : taskContext;
-      if (!liveContext) return identity;
-      return identity + '\n\n' + liveContext
-        + '\n\n[DELEGATED EXECUTION] Treat the task context above as settled input from the Commander. Do not ask the Commander another discovery question. If a truly blocking gap remains, report that gap to the lead agent.';
+      if (!liveContext) return { system: identity };
+      return { system: identity + '\n\n' + DELEGATED_EXECUTION, delegatedContext: '[TASK CONTEXT]\n' + liveContext };
     }
     /* LEAD CONTEXT HANDOFF (G6 closure). A worker's opening message was ONLY the prompt string: whatever the
        lead had already established — discovered file paths, findings, constraints, decisions — was lost unless
@@ -569,8 +580,8 @@
        itself stays last (recency); the structured-result REPAIR run replays the same opening message verbatim
        (it reuses this composed string), and restart-resume rebuilds it from the durable record's own `context`
        field — a resumed worker never silently loses its handoff. Distinct from `taskContext` above: that block
-       is the HOST-assembled Commander evidence in the system prompt; this one is the LEAD-authored, per-worker
-       working state. */
+       is the HOST-assembled Commander evidence handed on as the run's [TASK CONTEXT] note (workerPrompt); this one
+       is the LEAD-authored, per-worker working state. */
     const HANDOFF_CONTEXT_MAX = 8000;
     function handoffContext(raw) { return String(raw == null ? '' : raw).trim().slice(0, HANDOFF_CONTEXT_MAX); }
     function openingMessage(prompt, context, resultSchema, earlier) {
@@ -1125,7 +1136,7 @@
               // lead's — a dispatched specialist honors its loadout. Falls back to the lead's effort when unset.
               reasoningEffort: wire.reasoningEffort,   // the ONE effort rule (workerWire): its own, else the station's when it follows
               model: wire.model,
-              system: workerSystem((job.ident && job.ident.system) || ''),
+              ...workerPrompt((job.ident && job.ident.system) || ''),
               messages: previousMessages.concat([{ role: 'user', content: contractedPrompt }]),
               agentId: job.agentId, isTask: true,
               emit: receipt.emit,              // lifecycle/cost ride the lead/global stream -> the floor lights the worker (o2.emit || childEmit)
@@ -1180,11 +1191,11 @@
             let repair;
             try {
               repair = await runOnce({
-                outputOnly: true,
+                outputOnly: true, crewRetry: true,   // a failed host check: the retry steps its effort up one rung (index.js crewEffort, W3.3)
                 ...projectOptions(job.sessionContext || ctx), ...connectorOptions(ctx), ...repairPool.options,
                 key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl, wireSource: wire.wireSource,
                 reasoningEffort: wire.reasoningEffort,   // the ONE effort rule (workerWire)
-                model: wire.model, system: workerSystem((job.ident && job.ident.system) || ''),
+                model: wire.model, ...workerPrompt((job.ident && job.ident.system) || ''),
                 messages: [{ role: 'user', content: contractedPrompt }, { role: 'assistant', content: firstText },
                   { role: 'user', content: '[STRUCTURED RESULT REPAIR] The prior result failed host validation:\n- ' + errors.slice(0, 20).join('\n- ') + '\nReturn ONLY strict JSON matching: ' + JSON.stringify(job.resultSchema) }],
                 agentId: job.agentId, isTask: true, emit: o2.emit || childEmit,
@@ -1222,7 +1233,9 @@
             usd: totalUsd,
             runId: workerRunId,
             model: effective.model || wire.model,
-            reasoningEffort: effective.reasoningEffort || wire.reasoningEffort || null,
+            // the effort the worker's run records (index.js effortAsRun: what its request carried), never the dial it was handed:
+            // a request that carried none names none here, as its run record and ledger row do
+            reasoningEffort: effective.reasoningEffort || null,
             toolsOk: (Number(result.toolsOk) || 0) + (Number(repaired && repaired.toolsOk) || 0),
             durationMs: (Number(result.durationMs) || 0) + (Number(repaired && repaired.durationMs) || 0),
             tokens: (Number(result.tokens) || 0) + (Number(repaired && repaired.tokens) || 0)
@@ -1432,7 +1445,7 @@
               result = await runOnce({
               ...projectOptions(ctx), ...connectorOptions(ctx), ...watched.options,
                 key, provider, baseUrl, reasoningEffort, model,      // the lead's OWN model - a clone of self
-                system: workerSystem(selfSystem),           // the lead's OWN identity plus settled task context
+                ...workerPrompt(selfSystem),           // the lead's OWN identity; the settled task context rides as its [TASK CONTEXT] note
                                                             // composes its own caps for its (narrowed) toolset
                 messages: [{ role: 'user', content: contractedPrompt }],
                 agentId: ephemeralId, isTask: true,
@@ -1480,9 +1493,9 @@
               let repair;
               try {
                 repair = await runOnce({
-                  outputOnly: true,
+                  outputOnly: true, crewRetry: true,   // a failed host check: the retry steps its effort up one rung (index.js crewEffort, W3.3)
                   ...projectOptions(ctx), ...connectorOptions(ctx), ...repairPool.options,
-                  key, provider, baseUrl, reasoningEffort, model, system: workerSystem(selfSystem),
+                  key, provider, baseUrl, reasoningEffort, model, ...workerPrompt(selfSystem),
                   messages: [{ role: 'user', content: contractedPrompt }, { role: 'assistant', content: firstText },
                     { role: 'user', content: '[STRUCTURED RESULT REPAIR] The prior result failed host validation:\n- ' + errors.slice(0, 20).join('\n- ') + '\nReturn ONLY strict JSON matching: ' + JSON.stringify(task.resultSchema) }],
                   agentId: ephemeralId, isTask: true,
@@ -1636,30 +1649,95 @@
       return { content: JSON.stringify(out), summary: 'recorded: ' + (row.agentId || 'worker') + ' ' + outcome };
     }
 
+    /* WAIT, DON'T POLL (cost plan W1.11). Learning that a background worker finished meant calling team.subagents again on
+       another paid turn, as often as it took. wait:true blocks, bounded, the way shell.bg.wait does: it returns as
+       soon as a listed worker's status or generation changes, when the run is cancelled, or when a note is waiting for this
+       run (deps.steerPending: the loop folds it on the next turn), else at timeoutMs with the list unchanged — a timeout is
+       an answer, not an error. Read-only, and nothing caps how often it may be called.
+       THE CAP SITS UNDER THE PROMPT CACHE (review round 1). The next model call re-reads the whole prefix; a gap past the
+       provider's 5-minute cache tier (providers/anthropic.js CACHE TTL; the claude-cli child also closes after 5 idle
+       minutes) re-WRITES it at full price, which one long wait would spend more on than the polls it replaced. Three
+       minutes leaves room for the turn that issued the wait; a longer job is waited on again, each look a cache hit. */
+    const SUBAGENT_WAIT_MAX_MS = 180000;
+    const SUBAGENT_WAIT_STEP_MS = 250;
+    const steerPending = (typeof deps.steerPending === 'function') ? deps.steerPending : null;
+    function napUnlessAborted(ms, signal) {
+      return new Promise(resolve => {
+        if (signal && signal.aborted) return resolve();
+        let timer = null;
+        const done = () => { clearTimeout(timer); if (signal) signal.removeEventListener('abort', done); resolve(); };
+        timer = setTimeout(done, ms);
+        if (signal) signal.addEventListener('abort', done, { once: true });
+      });
+    }
+    // read() -> the rows being watched; returns { state, ms, budget }: idle (nothing running) | changed | cancelled | note | timeout
+    async function waitForWorkers(read, args, ctx) {
+      const asked = Number(args.timeoutMs != null ? args.timeoutMs : args.timeout_ms);
+      const budget = Math.max(0, Math.min(SUBAGENT_WAIT_MAX_MS, Number.isFinite(asked) && (args.timeoutMs != null || args.timeout_ms != null) ? Math.floor(asked) : 30000));
+      const signal = ctx && ctx.signal;
+      const sig = rows => rows.map(r => r.id + '\u0000' + r.status + '\u0000' + r.generation).join('\u0001');
+      const t0 = now();
+      const first = read();
+      if (!first.some(r => r && (r.status === 'running' || r.status === 'queued'))) return { state: 'idle', ms: 0, budget };
+      const start = sig(first);
+      for (let waited = 0; ;) {
+        if (signal && signal.aborted) return { state: 'cancelled', ms: now() - t0, budget };
+        let pendingNotes = 0;
+        try { pendingNotes = steerPending ? Number(steerPending()) || 0 : 0; } catch (_) { pendingNotes = 0; }
+        if (pendingNotes > 0) return { state: 'note', ms: now() - t0, budget };
+        if (waited >= budget) return { state: 'timeout', ms: now() - t0, budget };
+        const step = Math.min(SUBAGENT_WAIT_STEP_MS, budget - waited);
+        await napUnlessAborted(step, signal);
+        waited += step;
+        if (sig(read()) !== start) return { state: 'changed', ms: now() - t0, budget };
+      }
+    }
+    // the line the model reads after the rows: what the wait saw (ms only when a clock is wired)
+    function waitNote(w) {
+      const after = hasClock ? ' after ' + Math.max(0, Math.round(w.ms)) + 'ms' : '';
+      if (w.state === 'idle') return '[wait: none of these workers is running, so there was nothing to wait for]';
+      // 'changed' = the watched rows differ (a status, a generation, or a worker that left a status-filtered list): say no more
+      if (w.state === 'changed') return '[wait: the worker list changed' + after + ']';
+      if (w.state === 'cancelled') return '[wait: stopped' + after + ' — the run was cancelled]';
+      if (w.state === 'note') return '[wait: stopped' + after + ' — a note for this run is waiting to be read]';
+      return '[wait: no status changed within ' + w.budget + 'ms — the workers are still running. This is not an error; wait again or check back later]';
+    }
+    const WAIT_SUMMARY = { idle: 'nothing running', changed: 'changed', cancelled: 'wait cancelled', note: 'note waiting', timeout: 'still running' };
+
     const subagentsTool = {
       name: 'team.subagents', capability: 'orchestrator', impact: 'none', scope: 'read', requiresConsent: false,
-      description: 'List or inspect your BACKGROUND subagents (team.dispatch with background:true, and team.spawn). Pass id for one worker, or omit id to list recent workers for this lead. Returned records include the current generation, status, event tail, result, steering history, and whether they can be interrupted or resumed. Use the returned id + generation for team.steer. A normal (foreground) team.dispatch is NEVER in this list; to confirm one really ran, pass runId (from its dispatch result) and the station\'s run history answers.',
-      schema: { type: 'object', properties: { id: { type: 'string' }, agentId: { type: 'string' }, status: { type: 'string' }, runId: { type: 'string', description: 'A worker runId from a team.dispatch result: look it up in the station\'s durable run history.' } } },
+      // the registry backstop: above the bounded wait for wait:true; any other call (a list, an id, a runId lookup) keeps the
+      // run's 30 s fast-tool cap (0 = ctx.timeoutMs), as before the wait existed
+      timeoutMs: (args) => (args && args.wait === true ? SUBAGENT_WAIT_MAX_MS + 10000 : 0),
+      description: 'List or inspect your BACKGROUND subagents (team.dispatch with background:true, and team.spawn). Pass id for one worker, or omit id to list recent workers for this lead. Returned records include the current generation, status, event tail, result, steering history, and whether they can be interrupted or resumed. Use the returned id + generation for team.steer. A normal (foreground) team.dispatch is NEVER in this list; to confirm one really ran, pass runId (from its dispatch result) and the station\'s run history answers. wait:true waits up to timeoutMs (max 3 min) for a status change instead of polling.',
+      schema: { type: 'object', properties: { id: { type: 'string' }, agentId: { type: 'string' }, status: { type: 'string' }, runId: { type: 'string', description: 'A worker runId from a team.dispatch result: look it up in the station\'s durable run history.' }, wait: { type: 'boolean' }, timeoutMs: { type: 'number' } } },
       run: async (args, ctx) => {
         const leadId = (ctx && ctx.agentId) || 'agent';
         if (args && args.runId) return verifyDelegatedRun(String(args.runId), leadId, ctx);
         if (!subagents) return { content: 'background subagents unavailable', summary: 'unavailable' };
+        const wantWait = !!(args && args.wait === true);
         if (args && args.id) {
-          const r = subagents.get(String(args.id));
-          if (!r || r.leadId !== leadId) return { content: 'No such background subagent for this lead.', summary: 'not found' };
-          return withTaint({ content: JSON.stringify(r), summary: r.status }, taintOfRows([r]));
+          const own = () => { const r = subagents.get(String(args.id)); return r && r.leadId === leadId ? r : null; };
+          if (!own()) return { content: 'No such background subagent for this lead.', summary: 'not found' };
+          const w = wantWait ? await waitForWorkers(() => { const r = own(); return r ? [r] : []; }, args, ctx) : null;
+          const r = own();
+          if (!r) return { content: 'No such background subagent for this lead.', summary: 'not found' };
+          return withTaint({ content: JSON.stringify(r) + (w ? '\n' + waitNote(w) : ''), summary: r.status + (w ? ' · ' + WAIT_SUMMARY[w.state] : '') }, taintOfRows([r]));
         }
-        const rows = subagents.list({ leadId, agentId: args && args.agentId, status: args && args.status });
+        const listed = () => subagents.list({ leadId, agentId: args && args.agentId, status: args && args.status });
+        const waited = wantWait ? await waitForWorkers(listed, args, ctx) : null;
+        const rows = listed();
         // An empty list is NOT evidence that nothing ran: say what this list can and cannot see (#57).
         if (!rows.length) return {
           content: 'No background subagents' + (args && args.agentId ? ' for ' + String(args.agentId) : '') + (args && args.status ? ' with status ' + String(args.status) : '')
             + ' for this lead. This list only tracks BACKGROUND workers (team.dispatch background:true, team.spawn). A normal team.dispatch'
             + ' returns its result directly and never appears here, so an empty list does not mean a dispatch failed. To confirm a dispatched'
-            + ' worker really ran, call team.subagents with runId set to the runId from that dispatch result.',
-          summary: '0 background subagent(s)'
+            + ' worker really ran, call team.subagents with runId set to the runId from that dispatch result.'
+            + (waited ? '\n' + waitNote(waited) : ''),
+          summary: '0 background subagent(s)' + (waited ? ' · ' + WAIT_SUMMARY[waited.state] : '')
         };
         const fit = await fitAggregate(rows, { budget: aggregateBudget(ctx), what: r => (r.agentId || 'subagent') + ' (' + (r.id || '') + ')\'s result', park: workerParker(ctx, 'team.subagents'), scrub: scrubTextOf(ctx) });
-        return withTaint({ content: JSON.stringify(fit.rows), summary: rows.length + ' background subagent(s)' + fitNote(fit) }, taintOfRows(rows));
+        return withTaint({ content: JSON.stringify(fit.rows) + (waited ? '\n' + waitNote(waited) : ''), summary: rows.length + ' background subagent(s)' + fitNote(fit) + (waited ? ' · ' + WAIT_SUMMARY[waited.state] : '') }, taintOfRows(rows));
       }
     };
 
@@ -1700,7 +1778,7 @@
             key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl, wireSource: wire.wireSource,
             reasoningEffort: wire.reasoningEffort,   // the ONE effort rule, as a fresh dispatch (workerWire)
             model: wire.model,
-            system: workerSystem((ident && ident.system) || ''),
+            ...workerPrompt((ident && ident.system) || ''),
             messages: ((resumedSession && resumedSession.messages) || []).concat([{ role: 'user', content: contractedPrompt }]),
             streamId: rec.streamId || undefined, sessionTitle: resumedSession && resumedSession.title,
             coordinatedSession: !!rec.parentStreamId,
@@ -1739,11 +1817,11 @@
           let repair;
           try {
             repair = await runOnce({
-              outputOnly: true,
+              outputOnly: true, crewRetry: true,   // a failed host check: the retry steps its effort up one rung (index.js crewEffort, W3.3)
             ...projectOptions(ctx, rec), ...resumeConnectorOptions(ctx, rec), ...repairPool.options,
             key: wire.key, provider: wire.provider, baseUrl: wire.baseUrl, wireSource: wire.wireSource,
             reasoningEffort: wire.reasoningEffort,   // the ONE effort rule (workerWire)
-            model: wire.model, system: workerSystem((ident && ident.system) || ''),
+            model: wire.model, ...workerPrompt((ident && ident.system) || ''),
             messages: [{ role: 'user', content: contractedPrompt }, { role: 'assistant', content: firstText },
               { role: 'user', content: '[STRUCTURED RESULT REPAIR] The prior result failed host validation:\n- ' + errors.slice(0, 20).join('\n- ') + '\nReturn ONLY strict JSON matching: ' + JSON.stringify(rec.resultSchema) }],
             agentId: rec.agentId, isTask: true, emit: h.emit, signal: h.signal, runId: repairRunId,

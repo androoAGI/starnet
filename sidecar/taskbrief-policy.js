@@ -190,4 +190,24 @@ function canMutate(brief, tool, call) {
     : { ok: false, reason: 'settle the Task Brief with brief_proceed, or ask the one material question with brief_ask, before consequential work' };
 }
 
-module.exports = { DIMENSIONS, routeReply, validateQuestion, validateQuestions, askCallsOf, validateProceed, canMutate, clean, matchOption, tasteFiller, trimAssumptions, maxOptionsFor: TaskIntent.maxOptionsFor };
+/* THE SETTLE RUNS FIRST (cost audit W1.2, 2026-11-08). canMutate reads the brief at the moment each call runs, and a
+   sequential batch ran in the order the model happened to list it. So [fs_write, brief_proceed] in ONE response held the
+   write, settled the brief, and cost the run a whole extra full-context request to make the same write again, while
+   [brief_proceed, fs_write] passed. Listing order inside one response is not a decision the model made about the work.
+   This is the one place that decides a batch's run order for the gate: when the batch carries brief_proceed and NO
+   brief_ask, its brief_update / brief_proceed calls run first, in their listed order, then every other call in its listed
+   order. A batch that asks keeps its order exactly: settling ahead of the question would decide it for the Commander, and
+   the question must still pause the run before any write. The gate's meaning is unchanged (brief_proceed is still
+   required and validated, the read card stays model-authored); only "which call ran first" stops mattering.
+   nameOf(call) gives a call's registry (dotted) name. Returns the SAME array when nothing moves. */
+const SETTLE_FIRST = new Set(['brief.update', 'brief.proceed']);
+function settleFirst(calls, nameOf) {
+  if (!Array.isArray(calls) || calls.length < 2 || typeof nameOf !== 'function') return calls;
+  const names = calls.map(c => { try { return String(nameOf(c) || ''); } catch (_) { return ''; } });
+  if (names.indexOf('brief.ask') >= 0 || names.indexOf('brief.proceed') < 0) return calls;
+  const first = [], rest = [];
+  calls.forEach((c, i) => (SETTLE_FIRST.has(names[i]) ? first : rest).push(c));
+  return first.every((c, i) => calls[i] === c) ? calls : first.concat(rest);
+}
+
+module.exports = { DIMENSIONS, routeReply, validateQuestion, validateQuestions, askCallsOf, validateProceed, canMutate, settleFirst, clean, matchOption, tasteFiller, trimAssumptions, maxOptionsFor: TaskIntent.maxOptionsFor };

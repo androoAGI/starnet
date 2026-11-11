@@ -254,12 +254,15 @@
     // a flat 272000. No list is shared (a token is one account), only the window each slug REPORTED. Absent = as before.
     const facts = (opts.catalogCache && typeof opts.catalogCache.bind === 'function')
       ? opts.catalogCache.bind({ scope: null, endpoint: baseUrl }) : null;
+    // THE EFFORT A REQUEST CARRIES (buildBody and effortAsSent read this one function): its own, else the one this adapter
+    // was built with, in the Responses API's words. Every request on this wire carries a reasoning.effort.
+    const effortFor = perRequest => normalizeCodexReasoningEffort(perRequest || reasoningEffort);
 
     function buildBody(req) {
       // ONE pre-send normalization (provider.js prepareWireMessages): a well-formed transcript is untouched; a malformed
       // one arrives paired (messagesToInput relies on it). Then the ONE role projection (projectRoles 'native').
       const { instructions, rest } = extractInstructions(provider.projectRoles(provider.prepareWireMessages(req.messages || [], 'codex'), 'native'));
-      const effort = normalizeCodexReasoningEffort(req.reasoningEffort || reasoningEffort);
+      const effort = effortFor(req.reasoningEffort);
       const body = {
         model: req.model || DEFAULT_MODEL,
         instructions: instructions || 'You are a helpful assistant.',
@@ -600,13 +603,17 @@
     function supportsTools(id) { const m = findModel(id); return m ? !!m.supportsTools : true; }   // Codex models are tool-capable; never false-refuse
     // Which reasoning levels a codex model exposes — the static entry's list, or the four-level default.
     function reasoningEfforts(id) { const m = findModel(id); return (m && Array.isArray(m.reasoningEfforts) && m.reasoningEfforts.length) ? m.reasoningEfforts.slice() : CODEX_EFFORT_LIST.slice(); }
+    // effortAsSent(id, perRequest) -> the reasoning.effort a request for `id` carrying `perRequest` (falsy: none of its own)
+    // puts on the wire: what every station record of a Codex call names (index.js effortAsRun), never the dial it was set to
+    // (minimal goes out as low, max as xhigh).
+    function effortAsSent(id, perRequest) { return effortFor(perRequest); }
 
     function verifyCredential(o) {
       return provider.verifyResponse(doFetch, baseUrl + '/models?client_version=' + CLIENT_VERSION,
         { headers: { Authorization: 'Bearer ' + (token || ''), Accept: 'application/json' }, signal: o && o.signal },
         j => (Array.isArray(j.models) ? j.models : []).filter(m => m && typeof m.slug === 'string' && m.slug.trim()).map(m => ({ id: m.slug })), !!token, classifyApiError);
     }
-    return { stream, listModels, verifyCredential, contextLimit, priceOf, supportsTools, reasoningEfforts };
+    return { stream, listModels, verifyCredential, contextLimit, priceOf, supportsTools, reasoningEfforts, effortAsSent };
   }
 
   /* #118 (2026-10-15): the ids a listModels() answer proves the ACCOUNT offers, in the backend's priority order. The
@@ -659,12 +666,17 @@
     u = u || {};
     const inDetails = u.input_tokens_details || {};
     const outDetails = u.output_tokens_details || {};
+    const details = { cached_tokens: inDetails.cached_tokens || 0 };
+    // input written to the prompt cache, when the response says it (input_tokens_details.cache_write_tokens, GPT-5.6 and
+    // later): carried under the adapters' normalized name so the usage receipt counts it. A subscription's cost stays 0.
+    const written = Number(inDetails.cache_write_tokens) || 0;
+    if (written > 0) details.cache_creation_tokens = written;
     return {
       prompt_tokens: u.input_tokens || 0,
       completion_tokens: u.output_tokens || 0,
       total_tokens: u.total_tokens || ((u.input_tokens || 0) + (u.output_tokens || 0)),
       reasoning_tokens: outDetails.reasoning_tokens || 0,
-      prompt_tokens_details: { cached_tokens: inDetails.cached_tokens || 0 },
+      prompt_tokens_details: details,
       cost: 0
     };
   }

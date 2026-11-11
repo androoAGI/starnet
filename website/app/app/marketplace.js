@@ -812,6 +812,10 @@ const Marketplace = (() => {
     const tier = '<b>' + esc(clearanceLabel(s && s.model).toLowerCase()) + '</b>';
     if (tierPin) return 'uses <b>' + esc(shortModel(tierPin)) + '</b>, your ' + tier + ' tier model from SETTINGS › New agent defaults' +
       (pin && pin.effort ? ', at <b>' + esc(String(pin.effort).toUpperCase()) + '</b> effort' : '') + '.';
+    // LEANER CREW DEFAULTS (W3.4, on only while the station's switch is): applyLoadout swaps the copy for the family's tier model
+    const lean = leanModelOf(s);
+    if (lean) return 'uses <b>' + esc(shortModel(lean)) + '</b>, the ' + tier + ' tier model in the family of the agent on the line' +
+      (pin && pin.effort ? ', at <b>' + esc(String(pin.effort).toUpperCase()) + '</b> effort' : '') + '.';
     if (pin && pin.effort) return 'copies the model of the agent on the line now, at <b>' + esc(String(pin.effort).toUpperCase()) + '</b> effort.';
     // `effort: auto` is what applies the class's own effort (app.js summonAgent), so the line says so in the select's word
     return 'Copies the model of the agent on the line now; tuned for ' + tier +
@@ -820,6 +824,17 @@ const Marketplace = (() => {
   // the SETTINGS tier pin summon will apply to this class (App.tierModelFor — the same reader applyLoadout uses), or null
   function tierModelOf(s) {
     return (s && s.model && typeof App !== 'undefined' && App && typeof App.tierModelFor === 'function') ? App.tierModelFor(s.model) : null;
+  }
+  // the family tier model a lean summon of this class preselects (App.leanTierModelFor, the reader applyLoadout uses), or null
+  function leanModelOf(s) {
+    return (s && s.model && typeof App !== 'undefined' && App && typeof App.leanTierModelFor === 'function') ? App.leanTierModelFor(s.model) : null;
+  }
+  // the model picker's inherit option: what an untouched picker gives the recruit
+  function inheritLabelOf(s) {
+    const tierPin = tierModelOf(s), lean = tierPin ? null : leanModelOf(s);
+    return tierPin ? 'Use your ' + clearanceLabel(s.model).toLowerCase() + ' tier model (' + shortModel(tierPin) + ')'
+      : lean ? 'Use the ' + clearanceLabel(s.model).toLowerCase() + ' tier model (' + shortModel(lean) + ')'
+      : 'Copy the model of the agent on the line';
   }
 
   function summonModelSummary(s) {
@@ -922,7 +937,7 @@ const Marketplace = (() => {
     if (!(ctx && ctx.mode === 'pick' && ctx.summon) || typeof ModelPicker === 'undefined') return '';
     return '<div class="mkt-skinbar mkt-modelbar"><div class="mkt-skinlabel">MODEL &amp; EFFORT</div>' +
       '<div class="mkt-modelpick" id="mkt-model-pick">' +
-        ModelPicker.shellHTML({ id: 'mkt-model', inheritLabel: tierModelOf(s) ? 'Use your ' + clearanceLabel(s.model).toLowerCase() + ' tier model (' + shortModel(tierModelOf(s)) + ')' : 'Copy the model of the agent on the line', ariaLabel: 'New agent model', effort: true }) +
+        ModelPicker.shellHTML({ id: 'mkt-model', inheritLabel: inheritLabelOf(s), ariaLabel: 'New agent model', effort: true }) +
       '</div>' +
       '<div class="mkt-field-help" id="mkt-model-help">' + modelHelpHTML(s) + '</div></div>';
   }
@@ -2270,7 +2285,13 @@ const Marketplace = (() => {
     // SUMMON model picker: fill the catalog async, then track the choice ('' model → inherit the orchestrator's).
     const modelWrap = sc.querySelector('#mkt-model-pick');
     if (modelWrap && typeof ModelPicker !== 'undefined') {
-      ModelPicker.populate(modelWrap, { current: pickedSummonModel || {} }).catch(() => {});
+      ModelPicker.populate(modelWrap, { current: pickedSummonModel || {} }).then(() => {
+        // W3.4: a lean tier pick reads the catalog this populate just loaded, so the card names it once it is there
+        const s = (focusAgent && Specialties.get(focusAgent)) || null;
+        if (!leanModelOf(s)) return;
+        const inherit = modelWrap.querySelector('.mp-model option[value=""]'); if (inherit) inherit.textContent = inheritLabelOf(s);
+        const help = sc.querySelector('#mkt-model-help'); if (help) help.innerHTML = modelHelpHTML(s);
+      }).catch(() => {});
       ModelPicker.onChange(modelWrap, (sel) => {
         // EFFORT is an independent axis (audit item 5): a chosen effort must survive even when the MODEL is left
         // to inherit the orchestrator's. summonAgent/applyLoadout honor pin.effort independently of pin.model, so

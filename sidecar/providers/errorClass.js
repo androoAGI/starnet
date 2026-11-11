@@ -93,6 +93,11 @@
        shape (provider.projectRoles 'chat-nosystem') and remembers it for that endpoint + model; this class is what is
        left after that. Another model has another template, so a configured fallback is still worth taking. */
     template_refusal:       { retryable: false, shouldRotateCredential: false, shouldFallback: true,  shouldCompress: false },
+    /* A ONE-SHOT PASS'S SMALL MODEL GAVE NOTHING USABLE (W3.5, oneshot-model.js guard): a session title ran on the run
+       family's small model and its reply was empty, a refusal or no title, or the call failed. The guard marks its error
+       oneShotUnusable; the turn runs ONCE more on the run's own model, the head of its fallback chain. Not a blip to
+       resend on the same model, never a key to rotate, nothing to fold. */
+    oneshot_unusable:       { retryable: false, shouldRotateCredential: false, shouldFallback: true,  shouldCompress: false },
     /* NOTHING ANSWERED at the provider's address (bug 8873fd77, GH#111): the connection was refused (ECONNREFUSED — the
        server is not running, e.g. Ollama or LM Studio not started) or the name did not resolve (ENOTFOUND / EAI_AGAIN).
        These used to ride `timeout` through the whole ~106 s ladder, the retry line said "(timeout)" and the end read a
@@ -511,6 +516,8 @@
   function isQuotaExhausted(low) { return DAILY_FREE_CAP_RE.test(low) || (QUOTA_EXHAUSTED_RE.test(low) && !SHORT_WINDOW_RE.test(low)); }
 
   function pickReason(status, code, low, err, ctx) {
+    // the one-shot guard proved the small model's reply unusable (it wraps a provider error it saw as its cause): its own verdict
+    if (err && err.oneShotUnusable === true) return 'oneshot_unusable';
     // 0. errors that never reached an API: a certificate the machine rejects, or a crash in our own code. First,
     //    because neither carries a status or a body — so no later rule can be describing the provider's intent.
     if (!status && isTlsFailure(err, low)) return 'tls_certificate';

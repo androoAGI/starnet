@@ -246,6 +246,7 @@
      error's words decide, as before. StarNet's own UI-level messages (a sign-in, a busy agent, a stale page) are read first. */
   const CODE_TO_KIND = Object.assign({}, REASON_TO_KIND, {
     format_error: null, unknown: null, output_cap: null, local_error: null, local_timeout: 'local_timeout', provider_stalled: 'timeout',
+    oneshot_unusable: null,   // a session title's small-model reply was unusable: the run model took the turn over (W3.5) — never a run's end
     spend_history_unavailable: 'spend_unknown', capability_denied: 'capdenied', output_limit_tool_cut: 'output_limit',
     memory_write_unverified: 'memory_unverified', incomplete_work: 'incomplete_work', repeated_identical_failure: 'loop_stuck',
     unknown_tools: 'unknown_tools', repeated_tool_failure: 'tool_keeps_failing', no_progress: 'no_progress',

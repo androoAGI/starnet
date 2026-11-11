@@ -14,6 +14,9 @@
   // the run-outcome resolver (frontend/app/runoutcome.js): a job's last run reads as its outcome, never the loop's bare 'done'
   const RunOutcome = (typeof require === 'function') ? require('../../../frontend/app/runoutcome.js') : (typeof globalThis !== 'undefined' ? globalThis.RunOutcome : null);
   const Scheduler = (typeof require === 'function') ? require('../../scheduler-state.js') : null;
+  // DORMANT FOLLOW-UP CONTROLS (cost audit W1.3): a station with no routine holds routine.manage off the wire; a result
+  // that shows a real routine reveals it (capability/followups.js, loop.js revealTools)
+  const ROUTINE_CONTROLS = (typeof require === 'function') ? require('../../capability/followups.js').revealFor('routines') : [];
   const ID_RE = /^[A-Za-z0-9_-]{1,40}$/;
   const NAME_CHARS = 80;
   const PROMPT_CHARS = 12000;
@@ -293,9 +296,12 @@
       run: async (args) => {
         const agentId = clean(args && args.agentId, 80);
         if (agentId && !validId(agentId)) throw new Error('agentId must be one of your station agents');
-        let jobs = (listJobs() || []).map(pack).filter(Boolean);
-        if (agentId) jobs = jobs.filter(j => j.agentId === agentId);
-        return { content: JSON.stringify({ schedulerArmed: !!schedulerState(), schedulerHalted: !!schedulerHalted(), schedulerNote: armedNote() || undefined, jobs: jobs }), summary: jobs.length + ' routine(s)' };
+        const all = (listJobs() || []).map(pack).filter(Boolean);
+        const jobs = agentId ? all.filter(j => j.agentId === agentId) : all;
+        const out = { content: JSON.stringify({ schedulerArmed: !!schedulerState(), schedulerHalted: !!schedulerHalted(), schedulerNote: armedNote() || undefined, jobs: jobs }), summary: jobs.length + ' routine(s)' };
+        // routine.manage acts on any station routine, whether or not this filter listed it
+        if (all.some(j => j && j.id)) out.control = { revealTools: ROUTINE_CONTROLS.slice() };
+        return out;
       }
     };
 
@@ -380,7 +386,8 @@
           const existing = pack(job);
           return {
             content: JSON.stringify({ ok: true, duplicate: true, message: ANTI_RETRY, routedTo: route.agentId, job: existing }),
-            summary: 'already exists — did not create a duplicate for ' + route.agentId
+            summary: 'already exists — did not create a duplicate for ' + route.agentId,
+            control: existing && existing.id ? { revealTools: ROUTINE_CONTROLS.slice() } : undefined   // the existing routine is manageable
           };
         }
 
@@ -411,7 +418,9 @@
         };
         return {
           content: JSON.stringify(body),
-          summary: 'scheduled routine for ' + route.agentId + (armError ? ' (arm failed)' : offByChoice ? ' — scheduling is off (the Commander turned it off), so it will not run yet' : '')
+          summary: 'scheduled routine for ' + route.agentId + (armError ? ' (arm failed)' : offByChoice ? ' — scheduling is off (the Commander turned it off), so it will not run yet' : ''),
+          // the routine is saved: routine.manage rides the next call (only for a real record)
+          control: job && job.id ? { revealTools: ROUTINE_CONTROLS.slice() } : undefined
         };
       }
     };

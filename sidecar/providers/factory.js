@@ -84,6 +84,19 @@
   function attachRequestScrub(fn) { requestScrub = typeof fn === 'function' ? fn : null; return requestScrub; }
   function guarded(provider) { return requestScrub ? requestScrub(provider) : provider; }
 
+  /* USAGE RECEIPTS (usage-receipts.js, cost audit 2026-11-08): one record per model call — fresh input, cache read,
+     cache write, output, reasoning, and the window reading the call saw — so the station can prove what it spent.
+     Every adapter selectProvider returns streams through it, for the same reason as the scrub guard: the adapter added
+     later never remembers. It sits under the guard (it sees the call exactly as it goes out) and over the deferred
+     sign-in wrapper (one receipt per call, whichever account's token the call took). test/usage-receipts.invariant
+     locks that no production code builds an adapter anywhere else. Absent = every adapter behaves byte-identically. */
+  let usageReceipts = null;
+  function attachUsageReceipts(r) { usageReceipts = (r && typeof r.wrap === 'function') ? r : null; return usageReceipts; }
+  function receipted(provider, opts) {
+    if (!usageReceipts) return provider;
+    return usageReceipts.wrap(provider, { provider: registry.normalizeProviderId(opts.provider, registry.DEFAULT_PROVIDER_ID), account: opts.usageAccount || '' });
+  }
+
   function selectProvider(opts) {
     opts = opts || {};
     // Configured OAuth fallbacks need metadata at admission, but authentication only if used.
@@ -133,9 +146,9 @@
         if (req && req.signal && req.signal.aborted) return;
         yield* provider.stream(req);
       };
-      return guarded(deferred);
+      return guarded(receipted(deferred, opts));
     }
-    return guarded(buildAdapter(opts));
+    return guarded(receipted(buildAdapter(opts), opts));
   }
 
   // the concrete adapter for one provider profile (unguarded: selectProvider is the only caller)
@@ -219,6 +232,7 @@
         priceFamily: (typeof profile.priceFamily === 'string') ? profile.priceFamily : null,
         // an endpoint that relays to OpenRouter (the managed proxy) takes OpenRouter's cache breakpoints verbatim
         cacheControl: profile.explicitCache === 'openrouter' ? openrouter.applyCacheControl : null,
+        cacheAnchors: profile.explicitCache === 'openrouter' ? openrouter.cacheAnchorsFor : null,   // where those breakpoints let a read land
         // Local runtimes may need to load a model before returning headers. Hosted providers retain the
         // shared 30s connect ceiling; only profiles that prove a different need override it (an env override wins).
         connectTimeoutMs: resolveMaxOutputTokens(wire, 'connectTimeoutMs') || undefined,
@@ -288,6 +302,7 @@
     attachRateLimits: attachRateLimits,
     attachSubUsage: attachSubUsage,
     attachCatalogCache: attachCatalogCache,
-    attachRequestScrub: attachRequestScrub
+    attachRequestScrub: attachRequestScrub,
+    attachUsageReceipts: attachUsageReceipts
   };
 });

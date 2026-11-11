@@ -11,9 +11,9 @@
    price catalog. With it, the final chunk carries the authoritative billed cost cost.js prefers. */
 'use strict';
 (function (root, factory) {
-  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./provider.js'), require('./errorClass.js'), require('./toolschema.js'));
-  else { root.SK = root.SK || {}; root.SK.providers = root.SK.providers || {}; root.SK.providers.openrouter = factory(root.SK.providers.provider, root.SK.providers.errorClass, root.SK.providers.toolschema); }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (provider, errorClass, toolschema) {
+  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./provider.js'), require('./errorClass.js'), require('./toolschema.js'), require('./cache-ttl.js'));
+  else { root.SK = root.SK || {}; root.SK.providers = root.SK.providers || {}; root.SK.providers.openrouter = factory(root.SK.providers.provider, root.SK.providers.errorClass, root.SK.providers.toolschema, root.SK.providers.cacheTtl); }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (provider, errorClass, toolschema, cacheTtl) {
   'use strict';
 
   const normalizeFinish = provider.normalizeFinish;
@@ -131,8 +131,19 @@
   function supportsExplicitCache(model) {
     return /anthropic\/|claude/i.test(String(model || ''));
   }
+  /* WHERE A READ CAN LAND AFTER A HISTORY EDIT (W2.1, history-edit.js readFloor): the anchors applyCacheControl stamps for
+     `model` — the leading system run anchored whole, the sliding tail, and with cache TTL 'mixed' the end of history —
+     or null when it stamps none (a non-Claude model: whatever automatic prefix caching its upstream does). The managed
+     route stamps through applyCacheControl too, so the factory hands it this same answer. */
+  function cacheAnchorsFor(model) {
+    return supportsExplicitCache(model) ? { history: cacheTtl.anchorsHistory(cacheTtl.mode()), system: 'all' } : null;
+  }
   function applyCacheControl(messages, model, cacheSystemPrefix, neverReread) {
     if (neverReread === true || !Array.isArray(messages) || !supportsExplicitCache(model)) return messages;
+    // The tier each anchor asks for (cache-ttl.js, read once per call): the leading system anchors are STABLE, the
+    // sliding tail anchors the TAIL. Under the default both are the 5-minute tier: the exact wire from before.
+    const ttl = cacheTtl.mode();
+    const stable = () => cacheTtl.control('stable', ttl);
     let idx = -1;
     for (let i = 0; i < messages.length; i++) {
       if (messages[i] && messages[i].role === 'system') idx = i; else break;   // last of the LEADING system block
@@ -145,17 +156,17 @@
       && first.content.startsWith(cacheSystemPrefix);
     const suffix = prefixMatches ? first.content.slice(cacheSystemPrefix.length) : '';
     if (prefixMatches && (suffix.trim() || idx > 0)) {
-      const parts = [{ type: 'text', text: cacheSystemPrefix, cache_control: { type: 'ephemeral' } }];
-      if (suffix) parts.push(Object.assign({ type: 'text', text: suffix }, idx === 0 ? { cache_control: { type: 'ephemeral' } } : {}));
+      const parts = [{ type: 'text', text: cacheSystemPrefix, cache_control: stable() }];
+      if (suffix) parts.push(Object.assign({ type: 'text', text: suffix }, idx === 0 ? { cache_control: stable() } : {}));
       out[0] = Object.assign({}, first, { content: parts });
       // Recall may be another leading system message. Anchor its end as well, keeping the
       // stable instruction anchor before all changing runtime/recall bytes.
       systemAnchors = 2;
       if (idx > 0 && typeof messages[idx].content === 'string') {
-        out[idx] = Object.assign({}, messages[idx], { content: [{ type: 'text', text: messages[idx].content, cache_control: { type: 'ephemeral' } }] });
+        out[idx] = Object.assign({}, messages[idx], { content: [{ type: 'text', text: messages[idx].content, cache_control: stable() }] });
       }
     } else if (idx >= 0 && typeof messages[idx].content === 'string') {
-      out[idx] = { role: 'system', content: [{ type: 'text', text: messages[idx].content, cache_control: { type: 'ephemeral' } }] };
+      out[idx] = { role: 'system', content: [{ type: 'text', text: messages[idx].content, cache_control: stable() }] };
     }
     /* SLIDING TAIL ANCHORS (ported from the anthropic adapter's Hermes-parity pass). The single system anchor
        caches the static prefix, but the bytes migrate into the CONVERSATION as a run grows — tool results
@@ -175,25 +186,53 @@
        message of a consecutive user run is stamped; the next anchor slides back to that reply. */
     // KILL SWITCH: STARNET_STABLE_PREFIX=0 (the run-context switch, index.js) restores per-message stamping.
     const oneAnchorPerTurn = String((typeof process !== 'undefined' && process.env && (process.env.STARNET_STABLE_PREFIX != null ? process.env.STARNET_STABLE_PREFIX : process.env.SKYNET_STABLE_PREFIX)) || '').trim() !== '0';
-    let stamped = 0;
-    for (let i = out.length - 1; i > idx && stamped < 4 - systemAnchors; i--) {
-      const m = out[i];
-      if (!m || m.role === 'system') continue;
-      if (oneAnchorPerTurn && m.role === 'user' && out[i + 1] && out[i + 1].role === 'user') continue;
-      if (typeof m.content === 'string' && m.content.trim()) {
-        out[i] = Object.assign({}, m, { content: [{ type: 'text', text: m.content, cache_control: { type: 'ephemeral' } }] });
-        stamped++;
-      } else if (Array.isArray(m.content) && m.content.length) {
-        const parts = m.content.slice();
-        const last = parts[parts.length - 1];
-        if (last && last.type === 'text' && typeof last.text === 'string' && last.text.trim()) {
-          parts[parts.length - 1] = Object.assign({}, last, { cache_control: { type: 'ephemeral' } });
-          out[i] = Object.assign({}, m, { content: parts });
-          stamped++;
+    /* END OF HISTORY (cache TTL 'mixed', W1.13; the anthropic adapter's buildBody does the same on its own wire). One
+       anchor stays put on the last stampable message before the newest <run_context> note (made user-side for Claude),
+       on the 1-hour tier: the history the conversation's next message reads back after a human-paced gap. The sliding
+       anchors then cover only the note's turn and the run's own turns after it, so every 1-hour marker stays before
+       every 5-minute one (prompt-caching.md:172). A note right after the system prompt has no history before it. */
+    let floor = idx, budget = 4 - systemAnchors;
+    if (cacheTtl.anchorsHistory(ttl)) {
+      let note = -1;
+      for (let i = out.length - 1; i > idx; i--) if (out[i] && out[i].role !== 'system' && opensRunContext(out[i])) { note = i; break; }
+      if (note > idx) {
+        floor = note - 1;
+        for (let i = note - 1; i > idx; i--) {
+          if (!out[i] || out[i].role === 'system') continue;
+          const s = stampMessage(out[i], stable());
+          if (s) { out[i] = s; budget--; break; }
         }
       }
     }
+    let stamped = 0;
+    for (let i = out.length - 1; i > floor && stamped < budget; i--) {
+      const m = out[i];
+      if (!m || m.role === 'system') continue;
+      if (oneAnchorPerTurn && m.role === 'user' && out[i + 1] && out[i + 1].role === 'user') continue;
+      const s = stampMessage(m, cacheTtl.control('tail', ttl));
+      if (s) { out[i] = s; stamped++; }
+    }
     return out;
+  }
+  // A copy of message m with `cc` on its content's last text part (string content becomes one text part), or null when
+  // there is nothing to stamp: blank text 400s upstream, and only a text part is stamped here. Never stamps in place.
+  function stampMessage(m, cc) {
+    if (typeof m.content === 'string' && m.content.trim()) return Object.assign({}, m, { content: [{ type: 'text', text: m.content, cache_control: cc }] });
+    if (Array.isArray(m.content) && m.content.length) {
+      const parts = m.content.slice();
+      const last = parts[parts.length - 1];
+      if (last && last.type === 'text' && typeof last.text === 'string' && last.text.trim()) {
+        parts[parts.length - 1] = Object.assign({}, last, { cache_control: cc });
+        return Object.assign({}, m, { content: parts });
+      }
+    }
+    return null;
+  }
+  // the per-run <run_context> note (provider.js runContextNote), whichever role the projection gave it
+  function opensRunContext(m) {
+    const c = m && m.content;
+    const head = typeof c === 'string' ? c : (Array.isArray(c) && c[0] && typeof c[0].text === 'string' ? c[0].text : '');
+    return head.indexOf(provider.RUN_CONTEXT_OPEN) === 0;
   }
 
   const repairToolPairs = provider.repairToolPairs;
@@ -318,14 +357,22 @@
     // the loop sees them; with no such tool this is the raw stream itself.
     function stream(req) { return toolschema.withRestoredArgKeys(wireStream(req), req && req.tools); }
 
+    // THE REASONING A REQUEST CARRIES (wireStream and effortAsSent read this one function): the asked effort, else the one
+    // this adapter was built with, clamped to the rungs this model takes (the endpoint's own refusal outranks the catalog
+    // and the guess); null = the request goes out with no reasoning field (a model whose only rung is none is told nothing).
+    function reasoningFor(model, perRequest) {
+      const meta = findModel(model), learned = learnedFor(model);
+      const allowed = reasoningEffortsForModel(model, meta, learned);
+      const effort = clampReasoningEffortForModel(model, perRequest || reasoningEffort, meta, learned);
+      return (effort !== 'none' || allowed.length > 1) ? { effort } : null;
+    }
+
     async function* wireStream(req) {
       maybeRewarmCatalog();
       // usage.include asks OpenRouter to return the real billed `cost` in the final usage chunk (opt-in for
       // streaming). Without it tokens still tally but usd stays 0 unless priceOf(model) resolves — so SPEND
       // reads $0 for any custom/uncatalogued slug. cost.js then takes this authoritative cost over the estimate.
-      const meta = findModel(req.model);
-      const allowed = reasoningEffortsForModel(req.model, meta, learnedFor(req.model));
-      const effort = clampReasoningEffortForModel(req.model, req.reasoningEffort || reasoningEffort, meta, learnedFor(req.model));
+      const reasoning = reasoningFor(req.model, req.reasoningEffort);
       // ONE pre-send normalization (provider.js prepareWireMessages) — for this wire, exactly repairToolPairs.
       // Strict upstreams behind OpenRouter must never see StarNet's own bookkeeping keys on a message (ts, streamId,
       // agentId, sourceRunId, error, stopped, attachments) — only Chat Completions message keys leave, projected
@@ -334,7 +381,7 @@
       // refuses the whole request otherwise (404 "No endpoints found that support image input"). Unknown keeps them.
       const sent = supportsImages(req.model) === false ? provider.withoutImageParts(req.messages, req.model) : req.messages;
       const body = { model: req.model, messages: applyCacheControl(provider.chatWireMessages(chatRoleProjection(provider.prepareWireMessages(sent, 'chat'), req.model)), req.model, req.cacheSystemPrefix, req.neverReread === true && !(req.tools && req.tools.length)), stream: true, usage: { include: true } };
-      if (effort !== 'none' || allowed.length > 1) body.reasoning = { effort };
+      if (reasoning) body.reasoning = reasoning;
       if (req.tools && req.tools.length) {
         // Grammar-safe property keys on every tool (OpenRouter fronts Anthropic/Bedrock, which 400 the whole request
         // on one bad key), and the Moonshot dialect for a moonshotai/* model. A well-formed catalog on any other
@@ -349,7 +396,8 @@
            four prompt re-sends). Reverses docs/harness-runtime-spec.md's MVP position, dated 2026-08-17. */
       }
       let res;
-      try { res = await requestWithRetry(body, req.signal, provider.runtime.preStreamRetries(req, RETRY_DELAYS.length)); }   // retries transient 429/5xx + network errors BEFORE any token streams
+      const onSend = sentBody => effortSent.set(sentKey(req.model, req.reasoningEffort), (sentBody.reasoning && sentBody.reasoning.effort) || null);   // effortAsSent
+      try { res = await requestWithRetry(body, req.signal, provider.runtime.preStreamRetries(req, RETRY_DELAYS.length), onSend); }   // retries transient 429/5xx + network errors BEFORE any token streams
       catch (e) { if (isAbort(e, req.signal)) return; throw e; }  // cancel during the POST/backoff -> end cleanly so the loop reports 'cancelled', not 'error'
       // idle watchdog: no bytes for SKYNET_PROVIDER_IDLE_MS -> cancel the reader + throw a `timeout` error (a hung
       // stream must not pin a paid run forever). A user-cancel via req.signal still surfaces as an AbortError below.
@@ -492,10 +540,25 @@
     }
     function reasoningEfforts(id) { return reasoningEffortsForModel(id, findModel(id), learnedFor(id)); }
     function learnedFor(id) { return LEARNED_EFFORTS.get(baseUrl + '\n' + String(id || '')) || null; }
+    /* effortAsSent(id, perRequest) -> the reasoning.effort a request for `id` carrying `perRequest` (falsy: none of its own)
+       put on the wire: what every station record of an OpenRouter call names (index.js effortAsRun). Read off the body the
+       last such request on this adapter actually sent (onSend), so a rung the endpoint refused and the heal resent is named
+       as resent, and a first call made before the catalog warmed is named as it went; with no request yet, what one would
+       carry (reasoningFor). null = no reasoning field (a model whose only rung is none, or the heal ran out of rungs): it ran
+       on the model's own default and the record names no level. */
+    const effortSent = new Map();   // sentKey -> the reasoning.effort that request last carried (null: none)
+    const sentKey = (id, perRequest) => String(id || '') + '\n' + String(perRequest || '');
+    function effortAsSent(id, perRequest) {
+      const k = sentKey(id, perRequest);
+      if (effortSent.has(k)) return effortSent.get(k);
+      const r = reasoningFor(id, perRequest);
+      return r ? r.effort : null;
+    }
 
     // POST the chat request, retrying transient failures (429/5xx + network resets) BEFORE the stream
     // starts — safe because no tokens have been emitted yet. Aborts propagate at once. Returns an ok Response.
-    async function requestWithRetry(body, signal, maxRetries) {
+    // onSend(body) (optional): told each attempt's exact body as it leaves, after any heal rewrote it (effortAsSent)
+    async function requestWithRetry(body, signal, maxRetries, onSend) {
       // maxRetries: the loop may LOWER this ladder (req.preStreamRetries = 0 once it owns the pacing — provider.js).
       // `waited` is the backoff actually spent; the exhaustion marker reports it so the loop counts it, not repeats it.
       const retries = (maxRetries == null) ? RETRY_DELAYS.length : maxRetries;
@@ -508,6 +571,7 @@
         // Fresh connect guard per attempt; disarmed the instant the fetch settles so the ceiling can't abort
         // the streaming body (a connect expiry rejects as a `timeout`, a user-cancel as AbortError).
         const guard = timeouts.connectGuard(signal);
+        if (onSend) onSend(body);
         try {
           res = await doFetch(baseUrl + '/chat/completions', {
             method: 'POST',
@@ -591,8 +655,8 @@
       return provider.verifyResponse(doFetch, baseUrl + '/auth/key', { headers: { Authorization: 'Bearer ' + (key || ''), Accept: 'application/json' }, signal: o && o.signal },
         j => j && j.data && typeof j.data === 'object' && !Array.isArray(j.data) ? [{ credential: true }] : [], !!key, classifyApiError);
     }
-    return { stream, listModels, verifyCredential, warmCatalog, contextLimit, outputLimit, priceOf, supportsTools, supportsImages, reasoningEfforts };
+    return { stream, listModels, verifyCredential, warmCatalog, contextLimit, outputLimit, priceOf, supportsTools, supportsImages, reasoningEfforts, effortAsSent, cacheAnchors: cacheAnchorsFor };
   }
 
-  return { makeOpenRouterProvider, applyCacheControl, attachCatalogCache, _internals: { normalizeReasoningEffort, reasoningEffortsForModel, clampReasoningEffortForModel, repairToolPairs } };
+  return { makeOpenRouterProvider, applyCacheControl, cacheAnchorsFor, attachCatalogCache, _internals: { normalizeReasoningEffort, reasoningEffortsForModel, clampReasoningEffortForModel, repairToolPairs } };
 });

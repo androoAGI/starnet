@@ -67,7 +67,8 @@ A.ok(/const evidence = !!\(body && body\.evidence\);/.test(idxSrc), 'the route r
 A.ok(/trigger: 'directive', internal, evidence,/.test(idxSrc), '…and hands it to runOnce');
 A.ok(/if \(internal && o\.evidence\) \{/.test(idxSrc), 'runOnce composes the pack ONLY for an internal run that asked');
 A.ok(/const t = commanderEvidenceContext\(system \|\| ''\);/.test(idxSrc), '…through the same composer ordinary task runs use');
-A.ok(/\? \(String\(system \|\| ''\) \+ evidenceBlock\)/.test(idxSrc),
+// (a delegated run's [TASK CONTEXT] block follows it: THE WORKER PREFIX, test/worker-prefix.e2e.test.js; '' for every other run)
+A.ok(/\? \(String\(system \|\| ''\) \+ evidenceBlock \+ delegatedBlock\)/.test(idxSrc),
   'the pack is APPENDED to the system prompt — the caller’s strict-format directive stays the last thing read');
 // …and the rest of the internal path is untouched: still no manual/capability/skill dressing, still no memory fence
 const sysAssign = idxSrc.slice(idxSrc.indexOf('const sys = internal'), idxSrc.indexOf('// H1.2: bulletproof resume'));

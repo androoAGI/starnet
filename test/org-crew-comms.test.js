@@ -73,13 +73,13 @@ A.ok(/model:\s*\(pin && pin\.model\)\s*\|\|\s*agent\.model/.test(read('frontend/
   A.ok(/function tierModelFor\(tier\)/.test(APPJS) && /const pinned = tierModelFor\(tier\);/.test(APPJS) && /\n\s+tierModelFor,/.test(APPJS),
     'P22 fix: resolveTierModel and the bay read the tier pin through ONE exported reader (App.tierModelFor)');
   const vmP = require('vm');
-  const src = ['function modelHelpHTML(', 'function tierModelOf(', 'function summonModelSummary(', 'function shortModel('].map(h => A.fnBody(MKT, h)).join('\n');
+  const src = ['function modelHelpHTML(', 'function tierModelOf(', 'function leanModelOf(', 'function inheritLabelOf(', 'function summonModelSummary(', 'function shortModel('].map(h => A.fnBody(MKT, h)).join('\n');
   const helpFor = (tierMap, pin) => {
     const sb = { App: { tierModelFor: t => tierMap[t] || null }, pickedSummonModel: pin || null, esc: x => String(x),
       clearanceLabel: m => ({ reasoning: 'DEEP', balanced: 'BALANCED', fast: 'FAST' })[m] || String(m).toUpperCase() };
     vmP.createContext(sb); vmP.runInContext(src, sb);
     const s = { model: 'reasoning', reasoningEffort: 'high' };
-    return { help: sb.modelHelpHTML(s), sum: sb.summonModelSummary(s) };
+    return { help: sb.modelHelpHTML(s), sum: sb.summonModelSummary(s), inherit: sb.inheritLabelOf(s) };
   };
   const none = helpFor({}), tierPinned = helpFor({ reasoning: 'anthropic/claude-opus' });
   const hand = helpFor({ reasoning: 'anthropic/claude-opus' }, { model: 'openai/gpt-x', effort: '' });
@@ -88,7 +88,8 @@ A.ok(/model:\s*\(pin && pin\.model\)\s*\|\|\s*agent\.model/.test(read('frontend/
   A.ok(/uses <b>claude opus<\/b>, your <b>deep<\/b> tier model from SETTINGS › New agent defaults/.test(tierPinned.help) && !/Copies/.test(tierPinned.help) && /tier model/.test(tierPinned.sum),
     'P22 fix: a tier pin → the helper names the pinned model and where it is set, never a copy');
   A.ok(/overrides the class default/.test(hand.help), 'P22 fix: a hand-picked model still beats the tier pin (applyLoadout skips the tier when pin.model is set)');
-  A.ok(/inheritLabel: tierModelOf\(s\) \? 'Use your '/.test(MKT), 'P22 fix: the blank MODEL option names the tier model when one is pinned');
+  A.ok(/inheritLabel: inheritLabelOf\(s\)/.test(MKT) && tierPinned.inherit === 'Use your deep tier model (claude opus)' && none.inherit === 'Copy the model of the agent on the line',
+    'P22 fix: the blank MODEL option names the tier model when one is pinned (inheritLabelOf), and the copy when none is');
 }
 A.ok(!/AS A SPECIALTY|SAVE SPECIALTY|EDIT SPECIALTY|none of your specialists|as a specialty above|before summoning|its own <span data-hint="workstream">chat thread/.test(MKT) &&
   MKT.includes('＋ SAVE THIS AGENT AS A CLASS') && MKT.includes("'none of your classes match your search — '") && MKT.includes('before recruiting') &&

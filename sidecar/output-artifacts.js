@@ -44,6 +44,40 @@ function makeOutputArtifacts(deps) {
     return { path: chosen.rel, abs: chosen.abs, chars: text.length, bytes: bytes.length, sha256: digest(bytes) };
   }
 
+  /* PARK ONCE (W1.8 cross-run replay). park() above names a file per call (a run id and a sequence), so the same body parked by
+     two runs is two files. A replayed result is parked by its bytes instead: the caller puts a digest of them in the stem, the
+     first replay writes the file (exclusive create, synced, read back), and every later replay of the same body finds it, reads
+     it back and names the same file, so the stub that names it is the same bytes on every request (a stable cached prefix).
+     A file at that name holding other bytes (edited since, or a write a crash cut short) is never handed out: null, and the
+     caller keeps the stub without a handle. Never rewritten. Two parks of one name in this process wait on each other (one
+     sidecar per workspace is the store's invariant, so an in-process wait is the whole race). */
+  // abs path -> a promise that settles (never rejects) when the in-flight parkOnce of that name is over: the attempt's own
+  // error goes to its own caller through `await job`, so a waiter only needs to know it ended, then reads the file afresh
+  const parking = new Map();
+  async function parkOnce(agentId, stem, content) {
+    const text = String(content == null ? '' : content);
+    const bytes = Buffer.from(text, 'utf8');
+    const chosen = paths(agentId, safe(stem, 120));
+    for (let prior = parking.get(chosen.abs); prior; prior = parking.get(chosen.abs)) await prior;
+    const job = (async () => {
+      await fsp.mkdir(chosen.dir, { recursive: true });
+      let handle = null, reused = false;
+      try { handle = await fsp.open(chosen.abs, 'wx'); }
+      catch (e) { if (!e || e.code !== 'EEXIST') throw e; reused = true; }
+      if (handle) {
+        try { await handle.writeFile(bytes); await handle.sync(); }
+        finally { await handle.close(); }
+      }
+      const actual = await fsp.readFile(chosen.abs);
+      if (!Buffer.isBuffer(actual) || !actual.equals(bytes)) return null;
+      return { path: chosen.rel, abs: chosen.abs, chars: text.length, bytes: bytes.length, sha256: digest(bytes), reused };
+    })();
+    const over = job.then(() => true, () => false);
+    parking.set(chosen.abs, over);
+    try { return await job; }
+    finally { if (parking.get(chosen.abs) === over) parking.delete(chosen.abs); }
+  }
+
   function append(entry) {
     entry = entry || {};
     const name = safe(entry.kind, 24) + '-' + safe(entry.id, 72);
@@ -200,7 +234,7 @@ function makeOutputArtifacts(deps) {
     try { spools.delete(paths(entry.agentId, safe(entry.kind, 24) + '-' + safe(entry.id, 72)).abs); } catch (e) { failNote('output.release', e); }
   }
 
-  return { park, append, stage, commit, release, _internals: { paths, safe, agent, spools } };
+  return { park, parkOnce, append, stage, commit, release, _internals: { paths, safe, agent, spools } };
 }
 
 /* THE POINTER MUST RESOLVE WHERE IT IS READ (harness gauntlet G1, 2026-10-08). A park lands in the agent's private

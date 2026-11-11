@@ -52,7 +52,7 @@
   const PROVIDER_CODES = new Set(['auth', 'billing', 'rate_limit', 'quota_exhausted', 'overloaded', 'server_error', 'timeout',
     'context_overflow', 'output_cap', 'call_too_expensive', 'call_timeout', 'model_not_found', 'content_policy_blocked', 'format_error',
     'tls_certificate', 'local_error', 'local_memory', 'local_timeout', 'endpoint_mismatch', 'template_refusal', 'unreachable',
-    'unknown', 'provider_stalled', 'provider_failure']);
+    'unknown', 'provider_stalled', 'provider_failure', 'oneshot_unusable']);
   /* Did the provider ANSWER (and refuse) — or did nothing usable answer at all? The Live Doctor's two failure states
      ('refused' / 'unreachable') read this, so a rate limit is never "unreachable" and a refused connection never "refused". */
   const ANSWERED_CODES = new Set(['auth', 'billing', 'rate_limit', 'quota_exhausted', 'context_overflow', 'output_cap',

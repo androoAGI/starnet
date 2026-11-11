@@ -36,13 +36,17 @@ function registerTaskBriefTools(registry, store, state, deps) {
         sample:{type:'string',description:'Optional short draft/example to react to; not a claim of a created file or completed action.'},
         multiSelect: { type: 'boolean', description: 'true when the options are NOT mutually exclusive and the Commander may pick several (e.g. sources, constraints). The chips then toggle instead of firing.' }
       };
+      /* An `also` item takes the same fields, said ONCE (cost audit W1.3): the items repeated every top-level description
+         (~540 B on every attended task call). Types, enums and item types stay, so the wire contract is unchanged. */
+      const itemProps = {};
+      for (const k of Object.keys(qProps)) { const p = Object.assign({}, qProps[k]); delete p.description; itemProps[k] = p; }
       return { type: 'object', required: ['dimension', 'question', 'reason', 'discoverable'], properties: Object.assign({}, qProps, {
         // live-caught 2026-07-16: with no description the model reads 'discoverable' as an open judgment call
         // and stalls; it is an attestation, not a research report.
         discoverable: { type: 'boolean', description: 'Pass false to attest you checked the available context (conversation, task brief, granted files) and the answer is not there. Only false is accepted. Attested once for the whole call.' },
         newBlocker: { type: 'boolean' },
-        also: { type: 'array', maxItems: 2, description: 'Up to two MORE material questions (distinct dimensions) asked in the same interruption. Never split related questions across calls.',
-          items: { type: 'object', required: ['dimension', 'question', 'options', 'recommended', 'reason'], properties: qProps } }
+        also: { type: 'array', maxItems: 2, description: 'Up to two MORE material questions (distinct dimensions) asked in the same interruption, each with the fields above, used the same way. Never split related questions across calls.',
+          items: { type: 'object', required: ['dimension', 'question', 'options', 'recommended', 'reason'], properties: itemProps } }
       }) };
     })(),
     run: async args => {
@@ -157,7 +161,9 @@ function registerTaskBriefTools(registry, store, state, deps) {
   });
   registry.register({
     name: 'brief.proceed', scope: 'read', readOnly: true, capability: 'taskbrief', impact: 'none',
-    description: 'Settle the Task Brief and unlock consequential tools. Call immediately before the first write/execute action.',
+    // SAME RESPONSE (cost audit W1.2): "immediately before" read as "in a reply of its own" and cost a full request per
+    // task; the host runs this first in its batch (TaskBriefPolicy.settleFirst). A material question still goes to brief_ask.
+    description: 'Settle the Task Brief and unlock consequential tools. When no material question is left to ask (use brief_ask for one), send it in the SAME response as your first write/execute call, listed first; the host runs it first.',
     schema: { type: 'object', required: ['objective'], properties: {
       objective: { type: 'string' }, deliverable: { type: 'string' }, audience: { type: 'string' }, success: { type: 'string' },
       assumptions: { type: 'array', items: { type: 'string' } }, sources: { type: 'array', items: { type: 'string' } }

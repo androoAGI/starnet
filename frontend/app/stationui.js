@@ -2994,11 +2994,11 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       who: 'Best if you are just starting out.',
       agentBlurb: 'Asks before every risky step. Uses only what you placed on the station.' },
     { id: 'balanced', label: 'LET IT WORK', approval: 'ask', profile: 'trusted-project', level: 'draft',
-      blurb: 'It still asks before risky steps, but it can work in your project folders and leave drafts while you are away.',
+      blurb: 'It still asks before risky steps, but it can work in your project folders. Turns on unattended work: it leaves drafts while you are away.',
       who: 'The everyday setting.',
       agentBlurb: 'Asks before risky steps. Can work in your approved project folders.' },
     { id: 'open', label: 'FULL POWER', approval: 'full', profile: 'this-computer', level: 'full',
-      blurb: 'It never asks and may use the whole local computer to complete your requests.',
+      blurb: 'It never asks and may use the whole local computer to complete your requests. Turns on unattended work while you are away.',
       who: 'Only when you trust it completely.',
       agentBlurb: 'Never asks. Can use the whole local computer.' }
   ];
@@ -9293,7 +9293,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const tz = () => { try { return -new Date().getTimezoneOffset(); } catch (_) { return 0; } };
       const setDim = (el, txt) => { if (el) el.textContent = txt; };
       const paintPanel = (status) => {
-        const m = NightReport.panelModel({ status: status, tzOffsetMin: tz() });
+        const m = NightReport.panelModel({ status: status, tzOffsetMin: tz(), nowMs: Date.now() });
         // EL-11 FIX 1: the durable E-STOP halt must be VISIBLE, not a dim status line — reuse the .up-error card
         // language so the panel reads as an engaged stop, and the why names the lift (re-set the dial above).
         if (nsWhy) nsWhy.classList.toggle('ns-halt', !!m.halted);
@@ -9312,7 +9312,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         setDim(nsMode, m.modeText || '—');
         if (nsMode) nsMode.classList.toggle('ns-halt', !!m.modeWarn);
         setDim(nsReadiness, m.readinessText || '');
-        setDim(nsLeash, m.leashText + ' · ' + m.presence);
+        setDim(nsLeash, m.leashText + (m.perJobText ? ' · ' + m.perJobText : '') + ' · ' + m.presence);   // W3.1: what one job spends, once one is recorded
         setDim(nsLast, m.lastBeatText);
         setDim(nsNext, m.nextEligibleText);
       };

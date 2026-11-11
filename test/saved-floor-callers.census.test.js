@@ -203,7 +203,8 @@ A.ok(nightAct.split('awayBuildRoom(').length === 3 && nightAct.lastIndexOf('away
 A.ok(/precheck: \(\{ loop \}\) => loopReviewBusy\(loop\.id\) \? \{ ok: false, reason: 'review in progress' \} : loopReadiness\(loop\)/.test(idxText) && /precheck: loopReadiness\(l\)/.test(fn('loopStateSnapshot')),
   'a standing loop stands down on a held floor in the driver\'s precheck, and the LOOPS window renders the same gate (waiting, never ready)');
 A.ok(/function loopReadiness\(loop\) \{\s*const held = routingHold\(\);\s*return held \? \{ ok: false, reason: held\.why \} : loopPrecheck\(loop\);/.test(idxText), 'and says why in the hold\'s own words');
-A.ok(/buildsUnattended && workshopOf\(NIGHTSHIFT_AGENT\) && routingHold\(\)\) return \{ ok: false, reason: 'routing-held' \}/.test(fn('nightshiftPrecheck')), 'the night shift declines a beat that would BUILD before the leash is spent');
+A.ok(/nightshiftBeatBuilds\(NIGHTSHIFT_AGENT\) && routingHold\(\)\) return \{ ok: false, reason: 'routing-held' \}/.test(fn('nightshiftPrecheck')) && /return !!\(p\.buildsUnattended && workshopOf\(agentId\)\);/.test(fn('nightshiftBeatBuilds')),
+  'the night shift declines a beat that would BUILD (the beat\'s own mode predicate) before the leash is spent');
 const driverText = files.find(f => f.rel === 'sidecar/loopjob-driver.js').text;
 A.ok(/try \{ station = deps\.stationFor\(loop\.agentId\); \}[\s\S]{0,200}holdOf\(e\)[\s\S]{0,260}return false;[\s\S]{0,80}stationFault = e;/.test(driverText) && driverText.indexOf('deps.stationFor(loop.agentId)') < driverText.indexOf('store.claimFire(')
   && !/deps\.stationFor\(fresh\.agentId\)/.test(driverText), 'the loop driver names the room before it takes the claim and the iteration slot, and stands a hold down');

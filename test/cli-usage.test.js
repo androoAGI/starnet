@@ -7,7 +7,8 @@
      3. Grok / Kimi: signed in, and that they do not say how much is left — no meter made up
      4. an API key: its rate buckets from the last response, else unknown (and that they are rate limits, not a balance);
         StarNet credits: the balance; Ollama: no limit; nothing connected: where to connect one
-     5. the ledger's spend last */
+     5. the ledger's spend last
+     6. under each subscription sign-in: StarNet's own tokens since each window opened (the usage receipts), never a % */
 const A = require('./_assert.js');
 const connect = require('../bin/lib/connect.js');
 const { usageLines, windowText } = require('../bin/lib/usage.js');
@@ -64,5 +65,23 @@ A.eq(usageLines({ facts: { configured: new Set(), credits: { state: 'absent' }, 
 /* 5 */
 A.eq(L[L.length - 1], 'Spent today $0.42 · all time $31.10 — the station ledger (subscriptions not in dollars)', 'the ledger\'s spend last');
 A.ok(connect.ordered().map(p => p.name).filter(n => L.some(l => l.indexOf(n) === 0)).length === 7, 'the providers in the app\'s order: ' + L.filter(l => !/^ /.test(l)).map(l => l.split(' · ')[0]).join(', '));
+
+/* 6 — StarNet's OWN use of each sign-in since each window opened (the usage receipts, W1.1): tokens with the cache
+   re-reads apart, never a StarNet % (the window's % counts every app on that sign-in); a floor says since when; no
+   receipt says so; a station too old to send it prints nothing */
+A.ok(!L.some(l => /StarNet since/.test(l)), 'a station that sends no receipts share: no StarNet line at all');
+const starnet = {
+  'claude-cli': { primary: {
+    five_hour: { from: at(11), tokens: 41234, cacheRead: 35000, calls: 3, since: at(11) },
+    seven_day: { from: at(9, 0, -4), tokens: 1234567, cacheRead: 0, calls: 50, since: at(10, 30) } } },
+  codex: { primary: { primary: { from: at(9, 10, -6), tokens: 0, cacheRead: 0, calls: 0, since: null } } }
+};
+const S = usageLines({ facts, usage: Object.assign({}, usage, { starnet }), accounts, budget: null, now: NOW });
+const own = S[S.findIndex(l => /account 1 {2}5-hour/.test(l)) + 1];
+A.eq(own, '    StarNet since each window opened: 5-hour 41k tokens (35k cache re-reads) · week 1.2M tokens since receipts began 10:30 AM',
+  'under the sign-in: StarNet\'s own tokens per window, cache re-reads apart; receipts that began after the window opened say since when');
+A.eq(S[S.findIndex(l => /credits 7586/.test(l)) + 1], '    StarNet since each window opened: week none recorded yet', 'a window with no receipt at all says none recorded yet (not 0)');
+A.ok(S.filter(l => /StarNet since/.test(l)).every(l => !/%/.test(l)), 'never a StarNet percentage of the window');
+A.eq(S.filter(l => /StarNet since/.test(l)).length, 2, 'only the sign-ins that have a share get the line (cooling / unknown / signed-out ones print nothing new)');
 
 A.report('cli-usage.test');

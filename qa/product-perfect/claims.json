@@ -263,8 +263,8 @@
       },
       {
         "path": "frontend/app/autonomystore.js",
-        "bytes": 8491,
-        "sha256": "7642595a957e1c557d2e099a9437533e62e85813052b5c54c0619b23bea5b8f2"
+        "bytes": 8970,
+        "sha256": "4b1e7fef4aab30ae714335be10fb77dffb376e1ecaa04544fb963296cff29e58"
       },
       {
         "path": "frontend/app/autopilot.js",
@@ -412,6 +412,11 @@
         "sha256": "fa2e5f18cb18e8489b4b31dac4711e2a4035b21e9f0c0fd0f5225f5e18d6754e"
       },
       {
+        "path": "frontend/app/crewdefaults.js",
+        "bytes": 9627,
+        "sha256": "f9df4674daa7dc4dc6dbf18e7352e182a1e2224b6fd32cb38ebbd816ac51a07c"
+      },
+      {
         "path": "frontend/app/cronhuman.js",
         "bytes": 13992,
         "sha256": "cd5a04d495c15865a55a063ce0ae8924a415647cb0b4d134ffe373384e6d69ac"
@@ -513,8 +518,8 @@
       },
       {
         "path": "frontend/app/fork.js",
-        "bytes": 26458,
-        "sha256": "f26856d5fec02a68ccf8df5d1cbe46459d389d8c2d50aa3e170dfc6cf085b961"
+        "bytes": 26579,
+        "sha256": "b3f5c0371c6ce7bb025a104c69ecec70604a2af69260af22057c4af29d94dda6"
       },
       {
         "path": "frontend/app/freshstart.js",
@@ -713,8 +718,8 @@
       },
       {
         "path": "frontend/app/marketplace.js",
-        "bytes": 280862,
-        "sha256": "0365d4eda82702bc590bcf8d8e330bb2cf758b0d515de5a58ab06735f8683983"
+        "bytes": 282385,
+        "sha256": "d8f043e36cfe0bc6ba8bc01066457e8d4c3021ebd6ada23efb76b8023b5e11af"
       },
       {
         "path": "frontend/app/memtruth.js",
@@ -733,8 +738,8 @@
       },
       {
         "path": "frontend/app/modeldock.js",
-        "bytes": 56700,
-        "sha256": "4bba1664dee86dcaf54b69c12ddb9333c4a3eed1259228e117d814a6307026a1"
+        "bytes": 57397,
+        "sha256": "d4d5dc6f34efd03917e8d9c6556d10ea7692deec673a7783cc9b56b6e70bf337"
       },
       {
         "path": "frontend/app/modelpicker.js",
@@ -758,8 +763,8 @@
       },
       {
         "path": "frontend/app/nightreport.js",
-        "bytes": 29691,
-        "sha256": "06ace1d0006cb5cf5f4bf42ddfc36f36df68f6b97978d749192f2a54163539be"
+        "bytes": 36507,
+        "sha256": "25686897caf4c7d1995beac4d67f249343854424896c24af8705eb40af107c1c"
       },
       {
         "path": "frontend/app/nightreportstore.js",
@@ -938,8 +943,8 @@
       },
       {
         "path": "frontend/app/provider-registry.js",
-        "bytes": 32335,
-        "sha256": "ab7e5c1403cc85e242b38117e71a2ea215a933ee3075230261e4b797a6d9ae06"
+        "bytes": 33240,
+        "sha256": "cb718141b1dd4376aa772164bef80df56241da5e1fd4211bbacc222224eb9e6d"
       },
       {
         "path": "frontend/app/qr.js",

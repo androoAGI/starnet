@@ -4,7 +4,8 @@
      1. Claude Code's rate_limit_event (the 10-27 live shape: unifiedWindows five_hour / seven_day, utilization 0–1) is
         kept per sign-in as "% used + reset"; an older CLI's single binding window is kept with NO number made up
      2. ChatGPT's x-codex-* headers: each window's % used, its length named, its reset; the credits; a header that is
-        absent is unknown, never 0
+        absent is unknown, never 0; every window carries its length in minutes (Claude's by id, ChatGPT's as said);
+        the zero-valued phantom secondary slot is no window, live or loaded from an older file
      3. reading the headers changes nothing about the response; nothing at all said = no entry
      4. it survives a restart (the resilient JSON file), and nothing in that file is a credential
      5. the seams: the Claude Code provider hands each run's rate_limit_event to onRateLimit (and a reader that throws
@@ -28,11 +29,13 @@ const CODEX = { 'x-codex-primary-used-percent': '1.0', 'x-codex-primary-window-m
   const u = makeSubUsage({ clock: { now: () => 5000 } });
   u.observeClaude('', LIVE);
   A.eq(u.get('claude-cli', 'primary').windows, [
-    { id: 'five_hour', label: '5-hour', usedPct: 12, resetsAt: 1793082000000, status: 'allowed' },
-    { id: 'seven_day', label: 'week', usedPct: 7, resetsAt: 1793631600000, status: 'allowed' }], 'Claude Code: each window\'s % used and reset, on account 1');
+    { id: 'five_hour', label: '5-hour', usedPct: 12, resetsAt: 1793082000000, status: 'allowed', minutes: 300 },
+    { id: 'seven_day', label: 'week', usedPct: 7, resetsAt: 1793631600000, status: 'allowed', minutes: 10080 }], 'Claude Code: each window\'s % used, reset and length, on account 1');
   A.eq([u.get('claude-cli', 'primary').seenAt, u.get('claude-cli', 'primary').overage.status], [5000, 'rejected'], '...when it was said, and the overage state as said');
   u.observeClaude('abc123ef', { status: 'allowed', resetsAt: 1793082000, rateLimitType: 'five_hour' });
-  A.eq(u.get('claude-cli', 'abc123ef').windows, [{ id: 'five_hour', label: '5-hour', usedPct: null, resetsAt: 1793082000000, status: 'allowed' }], 'an older CLI (one window, no utilization): kept, with no number made up');
+  A.eq(u.get('claude-cli', 'abc123ef').windows, [{ id: 'five_hour', label: '5-hour', usedPct: null, resetsAt: 1793082000000, status: 'allowed', minutes: 300 }], 'an older CLI (one window, no utilization): kept, with no number made up');
+  u.observeClaude('abc123ef', { status: 'allowed', resetsAt: 1793082000, rateLimitType: 'mystery_window' });
+  A.eq(u.get('claude-cli', 'abc123ef').windows[0].minutes, null, 'a window id with no known length: its length is unknown (null), never guessed');
   A.eq(u.get('claude-cli', 'primary').windows.length, 2, '...and each sign-in keeps its own');
   u.observeClaude('', {});
   u.observeClaude('', null);
@@ -45,6 +48,17 @@ const CODEX = { 'x-codex-primary-used-percent': '1.0', 'x-codex-primary-window-m
   A.eq(cx.credits, { has: true, unlimited: false, balance: 7586.126 }, '...and the credits as said');
   u.observeHeaders('codex', 'acct2', hdr({ 'x-codex-primary-used-percent': '50', 'x-codex-primary-window-minutes': '300' }));
   A.eq([u.get('codex', 'acct2').windows.length, u.get('codex', 'acct2').windows[0].resetsAt, u.get('codex', 'acct2').credits], [1, null, undefined], 'an absent header is unknown — no secondary window, no reset, no credits made up');
+  A.eq(cx.windows.map(w => w.minutes), [10080, 300], '...and each window carries the length ChatGPT said (where it opened = reset minus length)');
+
+  /* 2b — THE PHANTOM WINDOW (cost audit 11-08): a one-window ChatGPT account still gets zero-valued secondary headers
+     (0% used, 0-minute length, reset 0 s away). Codex's own client reads that as no window; so does this store. */
+  u.observeHeaders('codex', 'onewin', hdr({ 'x-codex-primary-used-percent': '3', 'x-codex-primary-window-minutes': '300', 'x-codex-primary-reset-after-seconds': '600',
+    'x-codex-secondary-used-percent': '0', 'x-codex-secondary-window-minutes': '0', 'x-codex-secondary-reset-after-seconds': '0' }));
+  A.eq(u.get('codex', 'onewin').windows.map(w => [w.id, w.label, w.usedPct, w.minutes, w.resetsAt]), [['primary', '5-hour', 3, 300, 5000 + 600000]], 'the zero-valued secondary slot is no window: no "0-minute" window that resets the moment it is seen');
+  u.observeHeaders('codex', 'fresh', hdr({ 'x-codex-primary-used-percent': '0', 'x-codex-primary-window-minutes': '10080', 'x-codex-primary-reset-after-seconds': '604800' }));
+  A.eq(u.get('codex', 'fresh').windows.map(w => [w.label, w.usedPct, w.minutes]), [['week', 0, 10080]], 'a real window at 0% used (a length, a reset ahead) is still a window: only the all-zero slot is dropped');
+  u.observeHeaders('codex', 'nothing', hdr({ 'x-codex-primary-used-percent': '0', 'x-codex-primary-window-minutes': '0', 'x-codex-primary-reset-after-seconds': '0' }));
+  A.eq(u.get('codex', 'nothing'), null, 'a response whose only slot is the phantom: no entry at all (the reader says unknown)');
 
   /* 3 */
   const body = { ok: true };
@@ -72,6 +86,14 @@ const CODEX = { 'x-codex-primary-used-percent': '1.0', 'x-codex-primary-window-m
   p3.observeHeaders('codex', 'later', hdr(CODEX));
   await new Promise(r => setTimeout(r, 80));
   A.ok(!!makeSubUsage({ file }).get('codex', 'later'), 'a new observation is written on its own within moments (no shutdown needed)');
+  // a file saved before the phantom rule: its "0-minute" window goes on load; an entry that held only that goes too
+  const old = path.join(dir, '.usage', 'old.json');
+  fs.writeFileSync(old, JSON.stringify({ v: 1, providers: { codex: {
+    primary: { seenAt: 4000, windows: [{ id: 'primary', label: 'week', usedPct: 9, resetsAt: 1793601034000, status: '' }, { id: 'secondary', label: '0-minute', usedPct: 0, resetsAt: 4000, status: '' }] },
+    ghost: { seenAt: 4000, windows: [{ id: 'secondary', label: '0-minute', usedPct: 0, resetsAt: 4000, status: '' }] } } } }));
+  const loaded = makeSubUsage({ file: old });
+  A.eq(loaded.get('codex', 'primary').windows.map(w => w.label), ['week'], 'a saved 0-minute window is dropped on load; the real window beside it stays');
+  A.eq(loaded.get('codex', 'ghost'), null, '...and a saved entry that held only the phantom is no entry');
   fs.rmSync(dir, { recursive: true, force: true });
 
   /* 5 */

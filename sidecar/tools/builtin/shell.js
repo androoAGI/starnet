@@ -33,6 +33,11 @@
   // fullOut is bounded (head + tail, output-capture.js): an unbounded `+=` crashed the station at V8's max string length
   const makeFullCapture = (typeof require === 'function') ? require('../../output-capture.js').makeFullCapture
     : function () { let s = ''; return { push: function (t) { s += t; }, value: function () { return s; }, elided: function () { return 0; } }; };
+  // DORMANT FOLLOW-UP CONTROLS (cost audit W1.3): a run whose agent had no background process holds the shell.bg.*
+  // controls off the wire; the start that creates one reveals them (capability/followups.js, loop.js revealTools)
+  const BG_CONTROLS = (typeof require === 'function') ? require('../../capability/followups.js').revealFor('shellBg') : [];
+  // a cut output keeps its head AND its tail inside the same cap (history-edit headTail, W1.7); a browser copy keeps the head
+  const headTail = (typeof require === 'function') ? require('../../history-edit.js').headTail : function (s, max) { s = String(s); return s.length > max ? s.slice(0, max) : s; };
   function safeAgentId(id) { if (!AID_RE.test(id || '')) throw new Error('bad agentId'); return id; }
   function clip(s, n) { s = String(s == null ? '' : s); n = n || 200; return s.length > n ? s.slice(0, n) + '…' : s; }
   function clamp(n, lo, hi) { n = Number(n); if (!isFinite(n)) return lo; return Math.max(lo, Math.min(hi, n)); }
@@ -1803,7 +1808,9 @@
           const content = r.ok
             ? 'Started background process ' + r.bgId + ' in your workspace. It keeps running while you work — check it with shell.bg.status (id "' + r.bgId + '"), read its full log with shell.bg.read, send it input with shell.bg.write, stop it with shell.bg.kill.'
             : 'Could not start a background process: ' + r.error;
-          return { content: content, summary: r.ok ? ('bg started ' + r.bgId) : 'bg refused' };
+          // a real handle now exists: its controls ride the next call (a no-op where they were already advertised)
+          return r.ok ? { content: content, summary: 'bg started ' + r.bgId, control: { revealTools: BG_CONTROLS.slice() } }
+            : { content: content, summary: 'bg refused' };
           });
         });
         const requestedMs = args && (args.timeoutMs || args.timeout_ms);
@@ -1816,6 +1823,11 @@
             + ' — this command ran with an effective timeout of ' + timeoutMs + 'ms]\n'
           : '';
         const markerIsWin = environment && environmentBackendId !== 'local' ? false : isWin;
+        /* WHERE IT RAN (loop truth W1.11): the host folder this command was spawned in (its cwd argument and this run's `cd`
+           already applied), on the result object beside the content — never in it, so every receipt stays byte-identical.
+           The loop resolves a run's script against it to know WHICH changed file `node hello.js` ran. Host backend only: a
+           sandbox's cwd is a container path that names no host file. */
+        const ranIn = (!environment || environmentBackendId === 'local') && typeof cwd === 'string' && cwd ? cwd : '';
         /* A full-power command that opens a window on the person's screen (`start`, `explorer`, a headed browser…) opens
            THEIR app: on Windows it runs outside the station's job (sidecar/breakaway.js), so quitting or crashing StarNet
            never closes what it opened. Every other command stays the station's and ends with it. */
@@ -1843,13 +1855,18 @@
           else if (pm.cwd && (remoteOwner || withinJail(P, pm.cwd, jailRoot))) paths.setShellCwd(pm.cwd);
           const exitCode = (pm.ec != null && !res.timedOut && !res.aborted) ? pm.ec : res.exitCode;
           const note = res.timedOut ? ' — KILLED (timed out after ' + timeoutMs + 'ms)' : res.aborted ? ' — KILLED (aborted)' : '';
-          const body = redact((res.truncated ? preview.cleanOut : pm.cleanOut) || '(no output)');
+          /* HEAD AND TAIL (W1.7). A cut output kept only its first MAX_BYTES, and a build or test log ends where the error is.
+             The same MAX_BYTES now holds the first 70% and the last 30% of the full capture, the gap marked in place (history-edit
+             headTail). Cut AFTER redaction, so no key straddles the gap; a backend that hands back no full capture keeps the head. */
+          const fullText = res.truncated ? redact(pm.cleanOut || '(no output)') : null;
+          const body = !res.truncated ? redact(pm.cleanOut || '(no output)')
+            : (typeof res.fullOut === 'string' && res.fullOut ? headTail(fullText, MAX_BYTES) : redact(preview.cleanOut || '(no output)'));
           // the bounded capture (output-capture.js) dropped the middle of a huge output: say so, never imply the saved copy is whole
           const elided = Number(res.fullOutElided) > 0 ? Number(res.fullOutElided) : 0;
           const content = clampNote + body + '\n[exit ' + exitCode + (res.truncated ? ', output truncated to ' + Math.round(MAX_BYTES / 1000) + 'KB' : '')
             + (elided ? ', ' + elided + ' characters from the middle of the output were not kept' : '') + note + ']';
           const fullContent = res.truncated
-            ? clampNote + redact(pm.cleanOut || '(no output)') + '\n[exit ' + exitCode + note + ']'
+            ? clampNote + fullText + '\n[exit ' + exitCode + note + ']'
             : undefined;
           try {
             if (typeof ctx.emit === 'function') ctx.emit('shell.exec', {
@@ -1873,10 +1890,12 @@
             killed.toolSummary = res.timedOut ? 'timeout' : 'cancelled';
             if (fullContent) killed.fullContent = head + fullContent;
             if (elided) killed.fullContentElided = elided;
+            if (ranIn) killed.ranIn = ranIn;
             throw killed;
           }
           const done = { content: content, fullContent: fullContent, summary: 'exit ' + exitCode + ' (' + res.ms + 'ms)' + (res.truncated ? ', truncated' : '') };
           if (elided) done.fullContentElided = elided;
+          if (ranIn) done.ranIn = ranIn;
           return done;
         });
       }
@@ -1900,13 +1919,19 @@
             : v.outputSpillCapped ? '\n[output log: the first ' + v.outputBytes + ' bytes are durably appended to ' + spillPath(v.outputPath, ctx) + '; the log stopped at its cap, later output is only in the memory ring]'
             : (v.outputSpillError ? '\n[full-output spill failed: ' + v.outputSpillError + ']' : '');
           const state = v.running ? 'RUNNING' + killNote(v) : v.lost ? 'LOST — ' + (v.remoteBoundary || 'remote process identity is unconfirmed') : 'exited ' + v.exitCode + (v.killed ? ' (killed)' : '') + killNote(v);
-          return { content: '[' + v.bgId + '] ' + state + ' · ' + v.ms + 'ms · ' + v.cmd + saved + '\n--- output tail ---\n' + redact(v.tail || '(none)'), summary: v.running ? 'running' : v.lost ? 'lost' : 'exited ' + v.exitCode };
+          return withLiveControls({ content: '[' + v.bgId + '] ' + state + ' · ' + v.ms + 'ms · ' + v.cmd + saved + '\n--- output tail ---\n' + redact(v.tail || '(none)'), summary: v.running ? 'running' : v.lost ? 'lost' : 'exited ' + v.exitCode }, [v]);
         }
         const list = await Promise.resolve(source ? source.statusBackground(aid) : bg.status(aid)) || [];
         if (!list.length) return { content: 'No background processes.', summary: '0' };
-        return { content: list.map(function (v) { return '[' + v.bgId + '] ' + (v.running ? 'RUNNING' : v.lost ? 'LOST (identity mismatch)' : 'exited ' + v.exitCode) + killNote(v) + ' · ' + v.cmd; }).join('\n'), summary: list.length + ' process(es)' };
+        return withLiveControls({ content: list.map(function (v) { return '[' + v.bgId + '] ' + (v.running ? 'RUNNING' : v.lost ? 'LOST (identity mismatch)' : 'exited ' + v.exitCode) + killNote(v) + ' · ' + v.cmd; }).join('\n'), summary: list.length + ' process(es)' }, list);
       }
     };
+    // a status that SHOWS a running process (one started by another run of this agent while this one ran) brings its
+    // controls onto the wire, exactly as the start would have; a list of finished ones reveals nothing (cost audit W1.3)
+    function withLiveControls(result, views) {
+      if ((views || []).some(function (v) { return v && v.running; })) result.control = { revealTools: BG_CONTROLS.slice() };
+      return result;
+    }
     // A kill is reported only as far as it was proven (shellbg.js killState): never "(killed)" for a tree that
     // may still be running.
     function killNote(v) {

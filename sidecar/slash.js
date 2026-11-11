@@ -197,7 +197,7 @@ const BUILTIN_COMMANDS = Object.freeze([
   Object.freeze({
     name: 'fast',
     category: 'Configuration',
-    desc: 'drop reasoning effort to minimal for quicker, cheaper replies',
+    desc: 'drop reasoning effort to minimal',
     argsHint: '',
     action: 'fast'
   }),

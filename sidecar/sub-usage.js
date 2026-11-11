@@ -22,7 +22,8 @@
      observeClaude(account, info)               a rate_limit_event's rate_limit_info ('' or 'primary' = account 1)
      observeHeaders(providerId, account, headers)
      wrapFetch(providerId, account, fetch) -> fetch   reads the headers of every response, changes nothing
-     get(providerId, account) -> entry | null    { windows: [{ id, label, usedPct|null, resetsAt|null, status }], credits?, seenAt }
+     get(providerId, account) -> entry | null    { windows: [{ id, label, usedPct|null, resetsAt|null, status, minutes|null }], credits?, seenAt }
+                                                  (minutes: the window's length — where it opened is resetsAt minus it)
      snapshot() -> { [providerId]: { [account]: entry } }
      flush()
    }
@@ -34,6 +35,9 @@ const { readJsonResilient, writeJsonResilient } = require('./durable-store.js');
 const { note: failNote } = require('./failopen.js');
 
 const LABELS = { five_hour: '5-hour', seven_day: 'week', seven_day_opus: 'week · Opus', seven_day_sonnet: 'week · Sonnet' };
+// each Claude window's LENGTH, by its id (the stream names a window, not its length): where a window opened = resetsAt
+// minus this. ChatGPT says its own length in a header. Unknown = null, never guessed.
+const MINUTES = { five_hour: 300, seven_day: 10080, seven_day_opus: 10080, seven_day_sonnet: 10080 };
 const acctKey = a => (!a || a === 'primary') ? 'primary' : String(a);
 const num = v => { if (v == null || String(v).trim() === '') return null; const n = Number(v); return Number.isFinite(n) ? n : null; };   // absent is unknown, never 0
 const toMs = v => { const n = num(v); return n == null ? null : n < 1e12 ? n * 1000 : n; };   // epoch s or ms
@@ -52,6 +56,18 @@ function header(h, name) {
   return null;
 }
 
+/* THE PHANTOM WINDOW (cost audit 2026-11-08). For an account with one window, ChatGPT still sends the secondary
+   headers, zero-valued: 0% used, a 0-minute length, a reset 0 seconds away. Codex's own client reads that as no window
+   (secondary: null); this store kept it as a "0-minute" window that reset the moment it was seen, and the terminal's
+   /usage printed "0-minute reset since". A slot is a window only when it says something: some use, a real length, or a
+   reset still ahead. An entry saved before this rule loses its 0-minute window when it is loaded. */
+function isPhantom(w) { return !!w && (w.minutes === 0 || w.label === '0-minute'); }
+function withoutPhantoms(entry) {
+  if (!entry || !Array.isArray(entry.windows) || !entry.windows.some(isPhantom)) return entry;
+  const windows = entry.windows.filter(w => !isPhantom(w));
+  return windows.length ? Object.assign({}, entry, { windows }) : null;
+}
+
 function makeSubUsage(opts) {
   const o = opts || {};
   // Clock is INJECTED (lint-determinism), as in providers/ratelimits.js
@@ -63,7 +79,7 @@ function makeSubUsage(opts) {
     try {
       const r = readJsonResilient(deps, o.file);
       const v = r && r.value && r.value.providers;
-      if (v && typeof v === 'object') for (const pid of Object.keys(v)) for (const acct of Object.keys(v[pid] || {})) put(pid, acct, v[pid][acct], true);
+      if (v && typeof v === 'object') for (const pid of Object.keys(v)) for (const acct of Object.keys(v[pid] || {})) put(pid, acct, withoutPhantoms(v[pid][acct]), true);
     } catch (e) { failNote('subusage.load', e); }   // an unreadable file: start empty — a cache of what providers said, never the only copy of anything
   }
   let timer = null, dirty = false;
@@ -90,10 +106,11 @@ function makeSubUsage(opts) {
       for (const id of Object.keys(uw)) {
         const w = uw[id] || {};
         const u = num(w.utilization);
-        windows.push({ id, label: LABELS[id] || id.replace(/_/g, ' '), usedPct: u == null ? null : Math.round(u * 1000) / 10, resetsAt: toMs(w.resetsAt), status: String(w.status || '') });
+        windows.push({ id, label: LABELS[id] || id.replace(/_/g, ' '), usedPct: u == null ? null : Math.round(u * 1000) / 10, resetsAt: toMs(w.resetsAt), status: String(w.status || ''), minutes: MINUTES[id] || null });
       }
     } else if (info.rateLimitType) {
-      windows.push({ id: String(info.rateLimitType), label: LABELS[info.rateLimitType] || String(info.rateLimitType).replace(/_/g, ' '), usedPct: null, resetsAt: toMs(info.resetsAt), status: String(info.status || '') });
+      const id = String(info.rateLimitType);
+      windows.push({ id, label: LABELS[id] || id.replace(/_/g, ' '), usedPct: null, resetsAt: toMs(info.resetsAt), status: String(info.status || ''), minutes: MINUTES[id] || null });
     }
     if (!windows.length) return;
     const entry = { windows, seenAt: now() };
@@ -109,7 +126,10 @@ function makeSubUsage(opts) {
       if (used == null && mins == null) continue;
       const resetAt = toMs(header(h, 'x-codex-' + slot + '-reset-at'));
       const after = num(header(h, 'x-codex-' + slot + '-reset-after-seconds'));
-      windows.push({ id: slot, label: mins != null ? windowLabel(mins) : slot, usedPct: used, resetsAt: resetAt != null ? resetAt : after != null ? now() + after * 1000 : null, status: '' });
+      const length = mins != null && mins > 0 ? mins : null;   // a 0-minute window is no window length at all
+      const resetsAt = resetAt != null ? resetAt : after != null ? now() + after * 1000 : null;
+      if (!(used || length || (resetsAt != null && resetsAt > now()))) continue;   // the zero-valued phantom: no window (see isPhantom)
+      windows.push({ id: slot, label: length != null ? windowLabel(length) : slot, usedPct: used, resetsAt, status: '', minutes: length });
     }
     if (!windows.length) return;
     const entry = { windows, seenAt: now() };
@@ -137,4 +157,10 @@ function makeSubUsage(opts) {
   return { observeClaude, observeHeaders, wrapFetch, get, snapshot, flush };
 }
 
-module.exports = { makeSubUsage, windowLabel };
+// where a provider's reading comes from — the two observers above, by the provider that said it. A hold that cites a
+// reading names this source with it (W3.1, unattended-admission.js).
+function readingSource(providerId) {
+  return providerId === 'claude-cli' ? 'Claude Code rate_limit_event' : 'x-codex-* response headers';
+}
+
+module.exports = { makeSubUsage, windowLabel, readingSource };

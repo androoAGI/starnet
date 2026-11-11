@@ -17,6 +17,8 @@ test/stationbake.chunk.test.js
 test/cli-dashboard-drive.test.js
 # comms-owner.e2e: a live page driven through four reloads — 83 s in G1's http run, 43-67 s at 100% CPU.
 test/comms-owner.e2e.test.js
+# cross-run-replay.invariant: one real sidecar, a fake Bot API and a recording mock (CLI, queue and channel follow-ups, two Telegram chats of six rounds of 20 parallel reads, a 300 KB photo chat) - 40.7 s standalone before the photo chat, 49.5 s standalone with it at 100% CPU with other sessions' gates running (2026-11-09); listed by the >= 40 s rule.
+test/cross-run-replay.invariant.test.js
 # website-app-sync: runs scripts/sync-website-app.mjs --check over the whole frontend copy — 69.2 s.
 test/website-app-sync.test.js
 # ledger-reconcile: the real io shell and the real CLI against a throwaway git repo — 51.5 s, 80.6 s and 67.1 s
@@ -28,6 +30,10 @@ test/browser.test.js
 # save-interleave.seeded: 502 seeds of the save-merge interleavings, then the same seeds again with each window's history packed
 # (save-history-by-reference) — 24.0 s standalone before the packed pass (88 assertions), 42.3 s and 46.8 s with it (94), on a quiet box, 2026-11-04.
 test/save-interleave.seeded.test.js
+# crew-defaults.invariant: three real sidecar boots: the switch off and on against a local fake provider (each a dispatch, a clone
+# and a review line revised once), and a claude-cli line stage on the fake CLI — 41.0 s and 32.8 s through the runner on 2026-11-09
+# (lane leaner-crew, other lanes' gates running).
+test/crew-defaults.invariant.test.js
 #
 # Measured on the full HTTP gate of 2026-10-27 (261 steps in 55m05s, same box, other sessions running), plus reruns.
 # browser-upload-chooser.e2e: real Chromium, 12 fixture pages, and browser-upload.e2e's teardown: after driver.close's 8 s
@@ -284,6 +290,11 @@ test/connector-storage-start-fresh.http.test.js
 test/verdictpackets.http.test.js
 # aux-token-ceiling.e2e: about 9 sidecar boots across four arms — 49 s and 51 s standalone, one file at a time, not from a full run.
 test/aux-token-ceiling.e2e.test.js
+# effort-truth.e2e: four arms, each a real sidecar boot (a fake claude CLI, the configured aux tier, a mock OpenRouter, three fake HTTP
+# wires with a lead's team.dispatch to a worker), about 19 runs and passes, each waited out until its background passes stop for 1.5 s —
+# 48.3 s standalone through scripts/run-test-list.mjs at 94-100% CPU (review round 2), 58.6 s with the dispatch leg at 85% (2026-11-09);
+# listed by the >= 40 s rule so a 2-3x slowdown under load cannot turn a healthy step red.
+test/effort-truth.e2e.test.js
 # memory-learning-boundary.http — 46.2 s.
 test/memory-learning-boundary.http.test.js
 # station-builder.e2e — 45.8 s.
@@ -358,3 +369,11 @@ test/forget.tool-quotes.relay.http.test.js
 test/forget.tool-quotes.overflow.http.test.js
 # forget.tool-quotes.http: the core shard (setup runs, a routine, the delete, replay and recall through real runs, the rollback modes, a posted window, TurnMerge, a restart, session.list titles, the recorded limit) - 34-40 s with other lanes building (2026-11-04); listed so a 2-3x slowdown under load cannot turn a healthy step red.
 test/forget.tool-quotes.http.test.js
+# learning-cooldown.e2e: seventeen tool runs on one real sidecar (the 4-run burst, a cue, a productive pass, three failed runs, a verdict, the NONE ladder with its 6 s and 6.5 s waits on a 5 s window, a restart) - 48-51 s standalone (2026-11-09), 80 s at 87% CPU with other sessions' gates running (2026-11-09); listed by the >= 40 s rule.
+test/learning-cooldown.e2e.test.js
+# learning-cooldown.race.e2e: twenty tool runs on one real sidecar (held and failing learning passes, verdicts, a correction, two memory resets) - 35-38 s at 87% CPU with other sessions' gates running (2026-11-09); listed so a 2-3x slowdown under load cannot turn a healthy step red.
+test/learning-cooldown.race.e2e.test.js
+# prompt-scrub.invariant.http: one real sidecar against a capturing mock (legacy rows on disk before boot, live seeding through real routes, then a dozen later lanes, each captured request scanned for keys); W1.4 waits up to 20 s for ASK2's learning passes - 42.5 s on base e316231d7 and 44.6 s on the lane back to back, 41.9-50.1 s across the lane's runs with other sessions' gates running (2026-11-09); listed by the >= 40 s rule (already over it on base).
+test/prompt-scrub.invariant.http.test.js
+# skillreview-useful.e2e: one real sidecar and a restart, ten tool runs against a mock (clean, error, correction, new procedure, a thumbs-down, a thumbs-up, two under the bar, the carried count, a chat run whose Task Brief holds a write), each settled until its learning passes land - 49-54 s at about 93% CPU and 79 s at 100% CPU with nine runs (2026-11-09/10), 111 s at 100% CPU with ten (2026-11-10, other sessions' gates and a headless browser running); listed by the >= 40 s rule.
+test/skillreview-useful.e2e.test.js

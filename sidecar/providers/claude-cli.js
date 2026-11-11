@@ -30,12 +30,12 @@
 
    makeClaudeCliProvider({ spawn?, bin?, env?, configDir?, platform?, fs?, os?, idleMs?, statusTtlMs?, persist?, persistIdleMs?, persistEndGraceMs?, onRateLimit? })
      onRateLimit(info): each run's `rate_limit_event` (its rate_limit_info: this sign-in's usage windows) — sub-usage.js
-     -> { stream, listModels, release, persistStats, contextLimit, priceOf, supportsTools, reasoningEfforts } */
+     -> { stream, listModels, release, persistStats, contextLimit, priceOf, supportsTools, reasoningEfforts, effortAsSent } */
 'use strict';
 (function (root, factory) {
-  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./provider.js'));
-  else { root.SK = root.SK || {}; (root.SK.providers = root.SK.providers || {}).claudeCli = factory(root.SK.providers.provider); }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (provider) {
+  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./provider.js'), require('./cache-ttl.js'));
+  else { root.SK = root.SK || {}; (root.SK.providers = root.SK.providers || {}).claudeCli = factory(root.SK.providers.provider, root.SK.providers.cacheTtl); }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (provider, cacheTtl) {
   'use strict';
 
   const timeouts = provider.timeouts;
@@ -63,6 +63,13 @@
   ];
   const contextOf = id => { const m = MODELS.find(x => x.id === String(id || '')); return (m && m.context) || (/\[1m\]$/i.test(String(id || '')) ? 1000000 : DEFAULT_CONTEXT); };
   const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
+  // The CLI is given an effort only per request: a level it offers rides as --effort (cliArgs), anything else sends no flag.
+  const effortOf = req => { const e = String((req && req.reasoningEffort) || '').trim().toLowerCase(); return EFFORTS.indexOf(e) >= 0 ? e : ''; };
+  /* effortAsSent(perRequest) -> what the CLI was given for a request carrying that effort: the level, or CLI_DEFAULT_EFFORT when
+     it got no --effort and ran on its own default (a main run: the station's effort dial is not wired to the CLI). Every
+     station record that names a claude-cli call's effort reads this, so a record and the argv can never disagree. */
+  const CLI_DEFAULT_EFFORT = 'cli-default';
+  function effortAsSent(perRequest) { return effortOf({ reasoningEffort: perRequest }) || CLI_DEFAULT_EFFORT; }
   const CALL_OPEN = '<tool_call>';
   const CALL_CLOSE = '</tool_call>';
   const NO_TOOLS_ARGS = [
@@ -79,7 +86,7 @@
      An image the API cannot take (an unsupported type, an unreadable reference, past the per-turn cap) keeps a note
      in its place: the model is told a picture was there, never handed a description of one it did not get. */
   const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-  const MAX_IMAGES = 20;   // the newest are sent; the loop already ages old screenshots out (TOOL_IMAGE_KEEP)
+  const MAX_IMAGES = 20;   // the newest are sent; a live child keeps up to 20 capture turns (holdsHistory), the one-shot path gets the loop's stepped view
   const IMAGE_MARK = '\u0000starnet-image-';
   function imageBlockOf(p) {
     let s = p && p.type === 'image_url' ? (p.image_url && (p.image_url.url != null ? p.image_url.url : p.image_url)) : null;
@@ -129,8 +136,9 @@
     }
     return list;
   }
-  function toolsPrompt(tools) {
-    const list = toolLines(tools).map(t => t.line);
+  function toolsPrompt(tools) { return toolsPromptOf(toolLines(tools).map(t => t.line)); }
+  // The # Tools section from the tool lines themselves (a replacement child renders the run-start lines: RUN-START TOOLS).
+  function toolsPromptOf(list) {
     // A turn with NO tools still says so: a Claude Code model told about station powers in the system prompt otherwise
     // improvises its own native tool-call markup as TEXT (live 09-28: '<invoke name="Bash">…' leaked into a chat reply).
     if (!list.length) return '# Tools\nNo tools are available in this turn. Answer in plain prose only: never write tool-call markup (<tool_call>, <invoke>, <function_calls>) and never claim to have run anything.';
@@ -221,8 +229,10 @@
     const note = prefix && joined.startsWith(prefix) ? joined.slice(prefix.length).trim() : '';
     const tn = transcriptNote || TRANSCRIPT_NOTE;
     const compose = tp => (note ? [prefix].concat(tp ? [tp] : [], [tn, DYNAMIC_BOUNDARY + '\n' + note]) : system.concat(tp ? [tp] : [], [tn])).join('\n\n');
-    // base: the same prompt with the tool list left out — what a persistent child must still match after a tool reveal
-    return { system: compose(toolsPrompt(tools)), base: compose(TOOLS_SLOT), rest: messages.slice(i).filter(m => m && typeof m === 'object') };
+    // base: the same prompt with the tool list left out — what a persistent child must still match after a tool reveal;
+    // withTools(lines): the same prompt listing exactly these tool lines (a replacement child's run-start list)
+    return { system: compose(toolsPrompt(tools)), base: compose(TOOLS_SLOT), withTools: lines => compose(toolsPromptOf(lines)),
+      rest: messages.slice(i).filter(m => m && typeof m === 'object') };
   }
   const TOOLS_SLOT = '\u0000tools\u0000';
   /* The transcript entries, ONE text block each: { text, tool?, at } (at = the index in `rest` of the message that opened
@@ -287,11 +297,13 @@
     }
     return entries;
   }
+  // A host note that closes a stdin message (a tool reveal: toolsNote), as its own <system_note> entry.
+  const noteEntries = (notes, at) => (notes || []).map(t => ({ text: '<system_note>\n' + t + '\n</system_note>', at }));
   // The whole conversation as ONE stream-json user message: what a one-shot child, or a persistent child that has just
-  // started, is given.
-  function renderTranscript(system, rest) {
+  // started, is given (`notes`: what a replacement child is told after it, see RUN-START TOOLS).
+  function renderTranscript(system, rest, notes) {
     const images = [];
-    return withBlocks(system, transcriptEntries(rest, images), images);
+    return withBlocks(system, transcriptEntries(rest, images).concat(noteEntries(notes, rest.length)), images);
   }
   function buildPrompt(messages, tools, cachePrefix) {
     const sp = splitPrompt(messages, tools, cachePrefix);
@@ -302,8 +314,7 @@
      number in the whole conversation. null = nothing to send. */
   function renderDelta(rest, n, notes) {
     const images = [];
-    const entries = transcriptEntries(rest, images).filter(e => e.at > n);
-    for (const t of notes || []) entries.push({ text: '<system_note>\n' + t + '\n</system_note>', at: rest.length });
+    const entries = transcriptEntries(rest, images).filter(e => e.at > n).concat(noteEntries(notes, rest.length));
     return entries.length ? withBlocks('', entries, images) : null;
   }
   // One transcript message, by value: a persistent child is reused only while every message it holds is unchanged.
@@ -742,8 +753,13 @@
     return { spawn, fs, os, path, env, platform, isFile, command, notInstalled, notSignedIn, childEnv, killTree, authStatus, logout };
   }
 
-  // the CLI's own model names and aliases -> the list-rate table's ids (an alias follows the newest of its family)
-  const ALIAS = { opus: 'claude-opus-5-5', sonnet: 'claude-sonnet-5-5', haiku: 'claude-haiku-4-5-20251001' };
+  /* the CLI's own model names and aliases -> the list-rate table's ids (an alias follows the newest of its family). `haiku`
+     is Haiku 5.5: the installed CLI's own catalog (2.1.319, read 2026-11-09) resolves the haiku alias to claude-haiku-5-5
+     on a first-party sign-in, and the claude-api skill names claude-haiku-5-5 the current Haiku. It was priced as Haiku 4.5
+     ($1/$5 per MTok, ten times Haiku 5.5's $0.10/$0.50). An older CLI that still serves the alias on Haiku 4.5 says so in
+     its init and message_start lines (test/fixtures/claude-cli-2.1.284-natural.json): a turn that names its served model is
+     priced as that model, and this table is only the fallback for a turn that names none (W3.5). */
+  const ALIAS = { opus: 'claude-opus-5-5', sonnet: 'claude-sonnet-5-5', haiku: 'claude-haiku-5-5' };
   function estimateUsd(u, model) {
     try {
       const id = String(model || '').replace(/\[1m\]$/i, '');
@@ -752,7 +768,9 @@
       if (!p) return NaN;
       const uncached = Number(u.input_tokens) || 0, write = Number(u.cache_creation_input_tokens) || 0, read = Number(u.cache_read_input_tokens) || 0;
       const c = p.cache || { read: 1, write: 1 };
-      return ((uncached + read * c.read + write * c.write) * p.in + (Number(u.output_tokens) || 0) * p.out) / 1e6;
+      // the write per tier when the CLI's usage splits it (usage.cache_creation; cost.js writeUnits), else at one rate
+      const writeUnits = require('../cost.js').writeUnits;
+      return ((uncached + read * c.read + writeUnits(write, u.cache_creation, c)) * p.in + (Number(u.output_tokens) || 0) * p.out) / 1e6;
     } catch (_) { return NaN; }
   }
   function makeClaudeCliProvider(opts) {
@@ -798,7 +816,6 @@
       }));
     }
 
-    const effortOf = req => { const e = String(req.reasoningEffort || '').trim().toLowerCase(); return EFFORTS.indexOf(e) >= 0 ? e : ''; };
     function cliArgs(cmd, req, sysFile) {
       // stdin is always stream-json user messages: one block per transcript entry keeps the prompt cache hitting
       const args = cmd.pre.concat(['-p', '--output-format', 'stream-json', '--verbose', '--include-partial-messages', '--input-format', 'stream-json'], NO_TOOLS_ARGS);
@@ -823,6 +840,7 @@
       let open = null;   // the call a tool_start already announced, whose block has not closed yet
       const t = {
         callIndex: 0, sawText: false, result: null, apiKeySource: null, apiError: '',
+        servedModel: '',   // the model the CLI says it ran (init, then each message_start): what an alias such as `haiku` resolved to
         blockDone: false, streamUsage: null,   // the call block ended the turn (see the reader's STOP)
         outChars: 0,   // what the model wrote this turn: the floor for its output tokens when the stop cut the count short
         raw: '',       // every text delta exactly as the CLI streamed it: what a persistent child keeps as this reply
@@ -853,7 +871,7 @@
       }
       t.line = function (j) {
         const out = [];
-        if (j.type === 'system' && j.subtype === 'init') t.apiKeySource = j.apiKeySource == null ? null : String(j.apiKeySource);
+        if (j.type === 'system' && j.subtype === 'init') { t.apiKeySource = j.apiKeySource == null ? null : String(j.apiKeySource); if (typeof j.model === 'string' && j.model) t.servedModel = j.model; }
         else if (j.type === 'system' && j.subtype === 'compact_boundary') t.compacted = true;
         else if (j.type === 'stream_event' && j.event && j.event.type === 'content_block_delta' && j.event.delta && j.event.delta.type === 'text_delta') {
           const text = String(j.event.delta.text || '');
@@ -862,7 +880,10 @@
           const part = splitter.push(j.event.delta.text);
           emitSplit(part, out);
           if (part.stop) { t.blockDone = true; t.rest = part.rest || ''; }
-        } else if (j.type === 'stream_event' && j.event && j.event.type === 'message_start') t.streamUsage = Object.assign({}, j.event.message && j.event.message.usage);
+        } else if (j.type === 'stream_event' && j.event && j.event.type === 'message_start') {
+          t.streamUsage = Object.assign({}, j.event.message && j.event.message.usage);
+          if (j.event.message && typeof j.event.message.model === 'string' && j.event.message.model) t.servedModel = j.event.message.model;
+        }
         else if (j.type === 'stream_event' && j.event && j.event.type === 'message_delta' && j.event.usage) t.streamUsage = Object.assign(t.streamUsage || {}, j.event.usage);
         else if (j.type === 'assistant' && j.error) t.apiError = String(j.error);
         else if (j.type === 'rate_limit_event') rateLimitSeen(j.rate_limit_info);
@@ -874,16 +895,26 @@
         const u = billed.usage || {};
         const uncached = Number(u.input_tokens) || 0, cacheWrite = Number(u.cache_creation_input_tokens) || 0;
         const cacheRead = Number(u.cache_read_input_tokens) || 0, out = Number(u.output_tokens) || 0;
+        // the thinking share of output_tokens, as the CLI's result line says it (output_tokens_details.thinking_tokens;
+        // 108 of 157 in test/fixtures/claude-cli-2.1.284-natural.json). It used to be a hard 0, so every Claude Code
+        // receipt and agent.cost said no reasoning at all.
+        const thinking = Number(u.output_tokens_details && u.output_tokens_details.thinking_tokens) || 0;
         const subscription = t.apiKeySource === 'none';
         const reported = Number(billed.total_cost_usd);
+        const details = { cached_tokens: cacheRead, cache_creation_tokens: cacheWrite };
+        // the write's split by tier, as the CLI's usage reports it (usage.cache_creation, like the Messages API's)
+        const split = cacheTtl.reportedSplit(u.cache_creation);
+        if (split) details.cache_creation = split;
         return {
           type: 'usage',
+          // the model as it ran, when the CLI named it (provider.js: a usage event's optional `model`): receipts and aux rows say it
+          ...(t.servedModel ? { model: t.servedModel } : {}),
           usage: {
             prompt_tokens: uncached + cacheWrite + cacheRead,
             completion_tokens: out,
             total_tokens: uncached + cacheWrite + cacheRead + out,
-            prompt_tokens_details: { cached_tokens: cacheRead, cache_creation_tokens: cacheWrite },
-            reasoning_tokens: 0,
+            prompt_tokens_details: details,
+            reasoning_tokens: Math.max(0, Math.min(thinking, out)),
             // subscription login: nothing is billed per call. API key: the CLI's own billed figure.
             cost: subscription ? 0 : (isFinite(reported) ? reported : undefined),
             // a $0 turn that still drew on the sign-in's usage window: the loop's per-run subscription-token
@@ -902,7 +933,7 @@
       t.stopChunks = function (model) {
         const su = Object.assign({}, t.streamUsage || {});
         su.output_tokens = Math.max(Number(su.output_tokens) || 0, Math.ceil(t.outChars / 4));
-        return [t.usageChunk({ usage: su, total_cost_usd: t.apiKeySource === 'none' ? NaN : estimateUsd(su, model) }), { type: 'done', finishReason: 'tool_calls', truncated: false }];
+        return [t.usageChunk({ usage: su, total_cost_usd: t.apiKeySource === 'none' ? NaN : estimateUsd(su, t.servedModel || model) }), { type: 'done', finishReason: 'tool_calls', truncated: false }];
       };
       // `detail` (the result line's subtype) names only a GENERIC failure: a tagged auth / usage-limit failure with an empty
       // `result` keeps its plain words, never an internal string such as error_during_execution (review 2026-10-13)
@@ -1091,9 +1122,11 @@
        system prompt (persona, rules, brief), the same tools or more (a tool_search reveal is announced in that turn's
        message: TOOL REVEALS), model, effort, run and Stop signal; every earlier message unchanged (a fingerprint
        each); the reply it wrote recorded by the loop unedited (same text, same calls); nothing but new
-       user/tool/system messages after it. Anything else (compaction, an aged-out screenshot, a dropped or repaired
-       call, a retry after a failed turn, a model switch, a withdrawn or changed tool, the CLI compacting itself)
-       closes the child and the turn starts a fresh one from StarNet's whole history, exactly like a one-shot turn.
+       user/tool/system messages after it. Anything else (compaction, a dropped or repaired call, a retry after a failed
+       turn, a model switch, a withdrawn or changed tool, the CLI compacting itself) closes the child and the turn starts
+       a fresh one from StarNet's whole history, exactly like a one-shot turn, on the run-start tool list (RUN-START
+       TOOLS). The loop ages no screen capture out of a child's history before it holds 20 capture turns (holdsHistory:
+       the child holds the pixels already, and an edited earlier message costs a fresh child and a rewrite of the run).
        STARNET_CLAUDE_CLI_PERSIST_LOG=1 prints one line per decision (reuse, fresh + why, closed + why) and one per
        turn's usage (cache read vs written), on either path.
        LIFECYCLE. The child ends at the run's end (release(), called by the loop), on Stop (the run signal, even
@@ -1112,6 +1145,40 @@
     const sha1 = s => require('crypto').createHash('sha1').update(s).digest('hex');
     const sessionKey = (req, system) => sha1(JSON.stringify([String(req.model || ''), effortOf(req), system]));
     const toolMap = tools => new Map(toolLines(tools).map(t => [t.name, t.line]));
+    /* RUN-START TOOLS (cost audit W1.9, 2026-11-08). A reveal (tool_search, a starter's result bringing back its dormant
+       controls) grows the request's tool list mid-run, and the live child is told in that turn's message (TOOL REVEALS).
+       A child that REPLACES it (a warm child after a reply ran past its block, a fresh one after a history or reply
+       mismatch, a crash or a model switch) used to be started on that grown list, so its first system block differed
+       from the one the run's first child had cached: its first request wrote the whole system prompt again (~23.5k
+       tokens at the CLI's 2x one-hour rate; the audit's warm child read 0 and wrote 25,336). childStart is the one answer
+       to "what does a child of this run start with": the tool lines the run's first child was started with, byte for
+       byte, and every tool revealed since announced at the end of its first message with the same note the live child
+       got. Only while every run-start tool is still offered unchanged: a withdrawn or changed tool cannot be told by a
+       note, so that child starts on the current list, and the run's later replacements keep that one. The one-shot path
+       (STARNET_CLAUDE_CLI_PERSIST=0, a side call) renders the current list every turn, as before. */
+    const runTools = new Map();   // runId -> the tool lines its first child was started with, in order
+    function childStart(sp, req, runId) {
+      if (!runId) return { system: sp.system, notes: [], added: [] };   // no run to remember a list for
+      const want = toolLines(req.tools);
+      const start = runTools.get(runId);
+      if (start) {
+        const cur = new Map(want.map(t => [t.name, t.line]));
+        if (cur.size === want.length && start.every(t => cur.get(t.name) === t.line)) {
+          const known = new Set(start.map(t => t.name));
+          const added = want.filter(t => !known.has(t.name));
+          return { system: sp.withTools(start.map(t => t.line)), notes: added.length ? [toolsNote(added)] : [], added };
+        }
+      }
+      runTools.delete(runId); runTools.set(runId, want);
+      while (runTools.size > 16) runTools.delete(runTools.keys().next().value);   // one adapter serves one run; never a leak
+      return { system: sp.system, notes: [], added: [] };
+    }
+    const keptTools = start => {   // a replacement child keeps the run-start list and is told what was revealed since
+      if (!start.added.length) return;
+      stats.keptRunTools = (stats.keptRunTools || 0) + 1;
+      stats.announced = (stats.announced || 0) + start.added.length;
+      plog('replacement keeps the run-start tools; announces ' + start.added.length + ' revealed tool(s): ' + start.added.map(t => t.name).join(', '));
+    };
     // STARNET_CLAUDE_CLI_PERSIST_LOG=1: one console line per persistent-child decision (reuse / fresh + why / closed + why)
     const plog = msg => { if (envOf('STARNET_CLAUDE_CLI_PERSIST_LOG') === '1') console.log('[claude-cli persist] ' + msg); };
 
@@ -1141,8 +1208,10 @@
             // Initialization belongs to this exact child, including a warm child before any turn has a sink.
             let metadata;
             try { metadata = JSON.parse(line); } catch (_) { metadata = null; }
-            if (metadata && metadata.type === 'system' && metadata.subtype === 'init')
+            if (metadata && metadata.type === 'system' && metadata.subtype === 'init') {
               s.apiKeySource = metadata.apiKeySource == null ? null : String(metadata.apiKeySource);
+              if (typeof metadata.model === 'string' && metadata.model) s.servedModel = metadata.model;   // the model this child runs on
+            }
             if (s.sink) s.sink(line);
           }
         }
@@ -1269,11 +1338,12 @@
       const sp = splitPrompt(req.messages, req.tools, req.cacheSystemPrefix, PERSIST_TRANSCRIPT_NOTE);
       const key = sessionKey(req, sp.base);
       const runId = req.runId == null ? '' : String(req.runId);
-      let s = session, prompt = null;
+      let s = session, prompt = null, start = null;
       if (s && !s.primed) {
         // a WARM child started for this run (see prewarm): it holds nothing yet, so it takes the whole history
-        if (s.alive && s.key === key && s.runId === runId && s.signal === (signal || null) && s.systemHash === sha1(sp.system)) {
-          prompt = renderTranscript(sp.system, sp.rest); bump(stats.fresh, 'warm'); plog('use warm child ' + (s.child && s.child.pid));
+        start = childStart(sp, req, runId);
+        if (s.alive && s.key === key && s.runId === runId && s.signal === (signal || null) && s.systemHash === sha1(start.system)) {
+          prompt = renderTranscript(start.system, sp.rest, start.notes); bump(stats.fresh, 'warm'); plog('use warm child ' + (s.child && s.child.pid)); keptTools(start);
         } else { closeSession(s, 'warm_unused'); s = null; bump(stats.fresh, 'first'); plog('fresh child: warm one did not fit'); }
       } else if (s) {
         const plan = planDelta(s, key, runId, signal, sp.rest, req);
@@ -1283,11 +1353,15 @@
         if (prompt) { stats.reused++; plog('reuse child ' + (s.child && s.child.pid) + ': +' + plan.delta.length + ' message(s)'); }
         else { const why = plan.why || 'empty'; bump(stats.fresh, why); plog('fresh child: ' + why); closeSession(s, why); s = null; }
       } else { bump(stats.fresh, 'first'); plog('fresh child: first'); }
-      if (!s) { s = openSession(cmd, req, sp.system, key, runId); prompt = renderTranscript(sp.system, sp.rest); }
+      if (!s) {
+        start = start || childStart(sp, req, runId);
+        s = openSession(cmd, req, start.system, key, runId); prompt = renderTranscript(start.system, sp.rest, start.notes); keptTools(start);
+      }
 
       const turn = ++seq;
       const T = makeTurn(req, turn);
       T.apiKeySource = s.apiKeySource;   // init is session-scoped, not repeated for every user turn
+      if (s.servedModel) T.servedModel = s.servedModel;   // …and so is the model it named (each message_start may name it again)
       if (box) box.turn = T;
       const queue = [];
       let wake = null, failure = null, clean = false, finished = false, idleTimer = null;
@@ -1400,7 +1474,7 @@
           if (inSync) {
             // the turn really ended: book its own result line (exact output tokens; this turn's share of the cost)
             const cost = costOf(s, ended);
-            const billed = { usage: ended.usage || T.streamUsage || {}, total_cost_usd: isFinite(cost) ? cost : estimateUsd(ended.usage || {}, req.model) };
+            const billed = { usage: ended.usage || T.streamUsage || {}, total_cost_usd: isFinite(cost) ? cost : estimateUsd(ended.usage || {}, T.servedModel || req.model) };
             out = [T.usageChunk(billed), { type: 'done', finishReason: 'tool_calls', truncated: false }];
             settle(); parkSession(s, sp.rest, T, req); clean = true;
           } else {
@@ -1410,9 +1484,9 @@
             // share of the running cost (review 2026-10-13), not the stream estimate; overrun / no_end have no line
             const cost = ended ? costOf(s, ended) : NaN;
             settle(); closeSession(s, why);
-            if (!(signal && signal.aborted)) prewarm(cmd, req, sp.system, key, runId);   // the loop runs the tools meanwhile
+            if (!(signal && signal.aborted)) prewarm(cmd, req, childStart(sp, req, runId).system, key, runId);   // the loop runs the tools meanwhile
             out = ended
-              ? [T.usageChunk({ usage: ended.usage || T.streamUsage || {}, total_cost_usd: isFinite(cost) ? cost : (T.apiKeySource === 'none' ? NaN : estimateUsd(ended.usage || {}, req.model)) }), { type: 'done', finishReason: 'tool_calls', truncated: false }]
+              ? [T.usageChunk({ usage: ended.usage || T.streamUsage || {}, total_cost_usd: isFinite(cost) ? cost : (T.apiKeySource === 'none' ? NaN : estimateUsd(ended.usage || {}, T.servedModel || req.model)) }), { type: 'done', finishReason: 'tool_calls', truncated: false }]
               : T.stopChunks(req.model);
           }
           for (const ev of out) yield ev;
@@ -1438,6 +1512,7 @@
     // The run is over: its persistent child goes now instead of idling out (loop.js calls this as the run ends).
     function release(runId) {
       const id = runId == null ? '' : String(runId);
+      runTools.delete(id);
       for (const s of Array.from(ownedSessions)) if (s.runId === id) closeSession(s, 'run_end', true);
     }
 
@@ -1466,9 +1541,15 @@
       // a turn with an image rides the CLI's stream-json input as real image blocks (see IMAGES), so image_analyze's
       // session fallback can use a Claude Code agent's own model
       supportsImages() { return true; },
-      reasoningEfforts() { return EFFORTS.slice(); }
+      /* HOLDS HISTORY (cost audit W1.9). With the persistent child on, the run's history lives in the child: the loop
+         sends it every message as it was, and ages no screen capture out of it before its HELD_IMAGE_TURNS bound (loop.js
+         SCREENSHOTS AGE OUT), since an edited earlier message closes the child for a fresh one that rewrites the run. */
+      holdsHistory() { return persistOn; },
+      reasoningEfforts() { return EFFORTS.slice(); },
+      // what a request carrying `perRequest` gave the CLI (effortAsSent above): its --effort, else 'cli-default'
+      effortAsSent(id, perRequest) { return effortAsSent(perRequest); }
     };
   }
 
-  return { makeClaudeCliProvider, makeCliHost, _internals: { buildPrompt, makeCallSplitter, parseCall, invokeCall, estimateUsd, toolsPrompt, MODELS } };
+  return { makeClaudeCliProvider, makeCliHost, effortAsSent, CLI_DEFAULT_EFFORT, _internals: { buildPrompt, makeCallSplitter, parseCall, invokeCall, estimateUsd, toolsPrompt, MODELS } };
 });

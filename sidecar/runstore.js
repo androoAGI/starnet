@@ -95,6 +95,17 @@
   const COMPLETION_ROWS_MAX = 100;
   const RECOVERY_ATTEMPTS_MAX = 100;
   const ID_RE = /^[A-Za-z0-9_-]{1,80}$/;   // a floor prop id (lineId = its INBOX's id, dockId = the bay's id)
+  // a crew run's effort rule (index.js crewEffort): closed vocabularies only, so a record never carries a word the rule cannot say
+  const EFFORTS = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
+  function effortRuleOf(r) {
+    if (!r || typeof r !== 'object') return null;
+    const one = (v, list) => (list.indexOf(String(v)) >= 0 ? String(v) : null);
+    const surface = one(r.surface, ['worker', 'clone', 'line']), source = one(r.source, ['class', 'pin', 'unmarked']);
+    const why = one(r.why, ['lean', 'retry', 'kept', 'pinned', 'unmarked', 'unsent']), asked = one(r.asked, EFFORTS);
+    if (!surface || !source || !why || !asked) return null;
+    const sent = one(r.sent, EFFORTS);
+    return Object.assign({ surface, source, asked, why }, sent ? { sent } : {});
+  }
   /* TURN IDENTITY (additive, turn-identity): which turn a run answered and the transcript rows it stood on, noted while the
      run is live (runStore.noteIdentity) and merged into that run's next record(). Only these keys, each checked; anything
      else is dropped and counted. */
@@ -187,6 +198,22 @@
       out.push({ id: str(n.id), applied: n.applied === true });
     }
     return out;
+  }
+
+  // LOOP TRUTH (cost plan W1.11): the host's stop-check notes the run issued, counted by tag (loop.js NUDGE_TAGS, e.g.
+  // { verify_before_done: 1 }): notes added to the conversation, not model calls bought (a note added just before a stop
+  // reaches no call). Bounded at the persistence boundary: tag-shaped keys, positive integer counts. null = none.
+  function nudgeCountsOf(v) {
+    if (!v || typeof v !== 'object' || Array.isArray(v)) return null;
+    const out = {};
+    let n = 0;
+    for (const k of Object.keys(v).slice(0, 64)) {
+      const c = v[k];
+      if (n >= 24 || !/^[a-z][a-z0-9_]{0,47}$/.test(k) || !Number.isSafeInteger(c) || c <= 0) continue;
+      out[k] = Math.min(c, 100000);
+      n++;
+    }
+    return n ? out : null;
   }
 
   function toolTraceList(v) {
@@ -390,6 +417,9 @@
         // (additive, token-burn audit 2026-10-17) how much of `tokens`' input the provider served from its prompt cache —
         // `tokens` counts a cache read at full weight. Present only when > 0, so every other row stays byte-identical.
         ...(num(e.cachedTokens) > 0 ? { cachedTokens: num(e.cachedTokens) } : {}),
+        // (additive, cost plan W1.11) how many stop-check notes the host issued, by tag (notes, not calls bought)
+        // ({ verify_before_done: 1, failure_recovery: 2 }). Present only when one fired, so every other row stays byte-identical.
+        ...(nudgeCountsOf(e.nudges) ? { nudges: nudgeCountsOf(e.nudges) } : {}),
         title: str(e.title).slice(0, TITLE_MAX),
         streamId: str(e.streamId),     // H3.2: the run's workstream — joins this outcome row to its transcript (GET /api/transcript?stream=)
         // Durable session-delivery envelope. The page bridge is best-effort (and multiple open pages may disagree
@@ -435,6 +465,10 @@
         // orchestration — parentRunId alone also links overseer reviews and connector continuations, which are not
         // delegated work. Present only when set, so every other row stays byte-identical.
         ...(ID_RE.test(str(e.delegatedBy)) ? { delegatedBy: str(e.delegatedBy) } : {}),
+        // LEANER CREW DEFAULTS (additive, W3.3, 2026-11-09): why a crew run (a worker, a clone, a line stage) asked for the effort it
+        // did, written by the host only while STARNET_CREW_DEFAULTS is on (index.js crewEffort): { surface, source, asked, why, sent? }.
+        // The effort it ran on stays `reasoningEffort` above. Present only when set, so every other row stays byte-identical.
+        ...(effortRuleOf(e.effortRule) ? { effortRule: effortRuleOf(e.effortRule) } : {}),
         // PAGE CLOSED (additive, rc-walk #60, 2026-10-13): the page watching this desk run closed or reloaded while the run
         // was live, so the station cancelled it (the disconnect law). `waitingOn` names, in plain words, the approvals
         // still open at that moment — the disconnect denied them, so none of them was granted. Set only by the host that

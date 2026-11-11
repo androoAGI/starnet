@@ -90,9 +90,29 @@ A.eq(ce.reconcile(null, 'm').tokensIn, 0, 'null usage reconcile -> 0');
 /* The rates have to actually reach cost.js through the real catalog, not just through a test stub. */
 {
   const prices = require('../sidecar/providers/prices.js');
-  A.eq(prices.priceOf('anthropic', 'claude-opus-4-5').cache, { read: 0.10, write: 1.25 }, 'anthropic prices carry cache rates');
+  // W1.13: plus the per-tier write rates (5-minute 1.25x, 1-hour 2x; claude-api skill prompt-caching.md:144) that price
+  // a write the API split by tier (cost.js writeUnits)
+  A.eq(prices.priceOf('anthropic', 'claude-opus-4-5').cache, { read: 0.10, write: 1.25, write5m: 1.25, write1h: 2.00 }, 'anthropic prices carry cache rates');
   A.eq(prices.priceOf('gemini', 'gemini-2.5-pro').cache, { read: 0.25, write: 1.00 }, 'gemini prices carry cache rates');
   A.eq(prices.priceOf('anthropic', 'nope-not-a-model'), null, 'an unmatched id is still honestly unpriced');
+}
+
+/* resolveUsage — the ONE split of a call's usage that the ledger (reconcile) and the usage receipts share (W1.1):
+   prompt_tokens is the TRUE total; cache reads and cache writes come out of it; the rest is uncached input. */
+{
+  const { resolveUsage } = require('../sidecar/cost.js');
+  A.eq(resolveUsage({ prompt_tokens: 1000, completion_tokens: 60, reasoning_tokens: 20, prompt_tokens_details: { cached_tokens: 700, cache_creation_tokens: 200 } }),
+    { uncachedIn: 100, cacheRead: 700, cacheWrite: 200, out: 60, reasoning: 20 }, 'a call split: uncached / cache read / cache write / out / reasoning');
+  A.eq(resolveUsage({ prompt_tokens: 1000, completion_tokens: 5, prompt_tokens_details: { cached_tokens: 100, cache_write_tokens: 300 } }).cacheWrite, 300,
+    'an OpenAI-style cache_write_tokens is a cache write too');
+  A.eq(resolveUsage({ prompt_tokens: 1000, completion_tokens: 5, completion_tokens_details: { reasoning_tokens: 4 } }).reasoning, 4, 'reasoning via completion_tokens_details');
+  A.eq(resolveUsage({ prompt_tokens: 100, completion_tokens: 1, prompt_tokens_details: { cached_tokens: 90, cache_creation_tokens: 500 } }),
+    { uncachedIn: 0, cacheRead: 90, cacheWrite: 10, out: 1, reasoning: 0 }, 'detail fields are clamped to the total: never a negative uncached count');
+  A.eq([resolveUsage(null), resolveUsage('x')], [null, null], 'no usage is no counts (unknown), never zeros');
+  const withWrite = ce.reconcile({ prompt_tokens: 1000, completion_tokens: 500, prompt_tokens_details: { cached_tokens: 200, cache_creation_tokens: 300 } }, 'm');
+  A.eq([withWrite.cachedTokens, withWrite.cacheWriteTokens], [200, 300], 'reconcile now reports cache writes beside cache reads');
+  A.ok(Math.abs(withWrite.usd - 2000 / 1e6) < 1e-12, '...and its dollars are unchanged by the new field (a model with no cache rates prices every input token fresh)');
+  A.eq(ce.reconcile(null, 'm').cacheWriteTokens, 0, 'null usage: no cache writes');
 }
 
 A.report('cost.test');

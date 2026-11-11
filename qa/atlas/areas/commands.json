@@ -405,7 +405,7 @@
       "id": "command/fast",
       "kind": "command",
       "area": "commands",
-      "name": "/fast — drop reasoning effort to minimal for quicker, cheaper replies",
+      "name": "/fast — drop reasoning effort to minimal",
       "purpose": "One-word shortcut to the fastest, cheapest setting, for users who will never think in terms of a reasoning dial.",
       "promise": "Typing /fast drops reasoning effort to minimal through the SAME real dial /reasoning writes, confirms the before -> after levels, and names the command to restore the previous one. If effort is already minimal or none it says so and changes nothing. It never claims a \"fast mode\" as an independent switch, because StarNet has none.",
       "wiring": {
