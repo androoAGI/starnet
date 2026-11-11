@@ -201,16 +201,17 @@ A.ok(/:is\(\.ws-rail-search, \.crew-search-wrap\) \{ background: none !important
 A.ok(/\.ws-rail-search label::before \{[^}]*mask:/.test(css) && /\.crew-search-wrap::before \{[^}]*mask:/.test(css), 'both finders lead with the lit lens');
 A.ok(/#crew-search-close \{[^}]*border-radius: 50%/.test(css), 'the crew finder closes on a round chrome knob');
 
-// ---- the sheet is ten parts (2026-11-10). VECTOR = sections 1-22, the silver device Andrew kept ("I love this look so much
+// ---- the sheet is eleven parts (2026-11-10). VECTOR = sections 1-22, the silver device Andrew kept ("I love this look so much
 // its insane"), finished by section 25, fitted by section 26, its CREW and COMMS heads rebuilt by section 27, its menu panels
-// dressed by section 28, their insides by section 29, the cards inside COMMS by section 30 and the last old surfaces by section 31. Section 23, the black chassis, is variation B's base: gated :where(.vx-b), so it adds no specificity
+// dressed by section 28, their insides by section 29, the cards inside COMMS by section 30, the last old surfaces by section 31
+// and the windows re-formatted as the device by section 32. Section 23, the black chassis, is variation B's base: gated :where(.vx-b), so it adds no specificity
 // and B renders exactly as it did when that pass applied to both. Section 24 is variation B itself ----
 const rawCss = read('frontend/css/vector.css');
 const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '');
 const cut = (title) => { const at = rawCss.indexOf(title); return at < 0 ? -1 : rawCss.lastIndexOf('/*', at); };
-const baseAt = cut('23 · THE BLACK CHASSIS'), bAt = cut('24 · VARIATION B'), pAt = cut('25 · THE PERFECTED VECTOR'), fAt = cut('26 · THE FIT'), hAt = cut('27 · THE HEADS'), nAt = cut('28 · THE PANELS'), iAt = cut('29 · THE INSIDES'), cAt = cut('30 · THE CARDS'), lAt = cut('31 · THE REST');
-A.ok(baseAt > 0 && bAt > baseAt && pAt > bAt && fAt > pAt && hAt > fAt && nAt > hAt && iAt > nAt && cAt > iAt && lAt > cAt,
-  'vector.css carries the black chassis, variation B, the perfected VECTOR, the fit pass, the heads, the panels, the insides, the cards and the rest as sections 23 to 31 in that order');
+const baseAt = cut('23 · THE BLACK CHASSIS'), bAt = cut('24 · VARIATION B'), pAt = cut('25 · THE PERFECTED VECTOR'), fAt = cut('26 · THE FIT'), hAt = cut('27 · THE HEADS'), nAt = cut('28 · THE PANELS'), iAt = cut('29 · THE INSIDES'), cAt = cut('30 · THE CARDS'), lAt = cut('31 · THE REST'), xAt = cut('32 · THE FORMAT');
+A.ok(baseAt > 0 && bAt > baseAt && pAt > bAt && fAt > pAt && hAt > fAt && nAt > hAt && iAt > nAt && cAt > iAt && lAt > cAt && xAt > lAt,
+  'vector.css carries the black chassis, variation B, the perfected VECTOR, the fit pass, the heads, the panels, the insides, the cards, the rest and the format as sections 23 to 32 in that order');
 const cssA = strip(rawCss.slice(0, baseAt));
 const cssBase = strip(rawCss.slice(baseAt, bAt));
 const cssB = strip(rawCss.slice(bAt, pAt));
@@ -220,7 +221,8 @@ const cssH = strip(rawCss.slice(hAt, nAt));
 const cssN = strip(rawCss.slice(nAt, iAt));
 const cssI = strip(rawCss.slice(iAt, cAt));
 const cssC = strip(rawCss.slice(cAt, lAt));
-const cssL = strip(rawCss.slice(lAt));
+const cssL = strip(rawCss.slice(lAt, xAt));
+const cssX = strip(rawCss.slice(xAt));
 // an at-rule's own prelude (@container ... {) is not a selector: drop it, and its closing brace leaves an empty chunk
 const selsOf = (t) => t.replace(/@[a-z-]+[^{};]*\{/g, '').split('}').map(r => r.slice(0, Math.max(0, r.indexOf('{')))).filter(x => x.trim()).flatMap(x => x.split(/,\n/)).map(x => x.trim());
 // a selector list can also run on ONE line, so the line-start check alone is not enough: every root in a section must carry its gate
@@ -799,6 +801,85 @@ A.eq((cssL.match(/backdrop-filter:[^;]*;/g) || []).filter(x => x !== 'backdrop-f
 A.ok(!/[;{\s]filter:\s/.test(cssL) && !/#stage-wrap/.test(cssL) && !/\[class/.test(cssL), 'the last pass declares no filter, styles nothing under #stage-wrap and adds no [class] selector');
 A.ok(!/@/.test(cssL), 'the last pass has no at-rule');
 A.ok(!/url\(/.test(cssL) && !/repeating-/.test(cssL) && !/background-size/.test(cssL), 'the last surfaces stay plain: the pass draws no crest, trace, scan line or grid');
+
+// ---- THE FORMAT (Andrew 2026-11-10: "we need to adjust certain UI areas like settings, and every single UI panel and reformat
+// it to our newer aesthetic and style. I want a full commitment to the new look"). Sections 28 to 31 repainted the old terminal
+// layout. This one lays a station window out as the device: dark screens set into the glass body (as CREW and COMMS are), lit
+// headings over one hairline, modules with a head strip and its lamp, a readout beside each slider, the market windows as one
+// screen, a drawn chevron on every fold. Nothing is added or removed: no control, no word, no window. The conversation, the
+// pop-up lists and Build Mode are not touched, and the battle pass keeps its drawn reward track ----
+const XPFX = LPFX + ' #screen-game #terms .term:not(.pw)';
+const selsX = selsOf(cssX);
+A.ok(selsX.length >= 40, 'the format is its own section (' + selsX.length + ' selectors)');
+A.eq(selsX.filter(x => !x.startsWith(XPFX + ' ')).join(' | '), '', 'every selector in the format opens with the VECTOR gate and stays inside a station window: VECTOR only, never variation B, never a plugin window');
+A.eq(stray(cssX, ':not(.vx-b)').join(' | '), '', 'no selector in the format slips its scope inside a one-line list');
+const rulesX = cssX.split('}').filter(r => r.includes('{')).map(r => ({ sel: r.slice(0, r.indexOf('{')).split(XPFX).join('').replace(/\s+/g, ' ').trim(), body: r.slice(r.indexOf('{') + 1).replace(/\s+/g, ' ').trim() }));
+const atX = (sel) => rulesX.findIndex(r => r.sel === sel);
+const ruleX = (sel) => (rulesX[atX(sel)] || { body: '' }).body;
+// the screens
+const SCREENS = ':is(.con-rail, .con-pane, .mkt-stage, .term-body:not(.term-console-body):not(.mkt-window-body))';
+A.eq(ruleX(SCREENS), 'border-radius: 12px; background: var(--vx-lcd); box-shadow: var(--vx-lcd-shadow);',
+  'a window’s list, its page and a one-page window’s body are dark screens set into the glass: the same readout CREW and COMMS use, by the same two tokens');
+A.eq(rulesX.filter(r => /var\(--vx-lcd(-shadow)?\)/.test(r.body)).map(r => r.sel).join(' | '), SCREENS, 'one rule makes a screen: a card on a screen is never a second screen');
+A.eq(ruleX('.quests-content .q-view-tabs::before'), 'background: color-mix(in srgb, var(--ph) 3%, #030507);', 'the band that covers scrolled quest rows is the screen’s own tone, so it never shows as a lighter block');
+// the inset: the glass shows round a screen in a roomy window and gives the room back in a narrow one (1366 wide at a large TEXT SIZE)
+const XINSET = 'clamp(0px, (100% - 640px) * .04, 11px)';
+A.eq(ruleX('.term-console-body'), 'padding: 4px ' + XINSET + ' ' + XINSET + '; gap: 11px ' + XINSET + ';', 'a two-screen window sets its screens in from the glass by a margin that is nothing at 640px and full at 915px');
+A.eq(ruleX('.term-body:not(.term-console-body):not(.mkt-window-body)'), 'margin: 4px ' + XINSET + ' ' + XINSET + ';', 'a one-screen window takes the same inset');
+A.eq(ruleX('.mkt-stage'), 'margin: 0 ' + XINSET + ' ' + XINSET + ';', 'and so does a market window');
+A.eq((cssX.match(/clamp\(0px, [^;]*?, 11px\)/g) || []).filter(x => x !== XINSET).join(' | '), '', 'every inset is the one expression: no window keeps a fixed margin a narrow window cannot afford');
+// headings
+const XLIT = 'color: color-mix(in srgb, var(--vx-core) 80%, #fff); text-shadow: 0 0 6px rgba(var(--ph-rgb), .45);';
+A.ok(ruleX('.con-sec-head .sec-l').endsWith(XLIT) && ruleX('.ms-h') === XLIT, 'a page’s title and a group’s title are lit type on the screen');
+A.eq(ruleX('.con-sec-head .sec-r'), 'display: none;', 'the page title loses the rule that ran beside it');
+A.ok(/border-bottom: 1px solid var\(--vx-hair\); border-radius: 0;/.test(ruleX('.con-sec-desc')), 'one square hairline closes a page’s head (a rounded one curls up at its ends)');
+A.eq(ruleX('.sec .sec-nd'), 'display: none;', 'a divider’s end diamond goes');
+A.eq(ruleX(':is(.ms-h, .mkt-sect-h)::before'), 'content: none;', 'a heading’s diamond (a glyph the pixel face does not have) goes');
+A.eq(ruleX(':is(.ms-h, .mkt-sect-h)::after'), 'height: 1px; background: var(--vx-hair);', 'a heading’s rule is one plain hairline');
+// modules
+const HEADS = ':is(.settings-group > .ms-h, .set-erase > .ms-h, .set-reset-browser > .ms-h, .cd-sec > .cd-sech, .cd-record > .cd-record-h, .cd-brief > .cd-brief-head, .ch-bots > .ch-bots-head, .ch-connection > .ch-section-title, .ag-mission > .ag-mission-lbl, .ag-reflection-panel > .gx-sec, .ag-achievements > .gx-trohead, .fm-mission > .fm-eyebrow, .kb-cols > .kb-col > h4):first-child';
+A.ok(/^display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 4px 10px; height: auto; margin: -16px -18px 14px; padding: 9px 16px 8px; border: 0; border-bottom: 1px solid var\(--vx-hair\); border-radius: 9px 9px 0 0;/.test(ruleX(HEADS)),
+  'a module’s title is a head strip across the top of its card: it reaches the card’s edges by undoing the card’s own padding, and in a narrow card it wraps rather than run out of the card');
+A.eq(ruleX(HEADS + ' > :is(.dim, .cd-dn, .cd-brief-meter, .gx-tag)'), 'flex: 0 1 auto; min-width: 0; margin: 0 0 0 auto; text-align: right; text-shadow: none; white-space: normal;',
+  'the note at a strip’s right end may shrink and break its line: it never pushes the strip wider than its card');
+A.ok(ruleX(HEADS).endsWith(XLIT), 'and its name is lit type');
+A.eq(ruleX(':is(.settings-group, .set-erase, .set-reset-browser, .settings-pane > .set-row)'), 'padding: 16px 18px; margin: 0 0 14px;', 'the strip’s pull is the padding this section gives the card');
+A.eq(ruleX(':is(.cd-sec, .cd-record, .cd-brief, .ch-bots, .ch-connection, .ag-mission, .ag-reflection-panel, .ag-achievements, .fm-mission)'), 'padding: 16px 18px;', 'for every card that carries a strip');
+const LAMP = ruleX(HEADS + '::before');
+A.ok(/^content: ''; display: block; position: static; order: -1; flex: 0 0 auto; width: 8px; height: 8px;/.test(LAMP) && /border-radius: 50%/.test(LAMP) && /radial-gradient\(circle at 35% 30%, color-mix\(in srgb, var\(--vx-core\) 60%, #fff\) 0, var\(--ph\) 48%/.test(LAMP),
+  'the strip leads with a small lamp: the jewel on the CREW and COMMS heads, in the theme’s colour');
+A.eq(ruleX(HEADS + '::after'), 'content: none;', 'a strip has no rule of its own: its lower edge is the line');
+A.ok(atX(HEADS) >= 0 && atX('.kb-cols > .kb-col > h4:first-child') > atX(HEADS), 'a task column’s strip is fitted to that column’s padding after the shared rule, so it is the one that applies');
+// rows
+A.ok(ruleX('.set-slider').startsWith('grid-template-columns: clamp(76px, 38%, 136px) minmax(0, 1fr) clamp(40px, 18%, 62px); gap: 14px clamp(6px, 4%, 14px);') && /border-top: 1px solid rgba\(var\(--ph-rgb\), \.1\);/.test(ruleX('.set-slider')),
+  'a slider is a row: its name, the fader, its value, under a faint rule. The name and value columns give way in a narrow card (136 and 62 at most), so the row never asks for more room than the card has');
+A.eq(ruleX('.set-slider-val'), 'padding: 3px 4px; border-radius: 6px; background: var(--vx-well); box-shadow: var(--vx-read-shadow); color: var(--vx-core); text-align: center;', 'the value sits in a small readout');
+A.eq(ruleX('.set-about'), 'opacity: 1; color: rgba(var(--ph-rgb), .72);', 'a note under a setting is dimmed by its ink, never by fading the whole line');
+// the jump keys
+A.eq(selsX.filter(x => x.includes('.settings-jumps > button')).length, 6, 'the jump keys are counted three ways (six, seven or eight, nine and up), so a row never ends in one key alone');
+// the market windows
+A.eq(ruleX('.mkt-stage > :is(.mkt-roster, .mkt-dossier)'), 'border: 0; border-radius: 0 !important; background: none; box-shadow: none;', 'in a market window the list and the detail share one screen: neither is a card of its own');
+A.eq(ruleX('.mkt-stage > .mkt-dossier'), 'border-left: 1px solid var(--vx-hair);', 'a hairline parts them');
+A.eq(ruleX('.mkt-stage > .mkt-roster'), 'padding-left: clamp(8px, (100% - 360px) * .12, 14px); padding-right: clamp(8px, (100% - 360px) * .12, 14px);', 'the list’s side margin is fluid: a list column under about 480px gives it back, so three cards in a row keep the width their labels need');
+// folds
+const FOLDS = ':is(.perm-fold, .ch-setup, .mkt-orders, .mkt-model-settings, .mkt-brief, .si-more, .q-progress-section, .q-journal-records > details, .q-refresh-options, .mc-adv, .mc-effective-payer, .mkt-library-more, .mkt-recipe-instructions, .platform-guide)';
+A.ok(/^content: ''; display: inline-block;/.test(ruleX(FOLDS + ' > summary::before')) && /border: 0; border-right: 1\.5px solid currentColor; border-bottom: 1\.5px solid currentColor; transform: rotate\(-45deg\);$/.test(ruleX(FOLDS + ' > summary::before')),
+  'a fold is marked by a drawn chevron in the summary’s own ink (any older drawn triangle is cleared first)');
+A.eq(ruleX(FOLDS + '[open] > summary::before'), 'transform: rotate(45deg);', 'which turns down when the fold is open');
+const NATIVE = ':is(.mc-effective-payer, .mkt-library-more, .mkt-recipe-instructions) > summary';
+A.eq(ruleX(NATIVE), 'list-style: none;', 'a fold that still showed the browser’s own triangle loses it');
+A.eq(ruleX(NATIVE + '::-webkit-details-marker'), 'display: none;', 'in both engines (WebView2 reads list-style, WebKit reads its marker)');
+A.ok(NATIVE.slice(4, NATIVE.indexOf(')')).split(', ').every(k => FOLDS.includes(', ' + k + ',')), 'and each of them takes the drawn chevron instead: none is left without a mark');
+// what the format must never do
+A.eq((cssX.match(/--vx-[a-z-]+:/g) || []).length, 0, 'the format defines no material: every surface is one the dark knob already takes down');
+A.eq([...new Set(cssX.match(/(?<![a-z-])content:[^;]*;/g) || [])].sort().join(' '), "content: ''; content: none;", 'the format writes no word: it removes old marks and draws two parts, the lamp and the chevron');
+A.eq([...new Set(cssX.match(/(?<![a-z-])position:[^;]*;/g) || [])].join(' '), 'position: static;', 'nothing is lifted out of the flow');
+A.ok(!/font-family|z-index|animation|transition|(?<![a-z-])float:/.test(cssX), 'the format changes no face and adds no motion or stacking');
+A.ok(!/\.cmsg|#chat-log|#chat-panel|\.dg-line|presence|\.nudge|\.consent/.test(cssX), 'the format names nothing inside the conversation');
+A.ok(!/\.q-pass|\.bp-|battle/.test(cssX), 'the battle pass keeps its drawn reward track');
+A.ok(!/[;{\s]filter:\s/.test(cssX) && !/#stage-wrap/.test(cssX) && !/\[class/.test(cssX), 'the format declares no filter, styles nothing under #stage-wrap and adds no [class] selector');
+A.ok(!/@/.test(cssX), 'the format has no at-rule');
+A.ok(!/url\(/.test(cssX) && !/repeating-/.test(cssX) && !/background-size/.test(cssX), 'a screen stays plain: the format draws no crest, trace, scan line or grid');
 
 // ---- THE DEEP END of the dark knob (Andrew 2026-11-10: "improve the brightness as well, lets make it to be able to get
 // really dark for the dashboard"). The knob is the same SETTINGS › BRIGHTNESS slider; at 0 nothing may change, so every

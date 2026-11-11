@@ -3446,3 +3446,116 @@ html body.vx:not(.hud-mode):not(.vx-b) .refit-overlay .station-build-meta span {
   background: #010302 border-box;
   box-shadow: var(--vx-read-shadow);
 }
+
+/* ============================================================
+   32 · THE FORMAT — a station window is laid out as the device, not as the old terminal in new paint (Andrew
+   2026-11-10: "reformat it to our newer aesthetic and style. I want a full commitment to the new look"). A window is
+   a glass body with dark screens set into it, as CREW and COMMS are. A heading is lit type over one hairline. A
+   module is a head strip with its lamp and its name over its controls. A setting is a name, the control and its value
+   in a small readout. The market windows are one screen. A fold is marked by a drawn chevron. Layout and paint inside
+   a station window only: no control, no word and no window is added or removed, and the conversation is not touched.
+   ============================================================ */
+/* ---- A · the screens: a window is the same device as CREW and COMMS, a glass body with dark screens set into it.
+   The glass shows as an 11px frame round a screen; a narrow window (large TEXT SIZE on a small display) gives that
+   frame back to the screen, so nothing inside is squeezed ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .term-console-body { padding: 4px clamp(0px, (100% - 640px) * .04, 11px) clamp(0px, (100% - 640px) * .04, 11px); gap: 11px clamp(0px, (100% - 640px) * .04, 11px); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.con-rail, .con-pane, .mkt-stage, .term-body:not(.term-console-body):not(.mkt-window-body)) {
+  border-radius: 12px; background: var(--vx-lcd); box-shadow: var(--vx-lcd-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .term-body:not(.term-console-body):not(.mkt-window-body) { margin: 4px clamp(0px, (100% - 640px) * .04, 11px) clamp(0px, (100% - 640px) * .04, 11px); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .mkt-stage { margin: 0 clamp(0px, (100% - 640px) * .04, 11px) clamp(0px, (100% - 640px) * .04, 11px); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .con-col { gap: 9px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .quests-content .q-view-tabs::before { background: color-mix(in srgb, var(--ph) 3%, #030507); }
+
+/* ---- B · headings: lit type on the screen and one plain hairline. No double rule, no diamond ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .con-sec-head { margin: 0 0 6px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .con-sec-head .sec-l {
+  font-size: 22px !important; letter-spacing: 2px;
+  color: color-mix(in srgb, var(--vx-core) 80%, #fff); text-shadow: 0 0 6px rgba(var(--ph-rgb), .45);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .con-sec-head .sec-r { display: none; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .con-sec-desc {
+  margin: 0 0 16px; padding: 0 0 14px; border-bottom: 1px solid var(--vx-hair); border-radius: 0; color: rgba(var(--ph-rgb), .78);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .sec .sec-r { height: 1px; background: var(--vx-hair); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .sec .sec-nd { display: none; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ms-h {
+  color: color-mix(in srgb, var(--vx-core) 80%, #fff); text-shadow: 0 0 6px rgba(var(--ph-rgb), .45);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.ms-h, .mkt-sect-h)::before { content: none; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.ms-h, .mkt-sect-h)::after { height: 1px; background: var(--vx-hair); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) summary > .ms-h::after { content: none; }
+
+/* ---- C · a module: a head strip with its lamp and its name, the controls under it. In a narrow card the strip
+   wraps: what sits at its right end drops under the name instead of pushing the page sideways ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.set-erase, .set-reset-browser, .settings-pane > .set-row) {
+  border: 1px solid var(--vx-hair); border-radius: 10px; background: var(--vx-pane); box-shadow: var(--vx-pane-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.settings-group, .set-erase, .set-reset-browser, .settings-pane > .set-row) { padding: 16px 18px; margin: 0 0 14px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.cd-sec, .cd-record, .cd-brief, .ch-bots, .ch-connection, .ag-mission, .ag-reflection-panel, .ag-achievements, .fm-mission) { padding: 16px 18px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .settings-pane > .set-row { display: flex; align-items: center; gap: 14px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .settings-pane > .set-row > span { flex: 1; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.settings-group > .ms-h, .set-erase > .ms-h, .set-reset-browser > .ms-h, .cd-sec > .cd-sech, .cd-record > .cd-record-h, .cd-brief > .cd-brief-head, .ch-bots > .ch-bots-head, .ch-connection > .ch-section-title, .ag-mission > .ag-mission-lbl, .ag-reflection-panel > .gx-sec, .ag-achievements > .gx-trohead, .fm-mission > .fm-eyebrow, .kb-cols > .kb-col > h4):first-child {
+  display: flex; align-items: center; justify-content: flex-start; flex-wrap: wrap; gap: 4px 10px;
+  height: auto; margin: -16px -18px 14px; padding: 9px 16px 8px;
+  border: 0; border-bottom: 1px solid var(--vx-hair); border-radius: 9px 9px 0 0;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, 0)), rgba(var(--ph-rgb), .09);
+  color: color-mix(in srgb, var(--vx-core) 80%, #fff); text-shadow: 0 0 6px rgba(var(--ph-rgb), .45);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.settings-group > .ms-h, .set-erase > .ms-h, .set-reset-browser > .ms-h, .cd-sec > .cd-sech, .cd-record > .cd-record-h, .cd-brief > .cd-brief-head, .ch-bots > .ch-bots-head, .ch-connection > .ch-section-title, .ag-mission > .ag-mission-lbl, .ag-reflection-panel > .gx-sec, .ag-achievements > .gx-trohead, .fm-mission > .fm-eyebrow, .kb-cols > .kb-col > h4):first-child::before {
+  content: ''; display: block; position: static; order: -1; flex: 0 0 auto; width: 8px; height: 8px; margin: 0; border-radius: 50%; transform: none;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--vx-core) 60%, #fff) 0, var(--ph) 48%, color-mix(in srgb, var(--ph) 45%, #000) 100%);
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px rgba(0, 0, 0, .35), 0 0 6px 1px rgba(var(--ph-rgb), .6);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.settings-group > .ms-h, .set-erase > .ms-h, .set-reset-browser > .ms-h, .cd-sec > .cd-sech, .cd-record > .cd-record-h, .cd-brief > .cd-brief-head, .ch-bots > .ch-bots-head, .ch-connection > .ch-section-title, .ag-mission > .ag-mission-lbl, .ag-reflection-panel > .gx-sec, .ag-achievements > .gx-trohead, .fm-mission > .fm-eyebrow, .kb-cols > .kb-col > h4):first-child::after { content: none; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.settings-group > .ms-h, .set-erase > .ms-h, .set-reset-browser > .ms-h, .cd-sec > .cd-sech, .cd-record > .cd-record-h, .cd-brief > .cd-brief-head, .ch-bots > .ch-bots-head, .ch-connection > .ch-section-title, .ag-mission > .ag-mission-lbl, .ag-reflection-panel > .gx-sec, .ag-achievements > .gx-trohead, .fm-mission > .fm-eyebrow, .kb-cols > .kb-col > h4):first-child :is(.cd-dim, .cd-brief-h, .gx-title) { color: inherit; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.settings-group > .ms-h, .set-erase > .ms-h, .set-reset-browser > .ms-h, .cd-sec > .cd-sech, .cd-record > .cd-record-h, .cd-brief > .cd-brief-head, .ch-bots > .ch-bots-head, .ch-connection > .ch-section-title, .ag-mission > .ag-mission-lbl, .ag-reflection-panel > .gx-sec, .ag-achievements > .gx-trohead, .fm-mission > .fm-eyebrow, .kb-cols > .kb-col > h4):first-child > :is(.dim, .cd-dn, .cd-brief-meter, .gx-tag) { flex: 0 1 auto; min-width: 0; margin: 0 0 0 auto; text-align: right; text-shadow: none; white-space: normal; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.settings-group > .ms-h, .set-erase > .ms-h, .set-reset-browser > .ms-h, .cd-sec > .cd-sech, .cd-record > .cd-record-h, .cd-brief > .cd-brief-head, .ch-bots > .ch-bots-head, .ch-connection > .ch-section-title, .ag-mission > .ag-mission-lbl, .ag-reflection-panel > .gx-sec, .ag-achievements > .gx-trohead, .fm-mission > .fm-eyebrow, .kb-cols > .kb-col > h4):first-child > .gx-sec { margin: 0; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.settings-group, .set-erase, .set-reset-browser) > .ms-h:first-child { letter-spacing: 1.5px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .kb-cols > .kb-col > h4:first-child { margin: 0 -12px 10px; padding: 9px 14px 8px; }
+
+/* ---- D · rows: a name you can read, the control, the value in a small readout; a hairline between rows. The
+   name and the readout take their full width in a card that has it and narrow with a card that does not ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .set-about { opacity: 1; color: rgba(var(--ph-rgb), .72); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .set-slider {
+  grid-template-columns: clamp(76px, 38%, 136px) minmax(0, 1fr) clamp(40px, 18%, 62px); gap: 14px clamp(6px, 4%, 14px);
+  margin: 0; padding: 9px 0; border-top: 1px solid rgba(var(--ph-rgb), .1);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .set-slider-name { color: var(--ph); letter-spacing: 1px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .set-slider-val {
+  padding: 3px 4px; border-radius: 6px; background: var(--vx-well); box-shadow: var(--vx-read-shadow);
+  color: var(--vx-core); text-align: center;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .settings-group .set-themes + .set-row { margin-top: 0; padding-top: 14px; border-top: 1px solid rgba(var(--ph-rgb), .1); }
+
+/* ---- E · the jump keys: six or more lay out as rows of equal keys, never one key alone on a row ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .settings-jumps { margin-bottom: 14px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .settings-jumps > button:first-child:nth-last-child(6),
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .settings-jumps > button:first-child:nth-last-child(6) ~ button { flex: 1 1 30%; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .settings-jumps > button:first-child:nth-last-child(n+7):nth-last-child(-n+8),
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .settings-jumps > button:first-child:nth-last-child(n+7):nth-last-child(-n+8) ~ button { flex: 1 1 22%; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .settings-jumps > button:first-child:nth-last-child(n+9),
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .settings-jumps > button:first-child:nth-last-child(n+9) ~ button { flex: 1 1 18%; }
+
+/* ---- F · the market windows: ONE screen. The list and the detail share it, with a hairline between them.
+   The list's side margin is fluid: a list column under about 480px gives it back, so its three cards keep their width ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .mkt-stage:not(.form) { padding: 0; gap: 0; overflow: hidden; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .mkt-stage > :is(.mkt-roster, .mkt-dossier) { border: 0; border-radius: 0 !important; background: none; box-shadow: none; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .mkt-stage > .mkt-roster { padding-left: clamp(8px, (100% - 360px) * .12, 14px); padding-right: clamp(8px, (100% - 360px) * .12, 14px); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .mkt-stage > .mkt-dossier { border-left: 1px solid var(--vx-hair); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .mkt-stage .mkt-dos-cta {
+  border-top: 1px solid var(--vx-hair);
+  background: linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, 0)), rgba(var(--ph-rgb), .09);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.mkt-head, .mkt-bar) { border-bottom-color: transparent; }
+
+/* ---- G · fold marks: a drawn chevron that turns when the fold opens. No arrow glyph from a fallback font, no triangle
+   painted by the browser, and no fold left without a mark ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.mc-effective-payer, .mkt-library-more, .mkt-recipe-instructions) > summary { list-style: none; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.mc-effective-payer, .mkt-library-more, .mkt-recipe-instructions) > summary::-webkit-details-marker { display: none; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.perm-fold, .ch-setup, .mkt-orders, .mkt-model-settings, .mkt-brief, .si-more, .q-progress-section, .q-journal-records > details, .q-refresh-options, .mc-adv, .mc-effective-payer, .mkt-library-more, .mkt-recipe-instructions, .platform-guide) > summary::before {
+  content: ''; display: inline-block; flex: 0 0 auto; width: 6px; height: 6px; margin: 0 10px 3px 3px; vertical-align: middle;
+  border: 0; border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.perm-fold, .ch-setup, .mkt-orders, .mkt-model-settings, .mkt-brief, .si-more, .q-progress-section, .q-journal-records > details, .q-refresh-options, .mc-adv, .mc-effective-payer, .mkt-library-more, .mkt-recipe-instructions, .platform-guide)[open] > summary::before { transform: rotate(45deg); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.mkt-model-settings, .q-progress-section, .q-journal-records > details, .q-refresh-options, .platform-guide) > summary::before { margin: 0 4px 0 3px; }
