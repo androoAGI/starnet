@@ -15,7 +15,11 @@ sha2 = "0.10"
 [dependencies]
 tauri = { version = "2", features = ["tray-icon", "image-png"] }
 tauri-plugin-single-instance = "2"
-tauri-plugin-updater = "2"
+# default-features off drops the updater's "zip" feature (zip, plus tar/flate2 on Linux): it only unpacks a Windows
+# .zip installer or a Linux .AppImage.tar.gz, and StarNet ships neither (createUpdaterArtifacts: true signs the
+# -setup.exe itself; macOS always unpacks .app.tar.gz with tar/flate2, which the plugin keeps on macOS). Dependabot
+# 18/19/20: zip 4.6.1, critical. rustls-tls is the other default and stays.
+tauri-plugin-updater = { version = "2", default-features = false, features = ["rustls-tls"] }
 # Lane 4D: opt-in launch-at-login (Windows Run key / macOS LaunchAgent / Linux .desktop autostart).
 tauri-plugin-autostart = "2"
 # Host-gesture gate: native blocking confirm dialogs for OS-launch commands (open/reveal).
