@@ -352,10 +352,12 @@ function twoStageFloor() {
     for (const rq of mock.requests.slice(before)) {
       for (const m of ((rq && rq.messages) || [])) if (m && m.role === 'tool') toolMsgs.push(String(m.content || ''));
     }
-    // the saved WORKBENCH is in the probe's bay room (its consent-free shell_bg_status rides the wire; the consent-gated
-    // shell_exec is withheld from an unattended run), so the denial below is the workbench's consent posture, not a missing room
-    A.ok(mock.requests.slice(before).some(rq => ((rq && rq.tools) || []).some(t => /^shell[._]bg[._]status$/.test(String((t.function && t.function.name) || t.name || '')))),
-      'the probe\'s bay room holds the saved workbench (shell_bg_status offered)');
+    // the saved WORKBENCH is in the probe's bay room: its consent-free shell_bg_status is granted (on the wire, or, since
+    // cost audit W1.3, NAMED in the [HARNESS] not-loaded list while the consent-gated shell_exec is withheld from an
+    // unattended run and no background process exists), so the denial below is the workbench's consent posture, not a missing room
+    A.ok(mock.requests.slice(before).some(rq => ((rq && rq.tools) || []).some(t => /^shell[._]bg[._]status$/.test(String((t.function && t.function.name) || t.name || '')))
+        || /These exist and you CAN use them: [^.]*\bshell_bg_status\b/.test(sysOf(rq))),
+      'the probe\'s bay room holds the saved workbench (shell_bg_status advertised, or granted and named as loadable)');
     A.ok(toolMsgs.length >= 1, 'the model\'s shell.exec attempt produced a tool result the provider saw');
     A.ok(!toolMsgs.some(t => /pwned/.test(t)), 'the command NEVER executed — no unattended grant reached the sample run: ' + JSON.stringify(toolMsgs).slice(0, 300));
 

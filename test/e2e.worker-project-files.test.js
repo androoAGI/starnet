@@ -119,7 +119,10 @@ function toolResultFor(requests, callId) {
 
     // ---- the dispatched worker's resolved tool list: BY DESIGN no command execution in ASK mode ----
     A.ok(toolNames.indexOf('shell_exec') < 0 && toolNames.indexOf('verify_run') < 0, 'the delegated ASK-mode Creator is not handed shell_exec/verify_run: ' + toolNames.join(','));
-    A.ok(toolNames.indexOf('shell_bg_status') >= 0, 'its WORKBENCH kit is present (shell_bg_status survives)');
+    // cost audit W1.3: with shell_exec withheld and no background process to report on, shell_bg_status joins its dormant
+    // follow-up family: off the wire, still granted and NAMED in the [HARNESS] not-loaded list (tool_search loads it)
+    const namedDeferred = ((/These exist and you CAN use them: ([^.]*)\./.exec(systemOf(first)) || [])[1] || '').split(', ');
+    A.ok(toolNames.indexOf('shell_bg_status') >= 0 || namedDeferred.indexOf('shell_bg_status') >= 0, 'its WORKBENCH kit is present (shell_bg_status is advertised, or granted and named as loadable)');
     A.ok(toolNames.indexOf('image_generate') >= 0 && toolNames.indexOf('tool_search') >= 0, 'image_generate and tool_search are advertised');
     const sys = systemOf(first);
     A.ok(/DELEGATED worker run for supervisor/.test(sys), 'its capability note says DELEGATED for the Supervisor, not an unattended routine');
