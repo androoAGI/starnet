@@ -923,6 +923,7 @@ test/cron.clock-rewind.test.js
 test/cron.durability.test.js
 test/cron.lock.test.js
 test/cron-session-hydration.test.js
+test/routine-quiet-records.test.js
 test/loopjob.test.js
 test/loopjob-check.test.js
 test/loopjob-driver.test.js

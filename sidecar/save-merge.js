@@ -37,7 +37,7 @@ const SaveHistory = require('./save-history.js');   // a v7 history may name run
 // fields the merge itself writes (the envelope and the station-owned ones); everything else merges three-way
 const OWN = new Set(['schema', 'version', 'updatedAt', '_saveRevision', '_saveClient', '_saveDirty', '_saveMerge', '_saveRestore', '_saveAdoptBy',
   'workstreams', 'deletedIds', 'forgetIds', 'stationStats']);
-const TOMBS_MAX = 500;   // workstreams.js MAX_TOMBS
+const TOMBS_MAX = 20000;   // workstreams.js MAX_TOMBS
 const CLIENT_RE = /^[A-Za-z0-9_-]{1,72}$/;
 
 function num(v) { const n = Number(v); return Number.isFinite(n) ? n : 0; }
