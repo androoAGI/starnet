@@ -90,6 +90,32 @@ function fixture({ native, get, post } = {}) {
     assert.ok(f.host.querySelector('#credits-link'), 'retry restores linking after ' + failureAt + ' failure');
   }
 
+  // #182 ("now I can't sign off the station"): an account that cannot be read keeps its way out. A station with no link
+  // answers the status read 404 at once, so a read that did not answer offers UNLINK beside RETRY; it works from there.
+  {
+    let gone = false;
+    const stuck = fixture({
+      get: async route => {
+        if (route === '/api/credits') { if (gone) throw new Error('http 404'); throw new Error('timed out after 26000ms'); }
+        return { available: true, cloud: true };
+      },
+      post: async () => { gone = true; return { ok: true, j: { ok: true, unlinked: true } }; }
+    });
+    await stuck.read();
+    assert.match(stuck.host.innerHTML, /Could not check your account connection/);
+    assert.ok(stuck.host.querySelector('#credits-retry') && stuck.host.querySelector('#credits-unlink'), 'a status read that never answered offers RETRY and UNLINK');
+    assert.match(stuck.host.innerHTML, /your credits stay on your account/, 'and says the credits are not lost');
+    await stuck.unlink();
+    assert.ok(stuck.calls.includes('/api/credits/unlink') && stuck.calls.includes('refresh') && stuck.calls.includes('provider'), 'UNLINK from the unavailable card takes the whole unlink path');
+    assert.ok(stuck.host.querySelector('#credits-link'), 'and the station can link again');
+  }
+  {
+    const unlinkedStation = fixture({ get: async route => { if (route === '/api/credits') throw new Error('http 404'); throw new Error('network'); } });
+    await unlinkedStation.read();
+    assert.match(unlinkedStation.host.innerHTML, /Could not check your account connection/);
+    assert.ok(!unlinkedStation.host.querySelector('#credits-unlink'), 'a station that answered "no link" (404) is offered no UNLINK');
+  }
+
   let resolveOld; let statusReads = 0;
   const race = fixture({ get: route => route === '/api/credits'
     ? (++statusReads === 1 ? new Promise(r => { resolveOld = r; }) : { configured: false })

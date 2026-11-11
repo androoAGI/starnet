@@ -119,6 +119,17 @@
     // then lowering PER RUN so runs can share the balance (the SPENDING LIMITS door); topping up stays the last
     // door — a small wallet's hold may come back as cents. Audit B11.
     managed_credit_held: { retryable: true, action: 'budget', msg: "Your StarNet balance is held by StarNet runs that are still working — nothing is lost: each run reserves up to its PER RUN limit and refunds what it doesn't spend. Wait for them to finish, lower PER RUN in SETTINGS › SPENDING LIMITS, or top up under SETTINGS → AI & MODELS." },
+    // #182 (Windows, 0.15.0: "added funds ... met with account doesn't have enough funds"): the StarNet relay's OWN refusal
+    // (the cloud's 402 insufficient_credits, after the station's one low-credit retry). It is StarNet credit, not a provider
+    // account ("billing" sent the Commander to a provider's top-up). Nothing was charged: the relay refused before forwarding.
+    // The relay says one of two things, and the words follow it:
+    //  - managed_credit_short: "this call holds up to $X while it runs and the balance available is $Y". The relay holds each
+    //    open call's worst case until it settles, so part of the balance can be held by calls still running on the account;
+    //    a try in a few minutes can go through, and a low balance tops up.
+    //  - managed_credit_empty: the bare "insufficient StarNet credits", the account with nothing free to spend. The first
+    //    advice is to top up; a balance that a fresh top-up shows can still be held, said second.
+    managed_credit_short: { retryable: true, action: 'store', msg: "Not enough of your StarNet credits is free for this call right now — nothing was charged. Part of your balance may be held by calls that haven't finished on your account; it comes back as they end, so try again in a few minutes. If your balance under SETTINGS → AI & MODELS is low, top up there, or connect your own provider key." },
+    managed_credit_empty: { retryable: false, action: 'store', msg: "Your StarNet credits can't cover this call — nothing was charged. Top up under SETTINGS → AI & MODELS, or connect your own provider key. If you just added credits and they show there, part may still be held by calls that haven't finished on your account; it comes back as they end." },
     // The account service ANSWERED and refused this station's token (unlinked on the account page, or linked to a
     // different account). Topping up fixes nothing; relinking does — same PROVIDERS door as the STARNET card.
     managed_credit_link: { retryable: false, action: 'store', msg: "Your StarNet account didn't accept this station's link (it was unlinked, or it belongs to another account) — your credits are safe. Relink it under SETTINGS → AI & MODELS → STARNET MANAGED." },
@@ -857,6 +868,10 @@
       kind = /refused this station'?s link|relink/.test(raw.toLowerCase()) ? 'managed_credit_link' : 'managed_credit_unavailable';
     } else if (/managed credits? (?:are |is )?held|balance is held by \d+ running starnet run/.test(raw.toLowerCase())) {
       kind = 'managed_credit_held';   // the balance sits in this station's own running runs' holds — never "out of credit"
+    } else if (/insufficient starnet credits/.test(raw.toLowerCase())) {
+      // #182: the relay's own refusal — StarNet credit, never a provider's billing. "this call holds up to $X" is the refusal
+      // that may be credit held by open calls (wait, or top up a low balance); the bare sentence is nothing free (top up first)
+      kind = /this call holds up to\b/.test(raw.toLowerCase()) ? 'managed_credit_short' : 'managed_credit_empty';
     } else if (/managed credit|add credits in the store|out of managed credit/.test(raw.toLowerCase())) {
       kind = 'managed_credit';
     } else
