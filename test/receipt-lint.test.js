@@ -169,6 +169,16 @@ const ERROR_THEN_OK = log([
     A.eq([u.steps, u.falseGreens.length, (u.falseGreens[0] || {}).step], [3, 1, 'test/b.test.js'], 'L8 a UTF-16 log lints the same');
     const coloured = ERROR_THEN_OK.replace('Error: planted', '\x1b[31mError: planted').replace(step(2, 3, 'test/b.test.js'), '\x1b[32m' + step(2, 3, 'test/b.test.js') + '\x1b[0m');
     A.eq(lint.lintLog(coloured, null).falseGreens.length, 1, 'L8 ANSI colour codes do not hide a signal or a step line');
+    // The case above still has stack frames, which catch it even without ANSI handling. This one has only a coloured
+    // Error line and a coloured result line, so it is green unless the colour codes are stripped before matching.
+    const colouredBare = log([
+      'a.test: OK (1 assertion)', step(1, 2, 'test/a.test.js'),
+      '\x1b[31mError:\x1b[0m planted coloured error with no frames',
+      'b.test: OK (1 assertion)', '\x1b[32m' + step(2, 2, 'test/b.test.js') + '\x1b[0m'
+    ].concat(tail(2)));
+    const cb = lint.lintLog(colouredBare, null);
+    A.eq(cb.falseGreens.map(r => r.step), ['test/b.test.js'], 'L8 a coloured Error line with no frames is a false green, named without escape codes');
+    A.ok(cb.falseGreens.every(r => !/\x1b/.test(JSON.stringify(r))), 'L8 no escape code survives into a reported row');
 
     // L9 whole run
     const glued = log([
