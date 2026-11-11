@@ -466,8 +466,8 @@ A.ok(new RegExp(W + ':is\\(\\.tasks-win, \\.dlv-win, \\.wfw-win\\) \\.term-body 
   'the three work sheets get the gutter every other window has (their text ran against the bezel)');
 A.ok(new RegExp(W + ' \\.quests-content \\.q-view-tabs::before \\{ background: color-mix\\(in srgb, var\\(--ph\\) 13%, #02060a\\); \\}').test(cssN),
   'the band the quest tabs stick on is the window’s own glass (no black strip over the page)');
-A.ok(new RegExp(W + ' \\.con-rail-top\\.auto-init-head \\{ padding-left: 20px; \\}').test(cssN) && new RegExp(W + ' \\.empty-state > span \\{ margin-inline: auto; \\}').test(cssN),
-  'the automation rail’s note lines up with the legends under it, and an empty state’s sentence sits under its headline');
+A.ok(new RegExp(W + ' \\.empty-state > span \\{ margin-inline: auto; \\}').test(cssN), 'an empty state’s sentence sits under its headline');
+A.ok(!/con-rail-top/.test(css), 'AUTOMATE has no rail note any more (one screen per tab, 2026-11-11), so nothing is left fitting one');
 // what the pass must never do
 A.ok(!/[;{\s]filter:\s/.test(cssN) && !/#stage-wrap/.test(cssN) && !/\[class/.test(cssN), 'the panels pass declares no filter, styles nothing under #stage-wrap and adds no [class] selector');
 A.ok(!/@/.test(cssN), 'the panels pass has no at-rule: a panel that wraps is dressed to wrap at any width');
@@ -580,6 +580,10 @@ A.ok(new RegExp(W + ' \\.prov-card\\.conn \\{ border-color: var\\(--vx-line-mid\
   && new RegExp(W + ' \\.prov-card\\.expired \\{ border-color: var\\(--bad\\); \\}').test(cssI)
   && new RegExp(W + ' \\.prov-card\\.prov-landed \\{\\s*border-color: var\\(--vx-core\\);\\s*box-shadow: inset 0 0 0 1px rgba\\(var\\(--ph-bright-rgb\\), \\.45\\), var\\(--vx-tile-shadow\\);').test(cssI),
   'a provider card keeps every state the source gives it: connected on a brighter line, expired on the station’s red, the card an error door lands on ringed bright');
+const foldI = ruleI(' \\.prov-fold > summary');
+A.ok(/border-radius: 10px !important; corner-shape: round;/.test(foldI) && /border-color: var\(--vx-hair\);/.test(foldI) && /background: var\(--vx-tile\);/.test(foldI) && /box-shadow: var\(--vx-tile-shadow\);/.test(foldI)
+  && new RegExp(W + ' \\.prov-fold > summary:is\\(:hover, :focus-visible\\) \\{\\s*border-color: var\\(--vx-line-mid\\);\\s*background: var\\(--vx-tile-hot\\);').test(cssI),
+  'the strip that holds a group’s cards with nothing saved is one more tile in the column, lit a step under the pointer or the keyboard');
 // the list down a window's left side
 const railI = ruleI(' \\.con-rail');
 A.ok(/color-mix\(in srgb, var\(--ph\) 7%, #000\), color-mix\(in srgb, var\(--ph\) 3%, #000\)/.test(railI) && /inset -1px 0 0 rgba\(0, 0, 0, \.8\), inset 0 2px 8px rgba\(0, 0, 0, \.7\)/.test(railI),
@@ -820,7 +824,19 @@ const ruleX = (sel) => (rulesX[atX(sel)] || { body: '' }).body;
 const SCREENS = ':is(.con-rail, .con-pane, .mkt-stage, .term-body:not(.term-console-body):not(.mkt-window-body))';
 A.eq(ruleX(SCREENS), 'border-radius: 12px; background: var(--vx-lcd); box-shadow: var(--vx-lcd-shadow);',
   'a window’s list, its page and a one-page window’s body are dark screens set into the glass: the same readout CREW and COMMS use, by the same two tokens');
-A.eq(rulesX.filter(r => /var\(--vx-lcd(-shadow)?\)/.test(r.body)).map(r => r.sel).join(' | '), SCREENS, 'one rule makes a screen: a card on a screen is never a second screen');
+A.eq(rulesX.filter(r => /var\(--vx-lcd(-shadow)?\)/.test(r.body)).map(r => r.sel).join(' | '), SCREENS + ' | .auto-own', 'two rules make a screen, the shared one and AUTOMATE’s strip: a card on a screen is never a second screen');
+// AUTOMATE, one screen per tab (Andrew 2026-11-11, "All three"): the tabs across its top pick the area, so the second side rail
+// is not drawn. Its tab buttons stay in the page, because the empty-state keys, the chat doors and the QA journey click them
+A.eq(ruleX('.auto-own'), 'padding: 6px 8px 6px 16px; border: 0; border-radius: 12px; background: var(--vx-lcd); box-shadow: var(--vx-lcd-shadow);', 'ON ITS OWN is a slim screen of its own over the page: a sibling of the page’s screen, never a card on it');
+A.eq(ruleX('.auto-own .set-sub-d'), 'padding: 3px 10px; border-radius: 6px; background: var(--vx-well); box-shadow: var(--vx-read-shadow); color: var(--vx-core);', 'and the rung sits in a readout, as a slider’s value does');
+const autoJs = read('frontend/app/windows/automation.js'), utilCss = read('frontend/css/utility-menus.css');
+A.ok(autoJs.includes("mountConsole(body, 'automation', sections, { search: false });") && !/railTop/.test(autoJs), 'AUTOMATE mounts its console with nothing over the rail: ON ITS OWN is a strip over the page');
+A.ok(/\.automation-win \.con-rail \{ display: none; \}/.test(utilCss) && !/\.automation-win \.con-rail-item/.test(utilCss), 'the second rail is not drawn in either look, and no rule is left dressing its entries');
+A.ok(autoJs.includes("body.querySelector('#con-tab-automation-' + to)") && /tab\.click\(\); land\(to, to === form\);/.test(autoJs), 'a page key goes through the console’s own tab button, so the page ids every door uses still route');
+A.ok(/body\.querySelectorAll\('\.con-rail-item'\)\.forEach\(tab => tab\.addEventListener\('click', \(\) => \{[\s\S]{0,220}land\(id, id === 'routines-create' \|\| id === 'loops-start'\)/.test(autoJs),
+  'whoever changes the page (a page key, an empty-state key), a keyboard left on the unseen tab button lands on the page it opened');
+A.ok(autoJs.includes("[['routines', 'routines-create'], ['loops', 'loops-start']]") && autoJs.includes("className = 'bb sm auto-page-key'"), 'each list page carries its NEW key and each form its way back, drawn as a station key');
+A.ok(autoJs.includes('id="auto-init-change"') && autoJs.includes("H.openTerm('settings', 'autonomy')") && autoJs.includes('StationUI.initiativeLabel(sum.initiative)'), 'the strip keeps the CHANGE door and reads the rung from the confirmed posture');
 A.eq(ruleX('.quests-content .q-view-tabs::before'), 'background: color-mix(in srgb, var(--ph) 3%, #030507);', 'the band that covers scrolled quest rows is the screen’s own tone, so it never shows as a lighter block');
 // the inset: the glass shows round a screen in a roomy window and gives the room back in a narrow one (1366 wide at a large TEXT SIZE)
 const XINSET = 'clamp(0px, (100% - 640px) * .04, 11px)';
@@ -861,6 +877,25 @@ A.eq(selsX.filter(x => x.includes('.settings-jumps > button')).length, 6, 'the j
 A.eq(ruleX('.mkt-stage > :is(.mkt-roster, .mkt-dossier)'), 'border: 0; border-radius: 0 !important; background: none; box-shadow: none;', 'in a market window the list and the detail share one screen: neither is a card of its own');
 A.eq(ruleX('.mkt-stage > .mkt-dossier'), 'border-left: 1px solid var(--vx-hair);', 'a hairline parts them');
 A.eq(ruleX('.mkt-stage > .mkt-roster'), 'padding-left: clamp(8px, (100% - 360px) * .12, 14px); padding-right: clamp(8px, (100% - 360px) * .12, 14px);', 'the list’s side margin is fluid: a list column under about 480px gives it back, so three cards in a row keep the width their labels need');
+// MY WORK › RECIPES, the shorter list (Andrew 2026-11-11, "All three"): a row is its seal and its name, and the ten category keys
+// are seated key to key so they share one line at a normal window width. Nothing is removed: the sentence is the row's hover tip
+// and the first line of the pane beside the list, and a narrow window wraps the keys (a sideways-scrolling rail was tried before
+// and replaced, and a cut label is never the answer)
+const mktJs = read('frontend/app/marketplace.js'), mktCss = read('frontend/css/marketplace.css');
+const recRow = mktJs.slice(mktJs.indexOf('function recipeCardHTML'), mktJs.indexOf('/* ---------- the dossier'));
+A.ok(recRow.includes("const tip = r.tagline ? ' data-tip=\"' + esc(r.tagline) + '\" aria-description=\"' + esc(r.tagline) + '\"' : '';") && recRow.includes("'\"' + tip + ' style=\"--ci:'"),
+  'a recipe row carries its sentence as the station tip and as its description for a screen reader');
+A.ok(!recRow.includes('mkt-tag') && !/\btitle="' \+/.test(recRow), 'and prints no sentence under its name (and never falls back to the OS bubble)');
+A.ok(mktJs.includes("'<div class=\"mkt-dos-tag\">' + esc(r.tagline) + '</div>'"), 'the sentence still opens the pane beside the list');
+A.ok(mktCss.includes('grid-template-columns: 34px minmax(0, 1fr); gap: 12px; padding: 8px 12px; min-height: 0;') && mktCss.includes('.mkt-recipes .mkt-rows .mkt-card .mkt-coin { --coin: 34px; }'),
+  'a one-line row is sized for one line: a 34px seal, 8px above and below, and no floor left over from the two-line row');
+A.ok(mktJs.includes("'<span class=\"mkt-lanes-lbl\">BROWSE</span><div class=\"mkt-lanes mkt-cats\">' + rail + '</div>'") && mktJs.includes("'<span class=\"mkt-lanes-lbl\">FILTER</span><div class=\"mkt-lanes\">' + rail + '</div>'"),
+  'the recipe categories are named as their own rail; the class rail (four or five keys) is left as it was');
+A.eq(ruleX('.mkt-cats'), 'gap: 4px;', 'the ten category keys sit at the keypad’s gap');
+A.eq(ruleX('.mkt-cats > .mkt-lane'), 'padding-left: 6px; padding-right: 6px;', 'with a glass key’s narrow sides');
+A.eq(ruleX('.mkt-cats > .mkt-lane > .ct'), 'margin-left: 3px;', 'and the count a step nearer its name');
+A.ok(!/overflow|nowrap|letter-spacing|font-size|text-overflow|display: none/.test(rulesX.filter(r => r.sel.includes('.mkt-cats')).map(r => r.body).join(' ')) && /\.mkt-lanes \{ display: flex; align-items: center; gap: 7px; flex-wrap: wrap; \}/.test(mktCss),
+  'the rail still WRAPS in a narrow window: it never scrolls sideways, never cuts or hides a key, and the key type is not touched');
 // folds
 const FOLDS = ':is(.perm-fold, .ch-setup, .mkt-orders, .mkt-model-settings, .mkt-brief, .si-more, .q-progress-section, .q-journal-records > details, .q-refresh-options, .mc-adv, .mc-effective-payer, .mkt-library-more, .mkt-recipe-instructions, .platform-guide)';
 A.ok(/^content: ''; display: inline-block;/.test(ruleX(FOLDS + ' > summary::before')) && /border: 0; border-right: 1\.5px solid currentColor; border-bottom: 1\.5px solid currentColor; transform: rotate\(-45deg\);$/.test(ruleX(FOLDS + ' > summary::before')),

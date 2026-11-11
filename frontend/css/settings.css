@@ -28,6 +28,24 @@
    cards a heading would stand over nothing, so the headings step aside and the hits read as one list */
 .settings-console .prov-list > .prov-group:first-child { margin-top: 4px; }
 .con-searching .prov-group { display: none; }
+/* THE ONES YOU USE STAY OPEN (2026-11-11): a group's cards with nothing saved sit behind ONE strip (stationui.js
+   providersHtml). The strip names them, wrapping rather than cutting a name, and says how many are not set up; the fold
+   itself is not a box, so the cards inside keep their own. While a search filters the cards the strip steps aside with
+   the headings (the console opens a fold that holds a hit), and the hits read as one list. */
+.settings-console .prov-fold { min-width: 0; }
+.settings-console .prov-fold > summary { padding: 10px 14px; border: 1px solid rgba(var(--ph-rgb), .2); border-radius: 10px; background: rgba(0,0,0,.1); font-size: 15px; line-height: 1.35; }
+.settings-console .prov-fold > summary:hover { border-color: rgba(var(--ph-rgb), .5); }
+.settings-console .prov-fold > summary:focus-visible { outline: 1px solid var(--ph-bright); outline-offset: 2px; }
+/* names and count share a line while the names keep 16em; in a narrow window the count drops under them instead of
+   squeezing the names to nothing (measured at 1366 with TEXT SIZE 145: the names had 0px beside a count that cannot wrap) */
+.settings-console .prov-fold-txt { flex: 1 1 0; min-width: 0; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 14px; }
+.settings-console .prov-fold-names { flex: 1 1 16em; min-width: 0; color: var(--ph); }
+.settings-console .prov-fold-stat { flex: 0 1 auto; color: var(--ph-dim); }
+.settings-console .prov-fold-body { display: grid; gap: 12px; margin-top: 12px; }
+/* !important: the strip's display comes from app.css's ONE FOLD rule, whose list carries an id */
+.con-searching .prov-fold > summary { display: none !important; }
+.con-searching .prov-fold:not(:has(.con-hit)) { display: none; }
+.con-searching .prov-fold-body { margin-top: 0; }
 .settings-console .settings-jumps { display: flex; flex-wrap: wrap; gap: 7px; margin-bottom: 18px; }
 /* one case for the row: the chips read their sub-headings, and "New agent defaults" / "Runtime limits" sat in sentence case
    beside API KEYS and POWER (UX night 10-25) */

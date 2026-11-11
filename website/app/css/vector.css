@@ -2717,13 +2717,11 @@ html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .fm-ta
 
 /* ---- the fit: the manual's longest chapter name is whole, the task key's chrome ring clears the window edge, the three
    work sheets get the gutter every other window has, the band the quest tabs stick on is the window's own glass (no black
-   strip floating over the page), the automation rail's note lines up with the rail legends under it, and an empty state's
-   sentence sits under its headline ---- */
+   strip floating over the page), and an empty state's sentence sits under its headline ---- */
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .fm-tabs > .fm-tab { padding-inline: 4px; letter-spacing: 1px; }
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .kb-add > .bb { margin-right: 5px; }
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw):is(.tasks-win, .dlv-win, .wfw-win) .term-body { padding-left: 16px; padding-right: 8px; }
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .quests-content .q-view-tabs::before { background: color-mix(in srgb, var(--ph) 13%, #02060a); }
-html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .con-rail-top.auto-init-head { padding-left: 20px; }
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .empty-state > span { margin-inline: auto; }
 
 /* ============ 29 · THE INSIDES — the second pass over every menu panel (Andrew 2026-11-09: "update every single menu
@@ -2887,6 +2885,18 @@ html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .prov-
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .prov-card.prov-landed {
   border-color: var(--vx-core);
   box-shadow: inset 0 0 0 1px rgba(var(--ph-bright-rgb), .45), var(--vx-tile-shadow);
+}
+/* the strip that holds a group's cards with nothing saved is one more tile in the same column: the cards' own dark base and
+   hairline, lit a step when the pointer or the keyboard is on it */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .prov-fold > summary {
+  border-radius: 10px !important; corner-shape: round;
+  border-color: var(--vx-hair);
+  background: var(--vx-tile);
+  box-shadow: var(--vx-tile-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .prov-fold > summary:is(:hover, :focus-visible) {
+  border-color: var(--vx-line-mid);
+  background: var(--vx-tile-hot);
 }
 
 /* ---- the list down a window's left side is one dark display, like the session list beside the stage ---- */
@@ -3465,6 +3475,10 @@ html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.c
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .term-body:not(.term-console-body):not(.mkt-window-body) { margin: 4px clamp(0px, (100% - 640px) * .04, 11px) clamp(0px, (100% - 640px) * .04, 11px); }
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .mkt-stage { margin: 0 clamp(0px, (100% - 640px) * .04, 11px) clamp(0px, (100% - 640px) * .04, 11px); }
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .con-col { gap: 9px; }
+/* AUTOMATE is one screen per tab: its ON ITS OWN line is a slim screen of its own over the page, the rung in a readout */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .auto-own { padding: 6px 8px 6px 16px; border: 0; border-radius: 12px; background: var(--vx-lcd); box-shadow: var(--vx-lcd-shadow); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .auto-own .set-sub-k { color: rgba(var(--ph-rgb), .78); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .auto-own .set-sub-d { padding: 3px 10px; border-radius: 6px; background: var(--vx-well); box-shadow: var(--vx-read-shadow); color: var(--vx-core); }
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .quests-content .q-view-tabs::before { background: color-mix(in srgb, var(--ph) 3%, #030507); }
 
 /* ---- B · headings: lit type on the screen and one plain hairline. No double rule, no diamond ---- */
@@ -3548,6 +3562,12 @@ html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .mkt-s
   background: linear-gradient(180deg, rgba(255, 255, 255, .06), rgba(255, 255, 255, 0)), rgba(var(--ph-rgb), .09);
 }
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.mkt-head, .mkt-bar) { border-bottom-color: transparent; }
+/* The recipe categories are ten keys where the class rail holds four or five. Seated key to key (the keypad's 4px gap,
+   the glass key's narrow sides) the ten share ONE line at a normal window width; in a narrow window they WRAP to a
+   second row. They never scroll sideways and no label is cut. The type is not touched: it is the one key voice. */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .mkt-cats { gap: 4px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .mkt-cats > .mkt-lane { padding-left: 6px; padding-right: 6px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .mkt-cats > .mkt-lane > .ct { margin-left: 3px; }
 
 /* ---- G · fold marks: a drawn chevron that turns when the fold opens. No arrow glyph from a fallback font, no triangle
    painted by the browser, and no fold left without a mark ---- */

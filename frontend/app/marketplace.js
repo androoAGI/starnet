@@ -506,7 +506,9 @@ const Marketplace = (() => {
       let rail = cat('all', 'ALL');
       railBuckets().forEach(b => { if (counts[b] > 0 || b === 'general') rail += cat(b, CAT_LABEL[b] || b); });
       rail += cat('mine', 'MINE');
-      html += '<span class="mkt-lanes-lbl">BROWSE</span><div class="mkt-lanes">' + rail + '</div>' +
+      // `mkt-cats` names THIS rail (ten categories, where the class tab's rail holds four or five): the sheet that
+      // paints keys seats them close enough to share one line at a normal window width. They still wrap, never cut.
+      html += '<span class="mkt-lanes-lbl">BROWSE</span><div class="mkt-lanes mkt-cats">' + rail + '</div>' +
         '<button class="mkt-from-notes bb sm" title="turn notes or a sample into a useful draft">DRAFT FROM YOUR NOTES</button>' +
         '<button class="mkt-import bb sm" title="import a recipe from a JSON file">⇪ IMPORT</button>' +
         '<input type="file" id="mkt-import-file" accept="application/json,.json" hidden>';
@@ -975,9 +977,11 @@ const Marketplace = (() => {
     } catch (_) { return ''; }
   }
   function recipeCardHTML(r, i) {
-    // the SAME settings-console row shape as the class list (the two tabs share one UI language):
-    // [seal socket] [name + tagline] ……… [lane · setup / code stamp]
+    // A recipe row is its seal and its name. The one-line sentence is NOT printed under the name: with 45 recipes that
+    // was 90 lines of reading before a choice, and the pane beside the list opens on that same sentence. It rides the
+    // row as the station hover tip (and as the row's description for a screen reader), the same way a prop tile does.
     const sel = (focusRecipe === r.id);
+    const tip = r.tagline ? ' data-tip="' + esc(r.tagline) + '" aria-description="' + esc(r.tagline) + '"' : '';
     const n = (r.params || []).length;
     const missing = Recipes.requiredMissing(r, recipeDefaults(r)).length;
     const setup = missing ? ('▤ ' + missing + ' detail' + (missing === 1 ? '' : 's') + ' needed') : (r.intake || []).length ? '▤ choose options' : '▸ ready to start';
@@ -989,11 +993,10 @@ const Marketplace = (() => {
     const drift = (dr && dr.status === 'drift') ? '<span class="mkt-chip bad" title="the latest run differs from its good history">⚠ DRIFT</span>' : '';
     // no `--accent` — same one-phosphor rule as the class rows above (see the note on mkt-card there).
     // The recipe library was the worse offender: not ONE of its seals was the station's colour.
-    return '<button class="mkt-card' + (sel ? ' sel' : '') + '" type="button" data-id="' + esc(r.id) + '" style="--ci:' + (i || 0) + '">' +
+    return '<button class="mkt-card' + (sel ? ' sel' : '') + '" type="button" data-id="' + esc(r.id) + '"' + tip + ' style="--ci:' + (i || 0) + '">' +
       sealHTML(r, false) +
       '<div class="mkt-card-id">' +
         '<div class="mkt-name">' + esc(r.name) + (r.custom ? ' <span class="mkt-badge">CUSTOM</span>' : '') + '</div>' +
-        '<div class="mkt-tag">' + esc(r.tagline) + '</div>' +
       '</div>' +
       '<div class="mkt-card-side">' +
         '<div class="mkt-meta"><span class="mkt-chip lane">' + esc(CAT_LABEL[railBucket(r)] || 'GENERAL') + '</span>' +
