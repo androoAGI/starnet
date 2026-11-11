@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "5c1c2caba6b7ec0ab1d1fc8cb25288b665a48830",
+    "sourceCommit": "31af0ce09ff6459a0d593eff8e48e8af883fef6c",
     "pathSetSha256": "d849d3b31da6f2722288a632ec2c696aa54886f298c849c2e1ff8309b1bffa18",
     "files": [
       {
@@ -708,8 +708,8 @@
       },
       {
         "path": "frontend/app/marketplace.js",
-        "bytes": 280862,
-        "sha256": "0365d4eda82702bc590bcf8d8e330bb2cf758b0d515de5a58ab06735f8683983"
+        "bytes": 281348,
+        "sha256": "271ba331ac27e1c9958aaf52851d199643a8eab47ed464b14b9866e7c74f5cd2"
       },
       {
         "path": "frontend/app/memtruth.js",
@@ -1248,8 +1248,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 1005177,
-        "sha256": "626831c5ef66a14848a35f177fd1feef9caeb5a28a0df5b3e4775338452be147"
+        "bytes": 1008164,
+        "sha256": "77f9f79c10cead67ee79f29b35933a2dc53365e3521e9f43620d0aeb93b7f6c2"
       },
       {
         "path": "frontend/app/steering-message.js",
@@ -1438,8 +1438,8 @@
       },
       {
         "path": "frontend/app/windows/automation.js",
-        "bytes": 10621,
-        "sha256": "a11980e8839b2cddd28cbfe4998b0153720d52c2f553b692f5f67e1c87ce7c15"
+        "bytes": 12629,
+        "sha256": "0dbda7632eb66331585f6242f5d4ad770daba48db08bbe8b856d9d4577e97d2a"
       },
       {
         "path": "frontend/app/windows/connectors.js",
@@ -1618,8 +1618,8 @@
       },
       {
         "path": "frontend/css/app.css",
-        "bytes": 440490,
-        "sha256": "c1481ced8ddd00e8f87dbfe33b945cef7ee14ca607278108904522da04226563"
+        "bytes": 440358,
+        "sha256": "cfaef8c452a78d45eb05b965681e481a60750b27124fbb8a8aca5c72df9f2282"
       },
       {
         "path": "frontend/css/asciifx.css",
@@ -1703,8 +1703,8 @@
       },
       {
         "path": "frontend/css/marketplace.css",
-        "bytes": 95788,
-        "sha256": "b2a494369911c973a8914daaf6849a71f8772384e80de4b521d1422690fdef8f"
+        "bytes": 95904,
+        "sha256": "28824660316ac0cf7b77fc2fd616ff9cd4c5b26908434f4bba002c485a99d8a5"
       },
       {
         "path": "frontend/css/menu-glass.css",
@@ -1788,8 +1788,8 @@
       },
       {
         "path": "frontend/css/settings.css",
-        "bytes": 22717,
-        "sha256": "dbbbf7dd3ad496de87d57d640efdb43be71d926acc332705881c6590d2bc4f31"
+        "bytes": 24518,
+        "sha256": "406b37a276975d527b4d5c1dfe1e76cd324045f0c71c317757b555f32436af26"
       },
       {
         "path": "frontend/css/stepin.css",
@@ -1823,13 +1823,13 @@
       },
       {
         "path": "frontend/css/utility-menus.css",
-        "bytes": 17317,
-        "sha256": "8ac5f3e2f9e7831353a2c5789eb369254b6825ddab0ddafd5246934905a18bbb"
+        "bytes": 17801,
+        "sha256": "e892f435c854cfdb85e4177bebe240bd2fdf33cc4b1b4311326d5724fa73cfcd"
       },
       {
         "path": "frontend/css/vector.css",
-        "bytes": 286441,
-        "sha256": "5419ad9a0fdaf6752c85d4afa944532003410a7e0d09a8f647ce29c9356f22da"
+        "bytes": 288286,
+        "sha256": "1e1ab23b2e3f4b7c65549e47766ec70d9a347afc9f795836e56dc2b743115f3b"
       },
       {
         "path": "frontend/css/warroom.css",
