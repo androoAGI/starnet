@@ -1914,7 +1914,9 @@ const Build = (() => {
       // Keep scroll and keyboard focus in the inventory; choosing an item must not
       // recreate 144 canvases or throw the user back to the top of the shelf.
       root.querySelectorAll('.refit-proptile').forEach(tile => {
-        const active = tile.dataset.prop === propType || (tile.dataset.coreAbility && tile.dataset.coreAbility === WorldModel.capForProp(propType));
+        // A real boolean: `false || undefined` is `undefined`, and classList.toggle(name, undefined) is a plain FLIP
+        // (and String(undefined) would write aria-pressed="undefined") on every tile that has no data-core-ability.
+        const active = !!(tile.dataset.prop === propType || (tile.dataset.coreAbility && tile.dataset.coreAbility === WorldModel.capForProp(propType)));
         tile.classList.toggle('active', active); tile.setAttribute('aria-pressed', String(active));
       });
       renderPropPreview(); renderEquipmentInfo(); setHint(); paintMakeStatus();   // MAKE SIDE VIEW follows the armed prop
