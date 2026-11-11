@@ -97,6 +97,16 @@ for (const raw of [
   A.ok(/credit/i.test(v.userMessage) && /AI & MODELS/.test(v.userMessage), 'the message names the credit problem and the AI & MODELS door (the same one the button opens)');
 }
 
+// ---- #182: the StarNet relay's own refusal is StarNet credit (perhaps held by open calls), never a provider's billing ----
+{
+  const relay = 'StarNet http 402 - insufficient StarNet credits: this call holds up to $0.4200 while it runs and the balance available is $0.0000 (requires more credits, or fewer max_tokens)';
+  const v = friendlyError(relay);
+  A.eq([v.kind, v.action, v.retryable], ['managed_credit_short', 'store', true], 'the relay refusal is its own kind, with the STORE door, and can go through later');
+  A.ok(!/provider account/i.test(v.userMessage), 'it never calls StarNet credit a provider account: ' + v.userMessage);
+  A.ok(/held for calls that haven.t finished/.test(v.userMessage) && /nothing was charged/.test(v.userMessage), 'it says a fresh top-up can still be held, and that nothing was charged');
+  A.eq(friendlyError('insufficient StarNet credits').kind, 'managed_credit_short', 'the bare relay refusal too');
+  A.eq(friendlyError('http 402 - Insufficient credits on your OpenAI account').kind, 'billing', 'a provider\'s own 402 is still billing');
+}
 // ---- a FAILED balance check is not an empty wallet (customer report 2026-10-06: told to top up holding $79.24) ----
 {
   const v = friendlyError('Managed credits are unavailable right now — the credits service did not answer (try again, or use your own provider key).');

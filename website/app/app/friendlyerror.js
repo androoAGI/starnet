@@ -119,6 +119,12 @@
     // then lowering PER RUN so runs can share the balance (the SPENDING LIMITS door); topping up stays the last
     // door — a small wallet's hold may come back as cents. Audit B11.
     managed_credit_held: { retryable: true, action: 'budget', msg: "Your StarNet balance is held by StarNet runs that are still working — nothing is lost: each run reserves up to its PER RUN limit and refunds what it doesn't spend. Wait for them to finish, lower PER RUN in SETTINGS › SPENDING LIMITS, or top up under SETTINGS → AI & MODELS." },
+    // #182 (Windows, 0.15.0: "added funds ... met with account doesn't have enough funds"): the StarNet relay's OWN refusal
+    // (the cloud's 402 insufficient_credits, after the station's one low-credit retry). It is StarNet credit, not a provider
+    // account ("billing" sent the Commander to a provider's top-up), and a top-up the STORE already shows can still be
+    // covered by credit held for calls that have not ended on the account (the relay holds each call's worst case until
+    // it settles). Nothing was charged: the relay refused before forwarding. A try in a few minutes can go through.
+    managed_credit_short: { retryable: true, action: 'store', msg: "StarNet couldn't cover this call from your credits just now — nothing was charged. If you just added credits and SETTINGS → AI & MODELS shows them, part of your balance is still held for calls that haven't finished on your account; it comes back on its own as they end, so try again in a few minutes. Otherwise top up there, or connect your own provider key." },
     // The account service ANSWERED and refused this station's token (unlinked on the account page, or linked to a
     // different account). Topping up fixes nothing; relinking does — same PROVIDERS door as the STARNET card.
     managed_credit_link: { retryable: false, action: 'store', msg: "Your StarNet account didn't accept this station's link (it was unlinked, or it belongs to another account) — your credits are safe. Relink it under SETTINGS → AI & MODELS → STARNET MANAGED." },
@@ -878,6 +884,8 @@
       kind = /refused this station'?s link|relink/.test(raw.toLowerCase()) ? 'managed_credit_link' : 'managed_credit_unavailable';
     } else if (/managed credits? (?:are |is )?held|balance is held by \d+ running starnet run/.test(raw.toLowerCase())) {
       kind = 'managed_credit_held';   // the balance sits in this station's own running runs' holds — never "out of credit"
+    } else if (/insufficient starnet credits/.test(raw.toLowerCase())) {
+      kind = 'managed_credit_short';   // #182: the relay's own refusal — StarNet credit (perhaps held by open calls), never a provider's billing
     } else if (/managed credit|add credits in the store|out of managed credit/.test(raw.toLowerCase())) {
       kind = 'managed_credit';
     } else

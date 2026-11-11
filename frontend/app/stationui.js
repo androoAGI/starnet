@@ -7019,6 +7019,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       return Promise.resolve();
     }
     host.innerHTML = '<p class="set-about" role="status">Checking your account connection…</p>';
+    let statusAnswered = false;   // #182: a station with no link answers 404 at once, so a status read that never answered means one may be saved
     // /api/credits 404s when credits are unconfigured — that is the honesty law, not an error, and
     // api.get throws on any non-2xx. Catching to {configured:false} keeps the 404 on the normal path.
     // The wait outlasts the sidecar's worst case for this FULL read: a link self-heal (/v1/whoami 8s + one /v1/balance
@@ -7031,6 +7032,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       .then(j => {
         if (!current()) return;
         if (!j || typeof j.configured !== 'boolean') throw new Error('invalid credits status');
+        statusAnswered = true;
         if (j && j.configured) return renderCreditsConfigured(body, host, j);
         // unconfigured → is this station LINKABLE (STARNET_CLOUD_URL wired)? If so, offer LINK STATION. Otherwise
         // render NOTHING (honesty law: a bare BYOK install shows no STORE surface at all).
@@ -7045,7 +7047,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
             else renderCreditsUnavailable(body, host);
           });
       })
-      .catch(() => { if (current()) renderCreditsUnavailable(body, host); });
+      .catch(() => { if (current()) renderCreditsUnavailable(body, host, !statusAnswered); });
   }
 
   function creditsUnlinkErrorMarkup() {
@@ -7053,12 +7055,20 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       ? '<p class="msg bad" role="alert">' + esc(_creditsUnlinkError) + '</p>' : '';
   }
 
-  function renderCreditsUnavailable(body, host) {
+  /* #182 (Windows, 0.15.0: "now I can't sign off the station"). When the account could not be read at all this card offered
+     only RETRY, and UNLINK lived on the balance card it could not reach, so signing the station out and back in (the
+     reporter's usual way out of a stuck balance) was gone exactly when it was needed. A station whose status read did not
+     answer keeps UNLINK here: it forgets the link on this machine only (no cloud call; handleCreditsUnlink), the credits
+     stay on the account, and relinking is one pairing code. */
+  function renderCreditsUnavailable(body, host, linkMayBeSaved) {
     host.innerHTML = '<h4 class="ms-h">STORE <span class="dim">— managed credits</span></h4>' +
       creditsUnlinkErrorMarkup() +
       '<p class="set-about" role="alert">Could not check your account connection. Retry to load your balance or linking options.</p>' +
-      '<button class="bb sm" id="credits-retry">↻ RETRY</button>';
+      '<button class="bb sm" id="credits-retry">↻ RETRY</button>' +
+      (linkMayBeSaved ? '<div class="set-row" style="margin-top:.6em"><span class="dim" style="font-size:.85em">Still stuck? Sign this station out of its StarNet account, then link it again — your credits stay on your account.</span>' +
+        '<button class="bb xs" id="credits-unlink" title="forget this station’s link" style="margin-left:auto">UNLINK</button></div>' : '');
     host.querySelector('#credits-retry').addEventListener('click', () => { sfx('click'); forgetCreditsReads(); wireCredits(body); });
+    wireCreditsUnlink(body, host.querySelector('#credits-unlink'));
   }
 
   // A ledger entry's own name for itself. The backend sends `label` for rows that are not model calls
@@ -7146,7 +7156,11 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // arm/confirm, same idiom as key remove and permission revoke. It used to raise a native
     // window.confirm, which the OS paints: a grey system dialog over the CRT, and the one thing
     // this station never does. ArmConfirm keeps the decision inside the world.
-    const unlink = host.querySelector('#credits-unlink');
+    wireCreditsUnlink(body, host.querySelector('#credits-unlink'));
+  }
+
+  // UNLINK on either card (the balance card, or the unavailable one: #182): the same two halves, the same two-step confirm.
+  function wireCreditsUnlink(body, unlink) {
     const doUnlink = () => {
       if (_creditsUnlinkPending) return;
       _creditsUnlinkPending = true;
