@@ -819,6 +819,12 @@ html body.vx:not(.hud-mode) :is(#screen-future, #screen-recovery, #screen-unreac
 /* the colour swatches: square chips; the chosen one carries a lit node frame */
 html body.vx:not(.hud-mode) #screen-connect .phosphor-swatches .swatch { border-radius: 0; box-shadow: inset 0 0 0 1px #000; }
 html body.vx:not(.hud-mode) #screen-connect .phosphor-swatches .swatch.sel { box-shadow: inset 0 0 0 2px #000, 0 0 0 1px var(--vx-node), 0 0 10px rgba(var(--ph-rgb), .7); }
+/* the colour inside the chip is lit glass, never a flat fill (2026-11-12, with the theme keys of SETTINGS > LOOK & SOUND in
+   section 32): a light upper half, the colour itself below the fold line, a bright top edge */
+html body.vx:not(.hud-mode) #screen-connect .phosphor-swatches .swatch::before {
+  background: linear-gradient(180deg, color-mix(in srgb, var(--sw) 45%, #fff) 0, color-mix(in srgb, var(--sw) 78%, #fff) 47%, var(--sw) 51%, color-mix(in srgb, var(--sw) 72%, #000) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), inset 0 -1px 0 rgba(0, 0, 0, .3);
+}
 
 /* ============================================================
    14 · HUD SILHOUETTES — the deeper pass (refs: the HUD frame sheet, the EVA terminal, the DVD scene-select,
@@ -3579,3 +3585,46 @@ html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.p
 }
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.perm-fold, .ch-setup, .mkt-orders, .mkt-model-settings, .mkt-brief, .si-more, .q-progress-section, .q-journal-records > details, .q-refresh-options, .mc-adv, .mc-effective-payer, .mkt-library-more, .mkt-recipe-instructions, .platform-guide)[open] > summary::before { transform: rotate(45deg); }
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.mkt-model-settings, .q-progress-section, .q-journal-records > details, .q-refresh-options, .platform-guide) > summary::before { margin: 0 4px 0 3px; }
+
+/* ---- H · the phosphor theme keys (Andrew 2026-11-12: "the flat solid phosphor theme colors, they are very flat and
+   the color icon should have that reflectiveness"). A colour is a lit glass key in its own colour, with the gloss the
+   chosen rail key wears: a light upper half, the colour itself below the fold line, a bright top edge. It is seated in
+   a black ring and it dims with BRIGHTNESS as every lit key does. The chosen colour keeps its ring and glows in its own
+   colour. The any-colour key is the same glass over the station's own theme colours ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .set-theme.settings-swatch {
+  border: 1px solid color-mix(in srgb, var(--sw) 60%, #fff); border-radius: 8px;
+  background:
+    var(--vx-ong),
+    linear-gradient(180deg, color-mix(in srgb, var(--sw) 45%, #fff) 0, color-mix(in srgb, var(--sw) 78%, #fff) 47%, var(--sw) 51%, color-mix(in srgb, var(--sw) 72%, #000) 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), inset 0 -2px 0 rgba(0, 0, 0, .3), 0 0 0 1px #000, 0 2px 4px rgba(0, 0, 0, .6);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .set-theme.settings-swatch[aria-pressed="true"] {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .6), inset 0 -2px 0 rgba(0, 0, 0, .3), 0 0 0 1px #000, 0 0 12px color-mix(in srgb, var(--sw) 55%, transparent);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .set-theme.settings-swatch-custom {
+  border-color: rgba(255, 255, 255, .72);
+  background:
+    var(--vx-ong),
+    linear-gradient(180deg, rgba(255, 255, 255, .5) 0, rgba(255, 255, 255, .2) 47%, rgba(255, 255, 255, 0) 51%, rgba(0, 0, 0, .28) 100%),
+    linear-gradient(135deg, #ff4136 0%, #ffaa33 22%, #3dff70 43%, #46c8ff 64%, #b46bff 82%, #ff5fb0 100%);
+}
+
+/* ---- I · AI & MODELS (Andrew 2026-11-12: "a bit ugly ... needs to look and be a bit more presentable"). The ways to
+   connect are not a card holding cards: the groups sit straight on the screen, each under a lit label, its note and one
+   hairline. A provider's mark sits in a dark seat. Its status has the room to read on one line. A card's accounts sit
+   under a hairline. A saved key's actions are one row of keys beside it, and drop under it in a narrow window.
+   Nothing is added or removed ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .settings-group:has(> .prov-list) { padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .prov-list > .prov-group { align-items: baseline; justify-content: space-between; gap: 2px 12px; margin: 12px 0 0; padding: 0 2px 7px; border-bottom: 1px solid var(--vx-hair); border-radius: 0; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .prov-list > .prov-group:first-child { margin-top: 0; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .prov-list > .prov-group > .set-sub-k { letter-spacing: 1.5px; color: color-mix(in srgb, var(--vx-core) 80%, #fff); text-shadow: 0 0 6px rgba(var(--ph-rgb), .45); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .prov-list > .prov-group > .set-sub-d { color: rgba(var(--ph-rgb), .72); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .prov-card { --prov-mark: 44px; --prov-stat-w: fit-content(58%); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .prov-card:not([data-provider="starnet"]) > .prov-select::before { content: ''; grid-column: 1; grid-row: 1; width: 44px; height: 44px; border-radius: 9px; background: var(--vx-well); box-shadow: var(--vx-read-shadow); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .prov-card:not([data-provider="starnet"]) > .prov-select > .prov-logo { grid-column: 1; grid-row: 1; place-self: center; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .prov-card:not([data-provider="starnet"]) > .prov-select > .prov-main { grid-column: 2; grid-row: 1; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .prov-logo-starnet { color: var(--ph); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .prov-card > .prov-accounts { margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--vx-hair); border-radius: 0; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .settings-pane .key-list > .key-row { flex-wrap: wrap; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .settings-pane .key-list > .key-row > .key-main { flex: 1 1 200px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .settings-pane .key-list > .key-row > .key-acts { flex-direction: row; justify-content: flex-end; margin-left: auto; }

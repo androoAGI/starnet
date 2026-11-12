@@ -981,4 +981,46 @@ A.eq((css.match(/box-shadow: inset 0 -1px 0 #2a3037/g) || []).length, 0, 'no hea
 A.ok(/^background: var\(--vx-veilg\),/.test(ruleL(':is(#screen-boot, #screen-splash)')), 'the cabinet round the boot loader and the title screen goes down too');
 A.ok(/#screen-lineage\)\.active \{\s*background:\s*var\(--vx-veilg\),/.test(cssA) && /#screen-lineage\) \.ov-foot \{[^}]*background:\s*var\(--vx-veilg\),/.test(cssA),
   'and the steel backdrop and foot rail of the full screens (the lit card on them stays lit)');
+// ---- THE THEME KEYS + AI & MODELS (Andrew 2026-11-12: "the flat solid phosphor theme colors, they are very flat and the color
+// icon should have that reflectiveness" and "the AI and models is a bit ugly ... needs to look and be a bit more presentable").
+// A theme colour is a lit glass key in its own colour, with the gloss the chosen rail key wears. AI & MODELS is laid out
+// as the device: its groups sit straight on the screen under a lit label and a hairline, a provider's mark sits in a dark
+// seat, a status has the room to read on one line and a saved key's actions are one row. Nothing is added or removed ----
+const XGLOSS = 'linear-gradient(180deg, color-mix(in srgb, var(--sw) 45%, #fff) 0, color-mix(in srgb, var(--sw) 78%, #fff) 47%, var(--sw) 51%, color-mix(in srgb, var(--sw) 72%, #000) 100%)';
+const railGloss = (cssA.match(/--vx-gloss:\s*var\(--vx-ong\),\s*(linear-gradient\([^;]*\));/) || [])[1] || '';
+A.eq(railGloss.replace(/var\(--vx-core\)|var\(--ph\)/g, 'var(--sw)'), XGLOSS, 'a theme colour wears the chosen rail key’s gloss, stop for stop, in its own colour');
+const swKey = ruleX('.set-theme.settings-swatch');
+A.ok(swKey.includes('background: var(--vx-ong), ' + XGLOSS + ';'), 'a theme colour is lit glass, never a flat fill, and it dims with BRIGHTNESS by the lit key’s own veil');
+A.ok(/box-shadow: inset 0 1px 0 rgba\(255, 255, 255, \.6\), inset 0 -2px 0 rgba\(0, 0, 0, \.3\), 0 0 0 1px #000, 0 2px 4px rgba\(0, 0, 0, \.6\);$/.test(swKey), 'it has a bright top edge and sits in a black ring: edges, not a glow');
+A.ok(!/background: var\(--sw\)\s*;/.test(cssX), 'no rule in the format paints a theme colour as a flat fill');
+A.ok(ruleX('.set-theme.settings-swatch[aria-pressed="true"]').endsWith('0 0 0 1px #000, 0 0 12px color-mix(in srgb, var(--sw) 55%, transparent);'), 'the chosen colour glows in its own colour (its ring stays the base sheet’s outline)');
+const swAny = ruleX('.set-theme.settings-swatch-custom');
+const themeHexes = (read('frontend/app/stationui.js').match(/const THEMES = \[(.*?)\];/) || ['', ''])[1].match(/#[0-9a-f]{6}/g) || [];
+A.ok(swAny.includes('var(--vx-ong),') && /linear-gradient\(180deg, rgba\(255, 255, 255, \.5\) 0, rgba\(255, 255, 255, \.2\) 47%, rgba\(255, 255, 255, 0\) 51%, rgba\(0, 0, 0, \.28\) 100%\)/.test(swAny), 'the any-colour key is the same glass: light above the fold line, shade below it');
+A.eq(['#ff4136', '#ffaa33', '#3dff70', '#46c8ff', '#b46bff'].filter(h => !themeHexes.includes(h) || !swAny.includes(h)).join(' | '), '', 'and under the glass it shows the station’s own theme colours, not a pastel rainbow');
+A.ok(/#screen-connect \.phosphor-swatches \.swatch::before \{\s*background: linear-gradient\(180deg, color-mix\(in srgb, var\(--sw\) 45%, #fff\) 0, color-mix\(in srgb, var\(--sw\) 78%, #fff\) 47%, var\(--sw\) 51%, color-mix\(in srgb, var\(--sw\) 72%, #000\) 100%\);/.test(cssA),
+  'the first-run screen’s colour chips are the same lit glass');
+// AI & MODELS
+const setBase = read('frontend/css/settings.css');
+A.eq(ruleX('.settings-group:has(> .prov-list)'), 'padding: 0; border: 0; border-radius: 0; background: none; box-shadow: none;', 'the ways to connect are not a card holding cards: their group is not a pane');
+const provGroup = ruleX('.prov-list > .prov-group');
+A.ok(provGroup.includes('justify-content: space-between;') && provGroup.includes('border-bottom: 1px solid var(--vx-hair); border-radius: 0;') && !/margin-left: auto|text-align: right/.test(provGroup + ruleX('.prov-list > .prov-group > .set-sub-d')),
+  'a group is a label, its note at the far end and one straight hairline; in a narrow window the note drops under the label and starts at the left');
+A.ok(ruleX('.prov-list > .prov-group > .set-sub-k').endsWith(XLIT), 'a group’s label is lit type, as a module’s title is');
+A.eq(ruleX('.prov-card'), '--prov-mark: 44px; --prov-stat-w: fit-content(58%);', 'a card hands the base sheet two sizes: the mark’s column and a status column wide enough for one line');
+A.ok(setBase.includes('grid-template-columns:minmax(0,1fr) var(--prov-stat-w,190px);') && setBase.includes('grid-template-columns:var(--prov-mark,30px) minmax(0,1fr);'), 'the base sheet reads both sizes and keeps its own when no look sets them');
+A.eq((setBase.match(/calc\(var\(--prov-mark,30px\) \+ 12px\)/g) || []).length, 2, 'the narrow layout’s two indents follow the mark');
+A.ok(!/(margin|padding)-left:42px/.test(setBase), 'so no fixed indent is left to fall out of line with a wider mark');
+A.eq(ruleX('.prov-card:not([data-provider="starnet"]) > .prov-select::before'), "content: ''; grid-column: 1; grid-row: 1; width: 44px; height: 44px; border-radius: 9px; background: var(--vx-well); box-shadow: var(--vx-read-shadow);",
+  'a provider’s mark sits in a dark seat: a readout well drawn in the mark’s own cell (no positioning, no second element)');
+A.eq(ruleX('.prov-card:not([data-provider="starnet"]) > .prov-select > .prov-logo'), 'grid-column: 1; grid-row: 1; place-self: center;', 'the mark is centred in its seat');
+A.eq(ruleX('.prov-card:not([data-provider="starnet"]) > .prov-select > .prov-main'), 'grid-column: 2; grid-row: 1;', 'and the name keeps the second column');
+A.eq(ruleX('.prov-logo-starnet'), 'color: var(--ph);', 'the STARNET wordmark on its card is the theme colour, as the mark in the top bar is');
+A.eq(ruleX('.prov-card > .prov-accounts'), 'margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--vx-hair); border-radius: 0;', 'a card’s accounts sit under one straight hairline');
+A.eq(ruleX('.settings-pane .key-list > .key-row'), 'flex-wrap: wrap;', 'a saved key’s row may wrap');
+A.eq(ruleX('.settings-pane .key-list > .key-row > .key-main'), 'flex: 1 1 200px;', 'its name keeps 200px before the keys drop under it');
+A.eq(ruleX('.settings-pane .key-list > .key-row > .key-acts'), 'flex-direction: row; justify-content: flex-end; margin-left: auto;', 'and its actions are one row of keys at the far end, never a stack');
+const provJs = read('frontend/app/stationui.js');
+A.ok(provJs.includes('class="set-theme settings-swatch settings-swatch-custom ') && provJs.includes("data-act=\"prov-claude-add\"") && provJs.includes('data-act="pool-edit"') && provJs.includes('data-act="rm"'),
+  'nothing is removed: the any-colour key, ADD ACCOUNT, SPARE KEYS and REMOVE are all still drawn');
 A.report('vector-identity');
