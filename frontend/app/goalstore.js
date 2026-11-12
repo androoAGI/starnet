@@ -692,7 +692,14 @@ const GoalStore = (() => {
   /* ---------- the projection consumed by QuestStore.view ---------- */
   // questLive rides in so an in-flight bound milestone renders IN PROGRESS (no Accept) while a stalled/dismissed/
   // dead binding re-offers Accept (the recovery path) — the render state can never disagree with the accept guard.
-  function quests() { return ready() ? Goals.project(state.goals, { questLive }) : []; }
+  function relatedWork() {
+    if (!ready() || typeof deps.relatedWork !== 'function') return [];
+    try {
+      const rows = deps.relatedWork() || [];
+      return (Array.isArray(state.goals) ? state.goals : []).flatMap(goal => Goals.projectRelatedWork(goal, rows));
+    } catch (_) { return []; }
+  }
+  function quests() { return ready() ? Goals.project(state.goals, { questLive, relatedWork: relatedWork() }) : []; }
   function activeGoal() { return ready() ? Goals.activeGoal(state.goals) : null; }
 
   // re-entrancy handle for the confirm flow (chat.js latches it around the focused Dialogue panel).
@@ -700,7 +707,7 @@ const GoalStore = (() => {
   function isFiring() { return firing; }
 
   return {
-    init, reset, sync, quests, activeGoal, unplannedGoal, pushToSidecar,
+    init, reset, sync, quests, relatedWork, activeGoal, unplannedGoal, pushToSidecar,
     willOfferDecomposition, pendingDecomposition, proposeDecomposition, confirm, declineDecomposition, markOffered,
     acceptMilestone, createGoal, suggestPlan, focusGoal, chooseNext, briefing, listGoals: () => ready() ? state.goals.slice() : [],
     setDisposition, saveContext, reflect, reviseStep, saveIdea, archiveIdea, reviewPrompt, isCreatingGoal: () => creatingGoal,

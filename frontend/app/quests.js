@@ -76,6 +76,14 @@
       }
     }
 
+    // Phase A related-work cards are read-only evidence and cannot enter the done bucket.
+    if (Array.isArray(input.relatedWork)) {
+      for (const q of input.relatedWork) {
+        if (!q || !q.id || q.readOnly !== true || q.completion === true) continue;
+        open.push(q);
+      }
+    }
+
     // 1a) STATION-GAP fix-it quests (G1b) — a real capdenied/capability-gap became playable direction. These are
     //     pre-shaped by StationQuests.project (id 'sq:<agent>:<cap>', kind 'station-gap'); we only need to sort them
     //     into the open/done buckets so the honest open-before-done ordering + the QuestState fold both hold. They

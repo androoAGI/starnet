@@ -38,17 +38,18 @@ const QuestStore = (() => {
     // engine (GoalStore owns the live reads + the drift/reconcile sync); a missing store just means no arc (fewer
     // quests, never a crash — the same read-surface degradation idiom as stationGaps).
     const arcQuests = (typeof GoalStore !== 'undefined' && GoalStore.quests) ? GoalStore.quests() : [];
+    const relatedWork = (typeof GoalStore !== 'undefined' && GoalStore.relatedWork) ? GoalStore.relatedWork() : [];
     // QUEST V2 §C — the HARNESS LEDGER (sidecar-owned /api/quests). QuestLedgerStore holds the last-good poll
     // and hands the shaped, non-dismissed ledger quests here; a missing/absent store just means no ledger quests
     // (fewer quests, never a crash — the same read-surface degradation idiom as stationGaps).
     const ledgerQuests = (typeof QuestLedgerStore !== 'undefined' && QuestLedgerStore.quests) ? QuestLedgerStore.quests() : [];
-    return { meter, milestones, dossierDims, pendingIdea, station, stationGaps, workQuests, maintQuests, arcQuests, ledgerQuests };
+    return { meter, milestones, dossierDims, pendingIdea, station, stationGaps, workQuests, maintQuests, arcQuests, relatedWork, ledgerQuests };
   }
 
   // the whole panel read: the station meter + the ordered quest list + open/done counts.
   function view() {
     const g = gather();
-    const quests = (typeof Quests !== 'undefined') ? Quests.build({ milestones: g.milestones, dossierDims: g.dossierDims, pendingIdea: g.pendingIdea, station: g.station, stationGaps: g.stationGaps, workQuests: g.workQuests, maintQuests: g.maintQuests, arcQuests: g.arcQuests, ledgerQuests: g.ledgerQuests }) : [];
+    const quests = (typeof Quests !== 'undefined') ? Quests.build({ milestones: g.milestones, dossierDims: g.dossierDims, pendingIdea: g.pendingIdea, station: g.station, stationGaps: g.stationGaps, workQuests: g.workQuests, maintQuests: g.maintQuests, arcQuests: g.arcQuests, relatedWork: g.relatedWork, ledgerQuests: g.ledgerQuests }) : [];
     const summary = (typeof Quests !== 'undefined') ? Quests.summary(quests) : { open: 0, done: 0, total: 0 };
     return { meter: g.meter, quests: quests, summary: summary };
   }
