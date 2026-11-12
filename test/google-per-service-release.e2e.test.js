@@ -12,7 +12,7 @@ const { SidecarFixture } = require('./helpers/sidecar-fixture.js');
     STARNET_GOOGLE_DESKTOP_CLIENT_JSON: JSON.stringify({ installed: { client_id: '123456-starnettest.apps.googleusercontent.com' } }),
     STARNET_DEFAULT_MODEL: 'replay', STARNET_OPENROUTER_KEY: '',
     STARNET_CONNECTOR_ENCRYPTION_KEY: '29'.repeat(32),
-    NODE_OPTIONS: '--require=' + path.join(__dirname, 'fixtures/google-calendar-release.cjs').replace(/\\/g, '/')
+    NODE_OPTIONS: '--require=' + JSON.stringify(path.join(__dirname, 'fixtures/google-calendar-release.cjs').replace(/\\/g, '/'))
   } });
   try {
     await fixture.start();

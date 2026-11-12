@@ -12,7 +12,7 @@ const { RELEASE_DEFERRED, isWorkspaceUrl } = require('../sidecar/mcp/google-clie
   assert.equal(isWorkspaceUrl('https://www.googleapis.com/other/v1'), false);
   const fixture = SidecarFixture.create({ prefix: 'starnet-google-deferred-', timeoutMs: 30000, env: {
     STARNET_GOOGLE_DESKTOP_CLIENT_JSON: JSON.stringify({ installed: { client_id: '123456-starnettest.apps.googleusercontent.com' } }),
-    NODE_OPTIONS: '--require=' + path.join(__dirname, 'fixtures/google-deferred-network.cjs').replace(/\\/g, '/')
+    NODE_OPTIONS: '--require=' + JSON.stringify(path.join(__dirname, 'fixtures/google-deferred-network.cjs').replace(/\\/g, '/'))
   } });
   const configs = Object.entries(ENDPOINTS).filter(([id]) => id !== 'google-files').map(([id, url]) => ({ id, url, transport: 'http', oauth: true, enabled: true }));
   configs.push({ id: 'legacy-google', url: 'https://gmailmcp.googleapis.com/mcp/v1', transport: 'http', oauth: true, enabled: true });

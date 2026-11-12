@@ -7,7 +7,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
 (async () => {
   const preload = path.join(__dirname, 'fixtures/github-device-preload.cjs').replace(/\\/g, '/');
   const fixture = SidecarFixture.create({ prefix: 'starnet-github-device-', timeoutMs: 30000,
-    env: { DEFAULT_MODEL: 'replay', OPENROUTER_KEY: '', NODE_OPTIONS: '--require=' + preload } });
+    env: { DEFAULT_MODEL: 'replay', OPENROUTER_KEY: '', NODE_OPTIONS: '--require=' + JSON.stringify(preload) } });
   try {
     await fixture.start();
     const start = await fixture.json('POST', '/api/connectors/oauth/start', { id: 'github', attemptId: 'github_test_1' });
@@ -41,7 +41,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     const beforeFailure = fs.readFileSync(stateFile, 'utf8');
     assert.equal(JSON.parse(beforeFailure).configs.find(c => c.id === 'github').token, 'FIXTURE_OLD_PAT');
     const failPreload = path.join(__dirname, 'fixtures/connector-state-write-fail-preload.cjs').replace(/\\/g, '/');
-    await fixture.restart({ NODE_OPTIONS: '--require=' + preload + ' --require=' + failPreload, STARNET_TEST_FAIL_CONNECTOR_STATE: '1' });
+    await fixture.restart({ NODE_OPTIONS: '--require=' + JSON.stringify(preload) + ' --require=' + JSON.stringify(failPreload), STARNET_TEST_FAIL_CONNECTOR_STATE: '1' });
     await fixture.json('POST', '/api/connectors/oauth/start', { id: 'github', attemptId: 'github_test_failure' });
     await sleep(5100);
     const failed = await fixture.json('POST', '/api/connectors/oauth/device/poll', { attemptId: 'github_test_failure' });
@@ -49,7 +49,7 @@ const sleep = ms => new Promise(r => setTimeout(r, ms));
     assert.match(failed.body.error, /could not be saved/);
     assert.equal(fs.readFileSync(stateFile, 'utf8'), beforeFailure);
     assert.equal((await fixture.json('GET', '/api/connectors')).body.connectors.find(c => c.id === 'github').state, 'up');
-    await fixture.restart({ NODE_OPTIONS: '--require=' + preload, STARNET_TEST_FAIL_CONNECTOR_STATE: '0' });
+    await fixture.restart({ NODE_OPTIONS: '--require=' + JSON.stringify(preload), STARNET_TEST_FAIL_CONNECTOR_STATE: '0' });
     assert.equal(fs.readFileSync(stateFile, 'utf8'), beforeFailure);
     console.log('github-device.http: real routes, cancellation, durable tokens, restart and public secret redaction passed');
   } finally { await fixture.dispose(); }

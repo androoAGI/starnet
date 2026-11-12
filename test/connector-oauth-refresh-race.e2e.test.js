@@ -10,7 +10,7 @@ const sleep = ms => new Promise(resolve => setTimeout(resolve, ms));
   const preload = path.join(__dirname, 'fixtures', 'oauth-refresh-race-preload.cjs').replace(/\\/g, '/');
   const fixture = SidecarFixture.create({
     prefix: 'starnet-oauth-refresh-race-', timeoutMs: 20000,
-    env: { DEFAULT_MODEL: 'replay', OPENROUTER_KEY: '', NODE_OPTIONS: '--require=' + preload }
+    env: { DEFAULT_MODEL: 'replay', OPENROUTER_KEY: '', NODE_OPTIONS: '--require=' + JSON.stringify(preload) }
   });
   const original = { id: 'oauth-race', transport: 'http', url: 'https://audit.example.com/original', oauth: true, enabled: false };
   const stateFile = path.join(fixture.workspace, 'connectors', 'state.json');
