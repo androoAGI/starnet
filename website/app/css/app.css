@@ -4787,17 +4787,17 @@ body.crew-rail-off #screen-game.active {
 :is(#ag-persona-card details.ag-tune-fold, details.cf-access-more, details.wh-source-settings,
     details:is(.q-life-goal, .q-goal-starters, .q-goal-plan-editor, .q-goal-optional, .q-growth-history, .q-metric-editor),
     details:is(.sn-menu-options, .lp-adv, .lp-preview), details:is(.cc-details, .cc-alternatives), #cc-list details:not(.cc-group),
-    #ts-list details, details.ext-details, #sk-agent details) > summary {
+    #ts-list details, details.ext-details, #sk-agent details, details.prov-fold) > summary {
   list-style: none; cursor: pointer; display: flex; align-items: center; gap: 10px;
 }
 :is(#ag-persona-card details.ag-tune-fold, details.cf-access-more, details.wh-source-settings,
     details:is(.q-life-goal, .q-goal-starters, .q-goal-plan-editor, .q-goal-optional, .q-growth-history, .q-metric-editor),
     details:is(.sn-menu-options, .lp-adv, .lp-preview), details:is(.cc-details, .cc-alternatives), #cc-list details:not(.cc-group),
-    #ts-list details, details.ext-details, #sk-agent details) > summary::-webkit-details-marker { display: none; }
+    #ts-list details, details.ext-details, #sk-agent details, details.prov-fold) > summary::-webkit-details-marker { display: none; }
 :is(#ag-persona-card details.ag-tune-fold, details.cf-access-more, details.wh-source-settings,
     details:is(.q-life-goal, .q-goal-starters, .q-goal-plan-editor, .q-goal-optional, .q-growth-history, .q-metric-editor),
     details:is(.sn-menu-options, .lp-adv, .lp-preview), details:is(.cc-details, .cc-alternatives), #cc-list details:not(.cc-group),
-    #ts-list details, details.ext-details, #sk-agent details) > summary::before {
+    #ts-list details, details.ext-details, #sk-agent details, details.prov-fold) > summary::before {
   content: ''; flex: 0 0 auto; width: 6px; height: 6px; margin: 0 3px 0 2px;
   border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor; transform: rotate(-45deg);
   transition: transform var(--t-fast, .12s) var(--ease-soft, ease);
@@ -4805,7 +4805,7 @@ body.crew-rail-off #screen-game.active {
 :is(#ag-persona-card details.ag-tune-fold, details.cf-access-more, details.wh-source-settings,
     details:is(.q-life-goal, .q-goal-starters, .q-goal-plan-editor, .q-goal-optional, .q-growth-history, .q-metric-editor),
     details:is(.sn-menu-options, .lp-adv, .lp-preview), details:is(.cc-details, .cc-alternatives), #cc-list details:not(.cc-group),
-    #ts-list details, details.ext-details, #sk-agent details)[open] > summary::before { transform: rotate(45deg); }
+    #ts-list details, details.ext-details, #sk-agent details, details.prov-fold)[open] > summary::before { transform: rotate(45deg); }
 .mc-add-fold > summary:hover { color: var(--ph-bright); border-color: var(--ph); }
 .mc-add-fold > summary:focus-visible { outline: 1px solid var(--ph-bright); outline-offset: 2px; }
 .mc-add-fold[open] > .mc-form { margin-top: 10px; }
@@ -5466,8 +5466,6 @@ select.fbc-sel:focus { border-color: var(--ph); box-shadow: inset 0 2px 5px rgba
 .set-sub[hidden], .key-list[hidden] { display: none !important; }   /* beats the scoped settings-pane display rules */
 .set-sub-k { color: var(--ph); letter-spacing: var(--ls-2); flex: 0 0 auto; }
 .set-sub-d { color: var(--ph-dim); letter-spacing: var(--ls-1); min-width: 0; }
-/* (org D10 polish) AUTOMATE's rail: ON ITS OWN sits over its rung (SUGGEST), never run together on one cramped line */
-.auto-init-head .set-sub { flex-direction: column; align-items: flex-start; gap: 3px; }
 
 /* ---------- SETTINGS ▸ NIGHT SHIFT — the live status GRID ----------
    Five readouts about ONE machine (state · mode · daily limit · last job · next job). They used to be
