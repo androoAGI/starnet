@@ -582,9 +582,33 @@
      group chat, the open one, or one the caller names in `keep` (a run still going). Nothing else is ever touched: General, an
      ordinary conversation, a worker's thread of a kept session. A pruned session is not a delete: no tombstone (the boot
      backfill keeps to the same newest-fires rule instead, autosessions.js), nothing forgotten, its transcript stays on the
-     station. Its delegated workers' threads were that run's record: they go with it. -> the pruned ids */
+     station. Its delegated workers' threads were that run's record: they go with it. -> the pruned ids
+     A FIRE STILL WAITING ON THE COMMANDER IS NO RECEIPT YET (review R56-1-D2, stabilization plan C0-5). A fire that failed, asked a
+     question or did not finish, and that the Commander has not opened, is a NEEDS YOU row only while its session is here
+     (needsyou.js reads it from the save): the keep-10 dropped it as soon as ten newer fires ran (an hourly routine that failed once
+     overnight and succeeded after), with no word. Such a fire is never pruned by the newest-ROUTINE_KEEP rule; opening it makes it
+     a receipt again. So that a routine failing on every fire (a site check during an outage, a fire the spend check pauses until
+     COUNT AS) cannot refill the save the 11-08 report emptied, each routine keeps at most its newest ROUTINE_KEEP such fires past
+     its newest ROUTINE_KEEP: an older one goes only while ROUTINE_KEEP newer unopened ones of the same routine are in NEEDS YOU. */
   const ROUTINE_KEEP = 10;
   const CRON_PREFIX = 'cron-';
+  // the run-outcome resolver (a browser global: runoutcome.js loads first; the sibling module under node)
+  function runOutcomeApi() {
+    if (typeof RunOutcome !== 'undefined' && RunOutcome && RunOutcome.ofWord) return RunOutcome;
+    if (typeof module !== 'undefined' && module.exports && typeof require === 'function') { try { return require('./runoutcome.js'); } catch (_) { return null; } }
+    return null;
+  }
+  // the NEEDS YOU routine row's own test (needsyou.js items): unread, and its fire failed (lastRunOk false) or ended with no verdict on
+  // an outcome word that is neither a success nor a stop (asked, cut short, a limit, refused, held: autosessions recordOutcome)
+  function awaitsCommander(w) {
+    if (!w || typeof w.id !== 'string' || w.id.indexOf(CRON_PREFIX) !== 0 || !isUnread(w)) return false;
+    if (w.lastRunOk === false) return true;
+    if (w.lastRunOk != null || !w.lastRunReason) return false;
+    const R = runOutcomeApi();
+    if (!R) return String(w.lastRunReason) !== 'stopped';   // no resolver: keep it (a kept session is never a loss)
+    const kind = R.ofWord(w.lastRunReason).outcome;
+    return !!kind && kind !== 'stopped' && kind !== 'succeeded';
+  }
   function isRoutineReceipt(w) {
     if (!w || typeof w.id !== 'string' || w.id.indexOf(CRON_PREFIX) !== 0 || w.id === generalId || w.id === activeId) return false;
     const auto = automationOf(w);
@@ -612,7 +636,12 @@
     groups.forEach(rows => {
       if (rows.length <= per) return;
       const newest = rows.slice().sort((a, b) => (+b.lastActiveAt || +b.createdAt || 0) - (+a.lastActiveAt || +a.createdAt || 0));
-      for (const w of newest.slice(per)) if (!keep.has(w.id) && isRoutineReceipt(w)) out.push(w.id);
+      let waiting = 0;   // R56-1-D2 (header): the unopened fires that did not succeed, past the newest `per`, newest first
+      for (const w of newest.slice(per)) {
+        if (keep.has(w.id) || !isRoutineReceipt(w)) continue;
+        if (awaitsCommander(w) && waiting++ < per) continue;
+        out.push(w.id);
+      }
     });
     if (!out.length) return out;
     const gone = new Set(out);
@@ -1185,7 +1214,7 @@
     previewArchive, archivePreview, canUndo, undoLast,
     create, startSession, isUntouched, adopt, get, active, activeId: getActiveId, generalId: getGeneralId, isHidden, homeOf, titleOf,
     switch: switchTo, rename, setAgent, setLane, setProjectRoot, pin, archive, del, removeByAgent, isDeleted, touch, markUnread, markRead, unread: isUnread,
-    pruneRoutineSessions, isRoutineReceipt, ROUTINE_KEEP,
+    pruneRoutineSessions, isRoutineReceipt, awaitsCommander, ROUTINE_KEEP,
     autoTitle, retitle, deriveTitle, needsModelTitle, isLowSignal, titleBasis,
     finalDeliveryText, appendRun, noteRunEnd, recordDeliverable, knownDeliverable, addCost, costOf, noteModel, modelOf,
     // the rail's INBOX row reads these directly: the same sys/hidden/internal filter search and
