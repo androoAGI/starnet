@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "au-ucr-ep-000001-s0-receipt",
+  "title": "AU-UCR-EP-000001 Sprint S0 receipt",
+  "type": "object",
+  "additionalProperties": true,
+  "required": [
+    "experiment_id",
+    "sprint_id",
+    "work_item_id",
+    "owner_lane",
+    "branch",
+    "commit_tested",
+    "gate_set",
+    "outcome",
+    "reviewer",
+    "review_outcome",
+    "created_at_utc"
+  ],
+  "properties": {
+    "experiment_id": { "const": "AU-UCR-EP-000001" },
+    "sprint_id": { "const": "S0" },
+    "work_item_id": { "type": "string", "minLength": 1 },
+    "owner_lane": { "const": "unassigned_role_only" },
+    "branch": { "type": "string", "minLength": 1 },
+    "commit_tested": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "gate_set": {
+      "type": "array",
+      "items": { "type": "string" }
+    },
+    "outcome": { "enum": ["pass", "fail", "blocked", "not_run"] },
+    "reviewer": { "type": ["string", "null"] },
+    "review_outcome": { "enum": ["not_recorded", "accepted", "revise", "reject"] },
+    "created_at_utc": { "type": "string", "minLength": 1 }
+  }
+}
