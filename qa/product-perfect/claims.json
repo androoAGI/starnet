@@ -18,8 +18,8 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "5fe93f2b9a73eb857f5ea2ba2854d3a8f72c305e",
-    "pathSetSha256": "03e6e69f94fc87395ad72f91e37e52cbc635a7bbcd855c2500b23d3e412a1321",
+    "sourceCommit": "7f8ad25ff54e79bf73dc911197f8778c6705c8e7",
+    "pathSetSha256": "71662dfe9288520e94a69b96d2b1199d3f365ba2be19a55202e5b870979018ea",
     "files": [
       {
         "path": "INSTALL.md",
@@ -713,8 +713,8 @@
       },
       {
         "path": "frontend/app/marketplace.js",
-        "bytes": 282385,
-        "sha256": "d8f043e36cfe0bc6ba8bc01066457e8d4c3021ebd6ada23efb76b8023b5e11af"
+        "bytes": 282871,
+        "sha256": "40bd0fa5a324f4cddc9e0c3236ec5f4533bd5c044308067ca55f8527695ab6f4"
       },
       {
         "path": "frontend/app/memtruth.js",
@@ -1253,8 +1253,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 1005053,
-        "sha256": "a11892472e5d6498d45f460ceee29ff1b323bebce8069efe599ef959830f8d31"
+        "bytes": 1009664,
+        "sha256": "9ccc24ad8a0bcd3d4ebf1170860ed490bc73f1e0a8e488a94766e74ab7046849"
       },
       {
         "path": "frontend/app/steering-message.js",
@@ -1443,8 +1443,8 @@
       },
       {
         "path": "frontend/app/windows/automation.js",
-        "bytes": 10621,
-        "sha256": "a11980e8839b2cddd28cbfe4998b0153720d52c2f553b692f5f67e1c87ce7c15"
+        "bytes": 12629,
+        "sha256": "0dbda7632eb66331585f6242f5d4ad770daba48db08bbe8b856d9d4577e97d2a"
       },
       {
         "path": "frontend/app/windows/connectors.js",
@@ -1623,8 +1623,8 @@
       },
       {
         "path": "frontend/css/app.css",
-        "bytes": 440490,
-        "sha256": "c1481ced8ddd00e8f87dbfe33b945cef7ee14ca607278108904522da04226563"
+        "bytes": 440358,
+        "sha256": "cfaef8c452a78d45eb05b965681e481a60750b27124fbb8a8aca5c72df9f2282"
       },
       {
         "path": "frontend/css/asciifx.css",
@@ -1708,8 +1708,8 @@
       },
       {
         "path": "frontend/css/marketplace.css",
-        "bytes": 95788,
-        "sha256": "b2a494369911c973a8914daaf6849a71f8772384e80de4b521d1422690fdef8f"
+        "bytes": 96313,
+        "sha256": "1ab9c7862d3ccff155041873669eb15b448f64e826ff4e4b07859bdd9ba399f4"
       },
       {
         "path": "frontend/css/menu-glass.css",
@@ -1758,8 +1758,8 @@
       },
       {
         "path": "frontend/css/quests.css",
-        "bytes": 26325,
-        "sha256": "0d89eefd924947bdc8cabb4fa38f867af515e3a034f5b0f6be6be25f52e96edf"
+        "bytes": 26879,
+        "sha256": "a2c25fd4f7c9b70383f6de55ef893766ed8bf4258bbac51cff5bec81de8472c3"
       },
       {
         "path": "frontend/css/readability.css",
@@ -1793,8 +1793,8 @@
       },
       {
         "path": "frontend/css/settings.css",
-        "bytes": 22717,
-        "sha256": "dbbbf7dd3ad496de87d57d640efdb43be71d926acc332705881c6590d2bc4f31"
+        "bytes": 24896,
+        "sha256": "e9ae2bbda18411f7339ff24f74681e4484b2ea8b8bef7f4e7dc43604eb3658d1"
       },
       {
         "path": "frontend/css/stepin.css",
@@ -1828,8 +1828,13 @@
       },
       {
         "path": "frontend/css/utility-menus.css",
-        "bytes": 17317,
-        "sha256": "8ac5f3e2f9e7831353a2c5789eb369254b6825ddab0ddafd5246934905a18bbb"
+        "bytes": 17801,
+        "sha256": "e892f435c854cfdb85e4177bebe240bd2fdf33cc4b1b4311326d5724fa73cfcd"
+      },
+      {
+        "path": "frontend/css/vector.css",
+        "bytes": 293764,
+        "sha256": "4210fe14d29fcd2f469c3b5524dfbb4e9e2ddba33363270d05ef7b9f736567bd"
       },
       {
         "path": "frontend/css/warroom.css",
@@ -1908,8 +1913,8 @@
       },
       {
         "path": "frontend/index.html",
-        "bytes": 101413,
-        "sha256": "36fbfdb70d3e24c651ed79f58ebfef67bd5f16c452a9ae0a5edebcbdfba0f5f3"
+        "bytes": 101620,
+        "sha256": "17ee4778588f0f4ff2e85fd6579e6f32389cc2e6dd2cb3d8d1a27c06e1ed6cdf"
       },
       {
         "path": "frontend/js/arcade.js",
