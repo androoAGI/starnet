@@ -209,6 +209,8 @@ const slice = rec => ({ workstreams: [rec], activeId: rec.id, generalId: rec.id 
       A.ok(refused && refused.code === 'HISTORY_UNAVAILABLE' && Date.now() - started < 5000, 'the send ends at once with the honest refusal, never held');
       A.ok(refused && /history could not be restored/.test(refused.message) && !/connection returns/.test(refused.message),
         'worded for a station that answered: it does not blame the connection (' + (refused && refused.message) + ')');
+      // a damaged old segment refuses every resend the same way (no repair reaches it in this release), so the words never promise one
+      A.ok(refused && !/try (sending )?again|in a moment/i.test(refused.message), 'and it never says to try again: a resend is refused the same way (' + (refused && refused.message) + ')');
     }
   } finally {
     for (const io of opened) { try { io.close(); } catch (_) {} }
