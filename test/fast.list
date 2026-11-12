@@ -1825,3 +1825,4 @@ test/shell-taint-hooks.test.js
 test/exact-command-grants.test.js
 test/remote-pair-secret.test.js
 test/loop.tool-args-local-endpoint.test.js
+test/granted-context.approval-line.test.js

@@ -22,7 +22,8 @@
    WHO COUNTS (grantedRun). A run whose routine grants are still held after the drive check (index.js runOnceCore: never an
    interactive run, never one whose model, endpoint, instructions or skills moved). Workers and line hops a granted routine
    starts carry no grants (the chain-grants law), so they are not granted runs. The agent's approval posture does not
-   change the answer: a Full Access agent's routine that holds grants is a granted run too (one rule the Commander can
+   change the answer, and turning it over does not move the instructions (instructionsOf leaves the page's approval line
+   out): a Full Access agent's routine that holds grants is a granted run too (one rule the Commander can
    read in SCHEDULES: a routine allowed to run unattended works from its own words). A Full Access or FULL BYPASS agent's
    routine WITHOUT grants keeps the dossier and goal; such an agent already runs whatever anyone holding the client key asks
    it (POST /api/run, card-free), which is the Full Access contract, unchanged here.
@@ -50,6 +51,7 @@ const INPUTS = Object.freeze([
   { id: 'routine-skills', vars: ['preloadedSkillBlock'], client: true, granted: 'bound', how: 'POST /api/agent-skills/manage rewrites a skill body; the routine\'s skills are bound into grantDrive and a body that moved is not loaded' },
   { id: 'persona-learned-tail', vars: ['persona.learned'], client: true, granted: 'withheld', how: 'the dossier, goal and fork blocks the page bakes into a roster persona (POST /api/roster)' },
   { id: 'persona-crew-line', vars: [], client: true, granted: 'withheld', how: 'the YOUR CREW line the page bakes into a lead\'s persona (agent names and roles, POST /api/roster)' },
+  { id: 'persona-approval-line', vars: [], client: true, granted: 'withheld', how: 'the APPROVAL / AUTHORITY line the page bakes into a persona from its approval posture (POST /api/roster); what a run may do is the grant and the consent broker, and the host\'s capabilities note says when FULL POWER is active' },
   { id: 'commander-dossier', vars: [], client: true, granted: 'withheld', how: 'POST /api/dossier; cronSystemFor/personaWithNote (withDossier) and commanderEvidenceContext fold it in' },
   { id: 'active-goal', vars: [], client: true, granted: 'withheld', how: 'POST /api/goals; folded in beside the dossier' },
   { id: 'standing-brief', vars: [], client: true, granted: 'withheld', how: 'the dock\'s standing brief in the saved floor (POST /api/save); the routine callers append it to the system' },
@@ -93,10 +95,17 @@ function grantedRun(surface, grants) {
 }
 
 // The agent's own instructions: the persona's stable half, without the one-line YOUR CREW clause the page re-composes as
-// the crew changes (the same text index.js fullAccessDriveOf binds a Full Access agent to). A granted run is given exactly
-// this text, never the persona's learned tail.
+// the crew changes (the same text index.js fullAccessDriveOf binds a Full Access agent to), and without the one-line
+// approval clause the page composes from the agent's approval posture (app.js approvalClause: "APPROVAL — ASK FIRST: ..."
+// or "AUTHORITY — FULL POWER: ..."). Turning Full Access on or off, a clamped raise or the upgrade's clamp re-composes that
+// line, and binding it silently dropped every grant of that agent's routines (review56 R2-3). Each line is removed from
+// what the grant binds AND from what the granted run is given, so nothing written on it reaches a granted run; a second
+// such line, words after it, or any other edit is still instructions. A granted run is given exactly this text, never the
+// persona's learned tail.
+const CREW_LINE = /\n\nYOUR CREW: [^\n]*/;
+const APPROVAL_LINE = /\n\n(?:AUTHORITY — FULL POWER|APPROVAL — ASK FIRST): [^\n]*/;
 function instructionsOf(system) {
-  return LearnedTail.split(String(system == null ? '' : system)).stable.replace(/\n\nYOUR CREW: [^\n]*/, '');
+  return LearnedTail.split(String(system == null ? '' : system)).stable.replace(CREW_LINE, '').replace(APPROVAL_LINE, '');
 }
 
 // What a skill gives a run, for the binding: everything runtimeSkills.composeLoaded shows the model (its name, summary,
