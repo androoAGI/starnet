@@ -3453,7 +3453,10 @@ const App = (() => {
       msg.textContent = (recovered
         ? 'macOS stopped StarNet’s display while it tested the wire, and StarNet reloaded it. '
         : 'StarNet stopped before the wire test finished. ')
-        + 'Your choices are kept — press WAKE to try again. If it happens again, restart StarNet; startup.log has the details.';
+        // R3-D2: approval is the one choice a restore never brings back (pickedApproval above: FULL POWER keeps its own confirm), so
+        // the message says so, and how to choose it again: its picker is on the Your Overseer step, which this restore does not open
+        + 'Your choices are kept, except Working style: it is back to ASK FOR APPROVAL. To use FULL POWER, choose it again under Your Overseer › Working style. '
+        + 'Then press WAKE to try again. If it happens again, restart StarNet; startup.log has the details.';
     }
   }
 
