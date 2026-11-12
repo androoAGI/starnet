@@ -11559,8 +11559,16 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const svg = b.querySelector('svg');
       return svg ? svg.outerHTML : esc(b.textContent || '◇');
     };
-    return '<div class="q-systems q-constellation" id="q-systems"><div class="gx-sec"><span class="gx-title">STATION SYSTEMS</span><span class="gx-tag">'
-      + s.online + ' OF ' + s.total + ' ONLINE</span></div>'
+    /* ONE STRIP (2026-11-11, Andrew: "finish those small things"). This block is a map of the dock's own keys, and it
+       used to fill the first screen of PROGRESS before any progress. It is now one of the page's folds, with the same
+       recipe as Outcome metrics / Agent mastery below it, and its count stays on the strip. Nothing is removed: every
+       tile, the bar and SHOW EVERYTHING are inside. It opens itself while it has something to say (a system not in the
+       dock yet, or one that just came online, which is where the NEW SYSTEM ONLINE door lands); once every system is
+       online it rests closed. A fold the Commander opened or closed by hand stays that way across repaints. */
+    const fresh = s.list.some(x => x.fresh);
+    const openNow = fresh || (sysFoldUser != null ? sysFoldUser : s.online < s.total);
+    return '<details class="q-systems q-progress-section" id="q-systems"' + (openNow ? ' open' : '') + '><summary><span>Station systems</span><span class="q-section-note">'
+      + s.online + ' OF ' + s.total + ' ONLINE</span></summary><div class="q-section-body">'
       + (staged ? '<div class="arc-bar q-bar"><div class="q-bar-fill" style="width:' + pct + '%"></div></div>' : '')
       + '<div class="q-star-map q-sys-map">' + s.list.map(x =>
         '<button type="button" class="q-star q-sys' + (x.online ? ' q-star-reached' : ' q-sys-off') + (x.fresh ? ' q-sys-fresh' : '') + '" data-sys="' + esc(x.id) + '" data-tip="'
@@ -11570,10 +11578,14 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       + '</div>'
       + (staged ? '<p class="sub dim">Your dock grows as you use the station. Every system already works: open any of them here.</p>'
         + '<div class="q-journey-actions"><button type="button" class="bb sm q-sys-all">SHOW EVERYTHING</button></div>' : '')
-      + '</div>';
+      + '</div></details>';
   }
+  let sysFoldUser = null;   // null = the fold decides for itself; true / false = the Commander's own last choice
   function wireSystems(root) {
     if (!root) return;
+    // a click (or Enter / Space) on the strip lands BEFORE the fold turns, so the choice is the opposite of what it reads now
+    const strip = root.querySelector(':scope > summary');
+    if (strip) strip.addEventListener('click', ev => { if (!ev.defaultPrevented) sysFoldUser = !root.open; });
     root.querySelectorAll('.q-sys').forEach(b => b.addEventListener('click', () => { sfx('click'); Systems.openSystem(b.dataset.sys); }));
     const all = root.querySelector('.q-sys-all');
     if (all) all.addEventListener('click', () => { sfx('click'); Systems.showEverything(); notify('Every station system is in your dock now. SETTINGS › LOOK & SOUND › STATION DOCK switches it back.', '', undefined, { transient: true }); });

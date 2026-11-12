@@ -896,6 +896,27 @@ A.eq(ruleX('.mkt-cats > .mkt-lane'), 'padding-left: 6px; padding-right: 6px;', '
 A.eq(ruleX('.mkt-cats > .mkt-lane > .ct'), 'margin-left: 3px;', 'and the count a step nearer its name');
 A.ok(!/overflow|nowrap|letter-spacing|font-size|text-overflow|display: none/.test(rulesX.filter(r => r.sel.includes('.mkt-cats')).map(r => r.body).join(' ')) && /\.mkt-lanes \{ display: flex; align-items: center; gap: 7px; flex-wrap: wrap; \}/.test(mktCss),
   'the rail still WRAPS in a narrow window: it never scrolls sideways, never cuts or hides a key, and the key type is not touched');
+// the Library options suggestion cards follow their own rail's width (three across in a 394px list column broke every name)
+A.ok(mktCss.includes('.mkt-recipes .mkt-rec-rail:not(.mkt-rail-deep) { grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); }')
+  && !/\.mkt-recipes \.mkt-rec-rail:not\(\.mkt-rail-deep\) \{ grid-template-columns: repeat\(3/.test(mktCss),
+  'a recipe suggestion card is never under 240px: a narrow list shows them as rows, a wide one two or three across');
+// the quest pass: every tier in view; the PROGRESS tab: the dock map is one of the page's folds
+const questCss = read('frontend/css/quests.css'), suiJs = read('frontend/app/stationui.js');
+const trackRule = (questCss.match(/\.quests-win \.bp-track \{([^}]*)\}/) || [])[1] || '';
+A.ok(/flex-wrap: wrap;/.test(trackRule) && !/overflow|scrollbar/.test(trackRule),
+  'the tier track wraps in a narrow window and never scrolls sideways: no tier sits off the edge behind a scrollbar');
+A.ok(questCss.includes('.quests-win .bp-node { flex: 1 1 80px;') && questCss.includes('.quests-win .bp-node :is(.bp-here, .bp-node-frame, .bp-need, .bp-got, .bp-claim) { white-space: nowrap; }'),
+  'the tiers share the line in equal parts (never under 80px) and a tier’s one-line labels stay one line');
+A.ok(suiJs.includes("'<ol class=\"bp-track\">' + nodes + '</ol>'") && suiJs.includes("const box = '.------.\\n| T ' + pad(t.tier) + ' |\\n\\'------\\'';"),
+  'and the pass keeps its drawn track: the same boxes and links, only laid out so all of them show');
+const sysFn = suiJs.slice(suiJs.indexOf('function systemsHtml()'), suiJs.indexOf('function refreshSystems()'));
+A.ok(sysFn.includes("'<details class=\"q-systems q-progress-section\" id=\"q-systems\"' + (openNow ? ' open' : '') + '><summary><span>Station systems</span><span class=\"q-section-note\">'")
+  && sysFn.includes("+ s.online + ' OF ' + s.total + ' ONLINE</span></summary><div class=\"q-section-body\">'"),
+  'STATION SYSTEMS is a fold with the page’s own fold recipe; its count (read from the dock’s snapshot) stays on the strip');
+A.ok(sysFn.includes("const openNow = fresh || (sysFoldUser != null ? sysFoldUser : s.online < s.total);") && sysFn.includes("const fresh = s.list.some(x => x.fresh);"),
+  'it opens itself while a system is missing from the dock or has just come online, and otherwise keeps the Commander’s last choice');
+A.ok(['q-star-map q-sys-map', 'q-sys-all', 'arc-bar q-bar', "data-sys=\"' + esc(x.id)"].every(k => sysFn.includes(k)) && sysFn.includes("strip.addEventListener('click', ev => { if (!ev.defaultPrevented) sysFoldUser = !root.open; });"),
+  'nothing left the block: every tile, the bar and SHOW EVERYTHING are inside the fold, and a hand-turned fold is remembered');
 // folds
 const FOLDS = ':is(.perm-fold, .ch-setup, .mkt-orders, .mkt-model-settings, .mkt-brief, .si-more, .q-progress-section, .q-journal-records > details, .q-refresh-options, .mc-adv, .mc-effective-payer, .mkt-library-more, .mkt-recipe-instructions, .platform-guide)';
 A.ok(/^content: ''; display: inline-block;/.test(ruleX(FOLDS + ' > summary::before')) && /border: 0; border-right: 1\.5px solid currentColor; border-bottom: 1\.5px solid currentColor; transform: rotate\(-45deg\);$/.test(ruleX(FOLDS + ' > summary::before')),

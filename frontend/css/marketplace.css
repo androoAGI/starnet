@@ -1018,7 +1018,10 @@ button.mkt-archive-head:focus-visible { outline: 2px solid var(--gold); outline-
 .mkt-recipes .mkt-block .bh { font-size: 11px; letter-spacing: 1.2px; }
 .mkt-recipes .mkt-starters { color: var(--text); }
 .mkt-recipes .mkt-brief { padding: 12px 0; }
-.mkt-recipes .mkt-rec-rail:not(.mkt-rail-deep) { grid-template-columns: repeat(3,minmax(0,1fr)); }
+/* The suggestion cards follow the room their OWN rail has, not a fixed three across: the rail sits in the list column,
+   and three cards in 394px left each name one word per line. A card is never under 240px, so a narrow list shows them
+   as rows (seal + name on one line) and a wide one still shows two or three across. */
+.mkt-recipes .mkt-rec-rail:not(.mkt-rail-deep) { grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); }
 .mkt-recipes .mkt-rec { padding: 10px; }
 .mkt-recipes .mkt-rec .mkt-coin { --coin: 34px; }
 .mkt-recipes .mkt-rec-name { font-size: 14px; }
@@ -1040,7 +1043,8 @@ button.mkt-archive-head:focus-visible { outline: 2px solid var(--gold); outline-
   .mkt-recipes .mkt-dos-scroll { padding-inline: 14px; }
 }
 
-.mkt-recipes .mkt-foryou { min-height: 66px; padding: 10px 7px; }
+.mkt-recipes .mkt-foryou { min-height: 48px; padding: 10px 7px; }
+.mkt-recipes .mkt-foryou .mkt-rec-why { margin-top: 0; }
 .mkt-recipes .mkt-foryou .mkt-rec-top { flex-direction: row; text-align: left; align-items: center; gap: 8px; }
 .mkt-recipes .mkt-foryou .mkt-rec-name { font-size: 13px; line-height: 1.2; }
 .mkt-recipes .mkt-foryou .mkt-coin { --coin: 28px; }
