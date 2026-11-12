@@ -6779,10 +6779,27 @@ function routineInstructions(agentId, skillNames, projectRoot) {
   }
   return { instructions, skills, digest: GrantedContext.instructionsDigest(instructions, [...skills]) };
 }
+/* WHERE A ROUTINE'S SKILLS RESOLVE (review56 R2-6): where its run resolves them. A work-line routine (runsLine) runs in its
+   line's project folder when the saved floor names one (runOnceCore takes the line's projectRoot over the routine's own
+   folder, and the preload resolves there), so its skills are bound there too; a skill shared at project scope with that
+   folder used to be bound as missing and then withheld from every granted run. Otherwise, as before, the routine's own
+   folder or none. The line is read the way runOnceCore reads it (the entry dock's line, crewed by the agent); while the
+   saved floor cannot be proved (routingHold) the run itself is refused at its own admit seam, and the binding is the
+   routine's own folder, as it was. */
+function routineSkillRootFor(job) {
+  if (job && job.runsLine === true && !routingHold()) {
+    const agentId = String(job.agentId || 'agent');
+    const lineId = admit.lineOfAgent(agentId, job.dockId ? admit.dockOf(agentId, job.dockId) : undefined);
+    const plan = lineId ? admit.getPlan() : null;
+    const line = plan && (plan.lines || []).find(l => l.lineId === lineId);
+    const crews = !!line && ((line.agents || []).includes(agentId) || admit.docksOf(agentId).some(d => admit.lineOfDock(d) === lineId));
+    if (crews && line.projectRoot) { try { return cronCanonicalWorkdir(line.projectRoot) || ''; } catch (_) { /* the run refuses a lapsed folder itself */ } }
+  }
+  if (job && job.workdir) { try { return cronCanonicalWorkdir(job.workdir) || ''; } catch (_) { return ''; } }
+  return '';
+}
 function routineInstructionsFor(job) {
-  let root = '';
-  if (job && job.workdir) { try { root = cronCanonicalWorkdir(job.workdir) || ''; } catch (_) { root = ''; } }
-  return routineInstructions(job && job.agentId, routineSkillNames(job && job.skills, [{ role: 'user', content: String((job && job.prompt) || '') }]), root);
+  return routineInstructions(job && job.agentId, routineSkillNames(job && job.skills, [{ role: 'user', content: String((job && job.prompt) || '') }]), routineSkillRootFor(job));
 }
 // the drive a routine resolves to now, as its run would (cron-driver and Run Now: cronWireFor, the station's own key)
 function routineDriveFor(job, opts) {
