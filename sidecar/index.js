@@ -24066,6 +24066,9 @@ async function runOnceCore(o) {
     unattendedGrants.length = 0;
     console.warn('[cron] routine ' + String(o.cronJobId || '?') + ' runs without its unattended grants: ' + grantDriveMoved);
     if (runNotices.length < 4) runNotices.push('this routine ran without its unattended grants: ' + grantDriveMoved + '. Grant them again in SCHEDULES (StarNet asks you to confirm)');
+    // review56 R2-4: a scheduled fire and Run Now pass no notices of their own, so the list was never bound above and this
+    // one reached the console alone. Bound here, it rides the run's agent.run.start like every other run notice.
+    runStartExtra.notices = runNotices;
   }
   /* WHAT A GRANTED RUN TAKES AS INSTRUCTIONS (GHSA-2hpj NEW-1, granted-context.js). A run that still holds desk-granted
      unattended capability is given the agent's own instructions as the desk bound them, the [ROUTINE] note, its delivery
