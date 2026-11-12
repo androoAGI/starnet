@@ -278,8 +278,8 @@
       },
       {
         "path": "frontend/app/autosessions.js",
-        "bytes": 41435,
-        "sha256": "2f5ce056f0d57a1ad5e4c925aba659948ebbb95288769dadd31662ec075ec875"
+        "bytes": 43716,
+        "sha256": "800d2505f39c4df1166c523a3a769ba2d241575c65ad1cdb9e567b1907caea35"
       },
       {
         "path": "frontend/app/backdrop-bake-worker.js",
@@ -753,8 +753,8 @@
       },
       {
         "path": "frontend/app/needsyou.js",
-        "bytes": 51006,
-        "sha256": "470a80d3c38f13335f46c1ae0877131c5d6b338081f05467faf49fa0e17e4761"
+        "bytes": 51817,
+        "sha256": "976a258dedcb1df8a5ccb2cc2581da2f34a9486df33884a0076d6319cc4f0062"
       },
       {
         "path": "frontend/app/nightnudge.js",

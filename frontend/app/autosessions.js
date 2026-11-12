@@ -155,8 +155,11 @@ const AutoSessions = ((TurnMerge) => {
   // the honest error line a FAILED routine's session ends on (foldTurns; the backfill for a session that never said so)
   // review r8: in the fire's OUTCOME's words — a question is no failure ("⚠ Routine failed — clarifying"), a cut reply or a limit did not
   // finish; only a failed fire says "Routine failed". What rides after the leading word (an auto-pause) is kept
-  function failedMarker(reason) {
+  // `words` (B1): a spend-check pause's way out in the chat's words (spendPauseWords), said in place of its bare reason; it rides as
+  // the marker's `why` too, which the fire's NEEDS YOU row shows (needsyou.js)
+  function failedMarker(reason, words) {
     const said = String(reason || 'run failed').trim(), kind = unsucceededKind(said), rest = said.slice(said.split(' (')[0].length);
+    if (kind === 'failed' && words) return { role: 'system', sys: true, content: '⚠ Routine failed — ' + words + rest, error: true, marker: 'fire-end', why: String(words) };
     const content = kind === 'asked' ? '▲ Routine asked a question — answer it here' + rest
       : kind !== 'failed' ? '⚠ Routine did not finish — ' + RunOutcome.line({ outcome: kind }) + rest
       : '⚠ Routine failed — ' + said;
@@ -204,7 +207,8 @@ const AutoSessions = ((TurnMerge) => {
       for (const j of jobs) {
         if (!j || !j.id) continue;
         map[j.id] = { id: j.id, name: String(j.name || '').trim(), agentId: String(j.agentId || 'agent'), prompt: String(j.prompt || ''), noAgent: j.noAgent === true,
-          fires: firesOfRecord(j), inFlight: j.inFlight === true, inFlightRunId: j.inFlightRunId ? String(j.inFlightRunId) : '' };   // its fires' outcomes (settleOf), and the fire running now (stillFiring)
+          fires: firesOfRecord(j), inFlight: j.inFlight === true, inFlightRunId: j.inFlightRunId ? String(j.inFlightRunId) : '',   // its fires' outcomes (settleOf), and the fire running now (stillFiring)
+          last: lastFailureOf(j) };   // its LAST fire's failure words, bound to that fire (spendPauseWords)
       }
       routines = map;
       catalogueRead = true;
@@ -212,6 +216,23 @@ const AutoSessions = ((TurnMerge) => {
     return routines;
   }
   function routineFor(jobId) { return (routines && routines[jobId]) || null; }
+  /* A FIRE THE SPEND CHECK PAUSED SAYS ITS WAY OUT (B1, stabilization plan C0-5). While spend history is incomplete, StarNet
+     pauses an unattended fire (the shipped daily limit) or refuses it (a limit the Commander chose): failureCode
+     spend_history_unavailable. It is a failure, and the routine stays on (cron-store markRun), so every fire lands here until
+     the spend item is settled; "⚠ Routine failed — error" told nobody how. The record's own sentence (lastError, the loop's
+     stopForSpend words, bound to its lastRunId) is said in the chat's words (friendlyerror.js spendUnknownMessage), which keep
+     its one-click exit: COUNT AS, or setting that limit to 0. Any other failure keeps its words as before. */
+  const SPEND_PAUSE = 'spend_history_unavailable';
+  function lastFailureOf(j) {
+    if (!j || !j.lastRunId || j.lastStatus !== 'error' || typeof j.lastError !== 'string' || !j.lastError) return null;
+    return { runId: String(j.lastRunId), failureCode: String(j.lastFailureCode || ''), error: j.lastError.slice(0, 2000) };
+  }
+  function spendPauseWords(jobId, runId) {
+    const job = routineFor(jobId), last = job && job.last;
+    if (!last || last.runId !== String(runId || '') || last.failureCode !== SPEND_PAUSE) return '';
+    if (typeof Friendly === 'undefined' || !Friendly || typeof Friendly.friendlyError !== 'function') return '';
+    try { const v = Friendly.friendlyError(last.error); return v && v.kind === 'spend_unknown' ? String(v.userMessage || '') : ''; } catch (_) { return ''; }
+  }
 
   // ---- session lifecycle ----------------------------------------------------------------------
   // Adopt (idempotent) the session for one cron run and mark it busy WITHOUT stealing focus. `job`
@@ -246,7 +267,7 @@ const AutoSessions = ((TurnMerge) => {
   // Fold a completed run's durable transcript into its session, clear busy, persist, re-render.
   // `endedAt` (optional, epoch ms): the run record's REAL end time — passed by the heal/backfill paths that
   // learn about a run after the fact, so the session's "last worked" stamp is the run's, not the poll's.
-  async function completeSession(runId, outcome, reason, endedAt) {
+  async function completeSession(runId, outcome, reason, endedAt, words) {
     if (!hasWS()) return;
     const id = streamOf(runId);
     if (!validStream(id)) return;
@@ -258,7 +279,7 @@ const AutoSessions = ((TurnMerge) => {
 
     const loaded = await fetchTranscript(ws.agentId, id);
 
-    foldTurns(ws, loaded.turns, outcome, reason, loaded.fetchOk, endedAt);
+    foldTurns(ws, loaded.turns, outcome, reason, loaded.fetchOk, endedAt, words);
     if (hasCh()) Channels.end(id);   // clear the busy/running channel state
     // if this session is the one on screen, re-render it so the folded output is visible immediately.
     if (hasChat() && Workstreams.activeId && Workstreams.activeId() === id) Chat.load(ws);
@@ -273,7 +294,7 @@ const AutoSessions = ((TurnMerge) => {
   // styled line (not agent speech), and historyWindow() EXCLUDES sys markers so a frontend-authored string is never
   // replayed back to the model as a prior assistant turn. `fetchOk` distinguishes a transcript-fetch FAILURE (say
   // so honestly) from a run that genuinely produced no readable output. Idempotent-ish — replaces history.
-  function foldTurns(ws, turns, outcome, reason, fetchOk, endedAt) {
+  function foldTurns(ws, turns, outcome, reason, fetchOk, endedAt, words) {
     const sysMarker = (text, error, pending) => { const m = { role: 'system', sys: true, content: String(text) }; if (error) m.error = true; if (pending) m.transcriptPending = true; return m; };
     const next = [];
     for (const t of (turns || [])) {
@@ -291,7 +312,7 @@ const AutoSessions = ((TurnMerge) => {
     const saidSomething = next.some(m => m.role === 'assistant' || m.sys);
     // a FAILED run must never look like it produced nothing: append an honest error line from the outcome.
     if (outcome === 'failed') {
-      next.push(failedMarker(reason));
+      next.push(failedMarker(reason, words));
     } else if (outcome === 'stopped') {
       // a STOPPED fire (review r7): no verdict, and no clean "routine ran, nothing to report" either — a stop usually lands while the run is
       // still thinking, before any reply, and that marker is what a succeeded [SILENT] run says. Said as the HUD says it.
@@ -517,7 +538,8 @@ const AutoSessions = ((TurnMerge) => {
       if (outcome !== 'failed') return;
       beginSession(p.runId, Object.assign({ id: p.jobId || '' }, job));
     }
-    return completeSession(p.runId, outcome, p.reason);
+    // B1: a fire the spend check paused says its way out (spendPauseWords: the record loadRoutines just read for this failed fire)
+    return completeSession(p.runId, outcome, p.reason, undefined, outcome === 'failed' ? spendPauseWords(p.jobId, p.runId) : '');
   }
 
   function init() {

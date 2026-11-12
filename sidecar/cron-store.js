@@ -805,6 +805,14 @@
          its outcome 'stopped') records lastStatus 'stopped', leaves the failure streak exactly as it was (it neither resets nor counts toward
          the consecutive-failure auto-pause), and never flags the routine 'error'. */
       const stopped = !ok && (result.status === 'stopped' || result.outcome === 'stopped');
+      /* A SPEND-CHECK PAUSE IS NO BROKEN ROUTINE (B1, stabilization plan C0-5). While spend history is incomplete (an open or
+         damaged spend item) the shipped soft rail pauses unattended work and a limit the Commander chose refuses it (budget.js
+         check: paused / strict); both end the run 'error' with failureCode spend_history_unavailable (loop.js stopForSpend),
+         and the fire hands that code on (cron-driver finishFire). Counting it toward the auto-pause switched a station's hourly
+         routines off within five hours of one stale receipt, and settling the receipt turned none of them back on. Such a fire
+         stays a FAILURE (lastStatus and state 'error', its code kept: NEEDS YOU lists it with its way out, COUNT AS; a stop it
+         would skip), leaves the streak exactly as it was, never trips the auto-pause, and the routine stays on its schedule. */
+      const spendPaused = !ok && !stopped && String(result.failureCode || '') === 'spend_history_unavailable';
       /* PAUSED WHILE IT RAN (review r7): pausing a routine writes pauseJob (enabled false, state 'paused') BEFORE its running fire is
          aborted, and the settlement then rewrote 'paused' to 'error' (or 'scheduled'), re-armed nextRunAt and — with prior failures —
          relabelled the Commander's own pause 'consecutive-failures'. deliveriesHeld read false, so the result went out at once instead
@@ -882,8 +890,9 @@
       next.retryCount = 0;
       next.retryAnchorAt = null;   // the occurrence is settled — the retry re-anchor must not outlive it
       next.occurrenceScope = null; // ...nor its idempotency scope: the next occurrence may send again
-      // CONSECUTIVE-FAILURE COUNTER (durable): terminal failures in a row; any ok/silent settlement resets it.
-      next.consecutiveFailures = ok ? 0 : stopped ? (Number(job.consecutiveFailures) || 0) : ((Number(job.consecutiveFailures) || 0) + 1);
+      // CONSECUTIVE-FAILURE COUNTER (durable): terminal failures in a row; any ok/silent settlement resets it. A stop and a
+      // spend-check pause (B1, header) leave it as it was.
+      next.consecutiveFailures = ok ? 0 : (stopped || spendPaused) ? (Number(job.consecutiveFailures) || 0) : ((Number(job.consecutiveFailures) || 0) + 1);
       next.lastRunAt = iso(now);
       next.repeat = Object.assign({}, job.repeat, { completed: ((job.repeat && job.repeat.completed) || 0) + 1 });
       const exhausted = next.repeat.times != null && next.repeat.completed >= next.repeat.times;
@@ -903,7 +912,7 @@
       } else if (stopped) {
         next.state = 'scheduled';              // a stop is no failure: the routine stays on its schedule (nextRunAt as planTick advanced it)
         next.nextRunAt = job.nextRunAt || armAt(job.schedule, next.lastRunAt, now, ctx && ctx.defaultTz);
-      } else if (maxConsecutive > 0 && next.consecutiveFailures >= maxConsecutive) {
+      } else if (!spendPaused && maxConsecutive > 0 && next.consecutiveFailures >= maxConsecutive) {
         // AUTO-DISABLE: N terminal failures in a row means the routine is broken, not unlucky — re-arming it
         // forever would spend forever. Pause it durably with a governed reason; the finalization (which rides
         // the normal delivery path) tells the Commander, and resumeJob clears the streak on re-enable.
@@ -913,10 +922,11 @@
         next.disabledReason = 'consecutive-failures';
         next.disabledAt = iso(now);
         next.finalization.error = String(next.finalization.error || 'The run failed.')
-          + '\n\nRoutine paused after ' + next.consecutiveFailures + ' consecutive failures. Fix it, then re-enable it from ROUTINES.';
+          // ENABLE is on the routine's row in AUTOMATE › SCHEDULES (windows/routines.js); ROUTINES is no door any more
+          + '\n\nRoutine paused after ' + next.consecutiveFailures + ' consecutive failures. Fix it, then re-enable it from AUTOMATE › SCHEDULES.';
       } else {
         next.nextRunAt = armAt(job.schedule, next.lastRunAt, now, ctx && ctx.defaultTz) || job.nextRunAt;  // re-arm defensively
-        next.state = 'error';                  // visible, but enabled stays true
+        next.state = 'error';                  // visible, but enabled stays true (a recurring routine's spend-check pause lands here: B1)
       }
       return next;
     });

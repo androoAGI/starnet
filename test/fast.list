@@ -935,6 +935,7 @@ test/cron.chain.test.js
 test/sample-verdict.test.js
 test/cron.tick.test.js
 test/cron.hardening.test.js
+test/cron.spend-pause.test.js
 test/cron.reliability-ramp.test.js
 test/cron.english.test.js
 test/cron.dst.test.js

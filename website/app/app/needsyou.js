@@ -198,6 +198,17 @@ const NeedsYou = (() => {
     return feedsLoading;
   }
 
+  /* the way out a routine fire's session names (B1, stabilization plan C0-5): autosessions.js failedMarker stamps `why` on the fire's
+     end line when StarNet's spend check paused or refused it (spend history incomplete: COUNT AS, or set that limit to 0, in the
+     chat's words). Read from the end; '' for every other fire, whose row reads as before. */
+  function fireWhyOf(ws) {
+    const h = ws && Array.isArray(ws.history) ? ws.history : [];
+    for (let i = h.length - 1; i >= 0; i--) {
+      const m = h[i];
+      if (m && m.sys && m.marker === 'fire-end') return typeof m.why === 'string' ? m.why.trim().slice(0, 400) : '';
+    }
+    return '';
+  }
   // the live list, most urgent first: asks (oldest waiting first), then what failed (newest first)
   function items(now) {
     now = Number(now) || Date.now();
@@ -242,8 +253,9 @@ const NeedsYou = (() => {
       const kind = ws.lastRunOk === false ? 'failed' : (ws.lastRunOk == null && ws.lastRunReason && typeof RunOutcome !== 'undefined') ? RunOutcome.ofWord(ws.lastRunReason).outcome : '';
       if (!/^cron-/.test(String(ws.id)) || !kind || kind === 'stopped' || kind === 'succeeded' || !(Workstreams.unread && Workstreams.unread(ws))) continue;
       const name = (ws.automation && ws.automation.name) || ws.title || 'routine';
+      const tip = fireWhyOf(ws);   // B1: a fire the spend check paused names its way out (COUNT AS) on the row's hover line
       out.push({ key: 'routine:' + ws.id, kind: 'routine', oc: kind, wsId: ws.id, who: nameOf(ws.agentId), aid: ws.agentId, what: 'routine "' + name + '" ' + (kind === 'failed' ? 'failed' : kind === 'asked' ? 'asked you a question' : 'did not finish — ' + RunOutcome.line({ outcome: kind })), routineName: name,
-        where: 'ROUTINES', since: Number(ws.lastActiveAt) || 0, routineId: (ws.automation && ws.automation.id) || '' });
+        ...(tip ? { tip } : {}), where: 'ROUTINES', since: Number(ws.lastActiveAt) || 0, routineId: (ws.automation && ws.automation.id) || '' });
     }
     blockingWaits(out, now);
     // the asks a running conversation is stopped on (they auto-deny on a timer) lead, oldest first as ever (a group with no
