@@ -1,0 +1,10 @@
+{
+  "id": "yellowminion",
+  "track": "type",
+  "dir": "north",
+  "job": "3c887d15-6ac7-463e-856e-16a318a37a5c",
+  "result": "frames: 5\nhttps://api.pixellab.ai/mcp/images/3c887d15-6ac7-463e-856e-16a318a37a5c/download?index=0",
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/yellowminion/minimax/type-north/3c887d15-6ac7-463e-856e-16a318a37a5c/4.png",
+  "frameCount": 5
+}

@@ -1,0 +1,7 @@
+{
+  "id": "yellowminion",
+  "skin": "yellowminion",
+  "targetStandingHeight": 19,
+  "characterId": "642a1c26-281e-4bc7-9a1c-121e4806cb31",
+  "detail": "status: completed\nid: 642a1c26-281e-4bc7-9a1c-121e4806cb31\nrotations:\n  south: https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/642a1c26-281e-4bc7-9a1c-121e4806cb31/rotations/south.png?t=1\n  east: https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/642a1c26-281e-4bc7-9a1c-121e4806cb31/rotations/east.png?t=1\n  north: https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/642a1c26-281e-4bc7-9a1c-121e4806cb31/rotations/north.png?t=1\n  west: https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/642a1c26-281e-4bc7-9a1c-121e4806cb31/rotations/west.png?t=1\n  south-east: https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/642a1c26-281e-4bc7-9a1c-121e4806cb31/rotations/south-east.png?t=1\n  north-east: https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/642a1c26-281e-4bc7-9a1c-121e4806cb31/rotations/north-east.png?t=1\n  north-west: https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/642a1c26-281e-4bc7-9a1c-121e4806cb31/rotations/north-west.png?t=1\n  south-west: https://backblaze.pixellab.ai/file/pixellab-characters/1ff7d2cf-cfe6-44f9-9533-9eea41eb05cb/642a1c26-281e-4bc7-9a1c-121e4806cb31/rotations/south-west.png?t=1\n"
+}
