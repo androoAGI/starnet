@@ -1825,6 +1825,17 @@
     const TOOL_ARGS_MAX_MS = ceilingOf(limits.toolArgsMaxMs, 10 * 60 * 1000);
     const TOOL_ARGS_NOTE_STEP = 32 * 1024;   // the wait line's "N KB written" moves in these steps
     const hasClock = !!(clock && typeof clock.now === 'function');
+    /* A LOCAL RUNTIME is one the adapter already knows is local: the OLLAMA card's native wire (localRuntime), or an endpoint on
+       this computer or this network (endpointFacts(model).local: loopback or a private address, endpoint-facts.js), which is
+       where LM Studio, vLLM, llama.cpp or Jan sit on the CUSTOM card (review56 R56-1-D1: a 12 KB page from a slow local model
+       there ran past the time ceiling and was never written). Read off the provider and model the call streams on. */
+    function localEndpoint() {
+      if (!provider) return false;
+      if (provider.localRuntime) return true;
+      if (typeof provider.endpointFacts !== 'function') return false;
+      try { const f = provider.endpointFacts(model); return !!(f && f.local === true); }
+      catch (e) { failNote('loop.endpointFacts', e); return false; }
+    }
     // An abort linked to the run's: aborting it stops the provider call in flight and leaves the run running. A run
     // signal that is no event target (a caller's plain { aborted } object) is handed on as it always was, and cannot abort.
     // ONE link serves every call of the run (callAbort below, released by end()): claude-cli keeps its child across a
@@ -2844,7 +2855,7 @@
             else if (ev.type === 'reasoning') { if (ev.block) acc.reasoning.push(ev.block); }
             else if (ev.type === 'tool_start') {
               acc.toolCalls[ev.index] = { id: ev.id, name: ev.name, args: '' }; waiting.resume('streaming');
-              argsStream.set(ev.index, { name: String(ev.name || 'tool'), chars: 0, startedAt: hasClock ? waitClock() : null, noted: 0 });
+              argsStream.set(ev.index, { name: String(ev.name || 'tool'), chars: 0, startedAt: hasClock ? waitClock() : null, noted: 0, local: localEndpoint() });
             }
             else if (ev.type === 'tool_args') {
               const chunk = String(ev.chunk || '');
@@ -2854,7 +2865,7 @@
               if (call) {
                 call.chars += chunk.length;
                 const tookMs = call.startedAt != null ? Math.max(0, waitClock() - call.startedAt) : 0;
-                const timed = call.startedAt != null && !(provider && provider.localRuntime);
+                const timed = call.startedAt != null && !call.local;
                 if (call.chars > TOOL_ARGS_MAX_CHARS || (timed && tookMs > TOOL_ARGS_MAX_MS)) {
                   runaway = { name: call.name, chars: call.chars, ms: tookMs, bySize: call.chars > TOOL_ARGS_MAX_CHARS };
                   if (!attempt.abortable) break;   // nothing to abort the call with: stop reading it

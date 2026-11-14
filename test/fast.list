@@ -1848,3 +1848,5 @@ test/history-edit.invariant.test.js
 test/cross-run-replay.test.js
 test/batched-ageing.test.js
 test/batched-ageing.invariant.test.js
+test/loop.tool-args-local-endpoint.test.js
+test/granted-context.approval-line.test.js

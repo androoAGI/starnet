@@ -174,7 +174,7 @@ for (const row of G.INPUTS) {
     A.ok(Object.prototype.hasOwnProperty.call(GATES, v), row.id + ' (' + row.granted + '): ' + v + ' has a gate this test checks');
     if (GATES[v]) for (const re of [].concat(GATES[v])) A.ok(re.test(CORE), row.id + ' (' + row.granted + '): ' + v + ' is gated in runOnceCore (' + String(re).slice(0, 90) + ')');
   }
-  if (!row.vars.length && row.granted === 'withheld') A.ok(/^(commander-dossier|active-goal|standing-brief|project-house-rules|persona-crew-line|persona-learned-tail)$/.test(row.id) || false,
+  if (!row.vars.length && row.granted === 'withheld') A.ok(/^(commander-dossier|active-goal|standing-brief|project-house-rules|persona-crew-line|persona-approval-line|persona-learned-tail)$/.test(row.id) || false,
     row.id + ': an input with no name of its own rides the system, which a granted run rebuilds (above)');
 }
 // the run that counts, and what decides it
