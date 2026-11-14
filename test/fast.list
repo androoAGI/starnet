@@ -1862,6 +1862,7 @@ test/history-edit.invariant.test.js
 test/cross-run-replay.test.js
 test/batched-ageing.test.js
 test/batched-ageing.invariant.test.js
+test/batched-ageing.signin.invariant.test.js
 test/native-defer.invariant.test.js
 test/batch-hint.test.js
 test/delegation-hint.test.js

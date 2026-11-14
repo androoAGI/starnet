@@ -347,6 +347,56 @@
     return null;
   }
 
+  /* signInCacheRatesOf(route, id) -> { read, write } | null   WHAT A SIGN-IN'S MODEL IS WEIGHED WITH, AS A PROXY (cost
+     lane 2026-11-14). For batched ageing's payback alone (history-edit.js, through cost.js signInCacheRates, and only
+     with STARNET_AGEING_SIGNIN on); billing never asks, and a sign-in stays unpriced everywhere.
+     A plan has no price, and how its usage window counts a cached token next to a fresh one is not published. The
+     payback, R x F x r > T x (w - r), still needs r and w. On the routes of SIGNIN_PROXY it takes the model's LIST cache
+     rates, each from the side that can only make a batch harder to pass than the plan's own weights would:
+       · r, the read: what each token a batch takes out of a later request is credited. A plan that counts a cached
+         token at MORE than the list ratio (up to 1.0x: every token the same) saves more per aged token than it was
+         weighed at, so the list ratio under-credits. r is the family's lowest documented read (OpenAI: 0.10x on every
+         gpt-5.x; nothing here documents a cheaper one).
+       · w, the write: what each token the next request re-processes instead of reading costs. A plan that counts a
+         token written to the cache above a fresh one would make the re-write dearer than the list says. OpenAI lists
+         no write charge (1.00x), yet GPT-5.6 and later report cache_write_tokens as a count of their own, so w is
+         never under SIGNIN_WRITE_FLOOR: the 1.25x the planner assumes of a cached route that publishes nothing
+         (history-edit.js AGE_ASSUMED_RATES). Dearer than the list: a batch only gets harder to pass.
+       · NOT BOUNDED BY ANY LIST RATE: a plan that counts a cached token at LESS than the list read. A batch is then
+         credited more than it saves. Replayed on the cost audit's three recorded long runs (the real planner, a prefix
+         cache at message granularity): the batches these rates pass cost the whole run less at any plan read weight
+         above about 0.02x of a fresh token (at the list's 0.10x: 20.4%, 32.9% and 40.2% less; with every token counted
+         the same: 35.6%, 44.0%, 53.9%), and more below it (cached tokens counted free: 15.4% and 22.7% more on two of
+         the three). Only a real run on the sign-in can tell where the plan sits; the switch stays off until one has.
+     THE ROUTES:
+       · 'codex', the ChatGPT sign-in (providers/codex.js): the whole input goes out on every request (store: false,
+         the provider holds no history), the backend caches the longest prefix an earlier request sent (measured there:
+         99% of a 21k-token prefix read from the second call) and reports cached_tokens. So where a read lands after an
+         edit is the automatic-prefix rule the priced OpenAI routes already weigh with (history-edit.js readFloor: up to
+         the edit), and the rates are the OpenAI family's. Only the gpt-5.x models it serves: any other id has no
+         documented rate here and never ages.
+       · 'claude-cli' (a Claude sign-in) is NOT here, on purpose: it never ages. An edited earlier message closes the
+         persistent child for a fresh one (claude-cli.js IN SYNC OR START FRESH), which re-sends the whole run as a
+         rendered transcript on the run-start tool list and writes it at the 1-hour tier (2.0x); the child's own turns
+         are gone. The audit's replay of batches there saved -8.2% / +1.2% / +5.0% of weighted cost (a loss on its
+         shortest run), reasoned from code with no real child measured, and the same route bills real dollars on an
+         API-key login.
+       · every other sign-in (Grok, Kimi) and every local model: no documented cache rates, never aged, as before.
+     Matched on the bare id, as cacheRatesOf is. An operator price override never reaches these. */
+  const SIGNIN_WRITE_FLOOR = 1.25;
+  const SIGNIN_PROXY = Object.freeze({
+    codex: Object.freeze({ family: 'openai', served: /^gpt-5(?![0-9])/i })
+  });
+  function signInCacheRatesOf(route, id) {
+    const r = String(route == null ? '' : route).trim().toLowerCase();
+    const proxy = Object.prototype.hasOwnProperty.call(SIGNIN_PROXY, r) ? SIGNIN_PROXY[r] : null;
+    if (!proxy) return null;
+    const key = String(id == null ? '' : id).trim().split('/').pop();
+    const fam = CACHE[proxy.family];
+    if (!key || !proxy.served.test(key) || !fam || !TABLES[proxy.family].some(([re]) => re.test(key))) return null;
+    return { read: fam.read, write: Math.max(fam.write, SIGNIN_WRITE_FLOOR) };
+  }
+
   // Operator overrides, parsed ONCE and tolerant of garbage — a typo in the env must never wedge a run
   // (same discipline as SKYNET_ANTHROPIC_MAX_TOKENS in anthropic.js). Longest matching key wins, so a full
   // model id beats a family prefix.
@@ -447,5 +497,5 @@
     return promptTierTokens(id);
   }
 
-  return { priceOf, pricingBlock, setLiveLookup, promptTierTokens, promptTierCeiling, cacheRatesOf, _internals: { ANTHROPIC, GEMINI, OPENAI, XAI, GROQ, MISTRAL, DEEPSEEK, TOGETHER, FIREWORKS, TABLES, CACHE, OVERRIDES, PROMPT_TIERS, BILLED_COST_ROUTES } };
+  return { priceOf, pricingBlock, setLiveLookup, promptTierTokens, promptTierCeiling, cacheRatesOf, signInCacheRatesOf, _internals: { ANTHROPIC, GEMINI, OPENAI, XAI, GROQ, MISTRAL, DEEPSEEK, TOGETHER, FIREWORKS, TABLES, CACHE, OVERRIDES, PROMPT_TIERS, BILLED_COST_ROUTES, SIGNIN_PROXY, SIGNIN_WRITE_FLOOR } };
 });

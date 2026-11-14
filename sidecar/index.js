@@ -26435,7 +26435,7 @@ async function runOnceCore(o) {
   { const gone = runKeyGone(provider); if (gone) { endUnstarted(gone, false); return; } }
   let activeProviderId = providerId;
   auxVisionProvider = provider; studioModelProvider = provider;   // late-bind the aux vision route + the studio model's catalog to the run's real provider (see makeImageTools above)
-  let cost = makeCostEngine({ priceOf: provider.priceOf });
+  let cost = makeCostEngine({ priceOf: provider.priceOf, route: providerId });   // route: read by signInCacheRates alone (batched ageing's sign-in proxy), never by a price
 
   // Settings selects from the OpenRouter catalog. Its saved model strings therefore name OpenRouter routes,
   // including legacy saves. StarNet keeps its existing managed catalog route; it must not switch payers.
@@ -26560,7 +26560,7 @@ async function runOnceCore(o) {
       fbProvider = runWatch.watch(selectProvider({ provider: fbProviderId, fetch: globalThis.fetch, key: fbKey, baseUrl: fbBaseUrl, reasoningEffort }), fbProviderId, fbKey, { sentByCaller: fb.keyInRequest === true && fbKey === String(fb.key || fb.apiKey || fb.api_key || '').trim() });
     }
     // its limits (billing-class.js): unmetered, maxCostUsd (its PER RUN under the run's cap), maxUnpricedTokens
-    providerFallbacks.push(Object.assign({ provider: fbProvider, providerId: fbProviderId, model: fbModel, credKey: fbKey || null, cost: makeCostEngine({ priceOf: fbProvider.priceOf }) }, fbBilling.entry));
+    providerFallbacks.push(Object.assign({ provider: fbProvider, providerId: fbProviderId, model: fbModel, credKey: fbKey || null, cost: makeCostEngine({ priceOf: fbProvider.priceOf, route: fbProviderId }) }, fbBilling.entry));
   }
   if (fbUnsaid) {
     runNotices.push('and ' + fbUnsaid + ' more fallback' + (fbUnsaid === 1 ? '' : 's') + ' on a provider this station does not know ' + (fbUnsaid === 1 ? 'was' : 'were') + ' skipped');
@@ -28470,6 +28470,11 @@ async function runOnceCore(o) {
       // W2.1 batched ageing: old tool results and successful write arguments leave the request view in batches that pay
       // for themselves (history-edit makeAgeing). OFF until an A/B on real models passes (on: STARNET_BATCHED_AGEING=1)
       batchedAgeing: /^(1|true|yes|on)$/i.test(String(ENV('BATCHED_AGEING') || '').trim()),
+      // ...and on a SIGN-IN route (the ChatGPT sign-in's gpt-5.x): a plan publishes no cache weights, so its batches are
+      // weighed at the model's list cache rates as a proxy (cost.js signInCacheRates, which knows the route its engine was
+      // built for: the run's and each provider fallback's). OFF by default, and it only does anything while batched
+      // ageing is on (on: STARNET_AGEING_SIGNIN=1). Off, a sign-in route never ages and every request is the one sent without it
+      ageingSignIn: /^(1|true|yes|on)$/i.test(String(ENV('AGEING_SIGNIN') || '').trim()),
       // W3.7 the Claude Code replay ledger: the conversation this run continues ('' = off: STARNET_CLI_REPLAY_LEDGER, cliReplayStream)
       cliReplayStream: cliReplayStream({ streamId, agentId, stablePrefix, internal, recovery: o.recovery, groupTools: o.groupTools, granted: grantedRun, delegatedBy: o.delegatedBy }),
       cliReplayEpoch,
