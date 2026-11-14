@@ -88,6 +88,14 @@ for (const screen of ['#screen-connect', '#screen-future', '#screen-recovery', '
   A.ok(css.includes(screen) && /\.ov-panel \{[^}]*--vx-frame/.test(css), screen + ' is a framed VECTOR screen');
 }
 A.ok(/\.term:not\(\.pw\) \.term-title::before/.test(css), 'every window title carries the lit lead mark');
+// LITE EFFECTS (css/litefx.css, on through body.sn-lite-glass on a weak machine) fills a window's own box opaque. A VECTOR
+// window's box is empty by design: its screen is the opaque ::before, so the fill only showed as dark wedges outside the
+// bezel's round top corners (measured 2026-11-13 on the 0.15.2 candidate: about 6 x 6 px at the top left). The box stays
+// empty, and the rule carries two ids so it outranks that sheet's own (one id, both !important)
+A.ok(/\nhtml body\.vx\.sn-lite-glass:not\(\.hud-mode\) #screen-game #terms \.term:not\(\.pw\) \{ background-color: transparent !important; \}/.test(css),
+  'a VECTOR window keeps its empty box under LITE EFFECTS (no dark wedge outside the bezel’s round corners)');
+A.ok(/\.term:not\(\.pw\)::before \{[^}]*var\(--vx-black\);/.test(css) && /--vx-black: #000106;/.test(css),
+  'the window’s screen is opaque on its own, so the lite fill has nothing to do behind it');
 
 // ---- the world keeps its own colours (Andrew 2026-11-08: "it should only apply to the dashboard not add filters to
 // the world itself"). The identity is chrome around the station view, never a tint or filter on it ----

@@ -1076,6 +1076,12 @@ html body.vx:not(.hud-mode) .term:not(.pw)::before {
   box-shadow: inset 0 0 0 1px rgba(var(--ph-rgb), .5), inset 0 0 22px rgba(var(--ph-rgb), .14), inset 0 8px 18px rgba(0, 0, 0, .85);
 }
 
+/* LITE EFFECTS (css/litefx.css: a weak machine, or an OS that asks for less transparency) fills a window's own box with an
+   opaque colour, so the floor cannot show sharp through a face that has lost its frost. A window here never had frost: its
+   screen (::before) is opaque glass on --vx-black and its own box is empty, so that fill showed only as two dark wedges
+   outside the bezel's round top corners. The box stays empty (two ids outrank that sheet's rule, which carries one) */
+html body.vx.sn-lite-glass:not(.hud-mode) #screen-game #terms .term:not(.pw) { background-color: transparent !important; }
+
 /* the chassis is ONE moulded shell (the media-player bodies): smooth gunmetal with broad soft highlights, no ribbing */
 html body.vx:not(.hud-mode) #screen-game.active {
   background:
