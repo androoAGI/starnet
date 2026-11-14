@@ -47,7 +47,7 @@ try {
     autonomyLedger: { list: () => [] }, nightshiftBeliefMap: () => ({}), Recommendation: { preferenceTallies: () => ({}) },
     nightshiftPreferenceWeights: () => ({}), stationTrackRecordLines: () => [], threadsStore: { openThreads: () => [] },
     personalizationStore: { read: () => ({ enabled: false }) }, commanderDossier: { get: () => '' }, redact: text => text,
-    failNote(tag, error) { throw error; } };
+    failNote(tag, error) { throw error; }, slimNoteOn: () => false };   // STARNET_SLIM_NOTE off, the default
   vm.createContext(sandbox);
   for (const name of ['evidenceRows', 'nightshiftContextPack', 'commanderEvidenceInputs']) vm.runInContext(sidecarFunctionSource(name), sandbox);
   const evidence = sandbox.evidenceRows({});

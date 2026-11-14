@@ -137,6 +137,7 @@ const { recoverToolResult } = require('./tool-recovery.js'); // bounded retry fo
 const transcriptStoreModule = require('./transcriptstore.js');
 const TurnView = require('./turn-view.js');
 const CrossRunReplay = require('./cross-run-replay.js');   // W1.8: earlier runs' replayed results ride as a head and a handle, in a window
+const SlimNote = require('./slim-note.js');   // cost lane: the slim per-run note (STARNET_SLIM_NOTE, off by default)
 const OverseerDelivery = require('./overseer-delivery.js');
 const { makeTranscriptStore } = transcriptStoreModule;
 const { makeRunJournal, DISPATCH_BOUNDARY_MODEL, quotesForgotten: journalQuotesForgotten } = require('./run-journal.js');
@@ -4369,6 +4370,10 @@ function effortAsRun(provider, model, sent, req) {
    one), parsed by the pure CrewDefaults.mode. Read at each use, like ENV('LEAN_CREW') and ENV('AUX_EFFORT'). Off by
    default; not STARNET_LEAN_CREW, the zero-crew diet (crew-diet.js), which is on by default. */
 function crewDefaultsMode() { return CrewDefaults.mode(ENV('CREW_DEFAULTS')); }
+/* slimNoteOn — the SLIM PER-RUN NOTE switch (sidecar/slim-note.js), read here and nowhere else: STARNET_SLIM_NOTE through
+   ENV(), parsed by the pure SlimNote.on ('1' is on; '0', anything else and unset are off). Read at each use, like the
+   switch above. Off by default: with it off no caller reaches slim-note.js and every request is as it was. */
+function slimNoteOn() { return SlimNote.on(ENV('SLIM_NOTE')); }
 /* crewEffort — LEANER CREW DEFAULTS, the effort half (W3.3: CrewDefaults.effortRule decides, this host applies it). A CREW
    run (a worker, a clone, a line stage: CrewDefaults.surfaceOf) whose effort is its class's applied default above medium
    asks for medium per request; the run after a failed verify (o.crewRetry: a review gate sent the work back, a structured
@@ -10822,7 +10827,9 @@ function commanderEvidenceInputs(evidence) {
   const learning = personalizationStore.read().enabled;
   try { topics = learning ? Interests.summary(interestsState, { trustedOnly: true, now: Date.now(), limit: 8 }) : []; } catch (_) {}
   try { threads = threadsStore.openThreads(6); } catch (_) {}
-  try { activity = (nightshiftContextPack(evidence).activityLines || []).slice(0, 8); } catch (_) {}
+  // SLIM NOTE (slim-note.js): the pack's pool names a finished task twice, as its brief and as the chat line that asked for
+  // it; with the switch on a transcript row is listed once, before the same 8-line bound. Off: the pack's lines as they came.
+  try { const pack = nightshiftContextPack(evidence); activity = (slimNoteOn() ? SlimNote.activityLines(pack) : (pack.activityLines || [])).slice(0, 8); } catch (_) {}
   try { worksignal = learning ? String((scoutState.context && scoutState.context.worksignalSummary) || '') : ''; } catch (_) {}
   let goal = null; try { goal = commanderGoals.get() || null; } catch (_) {}
   let verdicts = null; try { verdicts = learning ? recommendationLedger.summary() : null; } catch (_) {}

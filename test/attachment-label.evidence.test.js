@@ -93,7 +93,8 @@ function hostAssembly(w) {
   const sandbox = { Map, Set, Date: { now: () => 100000 }, TrustedLearning, transcriptStore: w.store, runStore: { all: () => [...w.runs.values()], list: () => [...w.runs.values()].reverse() },
     sessionRunForgotten: () => false, runView: (_name, r) => r, taskBriefStore: { list: () => [] }, contextpack, commanderGoals: { get: () => null }, autonomyLedger: { list: () => [] }, nightshiftBeliefMap: () => ({}),
     Recommendation: { preferenceTallies: () => ({}) }, nightshiftPreferenceWeights: () => ({}), stationTrackRecordLines: () => [], redact: text => text, threadsStore: { openThreads: () => [] },
-    personalizationStore: { read: () => ({ enabled: false }) }, commanderDossier: { get: () => '' }, failNote(tag, error) { throw new Error(tag + ': ' + error.message); } };
+    personalizationStore: { read: () => ({ enabled: false }) }, commanderDossier: { get: () => '' }, failNote(tag, error) { throw new Error(tag + ': ' + error.message); },
+    slimNoteOn: () => false };   // STARNET_SLIM_NOTE off, the default
   vm.createContext(sandbox);
   for (const name of ['evidenceRows', 'nightshiftRecentRuns', 'nightshiftContextPack', 'commanderEvidenceInputs']) vm.runInContext(sidecarFunctionSource(name), sandbox);
   const pack = sandbox.nightshiftContextPack({});

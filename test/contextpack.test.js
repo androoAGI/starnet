@@ -340,6 +340,7 @@ A.eq(CP.dayTag(0, T), '', 'undated → empty tag');
       Date: { now: () => T },
       personalizationStore: { read: () => ({ enabled }) },
       nightshiftContextPack: () => { packReads++; return result.pack; },
+      slimNoteOn: () => false,   // STARNET_SLIM_NOTE off, the default (test/slim-note.test.js runs this reader with it on)
       threadsStore: { openThreads: () => [] },
       Interests: { summary: () => [] }, interestsState: {},
       scoutState: { context: {} }, commanderGoals: { get: () => null },
