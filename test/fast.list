@@ -873,6 +873,7 @@ test/reasoning-migration-0125.test.js
 test/model-reasoning-presets.test.js
 test/grok-reasoning-truth.test.js
 test/reasoning-dials.test.js
+test/dock-effort-wording.test.js
 test/provider-connections-ui.test.js
 test/newhero-reset.test.js
 test/harness-internal.test.js
