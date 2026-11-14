@@ -98,13 +98,14 @@ function grantedRun(surface, grants) {
 // The agent's own instructions: the persona's stable half, without the one-line YOUR CREW clause the page re-composes as
 // the crew changes (the same text index.js fullAccessDriveOf binds a Full Access agent to), and without the one-line
 // approval clause the page composes from the agent's approval posture (app.js approvalClause: "APPROVAL — ASK FIRST: ..."
-// or "AUTHORITY — FULL POWER: ..."). Turning Full Access on or off, a clamped raise or the upgrade's clamp re-composes that
-// line, and binding it silently dropped every grant of that agent's routines (review56 R2-3). Each line is removed from
+// or "AUTHORITY — FULL POWER: ...", and the reach-scoped Full Power clauses "AUTHORITY — FULL POWER INSIDE YOUR PROJECT
+// FOLDERS: ..." (TRUSTED PROJECT) and "AUTHORITY — FULL POWER ON YOUR REMOTE MACHINE: ..." (REMOTE SSH)). Turning Full Access on or off, a clamped raise
+// or the upgrade's clamp re-composes that line, and binding it silently dropped every grant of that agent's routines (review56 R2-3). Each line is removed from
 // what the grant binds AND from what the granted run is given, so nothing written on it reaches a granted run; a second
 // such line, words after it, or any other edit is still instructions. A granted run is given exactly this text, never the
 // persona's learned tail.
 const CREW_LINE = /\n\nYOUR CREW: [^\n]*/;
-const APPROVAL_LINE = /\n\n(?:AUTHORITY — FULL POWER|APPROVAL — ASK FIRST): [^\n]*/;
+const APPROVAL_LINE = /\n\n(?:AUTHORITY — FULL POWER(?: INSIDE YOUR PROJECT FOLDERS| ON YOUR REMOTE MACHINE)?|APPROVAL — ASK FIRST): [^\n]*/;
 function instructionsOf(system) {
   return LearnedTail.split(String(system == null ? '' : system)).stable.replace(CREW_LINE, '').replace(APPROVAL_LINE, '');
 }

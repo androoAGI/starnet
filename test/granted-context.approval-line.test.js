@@ -26,10 +26,15 @@ const fnAt = APP.indexOf('function approvalClause(a)');
 const fn = fnAt < 0 ? '' : APP.slice(fnAt, APP.indexOf('\n  }\n', fnAt));
 const lits = [];
 { const re = /return '((?:[^'\\]|\\.)*)';/g; let m; while ((m = re.exec(fn))) lits.push(m[1].replace(/\\'/g, '\'').replace(/\\n/g, '\n')); }
-A.eq(lits.length, 2, 'the page composes two approval clauses (' + lits.length + ')');
+// four since the 0.15.2 candidate: the reach fence (TRUSTED PROJECT) and REMOTE SSH each say where Full Power applies
+A.eq(lits.length, 4, 'the page composes four approval clauses (' + lits.length + ')');
 const FULL = lits.find(s => /^\n\nAUTHORITY — FULL POWER: /.test(s)) || '';
+const FENCED = lits.find(s => /^\n\nAUTHORITY — FULL POWER INSIDE YOUR PROJECT FOLDERS: /.test(s)) || '';
+const REMOTE = lits.find(s => /^\n\nAUTHORITY — FULL POWER ON YOUR REMOTE MACHINE: /.test(s)) || '';
 const ASK = lits.find(s => /^\n\nAPPROVAL — ASK FIRST: /.test(s)) || '';
 A.ok(FULL && FULL.indexOf('\n', 2) < 0, 'the FULL POWER clause is one line after its blank line');
+A.ok(FENCED && FENCED.indexOf('\n', 2) < 0, 'the TRUSTED PROJECT FULL POWER clause is one line after its blank line');
+A.ok(REMOTE && REMOTE.indexOf('\n', 2) < 0, 'the REMOTE SSH FULL POWER clause is one line after its blank line');
 A.ok(ASK && ASK.indexOf('\n', 2) < 0, 'the ASK FIRST clause is one line after its blank line');
 
 // a persona as composePersona builds it: identity, crew, foundation, voice, APPROVAL, purpose, context, standing orders
@@ -51,6 +56,11 @@ A.eq(G.instructionsOf(persona()), BASE, '(a) instructionsOf: the ask-first perso
 A.eq(G.instructionsOf(persona({ approval: FULL })), BASE, '(a) instructionsOf: the same agent with Full Access on is the same instructions');
 A.eq(bound(persona({ approval: FULL })), bound(persona()), '(a) Full Access turned on: the bound digest does not move');
 A.eq(bound(persona()), bound(persona({ approval: FULL })), '(a) Full Access turned off (stamped full, recomposed ask first): it does not move');
+// the reach-scoped clauses too: a TRUSTED PROJECT or REMOTE SSH agent's Full Access flip keeps its routines' grants
+A.eq(G.instructionsOf(persona({ approval: FENCED })), BASE, '(a) instructionsOf: a TRUSTED PROJECT agent with Full Access on is the same instructions');
+A.eq(G.instructionsOf(persona({ approval: REMOTE })), BASE, '(a) instructionsOf: a REMOTE SSH agent with Full Access on is the same instructions');
+A.eq(bound(persona({ approval: FENCED })), bound(persona()), '(a) TRUSTED PROJECT Full Access turned on: the bound digest does not move');
+A.eq(bound(persona({ approval: REMOTE })), bound(persona()), '(a) REMOTE SSH Full Access turned on: the bound digest does not move');
 A.eq(bound(persona({ approval: '' })), bound(persona()), '(a) a persona composed before the clause existed binds the same instructions');
 A.eq(G.instructionsOf(persona({ approval: FULL, tail: '\n\nWHAT YOU KNOW ABOUT YOUR COMMANDER (learned):\n- likes short notes' })), BASE, '(a) with the learned tail too');
 
