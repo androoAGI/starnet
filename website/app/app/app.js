@@ -2014,9 +2014,10 @@ const App = (() => {
     if (p !== normalizeProviderId(pickedProvider)) return;
     // DEFAULT = the curated MODEL_PICKS[provider][0] — NOT the alphabetical regex hit the old code used (which
     // drifted onto stale slugs while the right answer sat one inch below in the picks). defaultModelFor() covers
-    // providers without a curated pick (custom / ollama).
-    const picks = MODEL_PICKS[p];
-    let defId = (picks && picks[0] && picks[0].id) || defaultModelFor(p);
+    // providers without a curated pick (custom / ollama). The picks are read through modelPicksFor: OpenRouter's first
+    // one follows the catalog that was just loaded (W3.11), every other provider's are the curated list as written.
+    const picks = modelPicksFor(p, list);
+    let defId = (picks[0] && picks[0].id) || defaultModelFor(p);
     // A LOCAL catalog is exactly what is installed. The seed slug ('llama3.1') is only a name Ollama resolves if that
     // exact tag was pulled; prefilling it over a machine that has only qwen3:8b woke the agent on a model that does not
     // exist and failed its first run. Default to an installed model instead — one Ollama says can call tools.
@@ -2045,6 +2046,9 @@ const App = (() => {
       if (!inp.value) inp.value = defId || FALLBACK[0];   // default-fill even offline so WAKE works; the Commander can overtype
       inp.placeholder = 'type a model slug — e.g. ' + (defId || 'gpt-5.5');
     }
+    // the chip row was drawn before this catalog arrived: draw it from the picks the field was just filled from (an
+    // offline catalog is an empty list here, so the row is the curated picks as written)
+    buildModelPicks(list);
     if (el('model-pop') && !el('model-pop').hidden) renderModelPop();   // live-refresh an open popover after a provider switch
     // OLLAMA status = the catalog truth for this machine: a non-empty live list IS "ollama detected"; an empty one
     // reads "not detected yet" with the setup pointer — never a claim the sidecar didn't earn.
@@ -2124,6 +2128,24 @@ const App = (() => {
       { label: 'Llama 3.1 8B', id: 'llama3.1-8b', tag: '' }
     ]
   });
+  /* OPENROUTER'S DEEPEST PICK FOLLOWS THE CATALOG (cost audit W3.11, 2026-11-14). A provider's first pick is the model a new
+     Commander's empty field is filled with. OpenRouter's stayed Opus 4.8 ($5 / $25 per million tokens) after OpenRouter
+     listed Opus 5.5: the same "deepest" tier, the current generation, $4 / $20. The first pick becomes Opus 5.5 ONLY when
+     the LIVE catalog this page just loaded lists that exact id. A catalog that does not list it, an empty one, or the
+     offline seed list (rows marked fallback) keeps the pick as written above, so nothing is ever prefilled that the
+     provider did not name. Nothing else moves: no other provider's picks (StarNet credit, OpenAI, Anthropic, the Claude
+     CLI and Codex are untouched), no tier (deepest stays deepest; nobody is moved to a smaller model), and never a model
+     someone already chose (loadModels fills only an EMPTY field; a saved roster model is not read here at all).
+     ONE rule, read by the prefill (loadModels) and by the chip row (buildModelPicks), so the chip marked "deepest" is
+     always the model the field was filled with. `provider` is used as the caller has it, exactly as MODEL_PICKS was. */
+  const OPENROUTER_DEEPEST_WAS = 'anthropic/claude-opus-4.8';
+  const OPENROUTER_DEEPEST_NOW = Object.freeze({ label: 'Opus 5.5', id: 'anthropic/claude-opus-5.5', tag: 'deepest' });
+  function modelPicksFor(provider, catalog) {
+    const picks = MODEL_PICKS[provider] || [];
+    if (provider !== 'openrouter' || !picks.length || picks[0].id !== OPENROUTER_DEEPEST_WAS) return picks;
+    const listed = Array.isArray(catalog) && catalog.some(m => m && m.fallback !== true && m.id === OPENROUTER_DEEPEST_NOW.id);
+    return listed ? [OPENROUTER_DEEPEST_NOW].concat(picks.slice(1)) : picks;
+  }
   /* ---------- PHOSPHOR tint picker (the console-wide theme, surfaced at commission) ----------
      The station already ships four CRT phosphors (style.css body.theme-*) persisted by StationUI. We
      surface that choice up-front so the Commander sets the whole station's colour the moment they build
@@ -2195,11 +2217,12 @@ const App = (() => {
     const nm = el('np-mode'); if (nm) nm.textContent = approvalById(pickedApproval).np;
   }
 
-  function buildModelPicks() {
+  // catalog: the live catalog loadModels just loaded for the picked provider (none on the first draw, before it arrives)
+  function buildModelPicks(catalog) {
     const wrap = el('model-picks'); if (!wrap) return;
     wrap.innerHTML = '';
     if (isOAuthProviderId(pickedProvider)) return;   // discovered live per account; no static menu
-    (MODEL_PICKS[pickedProvider] || []).forEach(m => {
+    modelPicksFor(pickedProvider, catalog).forEach(m => {
       const b = document.createElement('button'); b.type = 'button';
       b.className = 'mp-chip'; b.dataset.id = m.id; b.title = m.id;
       b.appendChild(document.createTextNode(m.label));

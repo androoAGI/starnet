@@ -864,6 +864,7 @@ test/personality-no-sample.test.js
 test/modelpicker.test.js
 test/model-provider-reconcile.test.js
 test/managed-model-93.test.js
+test/onboarding-openrouter-pick.test.js
 test/modelpicker-credits-door.test.js
 test/batch-models.test.js
 test/model-catalog-truth.test.js
