@@ -151,6 +151,19 @@ escapes the job object, when its CLI dies on its own or the sidecar is hard-kill
   tool, and the tools section gains a short legend. Off, the file is byte-identical to before. Measured through the
   fake CLI on a fresh station: the default task call's file 77,617 -> 69,785 bytes, a crew lead's 85,621 -> 77,178.
   Not yet run against the real CLI: turn it on only after an A/B that counts tool-argument errors.
+- `STARNET_CLI_EFFORT=picked|all` (off by default, cost audit W3.8) sends a run's reasoning effort to the CLI as
+  `--effort`. Off, a main run's child gets no `--effort` and runs on the CLI's own default whatever the dial says (its
+  records say `cli-default`); only a request's own effort (self-talk and the background passes, at low) is sent.
+  `picked` sends the run's effort only when the Commander set it themselves for that agent (the roster row carries
+  `effortPicked`: the dock's effort press, `/reasoning`, `/fast`, a pin saved with another effort, the summon card's
+  own effort); a class-applied default stays on the CLI's default. `all` sends every run's effort. What is sent is
+  clamped per model by the resolver the Anthropic adapter uses (`sidecar/providers/effort-clamp.js`): Haiku 4.5 gets
+  no flag, the 4.6 family has no `xhigh` (it becomes `max`), `none` and `minimal` become `low`, and a chosen `high` or
+  `max` is never lowered. Every record names exactly the argv's value, or `cli-default`. With the switch on the
+  catalog lists each model's own levels, a child given `--effort` is not also handed the shell's
+  `CLAUDE_CODE_EFFORT_LEVEL`, and a CLI that refuses `--effort` as an unknown option is retried without it.
+  Cost direction: `picked` lowers usage for a picked low and raises it for a picked high or max (what the person
+  asked for); `all` also raises it for every class-high agent. Not yet run against the real CLI.
 
 Live, 2026-10-13, through the hermetic sidecar fixture, Haiku, the same 4-turn `tool_search` task. Each cell is cache
 read / cache written. Wall time per turn includes the tool run (under 0.2 s) and, on turn 1, the CLI start-up.

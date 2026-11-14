@@ -460,6 +460,7 @@ const App = (() => {
         a.reasoningEffort = eff;
         const storedAgent = agents.get(a.id); if (storedAgent) storedAgent.reasoningEffort = eff;
         noteEffortSource(a, 'pin'); if (storedAgent && storedAgent !== a) noteEffortSource(storedAgent, 'pin');   // W3.3: a hand pick
+        noteEffortPick(a, true); if (storedAgent && storedAgent !== a) noteEffortPick(storedAgent, true);   // W3.8: the Commander named this effort
       }
       // Away-workshop grant (W3): a plain per-agent consent flag. NOT a system-prompt field — it only
       // changes what an autonomous run is allowed to WRITE inside its own jail. Reaches the sidecar via
@@ -503,7 +504,10 @@ const App = (() => {
     // agent that never had one keeps its class effort.
     const hasEffort = (arguments.length >= 4);
     const e = String(effort || '').trim();
+    const effortWas = a.reasoningEffort || null;
     if (m ? hasEffort : hadPin) { a.reasoningEffort = (m && e) ? e : null; noteEffortSource(a, 'pin'); }   // W3.3: a pinned effort is a hand pick
+    // W3.8: a pin saved with ANOTHER effort names it; one saved with the effort the agent already had keeps the mark it had
+    if ((a.reasoningEffort || null) !== effortWas) noteEffortPick(a, !!a.reasoningEffort);
     if (agent && a.id === agent.id) {   // focused agent — apply live so the next run reflects the pin at once
       if (m) {
         if (typeof Harness !== 'undefined' && Harness.setModel) Harness.setModel(m);
@@ -978,12 +982,17 @@ const App = (() => {
     if (model || catalogInvalid) {
       if (typeof Harness !== 'undefined' && Harness.setProv) Harness.setProv(provider);
       if (typeof Harness !== 'undefined' && Harness.setModel) Harness.setModel(model);
+      const effortWas = agent.reasoningEffort || null;
       agent.model = model; agent.provider = provider; agent.reasoningEffort = effort;   // #4: keep model+provider+effort TOGETHER on the agent
       noteWirePin(agent);
       const stored = agents.get(agent.id);
       if (stored) { stored.model = model; stored.provider = provider; stored.reasoningEffort = effort; }
       // W3.3: a dock press (a model or an effort) is the Commander's own pick; a catalog-driven change keeps the marker it had
       if (sel.reason === 'model' || sel.reason === 'effort') { noteEffortSource(agent, 'pin'); if (stored && stored !== agent) noteEffortSource(stored, 'pin'); }
+      // W3.8: only the effort press names an effort. A model press or a catalog change carries the dial along: the mark stays
+      // while the effort did, and goes when the press moved it to a level nobody picked
+      if (sel.reason === 'effort') { noteEffortPick(agent, true); if (stored && stored !== agent) noteEffortPick(stored, true); }
+      else if ((effort || null) !== effortWas) { noteEffortPick(agent, false); if (stored && stored !== agent) noteEffortPick(stored, false); }
       const gtM = el('gt-model'); if (gtM) gtM.textContent = model;
       syncChannels();
       pushRoster();
@@ -1014,7 +1023,8 @@ const App = (() => {
              approvalMode: a.approvalMode || 'ask', executionProfile: executionProfileOf(a), workshop: !!a.workshop, purpose: a.purpose || null, specialtyId: a.specialtyId || null, docs: a.docs,
              skills: Array.isArray(a.skills) ? a.skills.slice() : [],   // Class Loadouts S1: per-agent skill package persists
              stats: a.stats || null, createdAt: a.createdAt,
-             ...((a.effortSource === 'class' || a.effortSource === 'pin') ? { effortSource: a.effortSource } : {}) };   // W3.3: only when set
+             ...((a.effortSource === 'class' || a.effortSource === 'pin') ? { effortSource: a.effortSource } : {}),   // W3.3: only when set
+             ...(a.effortPicked === true ? { effortPicked: true } : {}) };   // W3.8: only when set
   }
   // restore summoned crew from a save (older saves have no `agents[]` → just the hero, exactly as before).
   // DATA only — world bodies are spawned in enterGame once World.init has run.
@@ -1035,6 +1045,7 @@ const App = (() => {
                   skills: Array.isArray(s.skills) ? s.skills.slice() : [],   // Class Loadouts S1: restore the per-agent skill package
                   docs: s.docs, stats: (s.stats && typeof s.stats === 'object') ? s.stats : null, createdAt: s.createdAt || Date.now() };
       if (s.reasoningEffort && a.reasoningEffort === s.reasoningEffort && (s.effortSource === 'class' || s.effortSource === 'pin')) a.effortSource = s.effortSource;   // W3.3
+      if (s.reasoningEffort && a.reasoningEffort === s.reasoningEffort && s.effortPicked === true) a.effortPicked = true;   // W3.8
       agentDocs(a);
       a.systemPrompt = composeSystemPrompt(a);
       agents.set(a.id, a);
@@ -1175,6 +1186,21 @@ const App = (() => {
     if (source && a.reasoningEffort && crewDefaultsOn()) a.effortSource = source;
     else if (a.effortSource) delete a.effortSource;
   }
+  /* W3.8 (STARNET_CLI_EFFORT): THE EFFORT PICK. On the Claude sign-in route the station sends a run's effort to the CLI only
+     when the Commander set it THEMSELVES (the sidecar's effortPickedFor reads this mark off the roster row). The mark is
+     written at the hand action that names an effort: the dock's effort press, /reasoning and /fast (applyConfig), a pin
+     saved with another effort, the summon card's own effort. It is NOT the W3.3 marker above: 'pin' there means "not
+     written by the class" and also covers an effort a model press carried along, one copied from the Overseer at summon,
+     and one guessed for an agent from before that switch. Those are not picks, and neither is a class default. Written
+     only while the switch is on; while it is off a call here drops this agent's mark (nobody vouches for it any more). */
+  function cliEffortOn() { return typeof Harness !== 'undefined' && !!Harness.cliEffort && Harness.cliEffort() !== 'off'; }
+  function noteEffortPick(a, picked) {
+    if (!a) return;
+    if (picked && a.reasoningEffort && cliEffortOn()) a.effortPicked = true;
+    else if (a.effortPicked) delete a.effortPicked;
+  }
+  // the mark a roster row carries to the sidecar, only while the switch is on and only when set
+  function effortPickOf(a) { return (a && a.effortPicked === true && a.reasoningEffort && cliEffortOn()) ? { effortPicked: true } : {}; }
   // the marker a roster row carries to the sidecar's crew effort rule, only while the switch is on: an agent's own marker, else
   // (an agent from before the switch) an effort equal to its class default is the class's and anything else is a pin
   // (Andrew 2026-11-08). The Overseer's effort is the Commander's own dial: never a class default.
@@ -1198,6 +1224,7 @@ const App = (() => {
     }
     if (spec.reasoningEffort && !(pin && pin.effort)) a.reasoningEffort = spec.reasoningEffort;   // applied default; user can re-tune per agent
     noteEffortSource(a, (spec.reasoningEffort && !(pin && pin.effort)) ? 'class' : 'pin');   // W3.3: the class's default, or a pick (the bay's, or the copied one)
+    noteEffortPick(a, !!(pin && pin.effort));   // W3.8: only the summon card's own effort is a pick (never the class's, never the copied one)
     // per-agent skills: the class package. Recorded on the agent + pushed in the roster (sidecar unions them
     // ADD-only over the global prefs). Deduped copy so the frozen catalog array is never shared/mutated.
     if (Array.isArray(spec.skills) && spec.skills.length) {
@@ -1650,7 +1677,7 @@ const App = (() => {
       const list = liveAgents().map(a => ({ agentId: a.id, system: a.systemPrompt || '', name: a.name || a.id, model: a.model || '', provider: (a.model || a.id === 'agent') ? (a.provider || fallbackProv) : '', role: rosterRole(a), approvalMode: (a.approvalMode === 'full' ? 'full' : 'ask'), executionProfile: executionProfileOf(a),
         track: rosterTrack(a),    // S3: this agent's EARNED track record, so the lead's dispatch briefing can pick on evidence (see rosterTrack)
         workshop: !!a.workshop,   // W3: the away-build grant travels with the roster so the consent broker can honor it
-        skills: Array.isArray(a.skills) ? a.skills : [], reasoningEffort: a.reasoningEffort || null, ...effortSourceOf(a) }));   // #4: each agent's OWN provider; Class Loadouts S1: per-agent skill package + applied effort; W3.3: its marker (switch on only)
+        skills: Array.isArray(a.skills) ? a.skills : [], reasoningEffort: a.reasoningEffort || null, ...effortSourceOf(a), ...effortPickOf(a) }));   // #4: each agent's OWN provider; Class Loadouts S1: per-agent skill package + applied effort; W3.3: its marker (switch on only)
       // P1.1 (UPDATE_STATE_SAFETY_AUDIT): stamp a freshness `updatedAt` so the sidecar can refuse a STALE push (a
       // background tab / out-of-sync frontend whose roster is older than what the store already accepted). The
       // sidecar records the stamp of the last accepted write and 200s { ok:false, stale:true } on an older one;

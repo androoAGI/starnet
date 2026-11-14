@@ -28,15 +28,18 @@
    thrown as a 429 `usage_limit_reached`, which errorClass files as quota_exhausted: the loop rotates to the next
    account instead of retrying this one.
 
-   makeClaudeCliProvider({ spawn?, bin?, env?, configDir?, platform?, fs?, os?, idleMs?, statusTtlMs?, persist?, persistIdleMs?, persistEndGraceMs?, onRateLimit?, compactTools? })
+   makeClaudeCliProvider({ spawn?, bin?, env?, configDir?, platform?, fs?, os?, idleMs?, statusTtlMs?, persist?, persistIdleMs?, persistEndGraceMs?, onRateLimit?, compactTools?,
+                           reasoningEffort?, effortPicked?, effortMode? })
      onRateLimit(info): each run's `rate_limit_event` (its rate_limit_info: this sign-in's usage windows) — sub-usage.js
      compactTools: true = each tool's parameters ride as a signature instead of its JSON Schema (COMPACT TOOL TEXT at toolLines)
+     reasoningEffort, effortPicked, effortMode: the run's effort, whether the Commander picked it, and the host's
+       STARNET_CLI_EFFORT ('off' | 'picked' | 'all'): what a child's --effort is (THE EFFORT A CHILD IS GIVEN)
      -> { stream, listModels, release, persistStats, contextLimit, priceOf, supportsTools, reasoningEfforts, effortAsSent } */
 'use strict';
 (function (root, factory) {
-  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./provider.js'), require('./cache-ttl.js'), require('./tool-signature.js'));
-  else { root.SK = root.SK || {}; (root.SK.providers = root.SK.providers || {}).claudeCli = factory(root.SK.providers.provider, root.SK.providers.cacheTtl, root.SK.providers.toolSignature); }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (provider, cacheTtl, toolSignature) {
+  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./provider.js'), require('./cache-ttl.js'), require('./tool-signature.js'), require('./effort-clamp.js'));
+  else { root.SK = root.SK || {}; (root.SK.providers = root.SK.providers || {}).claudeCli = factory(root.SK.providers.provider, root.SK.providers.cacheTtl, root.SK.providers.toolSignature, root.SK.providers.effortClamp); }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (provider, cacheTtl, toolSignature, effortClamp) {
   'use strict';
 
   const timeouts = provider.timeouts;
@@ -63,14 +66,31 @@
     { id: 'haiku', name: 'Latest Claude Haiku · follows new releases' }
   ];
   const contextOf = id => { const m = MODELS.find(x => x.id === String(id || '')); return (m && m.context) || (/\[1m\]$/i.test(String(id || '')) ? 1000000 : DEFAULT_CONTEXT); };
-  const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
-  // The CLI is given an effort only per request: a level it offers rides as --effort (cliArgs), anything else sends no flag.
-  const effortOf = req => { const e = String((req && req.reasoningEffort) || '').trim().toLowerCase(); return EFFORTS.indexOf(e) >= 0 ? e : ''; };
-  /* effortAsSent(perRequest) -> what the CLI was given for a request carrying that effort: the level, or CLI_DEFAULT_EFFORT when
-     it got no --effort and ran on its own default (a main run: the station's effort dial is not wired to the CLI). Every
-     station record that names a claude-cli call's effort reads this, so a record and the argv can never disagree. */
+  /* THE EFFORT A CHILD IS GIVEN (cost audit W3.8). One decision, effortClamp.cliArgvEffort, read by the argv (cliArgs), by the
+     persistent child's key and by effortAsSent, so a record and an argv can never disagree. `cfg` is the adapter's:
+       { mode, built, picked } = the host's STARNET_CLI_EFFORT, the run's resolved effort, and whether the Commander picked it.
+     mode 'off' (the default, and what a missing cfg means): only an effort the REQUEST carries is sent (self-talk, a background
+       loop), as written when it is one of low..max; a main run's effort is not sent and the CLI runs on its own default.
+     mode 'picked': a request's own effort, else the run's effort when the Commander picked it; mode 'all': a request's own,
+       else the run's. Both clamp to what the model takes through the resolver the Anthropic adapter uses (effort-clamp.js:
+       Haiku 4.5 takes none, the 4.6 family has no xhigh, none and minimal become low), after this adapter's own aliases. */
+  const effortModel = id => { const k = String(id == null ? '' : id).replace(/\[1m\]$/i, ''); return ALIAS[k] || k; };
+  function effortFor(cfg, req) {
+    return effortClamp.cliArgvEffort({ mode: cfg && cfg.mode, model: effortModel(req && req.model), perRequest: req && req.reasoningEffort, built: cfg && cfg.built, picked: !!(cfg && cfg.picked) });
+  }
+  const effortOf = req => effortFor(null, req);   // no adapter: the off rule
+  /* effortAsSent(perRequest) -> what the CLI was given for a request carrying that effort with the switch off: the level, or
+     CLI_DEFAULT_EFFORT when it got no --effort and ran on its own default. An adapter answers for itself (its own
+     effortAsSent(id, perRequest) reads its switch, its run's effort and the model): every station record that names a
+     claude-cli call's effort reads that one, so a record and the argv can never disagree. */
   const CLI_DEFAULT_EFFORT = 'cli-default';
   function effortAsSent(perRequest) { return effortOf({ reasoningEffort: perRequest }) || CLI_DEFAULT_EFFORT; }
+  /* A CLI THAT DOES NOT KNOW --effort (one older than the flag) says so on stderr and exits before answering. With the switch
+     on a main run carries the flag, so such a CLI would fail every run: the adapter notes the refusal for that binary, stops
+     sending it the flag for the rest of this process's life, and the loop's retry runs on the CLI's own default (the record
+     then says 'cli-default'). Off: nothing here is read, and the argv is the one it always was. */
+  const NO_EFFORT_FLAG = new Set();   // the binaries that refused --effort
+  const EFFORT_REFUSED_RE = /(?:unknown|unrecognized|invalid) (?:option|argument|flag)\W{0,4}--effort/i;
   const CALL_OPEN = '<tool_call>';
   const CALL_CLOSE = '</tool_call>';
   const NO_TOOLS_ARGS = [
@@ -809,6 +829,15 @@
     // and a failed probe is never cached — the factory builds a fresh adapter per request anyway.
     const clock = (opts.clock && typeof opts.clock.now === 'function') ? opts.clock : null;
     const compactTools = opts.compactTools === true;   // COMPACT TOOL TEXT: the host's switch, fixed for this adapter's life
+    // THE EFFORT A CHILD IS GIVEN: the host's switch, the run's effort and whether it was picked, fixed for this adapter's life
+    const effortCfg = { mode: effortClamp.cliMode(opts.effortMode), built: String(opts.reasoningEffort == null ? '' : opts.reasoningEffort).trim(), picked: opts.effortPicked === true };
+    const effortOn = effortCfg.mode !== effortClamp.CLI_OFF;
+    let cliKey = '';   // which binary this adapter runs, once a turn has resolved it (A CLI THAT DOES NOT KNOW --effort)
+    const effortOf = req => (effortOn && cliKey && NO_EFFORT_FLAG.has(cliKey)) ? '' : effortFor(effortCfg, req);
+    /* With the switch on, a child that is given --effort is not also handed a CLAUDE_CODE_EFFORT_LEVEL the station's own shell
+       carries: the flag is what the record names, so it must be what runs. A child given no flag keeps the variable (that
+       is the CLI's own default, as the user set it up). Off: the env is the one it always was. */
+    const childEnvFor = req => { const env = childEnv(); if (effortOn && effortOf(req)) delete env.CLAUDE_CODE_EFFORT_LEVEL; return env; };
     // the CLI's own word on this sign-in's usage windows (a rate_limit_event line, every run): handed to the host as is
     const rateLimitSeen = info => { if (typeof opts.onRateLimit === 'function' && info) { try { opts.onRateLimit(info); } catch (e) { failNote('claudecli.ratelimit.reader', e); } } };   // a reader never breaks a run
     let status = null, statusAt = 0, statusPromise = null;
@@ -835,12 +864,19 @@
       return statusPromise;
     }
 
+    // what the catalog says of a model's effort: off, the flat list every model always published; on, the levels its
+    // --effort can carry (effortClamp.cliListFor), and a model that takes none says it has no effort control
+    function effortFacts(id) {
+      const list = effortClamp.cliListFor(effortCfg.mode, effortModel(id));
+      const reasons = !effortOn || list.length > 0;
+      return { supportsReasoning: reasons, supported_parameters: reasons ? ['tools', 'reasoning'] : ['tools'], reasoningEfforts: list };
+    }
     async function listModels() {
       const st = await probeStatus();
       if (!st.ok) throw st.error;
       return MODELS.map(m => ({
         id: m.id, name: m.name, context_length: m.context || DEFAULT_CONTEXT, max_completion_tokens: null, pricing: null,
-        supportsTools: true, supportsReasoning: true, supported_parameters: ['tools', 'reasoning'], reasoningEfforts: EFFORTS.slice(), fallback: true
+        supportsTools: true, ...effortFacts(m.id), fallback: true
       }));
     }
 
@@ -988,6 +1024,8 @@
         const result = t.result;
         if (!result) {
           const tail = String(exit.stderr || '').trim().split(/\r?\n/).slice(-3).join(' ').slice(0, 400);
+          // A CLI THAT DOES NOT KNOW --effort: noted for this binary, so the loop's retry is started without the flag
+          if (effortOn && cliKey && effortOf(req) && EFFORT_REFUSED_RE.test(String(exit.stderr || ''))) NO_EFFORT_FLAG.add(cliKey);
           throw new Error('Claude Code exited with code ' + exit.code + ' before answering' + (tail ? ': ' + tail : ''));
         }
         const billed = cost === undefined ? result : Object.assign({}, result, { total_cost_usd: cost });
@@ -1010,6 +1048,7 @@
       if (req.signal && req.signal.aborted) return;
       const cmd = command();
       if (!cmd) throw notInstalled();
+      cliKey = cmd.file + '\u0000' + cmd.pre.join('\u0000');
       // The persistent child serves the agent loop (a turn that carries tools). A side call (summary, vision, wire test)
       // or a second request while the child is mid-turn runs its own one-shot child and never touches it.
       const persistent = persistOn && Array.isArray(req.tools) && req.tools.length > 0 && !(session && session.busy);
@@ -1061,7 +1100,7 @@
            (code.claude.com/docs/en/env-vars). Probed on 2.1.316, subscription sign-in, Haiku, one ~17.8k-token prompt:
            default = cache write 17,820 (all 1h), input 2; with it = input 17,824, cache write 0. What that does to a plan's
            usage is not published, so nothing here claims a saving. Only this child gets it: agent-loop turns keep their cache. */
-        const env = childEnv();
+        const env = childEnvFor(req);
         if (req.neverReread === true) env.DISABLE_PROMPT_CACHING = '1';
         child = spawn(cmd.file, args, { env, cwd: os.tmpdir(), windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
       } catch (e) {
@@ -1215,7 +1254,7 @@
       fs.writeFileSync(sysFile, system, { encoding: 'utf8', mode: 0o600 });
       let child;
       try {
-        child = spawn(cmd.file, cliArgs(cmd, req, sysFile), { env: childEnv(), cwd: os.tmpdir(), windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+        child = spawn(cmd.file, cliArgs(cmd, req, sysFile), { env: childEnvFor(req), cwd: os.tmpdir(), windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
       } catch (e) {
         removeFile(sysFile);
         throw notInstalled();
@@ -1573,9 +1612,10 @@
          sends it every message as it was, and ages no screen capture out of it before its HELD_IMAGE_TURNS bound (loop.js
          SCREENSHOTS AGE OUT), since an edited earlier message closes the child for a fresh one that rewrites the run. */
       holdsHistory() { return persistOn; },
-      reasoningEfforts() { return EFFORTS.slice(); },
-      // what a request carrying `perRequest` gave the CLI (effortAsSent above): its --effort, else 'cli-default'
-      effortAsSent(id, perRequest) { return effortAsSent(perRequest); }
+      // the levels a model's --effort can carry: off, the flat list for every model; on, the model's own (none for Haiku 4.5)
+      reasoningEfforts(id) { return effortClamp.cliListFor(effortCfg.mode, effortModel(id)); },
+      // what a request for `id` carrying `perRequest` gives the CLI (THE EFFORT A CHILD IS GIVEN): its --effort, else 'cli-default'
+      effortAsSent(id, perRequest) { return effortOf({ model: id, reasoningEffort: perRequest }) || CLI_DEFAULT_EFFORT; }
     };
   }
 

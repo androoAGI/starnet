@@ -10836,13 +10836,19 @@ const Chat = (() => {
   // The dial reaches a message only on a route whose runs are given it: the provider registry's effortDialReachesRuns, the
   // one answer the terminal's lines read too (the Claude CLI is given no effort for a message, so its run records say
   // 'cli-default'). On any other route no line here may promise that it does.
-  function effortReachesModel() {
+  // W3.8: such a route may be WIRED by a station switch (STARNET_CLI_EFFORT, as GET /api/providers said it; the registry's
+  // effortDialWiring): effortReachesModel(true) -> '' | 'picked' | 'all'. Wired, the dial reaches a message.
+  function effortReachesModel(wiring) {
     const prov = (typeof Harness !== 'undefined' && Harness.getProv && Harness.getProv()) || '';
     const reg = typeof SK !== 'undefined' && SK.providers && SK.providers.registry;
-    return !(reg && typeof reg.effortDialReachesRuns === 'function') || reg.effortDialReachesRuns(prov);
+    const wired = (reg && typeof reg.effortDialWiring === 'function')
+      ? reg.effortDialWiring(prov, { cliEffort: (typeof Harness !== 'undefined' && Harness.cliEffort) ? Harness.cliEffort() : '' }) : '';
+    if (wiring) return wired;
+    return !(reg && typeof reg.effortDialReachesRuns === 'function') || reg.effortDialReachesRuns(prov) || !!wired;
   }
   function reasoningModelNote() {
     if (!effortReachesModel()) return ' Note: Claude Code runs your messages on its own default effort, so this setting does not change them.';
+    if (effortReachesModel(true) === 'picked') return ' Note: Claude Code is given an effort you set yourself; one that came from an agent\'s class runs on Claude Code\'s own default.';
     try {
       if (typeof ModelDock === 'undefined' || !ModelDock._internals || !ModelDock._internals.supportsReasoning) return '';
       const model = (Harness.getModel && Harness.getModel()) || '';

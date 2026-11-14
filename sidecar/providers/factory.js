@@ -101,6 +101,10 @@
      one env reader) and asked here each time a claude-cli adapter is built, so every adapter this factory builds (runs,
      extra accounts, aux one-shots, probes) follows the same switch and none reads the environment itself.
        compactTools() -> true: tools ride as signatures instead of JSON Schemas (claude-cli.js COMPACT TOOL TEXT)
+       effortMode()   -> 'off' | 'picked' | 'all': whether a run's effort reaches the CLI as --effort (claude-cli.js THE EFFORT
+                         A CHILD IS GIVEN). The adapter is handed the effort it is built with (opts.reasoningEffort, as every
+                         HTTP adapter is) and the host's word that the Commander picked it (opts.effortPicked); it sends
+                         neither while the mode is 'off', so every caller's argv is the one it always was.
      Attached once at boot; absent, or a reader that is not a function = every adapter is built exactly as before. */
   let claudeCliSwitches = null;
   function attachClaudeCli(readers) { claudeCliSwitches = (readers && typeof readers === 'object') ? readers : null; return claudeCliSwitches; }
@@ -296,7 +300,8 @@
       // configDir = an extra connected account (subscription stacking); absent = the CLI's default sign-in.
       return claudeCli.makeClaudeCliProvider({ clock: opts.clock, configDir: opts.configDir || undefined,
         onRateLimit: subUsage ? info => subUsage.observeClaude(opts.usageAccount || '', info) : undefined,
-        compactTools: claudeCliSwitch('compactTools') === true });
+        compactTools: claudeCliSwitch('compactTools') === true,
+        reasoningEffort: opts.reasoningEffort, effortPicked: opts.effortPicked === true, effortMode: claudeCliSwitch('effortMode') });
     }
     throw new Error('provider adapter is not wired: ' + profile.adapter);
   }
