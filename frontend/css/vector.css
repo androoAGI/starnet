@@ -3635,13 +3635,14 @@ html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .setti
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .settings-pane .key-list > .key-row > .key-main { flex: 1 1 200px; }
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .settings-pane .key-list > .key-row > .key-acts { flex-direction: row; justify-content: flex-end; margin-left: auto; }
 
-/* ====================================================================================================================
-   11-14 · AFTER THE FIRST TEST OF THE BUILD (Andrew: hovering an agent "will not visually react like it did before, it
-   seems to only constantly highlight the overseer" · "the needs you clearly wasnt updated to the new style" · "the search
-   bars in the menus like settings and others ... needs a newer style" · "hovering over settings buttons needs to more of
-   that glossy style" · "when you drag the comms all the way to the left, the little edge tabs dont align properly" ·
-   "the dashboard changes added a bit of lag")
-   ==================================================================================================================== */
+/* ============================================================
+   33 · THE FIRST TEST — what the first test of the build turned up (Andrew 2026-11-14: hovering an agent "will not
+   visually react like it did before, it seems to only constantly highlight the overseer" · "the needs you clearly wasnt
+   updated to the new style" · "the search bars in the menus like settings and others ... needs a newer style" ·
+   "hovering over settings buttons needs to more of that glossy style" · "drag the comms all the way to the left, the
+   little edge tabs dont align properly" · "fix the top bar on windows ... it should match the theme" · "the dashboard
+   changes added a bit of lag"). Paint and state only: no control, no word and no window is added or removed.
+   ============================================================ */
 
 /* ---- the roster answers the pointer. The roster's flat-screen rule (every row transparent, !important) had also
    flattened the three states a row has besides chosen: under the pointer, the agent the rail is narrowed to (a click),
@@ -3776,7 +3777,7 @@ html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term.sn-menu .con-ra
    screen). It was still the old flat black strip with a green hairline over a silver device. It is the device's top
    rail now: the same brushed silver with a lit lip and a dark seam where the housing begins, its mark a small lit
    lamp, its three controls the chrome domes every window head carries (close goes hazard red under the pointer) ---- */
-html body.vx:not(.hud-mode):not(.vx-b).sn-chrome #sn-titlebar {
+html body.vx:not(.hud-mode):not(.vx-b) #sn-titlebar {
   border-bottom: 0;
   background:
     var(--vx-veilg),
@@ -3785,27 +3786,43 @@ html body.vx:not(.hud-mode):not(.vx-b).sn-chrome #sn-titlebar {
     linear-gradient(180deg, #a7b0bb 0%, #6d7682 24%, #3a414a 60%, #1f2429 100%);
   box-shadow: inset 0 -1px 0 #050608, 0 1px 0 rgba(255, 255, 255, .16), 0 2px 6px rgba(0, 0, 0, .65);
 }
-html body.vx:not(.hud-mode):not(.vx-b).sn-chrome #sn-titlebar .sn-tb-mark {
+html body.vx:not(.hud-mode):not(.vx-b) #sn-titlebar .sn-tb-mark {
   padding: 0 12px 0 14px; font-size: 0; letter-spacing: 0; text-shadow: none;
 }
-html body.vx:not(.hud-mode):not(.vx-b).sn-chrome #sn-titlebar .sn-tb-mark::before {
+html body.vx:not(.hud-mode):not(.vx-b) #sn-titlebar .sn-tb-mark::before {
   content: ''; width: 9px; height: 9px; border-radius: 50%; pointer-events: none;
   background: radial-gradient(circle at 35% 30%, #fff 0, var(--vx-core) 30%, var(--ph) 70%);
   box-shadow: 0 0 0 1px #050608, 0 0 0 2px rgba(255, 255, 255, .28), 0 0 6px rgba(var(--ph-rgb), .9);
 }
-html body.vx:not(.hud-mode):not(.vx-b).sn-chrome #sn-titlebar .sn-tb-controls { align-items: center; gap: 6px; padding: 0 8px 0 0; }
-html body.vx:not(.hud-mode):not(.vx-b).sn-chrome #sn-titlebar .sn-tb-btn {
+html body.vx:not(.hud-mode):not(.vx-b) #sn-titlebar .sn-tb-controls { align-items: center; gap: 6px; padding: 0 8px 0 0; }
+html body.vx:not(.hud-mode):not(.vx-b) #sn-titlebar .sn-tb-btn {
   width: 34px; height: 22px; border-radius: 999px; color: #14181c;
   background: var(--vx-keyg), radial-gradient(ellipse at 38% 22%, #f4f7fa 0, #a9b2bd 30%, #4a525c 68%, #1c2126 88%, #6d7682 100%);
   box-shadow: 0 0 0 1px #050608, 0 1px 0 1px rgba(255, 255, 255, .22), 0 2px 3px rgba(0, 0, 0, .6);
 }
-html body.vx:not(.hud-mode):not(.vx-b).sn-chrome #sn-titlebar .sn-tb-btn:hover {
+html body.vx:not(.hud-mode):not(.vx-b) #sn-titlebar .sn-tb-btn:hover {
   color: #020604;
   background: var(--vx-keyg), radial-gradient(ellipse at 38% 22%, #fff 0, color-mix(in srgb, var(--vx-core) 60%, #a9b2bd) 34%, color-mix(in srgb, var(--ph) 60%, #1c2126) 76%, #6d7682 100%);
   box-shadow: 0 0 0 1px #050608, 0 1px 0 1px rgba(255, 255, 255, .22), 0 0 10px rgba(var(--ph-rgb), .55);
 }
-html body.vx:not(.hud-mode):not(.vx-b).sn-chrome #sn-titlebar .sn-tb-x:hover {
+html body.vx:not(.hud-mode):not(.vx-b) #sn-titlebar .sn-tb-x:hover {
   color: #fff;
   background: radial-gradient(ellipse at 38% 22%, #ffd9d4 0, #ff6a5c 34%, #c2241a 76%, #7a1009 100%);
   box-shadow: 0 0 0 1px #050608, 0 1px 0 1px rgba(255, 255, 255, .22), 0 0 10px rgba(255, 65, 54, .6);
 }
+
+/* ---- the lag. Every chrome surface darkens with the BRIGHTNESS knob through filter: brightness(1 - --vx-dim * k).
+   With the knob at 0 (the default, and where Andrew runs it) that is brightness(1): the same picture, but still an
+   offscreen pass per surface, redone whenever anything inside it changes (a key under the pointer, a letter typed).
+   Twelve surfaces paid it: both rail heads, the SESSIONS tabs and their add key, the composer, each bar group, the
+   two rail bezels, a window's bezel and both seams. While the station is not dimmed (stationui.js: body.vx-dimmed
+   only when the knob is above 0) those surfaces carry no brightness pass; the shadows that were chained to it stay.
+   The moment the knob moves, the rules above apply again, untouched ---- */
+html body.vx:not(.hud-mode):not(.vx-b):not(.vx-dimmed) #screen-game :is(#left, #chat-panel) > h3,
+html body.vx:not(.hud-mode):not(.vx-b):not(.vx-dimmed) #screen-game #bottombar .bb-group,
+html body.vx:not(.hud-mode):not(.vx-b):not(.vx-dimmed) #screen-game #left .ws-head :is(.ws-view, .ws-head-acts),
+html body.vx:not(.hud-mode):not(.vx-b):not(.vx-dimmed) #screen-game #chat-panel #chat-inputrow { filter: none; }
+html body.vx:not(.hud-mode):not(.vx-b):not(.vx-dimmed) #screen-game :is(#left, #chat-panel)::after { filter: drop-shadow(0 3px 4px rgba(0, 0, 0, .75)) drop-shadow(0 0 1px rgba(0, 0, 0, .9)); }
+html body.vx:not(.hud-mode):not(.vx-b):not(.vx-dimmed) .term:not(.pw)::after { filter: drop-shadow(0 3px 4px rgba(0, 0, 0, .75)); }
+html body.vx:not(.hud-mode):not(.vx-b):not(.vx-dimmed) #screen-game :is(.crew-resizer, .col-resizer) { filter: drop-shadow(0 0 4px rgba(var(--ph-rgb), .35)); }
+html body.vx:not(.hud-mode):not(.vx-b):not(.vx-dimmed) #screen-game :is(.crew-resizer, .col-resizer)::before { filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .75)); }
