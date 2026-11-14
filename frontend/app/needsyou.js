@@ -254,8 +254,11 @@ const NeedsYou = (() => {
       if (!/^cron-/.test(String(ws.id)) || !kind || kind === 'stopped' || kind === 'succeeded' || !(Workstreams.unread && Workstreams.unread(ws))) continue;
       const name = (ws.automation && ws.automation.name) || ws.title || 'routine';
       const tip = fireWhyOf(ws);   // B1: a fire the spend check paused names its way out (COUNT AS) on the row's hover line
+      // its door is the fire's own session (open() below: App.openWorkstream), named as the SESSIONS rail names it, as every session row's
+      // is. "in ROUTINES" named a place that is no door any more (AUTOMATE › SCHEDULES is the routines' window, where cron-store's
+      // auto-pause note sends the Commander to re-enable one) and not where the row goes (B1 carry-over, stabilization plan C0-5)
       out.push({ key: 'routine:' + ws.id, kind: 'routine', oc: kind, wsId: ws.id, who: nameOf(ws.agentId), aid: ws.agentId, what: 'routine "' + name + '" ' + (kind === 'failed' ? 'failed' : kind === 'asked' ? 'asked you a question' : 'did not finish — ' + RunOutcome.line({ outcome: kind })), routineName: name,
-        ...(tip ? { tip } : {}), where: 'ROUTINES', since: Number(ws.lastActiveAt) || 0, routineId: (ws.automation && ws.automation.id) || '' });
+        ...(tip ? { tip } : {}), where: titleOf(ws), since: Number(ws.lastActiveAt) || 0, routineId: (ws.automation && ws.automation.id) || '' });
     }
     blockingWaits(out, now);
     // the asks a running conversation is stopped on (they auto-deny on a timer) lead, oldest first as ever (a group with no
@@ -320,7 +323,9 @@ const NeedsYou = (() => {
     return KIND_LABEL[i.kind] || 'Waiting';
   }
   // a build's door is its own session, named for the build its line already names: the card says that place once
-  const placeSaid = i => i.kind === 'build' && !!i.rail && String(i.where || '').indexOf(String(i.rail.text || '')) >= 0;
+  // ...and so is a routine fire's (its session is titled for the routine its line names)
+  const placeSaid = i => (i.kind === 'build' && !!i.rail && String(i.where || '').indexOf(String(i.rail.text || '')) >= 0)
+    || (i.kind === 'routine' && !!i.routineName && String(i.where || '') === String(i.routineName));
   /* (Andrew 10-15, second pass: "disgusting and cheap … we need it premium") one agent's builds waiting on keep/discard are
      ONE card, never 23 copies of the same line. It names the build its click opens (the oldest: the next decision) and
      its door is that build's own session, its age the oldest build's (none when no build has a time). Its count LEADS the

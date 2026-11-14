@@ -2071,8 +2071,10 @@ const Chat = (() => {
           noteContinuity(ws, 'send-station-window'); return { degraded: true };
         }
         noteContinuity(ws, 'send-held-history-unavailable');
-        // the station answered (a 5xx): the connection is fine, so do not tell the Commander to wait for it (#178)
-        throw Object.assign(new Error(read && read.serverFailed
+        // the station answered (a 5xx): the connection is fine, so do not tell the Commander to wait for it (#178), nor resend one it cannot vouch for (R56-1-D3)
+        throw Object.assign(new Error(read && read.unvouched
+          ? 'Conversation history could not be restored: the station cannot vouch for it, so sending again will not help. Your message is kept. Restart StarNet once; if it stays, report it with SETTINGS › APP & BACKUP › COPY DIAGNOSTICS.'
+          : read && read.serverFailed
           ? 'Conversation history could not be restored: the station answered but could not read it just now. Your message is kept; try sending again in a moment.'
           : 'Conversation history could not be restored. Your message is kept; try again when the connection returns.'), { code: 'HISTORY_UNAVAILABLE' });
       }
@@ -2149,6 +2151,7 @@ const Chat = (() => {
         return one;
       }
       if (response.status >= 400 && response.status < 500) saw.refused = true;
+      if (response.status >= 500 && response.j && response.j.code === 'TRANSCRIPT_UNVOUCHED') saw.unvouched = true;
       throw new Error('The saved rows could not be read');
     };
     const promise = (async () => {
@@ -2158,7 +2161,7 @@ const Chat = (() => {
       if (Workstreams.unseal) Workstreams.unseal(ws.id, out.retracted.concat(out.forgotten));   // a turn the station says is gone is no longer kept as proven, whatever became of the session meanwhile
       if (Workstreams.get(ws.id) !== ws || !Workstreams.hydrate(ws, out.rows, { ref })) return { complete: false, stale: true, silent: false, refused: false, ids: new Set() };   // (hydrate refuses a read of a packed form the session no longer holds: cleared, undone, replaced)
       const left = new Set(out.unproven.concat(out.retracted, out.forgotten));
-      return { complete: !ws.historyRef, stale: false, silent: saw.silent, refused: saw.refused, ids: new Set(HistoryRef.idsOf(ref).filter(id => !left.has(id))) };
+      return { complete: !ws.historyRef, stale: false, silent: saw.silent, refused: saw.refused, unvouched: !!saw.unvouched, ids: new Set(HistoryRef.idsOf(ref).filter(id => !left.has(id))) };
     })();
     hydrations.set(ws, { ref, promise });
     const release = () => { const now = hydrations.get(ws); if (now && now.promise === promise) hydrations.delete(ws); };
@@ -2186,7 +2189,7 @@ const Chat = (() => {
       readBack = await hydrateHistory(ws, { windowMs });
       if (readBack.stale || historyLoads.get(ws) !== read || Workstreams.get(ws.id) !== ws) { noteContinuity(ws, 'history-stale-discarded'); return false; }
       if (!readBack.complete) {
-        read.retryable = readBack.silent; read.serverFailed = !readBack.silent && !readBack.refused;
+        read.retryable = readBack.silent; read.serverFailed = !readBack.silent && !readBack.refused; read.unvouched = read.serverFailed && readBack.unvouched;
         noteContinuity(ws, 'history-unavailable'); return false;
       }
       read.history = ws.history; read.ref = null;   // the rows are back: a clear or an undo is judged from these
@@ -2194,7 +2197,7 @@ const Chat = (() => {
     let busy = false;
     try { busy = typeof Channels !== 'undefined' && Channels.isBusy && Channels.isBusy(ws.id); } catch (_) {}
     const waits = cronSession && !busy ? [120, 400] : [];
-    let turns = [], identity = null, reachable = false, refused = false, failed = false, setAside = null;
+    let turns = [], identity = null, reachable = false, refused = false, failed = false, unvouched = false, setAside = null;
     for (let attempt = 0; attempt <= waits.length; attempt++) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), windowMs);
@@ -2202,6 +2205,7 @@ const Chat = (() => {
         const r = await fetch('/api/transcript?agent=' + encodeURIComponent(ws.agentId || 'agent') + '&stream=' + encodeURIComponent(ws.id) + '&limit=200', { cache: 'no-store', signal: controller.signal });
         refused = !r.ok && r.status >= 400 && r.status < 500;   // the station answered "no": asking again cannot change it
         failed = !r.ok && r.status >= 500;                       // the station answered "broken": an answer, not silence
+        unvouched = false; if (failed) try { const j = await r.json(); unvouched = !!j && j.code === 'TRANSCRIPT_UNVOUCHED'; } catch (_) {}
         if (r.ok) {
           const j = (await r.json()) || {};
           if (!Array.isArray(j.turns)) break; // malformed is unknown, never an empty transcript
@@ -2215,6 +2219,7 @@ const Chat = (() => {
     }
     read.retryable = !reachable && !refused && !failed;   // unanswered (or unreadable) — a send may keep asking (ensureHistoryReady)
     read.serverFailed = !reachable && failed;              // answered 5xx — a send asks once more, then refuses (ensureHistoryReady)
+    read.unvouched = read.serverFailed && unvouched;
     // A superseded read, removed session or deliberate clear cannot write back.
     const stale = () => historyLoads.get(ws) !== read || (typeof Workstreams !== 'undefined' && Workstreams.get(ws.id) !== ws)
       || (read.history.length && !ws.history.length)
@@ -2234,6 +2239,7 @@ const Chat = (() => {
       try {
         const response = await Harness.api.post('/api/turn-identity/retractions',
           { streamId: ws.id, rowIds: askIds }, { signal: controller.signal });
+        read.unvouched = response.status >= 500 && !!response.j && response.j.code === 'TRANSCRIPT_UNVOUCHED';   // R56-1-D3
         const proof = response.ok ? response.j : null;
         if (!proof || proof.streamId !== ws.id || !Array.isArray(proof.retracted) ||
             proof.retracted.some(id => !provedIds.has(id))) throw new Error('Cached transcript identity could not be proved');

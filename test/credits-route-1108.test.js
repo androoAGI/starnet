@@ -77,8 +77,9 @@ const SUPPLY_MSG = "StarNet's model supply is temporarily out; your credits are 
       A.ok(v.userMessage.indexOf(SUPPLY_MSG) === 0 && v.kind !== 'billing' && v.retryable === true, 'the Commander reads StarNet\'s supply is out, credits untouched (' + label + '): ' + v.userMessage);
     }
     const own = NodeFriendly.friendlyError('StarNet http 402 - [code insufficient_credits] insufficient StarNet credits — can only afford 300 max_tokens');
-    // #182: the Commander's own StarNet balance, said as StarNet credit (perhaps held by open calls), never a provider's billing
-    A.eq([own.kind, own.action], ['managed_credit_short', 'store'], 'a 402 still means the Commander\'s own balance');
+    // #182: the Commander's own StarNet balance, said as StarNet credit, never a provider's billing. This refusal names no
+    // hold of this call (under 1024 affordable the wallet is empty, the honest 402), so it is the empty-wallet kind (0.15.1 split)
+    A.eq([own.kind, own.action], ['managed_credit_empty', 'store'], 'a 402 still means the Commander\'s own balance');
     A.ok(own.kind !== 'billing' && !/supply/i.test(own.userMessage), 'and is neither a provider account nor StarNet\'s supply: ' + own.userMessage);
   }
 

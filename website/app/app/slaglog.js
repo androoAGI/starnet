@@ -25,7 +25,8 @@
   const COLD_CACHE = 0.15;   // below this the prompt-cache is basically cold (the smelter is dark)
   // FriendlyError kinds whose message already names the real door (friendlyerror.js KINDS, retryable:false).
   // Absent on purpose: unknown + server_error (plausibly StarNet's own fault — those keep "report it").
-  const KNOWN_ERROR_KINDS = { billing: 1, managed_credit: 1, managed_credit_link: 1, auth: 1, no_model: 1, oauth: 1, grok_oauth_unavailable: 1,
+  // managed_credit_empty: the StarNet relay found nothing free to spend; its message's first door is the top-up (#182)
+  const KNOWN_ERROR_KINDS = { billing: 1, managed_credit: 1, managed_credit_empty: 1, managed_credit_link: 1, auth: 1, no_model: 1, oauth: 1, grok_oauth_unavailable: 1,
     claude_cli_missing: 1, claude_cli_signed_out: 1,
     quota_exhausted: 1, model_not_found: 1, context_overflow: 1, content_policy_blocked: 1, capdenied: 1,
     spotify_not_connected: 1, stale_session: 1, spend_unknown: 1, local_model_memory: 1, local_timeout: 1,

@@ -11912,6 +11912,10 @@ const World = (() => {
       if (stopped) hudNote('■ routine stopped before it finished', '', { go: ses }, 'cronDigest');
       else if (fireOc === 'asked') hudNote('▲ routine asked a question — answer it in its session' + pausedNote, 'warn', { kind: 'needs', go: ses });
       else if (fireOc && fireOc !== 'failed') hudNote('⚠ routine did not finish — ' + RunOutcome.line({ outcome: fireOc, failureCode: p.failureCode || '' }) + pausedNote, 'warn', { kind: 'alert', go: ses });
+      // B1 carry-over (stabilization plan C0-5): a fire StarNet's spend check paused or refused (failureCode spend_history_unavailable: spend
+      // history incomplete) is no broken routine. It stays on its schedule (cron-store markRun), so every fire ends here until the spend item
+      // is settled, and "✕ routine failed — error" named neither the pause nor its way out: it says both (COUNT AS, and where it is)
+      else if (p.outcome === 'failed' && p.failureCode === 'spend_history_unavailable') hudNote('✕ routine failed — paused by the spend check: StarNet’s spend history is incomplete. Settle it with COUNT AS in SETTINGS › SPENDING LIMITS; the routine stays on its schedule', 'warn', { kind: 'alert', go: ses });
       else if (p.outcome === 'failed') hudNote('✕ routine failed' + (failedWhy ? ' — ' + failedWhy : ''), 'warn', { kind: 'alert', go: ses });
       // its result is in the routine's own session (and HISTORY under AUTOMATE › ROUTINES), never in DELIVERABLES › TO REVIEW
       else if (p.outcome === 'ok') hudNote('◷ routine completed', 'good', { go: ses }, 'cronDigest');

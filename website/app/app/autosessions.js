@@ -382,7 +382,16 @@ const AutoSessions = ((TurnMerge) => {
   /* WHICH FIRES A BOOT MAY BRING BACK (customer report 2026-11-08: a cleaned-up save had 72 routine records imported again on
      the next start). Only each routine's newest ROUTINE_KEEP fires, counted with the sessions the save already holds for it and
      the ones the Commander deleted: a fire the window save pruned (Workstreams.pruneRoutineSessions) or a delete left behind
-     stays on the station, where its routine's RUN HISTORY opens it. -> Set of the stream ids not in the save that may form */
+     stays on the station, where its routine's RUN HISTORY opens it.
+     A FIRE THAT DID NOT SUCCEED WHILE THE PAGE WAS CLOSED STILL FORMS (review R56-1-D2): one that failed, asked or did not finish, and
+     is newer than every session the save holds for its routine (so this page never formed it, and never showed it), forms past the
+     newest ROUTINE_KEEP, unread, so its NEEDS YOU row says so; up to ROUTINE_KEEP of them per routine, the window save's own bound
+     for unopened fires (Workstreams.pruneRoutineSessions). One the save once held and pruned had newer sessions there: it stays on
+     the station. -> Set of the stream ids not in the save that may form */
+  function waitsOnCommander(run) {
+    const runId = String(run.streamId).slice(STREAM_PREFIX.length);
+    return settleOf(null, runId, String(run.runId || '') === runId ? run : null).outcome === 'failed';   // failed, asked or did not finish
+  }
   function fireSlots(runs) {
     const keepN = (hasWS() && Number.isInteger(Workstreams.ROUTINE_KEEP) && Workstreams.ROUTINE_KEEP > 0) ? Workstreams.ROUTINE_KEEP : 10;
     const keyOf = run => String((run && run.cronJobId) || '');
@@ -390,12 +399,14 @@ const AutoSessions = ((TurnMerge) => {
       .filter(w => w && validStream(w.id)).map(w => ({ key: String((w.automation && w.automation.id) || ''), ts: +w.lastActiveAt || +w.createdAt || 0 }));
     const fresh = runs.filter(run => run && validStream(run.streamId) && !(hasWS() && Workstreams.get(run.streamId)))
       .sort((a, b) => (+b.ts || 0) - (+a.ts || 0));
-    const taken = Object.create(null), out = new Set();
+    const taken = Object.create(null), waiting = Object.create(null), out = new Set();
     for (const run of fresh) {
       const key = keyOf(run), ts = +run.ts || 0;
-      const newer = held.filter(h => h.key === key && h.ts > ts).length + (taken[key] || 0);
-      if (newer >= keepN) continue;
-      taken[key] = (taken[key] || 0) + 1;   // a deleted fire holds its place too: what the Commander removed does not let an older one back
+      const heldNewer = held.filter(h => h.key === key && h.ts > ts).length;
+      if (heldNewer + (taken[key] || 0) >= keepN) {
+        if (heldNewer || (waiting[key] || 0) >= keepN || !waitsOnCommander(run)) continue;
+        waiting[key] = (waiting[key] || 0) + 1;   // R56-1-D2 (header): a fire from while the page was closed that still waits on the Commander
+      } else taken[key] = (taken[key] || 0) + 1;   // a deleted fire holds its place too: what the Commander removed does not let an older one back
       if (!(hasWS() && typeof Workstreams.isDeleted === 'function' && Workstreams.isDeleted(run.streamId))) out.add(run.streamId);
     }
     return out;
