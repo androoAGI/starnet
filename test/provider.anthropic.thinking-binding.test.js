@@ -134,7 +134,7 @@ function staleHistory() {
   }
 
   // ---- 2. binding generation on adaptive thinking: block_binding + the beta header travel together ----
-  for (const model of ['claude-opus-5-5', 'claude-opus-5.5', 'claude-sonnet-5-5', 'claude-fable-5-1', 'claude-mythos-5-1', 'anthropic/claude-opus-5.5', 'claude-haiku-5-5', 'claude-haiku-5.5']) {
+  for (const model of ['claude-opus-5-5', 'claude-opus-5.5', 'claude-sonnet-5-5', 'claude-fable-5-1', 'claude-mythos-5-1', 'claude-fable-5-2', 'claude-fable-5.2', 'claude-mythos-5-2', 'claude-mythos-5.2', 'anthropic/claude-opus-5.5', 'claude-haiku-5-5', 'claude-haiku-5.5']) {
     const up = fakeServer(() => [{ type: 'text', text: 'ok' }]);
     await collect(makeAnthropicProvider({ fetch: up.fetch, key: 'k', reasoningEffort: 'high' }), { model, messages: [{ role: 'user', content: 'hi' }] });
     A.eq(up.posts[0].body.thinking, { type: 'adaptive', block_binding: { prefix_mismatch_behavior: 'drop_block' } }, model + ' -> adaptive + drop_block binding');

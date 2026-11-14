@@ -348,7 +348,8 @@ async function runOnceMatrix(root, scenario, opts) {
     // facts.direct-domain is a LEAD-SET scope now (domain-task-advisory): this tree's cut reads hostScope, the parsed onlyHost,
     // where it read the prose classification; prose is advice and moves no cell
     hostScope: h.directDomain ? { kind: 'direct-domain', host: 'example.com', source: 'lead' } : null,
-    CrewDiet: req(root, 'sidecar/crew-diet.js'), ENV: () => undefined, crewCountFor: () => h.crewCount,
+    // index.js's ENV(): STARNET_<suffix>, else the older SKYNET_<suffix>, read from the census's own process.env (the kill switch)
+    CrewDiet: req(root, 'sidecar/crew-diet.js'), ENV: (suffix) => { const env = h.deferralOff ? { SKYNET_TOOL_SEARCH: '0' } : {}; return ('STARNET_' + suffix) in env ? env['STARNET_' + suffix] : env['SKYNET_' + suffix]; }, crewCountFor: () => h.crewCount,
     planConnectorDeferral: req(root, 'sidecar/tools/builtin/toolsearch.js').planConnectorDeferral,
     CONNECTOR_DEFER: { bytes: 8192, tools: 12 },
     spotifyStore: { load: async () => h.spotify ? { refreshToken: 'census' } : {} },

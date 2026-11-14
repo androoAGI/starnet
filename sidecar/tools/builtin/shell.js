@@ -1125,6 +1125,20 @@
     if (kind === PE_SUBSYSTEM_GUI) return GUI_RUNTIME_REFUSAL;
     return kind === PE_SUBSYSTEM_CONSOLE ? null : UNPROVEN_PROGRAM_REFUSAL;
   }
+  /* A PLANTED STAND-IN. cmd looks in the working folder before PATH, so a git.cmd (or rg.bat, node.exe, ...) dropped into a
+     cloned repo runs instead of the real tool for a plain `git status`. A folder's own script that nothing on PATH shares a name
+     with (gradlew, build.bat) still runs as before; only a name the working folder SHADOWS is refused. */
+  function shadowedProgram(value, file, opts) {
+    const P = opts.pathMod;
+    if (!P || !file || P.dirname(P.resolve(file)).toLowerCase() !== P.resolve(opts.cwd).toLowerCase()) return null;
+    const env = Object.assign({}, opts.env || process.env, { NoDefaultCurrentDirectoryInExePath: '1' });
+    const onPath = cmdProgramFile(value, Object.assign({}, opts, { env: env }));
+    // the working folder can itself be on PATH: the same file found twice shadows nothing
+    if (onPath.status !== 'file' || P.resolve(onPath.file).toLowerCase() === P.resolve(file).toLowerCase()) return null;
+    return 'would run ' + P.basename(file) + ' from the working folder instead of the ' + value + ' on PATH (' + onPath.file
+      + '): a file in the folder shadows the real program, which is how a planted script takes over a command. Remove or rename '
+      + P.basename(file) + ', or run the command from another folder';
+  }
   function localProgramRefusal(heads, index, opts) {
     const head = heads[index];
     // Start-Process, saps, start, Invoke-Item and ii launch what they are given: a file, a folder, a URL, an app registered under
@@ -1149,6 +1163,8 @@
       const resolved = cmdProgramFile(value, opts);
       if (resolved.status === 'absent') return null; // nothing can run under this known search context
       if (resolved.status !== 'file') return UNPROVEN_PROGRAM_REFUSAL;
+      const shadow = shadowedProgram(value, resolved.file, opts);
+      if (shadow) return shadow;
       if (/\.(?:cmd|bat)$/i.test(resolved.file)) return commandScript(resolved.file, opts.fs) ? null : UNPROVEN_PROGRAM_REFUSAL;
       found = [resolved.file];
     } else {

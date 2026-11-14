@@ -94,6 +94,7 @@
      plain `disabled`, which never carries block_binding (applyThinking returns before adding it). */
   const BINDING_CLAUDE = [
     'claude-fable-5-1', 'claude-fable-5.1', 'claude-mythos-5-1', 'claude-mythos-5.1',
+    'claude-fable-5-2', 'claude-fable-5.2', 'claude-mythos-5-2', 'claude-mythos-5.2',
     'claude-opus-5-5', 'claude-opus-5.5', 'claude-sonnet-5-5', 'claude-sonnet-5.5',
     'claude-haiku-5-5', 'claude-haiku-5.5'
   ];

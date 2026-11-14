@@ -18626,7 +18626,7 @@ async function toolsetsPreview(agentId, extraObjects, placement) {
   const authority = makeRunAuthority({ surface: 'interactive', isTask: true, environment: executionEnvironment.forAgent(agentId), confirm: () => 'deny',
     unattendedGrants: [], ownerTrusted: false, remoteDesktopAuthorized: false, masterBypass: stationBypass, fullAccess: () => agentFull,
     hostFenced: executionProfiles.fencesHost(executionProfile) });
-  const deferralOff = String((process.env && process.env.SKYNET_TOOL_SEARCH) || '').trim() === '0';
+  const deferralOff = String(ENV('TOOL_SEARCH') || '').trim() === '0';   // STARNET_TOOL_SEARCH, or the older SKYNET_ name
   const studioRoute = studioRouteFor(providerId, providerRuntimeKey(providerId, ''), providerRuntimeBaseUrl(providerId, ''));
   let voiceRoute;
   try { voiceRoute = (media && typeof media.voiceRouteAvailable === 'function') ? media.voiceRouteAvailable() : undefined; }
@@ -26160,7 +26160,7 @@ async function runOnceCore(o) {
   const nativeDesktopAvailable = computerControl.available();
   const realDesktopAuthority = remoteDesktopAuthorized || (unrestrictedHostNow() && nativeDesktopAvailable);
   // KILL SWITCH: SKYNET_TOOL_SEARCH=0 advertises everything, connector and availability deferrals included.
-  const deferralOff = String((process.env && process.env.SKYNET_TOOL_SEARCH) || '').trim() === '0';
+  const deferralOff = String(ENV('TOOL_SEARCH') || '').trim() === '0';   // STARNET_TOOL_SEARCH, or the older SKYNET_ name
   /* DIRECT-DOMAIN WITHHOLDING: the one predicate (ProjectTools.directDomainWithheld) for the deferred pool, the wire
      lists, tool.search and dispatch — what a run its lead scoped to one host (onlyHost) may not even see. */
   const directDomainWithheld = (name) => ProjectTools.directDomainWithheld(!!hostScope, name);

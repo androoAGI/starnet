@@ -133,7 +133,9 @@ const plumbing = (async () => {
   const { makeVerifyTool } = require('../sidecar/tools/builtin/verify.js');
   const { makeTerminalTools } = require('../sidecar/tools/builtin/terminal.js');
   const ws = 'C:\\ws', mine = 'C:\\ws\\ag';
-  const files = { 'C:\\ws\\ag\\same.exe': consolePE, 'C:\\bin\\same.exe': guiPE };
+  const files = { 'C:\\ws\\ag\\same.exe': consolePE, 'C:\\bin\\same.exe': guiPE, 'C:\\ws\\ag\\solo.exe': consolePE };
+  // the working folder's same.exe would answer first and PATH holds a same.exe too: a planted stand-in, refused
+  const SHADOW = /refused[\s\S]*would run same\.exe from the working folder instead of the same on PATH/i;
   const searched = { PATH: 'C:\\bin', PATHEXT: '.COM;.EXE' }, defined = Object.assign({ NoDefaultCurrentDirectoryInExePath: '1' }, searched);
   const ctx = { agentId: 'ag', surface: 'interactive' };
   const attempt = async run => { try { await run(); return null; } catch (e) { return String((e && e.message) || e); } };
@@ -159,7 +161,9 @@ const plumbing = (async () => {
     A.eq(seen[0] && seen[0].agentId, 'ag', 'the execution environment is asked about this agent');
     A.eq(seen[0] && seen[0].surface, 'interactive', 'and this run\'s surface');
     answer = searched;
-    A.eq(await attempt(() => tool.run({ cmd: 'same' }, ctx)), null, 'shell.exec, variable not defined there: the working-folder console copy answers first and runs');
+    A.ok(SHADOW.test(await attempt(() => tool.run({ cmd: 'same' }, ctx)) || ''), 'shell.exec, variable not defined there: the working-folder copy answers first and shadows the PATH one, so it is refused');
+    A.eq(ran.length, 0, 'and nothing was dispatched');
+    A.eq(await attempt(() => tool.run({ cmd: 'solo' }, ctx)), null, 'a working-folder console tool nothing on PATH shares a name with still runs');
     A.eq(ran.length, 1, 'and it was dispatched');
   }
   // shell.exec: no execution environment, the tool's own
@@ -168,7 +172,9 @@ const plumbing = (async () => {
     const withEnv = env => api.makeShellTool({ spawn: quietSpawn(log), fs: memory(), pathMod: path.win32, root: ws, platform: 'win32', env }).execTool;
     A.ok(/refused \[user-control\]/.test(await attempt(() => withEnv(defined).run({ cmd: 'same' }, ctx)) || ''), 'shell.exec given its own env with the variable defined: refused');
     A.eq(log.length, 0, 'and not spawned');
-    A.eq(await attempt(() => withEnv(searched).run({ cmd: 'same' }, ctx)), null, 'shell.exec given its own env without it: runs');
+    A.ok(SHADOW.test(await attempt(() => withEnv(searched).run({ cmd: 'same' }, ctx)) || ''), 'shell.exec given its own env without it: the folder is searched and the shadowing copy refused');
+    A.eq(log.length, 0, 'and not spawned');
+    A.eq(await attempt(() => withEnv(searched).run({ cmd: 'solo' }, ctx)), null, 'shell.exec given its own env without it: a folder-only console tool runs');
     A.eq(log.length, 1, 'and was spawned');
     A.eq(log[0] && log[0].env, searched, 'with exactly the environment the guard searched in');
   }
@@ -179,7 +185,9 @@ const plumbing = (async () => {
     A.ok(/refused \[user-control\]/.test(await attempt(() => tool.run({ cmd: 'same' }, ctx)) || ''), 'verify.run, variable defined in the environment the check begins from: refused');
     A.eq(ran.length, 0, 'and not dispatched');
     answer = searched;
-    A.eq(await attempt(() => tool.run({ cmd: 'same' }, ctx)), null, 'verify.run, variable not defined there: runs');
+    A.ok(SHADOW.test(await attempt(() => tool.run({ cmd: 'same' }, ctx)) || ''), 'verify.run, variable not defined there: the shadowing copy is refused');
+    A.eq(ran.length, 0, 'and not dispatched');
+    A.eq(await attempt(() => tool.run({ cmd: 'solo' }, ctx)), null, 'verify.run, variable not defined there: a folder-only console tool runs');
     A.eq(ran.length, 1, 'and was dispatched');
   }
   // terminal.start: the PTY's own environment
@@ -190,7 +198,9 @@ const plumbing = (async () => {
     A.ok(/refused \[user-control\]/.test(await attempt(() => start.run({ name: 't', command: 'same' }, ctx)) || ''), 'terminal.start, variable defined in the PTY environment: refused');
     A.eq(started.length, 0, 'and no PTY was opened');
     current = searched;
-    A.eq(await attempt(() => start.run({ name: 't', command: 'same' }, ctx)), null, 'terminal.start, variable not defined there: starts');
+    A.ok(SHADOW.test(await attempt(() => start.run({ name: 't', command: 'same' }, ctx)) || ''), 'terminal.start, variable not defined there: the shadowing copy is refused');
+    A.eq(started.length, 0, 'and no PTY was opened');
+    A.eq(await attempt(() => start.run({ name: 't', command: 'solo' }, ctx)), null, 'terminal.start, variable not defined there: a folder-only console tool starts');
     A.eq(started.length, 1, 'and the PTY was opened');
     A.eq(started[0] && started[0].env, searched, 'in the environment the guard searched in');
   }
@@ -283,8 +293,8 @@ if (process.platform === 'win32') {
       { id: 'raw-gui-com-console', cmd: 'pick', files: { pick: 'gui', 'pick.com': 'console' }, actual: 'console', noCwd: null },
       { id: 'dotted-console-appended-gui', cmd: 'pick.tag', files: { 'pick.tag': 'console', 'pick.tag.exe': 'gui' }, actual: 'console', noCwd: null },
       { id: 'dotted-gui-appended-console', cmd: 'pick.tag', files: { 'pick.tag': 'gui', 'pick.tag.exe': 'console' }, actual: 'gui', noCwd: null },
-      { id: 'cwd-batch-path-console', cmd: 'pick', files: { 'pick.cmd': 'batch', 'bin/pick.exe': 'console' }, actual: 'batch', noCwd: 'console', watch: true },
-      { id: 'cwd-console-path-gui', cmd: 'pick', files: { 'pick.exe': 'console', 'bin/pick.com': 'gui' }, actual: 'console', noCwd: 'gui', watch: true },
+      { id: 'cwd-batch-path-console', cmd: 'pick', files: { 'pick.cmd': 'batch', 'bin/pick.exe': 'console' }, actual: 'batch', noCwd: 'console', watch: true, shadow: true },
+      { id: 'cwd-console-path-gui', cmd: 'pick', files: { 'pick.exe': 'console', 'bin/pick.com': 'gui' }, actual: 'console', noCwd: 'gui', watch: true, shadow: true },
       { id: 'first-path-batch-later-gui', cmd: 'pick', files: { 'bin/pick.cmd': 'batch', 'later/pick.exe': 'gui' }, actual: 'batch', noCwd: 'batch' },
       { id: 'custom-pathext', cmd: 'pick', files: { 'pick.com': 'gui', 'pick.exe': 'console' }, actual: 'console', noCwd: null, pathext: '.EXE;.COM;.CMD;.BAT' },
       { id: 'cwd-gui-path-console', cmd: 'pick', files: { 'pick.exe': 'gui', 'bin/pick.exe': 'console' }, actual: 'gui', noCwd: 'console', watch: true },
@@ -307,7 +317,12 @@ if (process.platform === 'win32') {
       ]) {
         if (cell.skip) continue;
         const where = row.id + ' (' + cell.mode + ')', launch = { cwd, env: cell.env };
-        if (cell.expected === 'gui') {
+        if (row.shadow && cell.env === searched) {
+          // cmd would run the working folder's copy while PATH holds a program of that name: a planted stand-in, refused
+          const refused = rig.execute(row.cmd, false, launch);
+          A.ok(/shadows the real program/.test(JSON.stringify(refused.risk || '')), 'a working-folder copy that shadows a PATH program is refused: ' + where);
+          A.eq(refused.marker, false, 'and the shadowing copy never runs: ' + where);
+        } else if (cell.expected === 'gui') {
           if (cell.observe) {
             // The one place a GUI marker is started on purpose: its inert image only, to read which file cmd really runs.
             const seen = rig.execute(row.cmd, true, launch);
