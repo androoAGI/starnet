@@ -387,6 +387,7 @@ test/desk-code-log.http.test.js
 test/seal-held-words.http.test.js
 test/retired-grant-notice.http.test.js
 test/cross-run-replay.invariant.test.js
+test/batched-ageing.signin.e2e.test.js
 test/granted-context.approval-flip.http.test.js
 test/granted-drop-notice.http.test.js
 test/granted-line-skill.http.test.js
