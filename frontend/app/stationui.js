@@ -422,6 +422,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     // VECTOR reads the same knob (Andrew 11-08: "should also be settings to make it darker"): its chrome, glass and LCDs are
     // drawn in vector.css rather than from the three ground tokens, so the darkening amount rides one var. 0 = untouched.
     document.body.style.setProperty('--vx-dim', dim.toFixed(3));
+    // ...and says whether it is darkening at all. At 0 every "darken by --vx-dim" filter is brightness(1): the same
+    // picture through an offscreen pass per surface (the two rail heads, the composer, each bar group, three bezels).
+    // The class lets the sheet drop those passes while the knob is at 0, and keeps them, unchanged, the moment it moves.
+    document.body.classList.toggle('vx-dimmed', Number(dim.toFixed(3)) > 0);
     // WHERE THE STATION IS. One saved value spans two layers that work opposite ways: a SKY is
     // screen-space and must not zoom, a GROUND is world-space and must. Both modules resolve the
     // id themselves — Terrain turns OFF for anything that is not a known ground, SpaceBG falls

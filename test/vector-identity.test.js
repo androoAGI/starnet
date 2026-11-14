@@ -88,6 +88,14 @@ for (const screen of ['#screen-connect', '#screen-future', '#screen-recovery', '
   A.ok(css.includes(screen) && /\.ov-panel \{[^}]*--vx-frame/.test(css), screen + ' is a framed VECTOR screen');
 }
 A.ok(/\.term:not\(\.pw\) \.term-title::before/.test(css), 'every window title carries the lit lead mark');
+// LITE EFFECTS (css/litefx.css, on through body.sn-lite-glass on a weak machine) fills a window's own box opaque. A VECTOR
+// window's box is empty by design: its screen is the opaque ::before, so the fill only showed as dark wedges outside the
+// bezel's round top corners (measured 2026-11-13 on the 0.15.2 candidate: about 6 x 6 px at the top left). The box stays
+// empty, and the rule carries two ids so it outranks that sheet's own (one id, both !important)
+A.ok(/\nhtml body\.vx\.sn-lite-glass:not\(\.hud-mode\) #screen-game #terms \.term:not\(\.pw\) \{ background-color: transparent !important; \}/.test(css),
+  'a VECTOR window keeps its empty box under LITE EFFECTS (no dark wedge outside the bezel’s round corners)');
+A.ok(/\.term:not\(\.pw\)::before \{[^}]*var\(--vx-black\);/.test(css) && /--vx-black: #000106;/.test(css),
+  'the window’s screen is opaque on its own, so the lite fill has nothing to do behind it');
 
 // ---- the world keeps its own colours (Andrew 2026-11-08: "it should only apply to the dashboard not add filters to
 // the world itself"). The identity is chrome around the station view, never a tint or filter on it ----
@@ -209,9 +217,9 @@ A.ok(/#crew-search-close \{[^}]*border-radius: 50%/.test(css), 'the crew finder 
 const rawCss = read('frontend/css/vector.css');
 const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '');
 const cut = (title) => { const at = rawCss.indexOf(title); return at < 0 ? -1 : rawCss.lastIndexOf('/*', at); };
-const baseAt = cut('23 · THE BLACK CHASSIS'), bAt = cut('24 · VARIATION B'), pAt = cut('25 · THE PERFECTED VECTOR'), fAt = cut('26 · THE FIT'), hAt = cut('27 · THE HEADS'), nAt = cut('28 · THE PANELS'), iAt = cut('29 · THE INSIDES'), cAt = cut('30 · THE CARDS'), lAt = cut('31 · THE REST'), xAt = cut('32 · THE FORMAT');
-A.ok(baseAt > 0 && bAt > baseAt && pAt > bAt && fAt > pAt && hAt > fAt && nAt > hAt && iAt > nAt && cAt > iAt && lAt > cAt && xAt > lAt,
-  'vector.css carries the black chassis, variation B, the perfected VECTOR, the fit pass, the heads, the panels, the insides, the cards, the rest and the format as sections 23 to 32 in that order');
+const baseAt = cut('23 · THE BLACK CHASSIS'), bAt = cut('24 · VARIATION B'), pAt = cut('25 · THE PERFECTED VECTOR'), fAt = cut('26 · THE FIT'), hAt = cut('27 · THE HEADS'), nAt = cut('28 · THE PANELS'), iAt = cut('29 · THE INSIDES'), cAt = cut('30 · THE CARDS'), lAt = cut('31 · THE REST'), xAt = cut('32 · THE FORMAT'), tAt = cut('33 · THE FIRST TEST');
+A.ok(baseAt > 0 && bAt > baseAt && pAt > bAt && fAt > pAt && hAt > fAt && nAt > hAt && iAt > nAt && cAt > iAt && lAt > cAt && xAt > lAt && tAt > xAt,
+  'vector.css carries the black chassis, variation B, the perfected VECTOR, the fit pass, the heads, the panels, the insides, the cards, the rest, the format and the first test’s fixes as sections 23 to 33 in that order');
 const cssA = strip(rawCss.slice(0, baseAt));
 const cssBase = strip(rawCss.slice(baseAt, bAt));
 const cssB = strip(rawCss.slice(bAt, pAt));
@@ -222,7 +230,8 @@ const cssN = strip(rawCss.slice(nAt, iAt));
 const cssI = strip(rawCss.slice(iAt, cAt));
 const cssC = strip(rawCss.slice(cAt, lAt));
 const cssL = strip(rawCss.slice(lAt, xAt));
-const cssX = strip(rawCss.slice(xAt));
+const cssX = strip(rawCss.slice(xAt, tAt));
+const cssT = strip(rawCss.slice(tAt));
 // an at-rule's own prelude (@container ... {) is not a selector: drop it, and its closing brace leaves an empty chunk
 const selsOf = (t) => t.replace(/@[a-z-]+[^{};]*\{/g, '').split('}').map(r => r.slice(0, Math.max(0, r.indexOf('{')))).filter(x => x.trim()).flatMap(x => x.split(/,\n/)).map(x => x.trim());
 // a selector list can also run on ONE line, so the line-start check alone is not enough: every root in a section must carry its gate
@@ -1023,4 +1032,74 @@ A.eq(ruleX('.settings-pane .key-list > .key-row > .key-acts'), 'flex-direction: 
 const provJs = read('frontend/app/stationui.js');
 A.ok(provJs.includes('class="set-theme settings-swatch settings-swatch-custom ') && provJs.includes("data-act=\"prov-claude-add\"") && provJs.includes('data-act="pool-edit"') && provJs.includes('data-act="rm"'),
   'nothing is removed: the any-colour key, ADD ACCOUNT, SPARE KEYS and REMOVE are all still drawn');
+
+// ---- section 33, the first test's fixes (Andrew 11-14): VECTOR only, and each fault pinned by the state it lost ----
+const TPFX = 'html body.vx:not(.hud-mode):not(.vx-b)';
+const selsT = selsOf(cssT);
+A.ok(selsT.length >= 30, 'the first test’s fixes are their own section (' + selsT.length + ' selectors)');
+A.eq(selsT.filter(x => !x.startsWith(TPFX + ' ') && !x.startsWith(TPFX + ':not(.vx-dimmed) ')).join(' | '), '', 'every selector there opens with the VECTOR gate (five of them with the undimmed gate too): variation B never sees it');
+A.eq(stray(cssT, ':not(.vx-b)').filter(x => x !== TPFX + ':not(.vx-dimmed)').join(' | '), '', 'and none slips its scope inside a one-line list');
+A.ok(!/\[class/.test(cssT) && !/#stage-wrap [^{]*\{[^}]*filter/.test(cssT), 'no [class] selector, and nothing filters the world');
+const rulesT = cssT.split('}').filter(r => r.includes('{')).map(r => ({ sel: r.slice(0, r.indexOf('{')).split(TPFX).join('').replace(/\s+/g, ' ').trim(), body: r.slice(r.indexOf('{') + 1).replace(/\s+/g, ' ').trim() }));
+const ruleT = (sel) => (rulesT.find(r => r.sel === sel) || { body: '' }).body;
+// the roster: section 22 flattens every row with !important, so each state a row can be in has to out-rank it and say !important too
+const CREWROW = '#screen-game #left #crew > .crew-row.crew-row.crew-row';
+const flatRow = (css.match(/#screen-game #left #crew > \.crew-row\.crew-row\.crew-row \{[^}]*\}/) || [''])[0];
+A.ok(/background: transparent !important;/.test(flatRow) && /box-shadow: none !important;/.test(flatRow), 'the roster is a flat screen: every row starts transparent');
+const hov = ruleT(CREWROW + ':not(.selected):not(.filtering):not(.asking):is(:hover, :focus-visible)');
+A.ok(/^background: linear-gradient\([^;]*rgba\(var\(--ph-rgb\), \.2\)[^;]* !important; box-shadow: [^;]* !important;$/.test(hov), 'a crew row under the pointer (or the keyboard) lights: a glass band over the flat screen');
+const narrowed = ruleT(CREWROW + '.filtering:not(.asking)');
+A.ok(/!important; box-shadow: inset 3px 0 0 var\(--vx-node\)[^;]* !important;$/.test(narrowed), 'the agent the rail is narrowed to (a click) is the lit band with a lead bar');
+A.eq(ruleT('#screen-game #left #crew:has(> .crew-row.filtering) > .crew-row.crew-row.crew-row.selected:not(.filtering):not(.asking):not(:hover):not(:focus-visible)'),
+  'background: transparent !important; box-shadow: none !important;', 'while the rail is narrowed, the narrowed row is the only lit one');
+const waitRow = ruleT(CREWROW + '.asking');
+A.ok(/rgba\(var\(--gold-rgb\), \.26\)/.test(waitRow) && /box-shadow: inset 3px 0 0 var\(--gold\)[^;]* !important;$/.test(waitRow), 'a wait keeps its gold, on a chosen row too');
+// NEEDS YOU: a screen on the rail, its keys caps
+A.eq(ruleT('#screen-game #left .ws-needs:not([hidden])'), 'margin: 4px 15px 8px; padding: 2px 0 4px; border-radius: 12px; corner-shape: round; background: var(--vx-lcd); box-shadow: var(--vx-lcd-shadow);',
+  'NEEDS YOU is a screen on the rail: the roster’s gutter, the same LCD in the same chrome ring');
+A.ok(/border: 0 !important;/.test(ruleT('#screen-game #left .ws-needs .ny-panel')), 'its old framed panel is gone: the screen is the frame');
+A.ok(/rgba\(var\(--ny-k\), \.26\)/.test(ruleT('#screen-game #left .ws-needs .ny-grp')), 'a kind’s strip is lit in the kind’s own colour (a wait gold, a failure red)');
+A.ok(/background: var\(--vx-cap\) border-box !important; box-shadow: var\(--vx-cap-shadow\) !important;/.test(ruleT('#screen-game #left .ws-needs :is(.ny-key, .ny-more)')), 'its keys are the glossy caps');
+A.ok(/^color: var\(--bad\);/.test(ruleT('#screen-game #left .ws-needs .ny-key.deny')), 'Deny keeps its red legend');
+const nyJs = read('frontend/app/needsyou.js');
+A.ok(nyJs.includes('class="ny-key') && nyJs.includes('class="ny-more"') && nyJs.includes('class="ny-grp"') && nyJs.includes('class="ny-face"'), 'and those are the parts needsyou.js draws');
+// the shut stage: the grid says it, one seam draws the clamps
+const crJs = read('frontend/app/chatresize.js');
+A.ok(/new ResizeObserver\(sayShut\)\.observe\(stageWrap\)/.test(crJs) && crJs.includes("game.classList.toggle('stage-shut', shut)") && crJs.includes("game.style.setProperty('--stage-now', w + 'px')"),
+  'the grid says when the stage is shut, and how wide the sliver is, from the stage’s own box');
+A.ok(!/stage-shut/.test(read('frontend/app/world.js')) && !/body\.vx|classList\.contains\('vx'\)/.test(crJs), 'the world never reads that state, and the seam code never reads the look');
+A.eq(ruleT('#screen-game.stage-shut .col-resizer::before'), 'content: none;', 'shut, the COMMS seam draws no clamp');
+A.eq(ruleT('#screen-game.stage-shut .crew-resizer::before'), 'left: calc(10px + var(--stage-now, 2px) / 2); width: 36px; margin-left: -18px; background-size: 36px 18px;',
+  'and the crew seam (the one stacked on top) draws ONE row, centred across both conduits');
+A.eq(ruleT('#screen-game.stage-shut #stage-wrap'), 'visibility: hidden;', 'a shut stage draws no sliver of bezel');
+// the window searches and the menu rail keys
+const FINDERS = '#screen-game #terms .term:not(.pw) :is(.con-search .con-search-in, .mkt-search, #dl-query)';
+A.ok(/border-radius: 999px !important;[^}]*background: var\(--vx-lcd\) !important;/.test(ruleT(FINDERS)), 'every window search is the rail’s finder: an LCD pill');
+const lensRail = (css.match(/\.ws-rail-search label::before \{[^}]*?mask: (url\("[^"]+"\))/) || [])[1] || 'none';
+A.ok(ruleT('#screen-game #terms .term:not(.pw) .con-search .con-search-i, #screen-game #terms .term:not(.pw) .mkt-search::before').includes('mask: ' + lensRail), 'with the rail finder’s own lens at its lead');
+const stJs = read('frontend/app/stationui.js'), dlJs = read('frontend/app/deliverables.js');
+A.ok(stJs.includes('class="con-search-i"') && stJs.includes('class="con-search-in"') && mktJs.includes('<div class="mkt-search">') && dlJs.includes('<input id="dl-query"'), 'and those are the three search fields the windows draw');
+A.ok(/background: var\(--vx-cap-hot\) border-box; box-shadow: var\(--vx-cap-shadow\);/.test(ruleT('#screen-game #terms .term.sn-menu .con-rail-item:not(.con-toptab):is(:hover, :focus-visible):not(.active):not([aria-selected="true"])')),
+  'a menu’s rail key hovers as a glossy cap, never a flat outline');
+// the desktop title bar
+const tbCss = read('frontend/css/titlebar.css'), tbJs = read('frontend/app/titlebar.js');
+A.ok(/var\(--vx-grain\)/.test(ruleT('#sn-titlebar')) && /^border-bottom: 0;/.test(ruleT('#sn-titlebar')), 'the desktop title bar is the device’s top rail: brushed silver, no green hairline');
+A.ok(/border-radius: 999px;/.test(ruleT('#sn-titlebar .sn-tb-btn')) && /#ff6a5c/.test(ruleT('#sn-titlebar .sn-tb-x:hover')), 'its controls are chrome domes, and close goes hazard red under the pointer');
+A.ok(tbCss.includes('#sn-titlebar { display: none; }') && tbJs.includes("b.className = 'sn-tb-btn'") && tbJs.includes("'sn-tb-x'"), 'and it is still drawn only where the shell asks for it (titlebar.css keeps it off everywhere else)');
+// the lag: no brightness pass while the knob is at 0, and the same rules as ever the moment it moves
+const DIMGATE = TPFX + ':not(.vx-dimmed)';
+const suiDim = read('frontend/app/stationui.js');
+A.ok(suiDim.includes("document.body.classList.toggle('vx-dimmed', Number(dim.toFixed(3)) > 0);"), 'stationui says whether the BRIGHTNESS knob is darkening at all: vx-dimmed exactly while the --vx-dim it wrote is above 0');
+const undim = cssT.split('}').filter(r => r.includes(':not(.vx-dimmed)')).map(r => ({ sel: r.slice(0, r.indexOf('{')).split(DIMGATE).join('').replace(/\s+/g, ' ').trim(), body: r.slice(r.indexOf('{') + 1).replace(/\s+/g, ' ').trim() }));
+const undimOf = (sel) => (undim.find(r => r.sel === sel) || { body: '' }).body;
+A.eq(undim.length, 5, 'five rules lift the no-op pass');
+A.eq(undim[0].sel + ' => ' + undim[0].body, '#screen-game :is(#left, #chat-panel) > h3, #screen-game #bottombar .bb-group, #screen-game #left .ws-head :is(.ws-view, .ws-head-acts), #screen-game #chat-panel #chat-inputrow => filter: none;',
+  'undimmed, the rail heads, the bar groups, the SESSIONS keys and the composer carry no filter at all (brightness(1) was an offscreen pass for the same picture)');
+// a chained shadow stays exactly as the dimmed rule draws it: only the brightness stage leaves
+const chained = (re) => { const all = cssA.match(re) || []; const last = all[all.length - 1] || ''; return (/filter: ([^;]*);/.exec(last) || ['', ''])[1].replace(/ ?brightness\(calc\(1 - var\(--vx-dim, 0\) \* [\d.]+\)\) ?/, '').trim(); };
+A.eq(undimOf('#screen-game :is(#left, #chat-panel)::after'), 'filter: ' + chained(/#screen-game :is\(#left, #chat-panel\)::after \{\s*filter: brightness[^}]*\}/g) + ';', 'the rail bezels keep their two cast shadows');
+A.eq(undimOf('.term:not(.pw)::after'), 'filter: ' + chained(/\.term:not\(\.pw\)::after \{ filter: brightness[^}]*\}/g) + ';', 'a window’s bezel keeps its cast shadow');
+A.eq(undimOf('#screen-game :is(.crew-resizer, .col-resizer)'), 'filter: ' + chained(/#screen-game :is\(\.crew-resizer, \.col-resizer\) \{[^}]*brightness[^}]*\}/g) + ';', 'the seams keep their glow');
+A.eq(undimOf('#screen-game :is(.crew-resizer, .col-resizer)::before'), 'filter: ' + chained(/#screen-game :is\(\.crew-resizer, \.col-resizer\)::before \{[^}]*brightness[^}]*\}/g) + ';', 'and the clamps their shadow');
+A.ok(!/vx-dimmed/.test(cssA + cssBase + cssB + cssP + cssF + cssH + cssN + cssI + cssC + cssL + cssX), 'nothing before section 33 knows the class: with it set, the darkening rules apply exactly as they were written');
 A.report('vector-identity');

@@ -40,6 +40,22 @@
   const clamp = w => Math.max(MIN, Math.min(maxWidth(), w));
   function apply(w) { game.style.setProperty('--chat-w', clamp(w) + 'px'); }
 
+  // THE STAGE CAN BE SHUT, and the grid says so. Swallowed, the stage is a 0-2px sliver and the crew seam and this
+  // seam stand side by side: a skin has to draw that pair as ONE seam (two sets of seam hardware sat half a step
+  // apart, one over the other). So the grid carries the state it is really in, read off the stage's own box:
+  // .stage-shut while the stage is narrower than a seam's hardware, with the sliver's width in --stage-now (the
+  // grid's own px). Whatever moved it counts: this seam, the crew seam, the window.
+  if (stageWrap && typeof ResizeObserver === 'function') {
+    const SHUT_UNDER = 34;
+    const sayShut = () => {
+      const w = stageWrap.clientWidth, shut = w < SHUT_UNDER;
+      if (game.classList.contains('stage-shut') !== shut) game.classList.toggle('stage-shut', shut);
+      if (shut) game.style.setProperty('--stage-now', w + 'px'); else game.style.removeProperty('--stage-now');
+    };
+    new ResizeObserver(sayShut).observe(stageWrap);
+    sayShut();
+  }
+
   // restore a saved width (re-clamped to the current window)
   try { const s = parseInt(localStorage.getItem(KEY), 10); if (s) apply(s); } catch (_) {}
 
