@@ -675,6 +675,21 @@
     const profile = getProviderProfile(value);
     return !(profile && profile.effortDialReachesRuns === false);
   }
+  /* ...and how a route whose dial does not reach its runs by itself is WIRED right now by a station switch (W3.8):
+     effortDialWiring(value, switches) -> '' | 'picked' | 'all'. `switches` = the station's live switch states as
+     GET /api/providers says them ({ cliEffort }). '' = not wired (no such switch on this route, or it is off): the line
+     above stands. 'picked' = only an effort the Commander set themselves reaches a run (a class-applied default does
+     not); 'all' = every effort does. The same two surfaces read it, so their lines change together.
+     EFFORT_DIAL_SWITCH names the switch per route: the Claude sign-in route's is STARNET_CLI_EFFORT, reported as cliEffort.
+     It is a table here, not a profile field, so the profiles GET /api/providers hands out are the ones they always were. */
+  const EFFORT_DIAL_SWITCH = { 'claude-cli': 'cliEffort' };
+  function effortDialWiring(value, switches) {
+    const profile = getProviderProfile(value);
+    const name = (profile && profile.effortDialReachesRuns === false && Object.prototype.hasOwnProperty.call(EFFORT_DIAL_SWITCH, profile.id)) ? EFFORT_DIAL_SWITCH[profile.id] : '';
+    if (!name) return '';
+    const state = String((switches && switches[name]) || '').trim().toLowerCase();
+    return (state === 'picked' || state === 'all') ? state : '';
+  }
   function providerRequiresKey(value) {
     const profile = getProviderProfile(value);
     return !!(profile && profile.keyRequired);
@@ -728,6 +743,7 @@
     providerUsesDeviceOAuth,
     defaultReasoningEffortForProvider,
     effortDialReachesRuns,
+    effortDialWiring,
     providerRequiresKey,
     providerRequiresBaseUrl,
     providerIds,

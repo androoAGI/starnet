@@ -176,7 +176,8 @@ const {
   attachSubUsage,
   attachCatalogCache,
   attachRequestScrub,
-  attachUsageReceipts
+  attachUsageReceipts,
+  attachClaudeCli
 } = require('./providers/factory.js');
 const { makeCatalogCache, runWindow: catalogRunWindow } = require('./providers/catalog-cache.js');
 const { promptTierCeiling } = require('./providers/prices.js');
@@ -477,6 +478,7 @@ const CommanderContext = require('./commander-context.js');    // bounded proven
 const threadmine = require('./threadmine.js');                // NS-6: pure post-run thread-mining producer (reflect/study mold)
 const OneShot = require('./oneshot-model.js');                 // W3.5: which model a one-shot pass runs on (the family's small model) + its one retry
 const AuxGovernor = require('./auxgovernor.js');              // aux-budget lane: PURE joint ceiling over the post-run aux passes (priority + budget)
+const EffortClamp = require('./providers/effort-clamp.js');   // WIRE THE CLAUDE-CLI EFFORT (W3.8): the switch's parser (cliEffortMode reads STARNET_CLI_EFFORT through ENV()); the adapters share its clamp
 const CrewDefaults = require('../frontend/app/crewdefaults.js');   // LEANER CREW DEFAULTS (W3.3 + W3.4): the switch's parser and its crew effort rule (crewDefaultsMode reads STARNET_CREW_DEFAULTS through ENV(); the page loads the same module)
 const BatchHint = require('./batch-hint.js');                // W2.3: the batching sentence at the end of the task doctrine and its switch's parser (batchHintOn reads STARNET_BATCH_HINT through ENV())
 const { makeAuxAdmission } = require('./aux-admission.js');
@@ -2671,6 +2673,9 @@ function replaceAgentRoster(list) {
       // pick). The page sends it only while STARNET_CREW_DEFAULTS is on; a row without it is a pin to the crew rule (crewEffort).
       // Present only when set, so every other row stays byte-identical.
       ...((a && (a.effortSource === 'class' || a.effortSource === 'pin')) ? { effortSource: a.effortSource } : {}),
+      // WIRE THE CLAUDE-CLI EFFORT (additive, W3.8): the Commander picked this effort themselves (effortPickedFor). The page sends
+      // it only while STARNET_CLI_EFFORT is on; present only when set, so every other row stays byte-identical.
+      ...((a && a.effortPicked === true && a.reasoningEffort) ? { effortPicked: true } : {}),
       // S3 (additive): the agent's EARNED track record, already coarsened + phrased by the browser
       // (frontend/app/xp.js credential()). Rendered on the lead's [ORCHESTRATION] dispatch list so delegation
       // is an informed pick, never a gated one. '' for an agent that has proved nothing yet — old rosters
@@ -2697,7 +2702,7 @@ function loadAgentRoster() {
 // P1.1: the fields saveAgentRoster() rebuilds from the live Map — the KNOWN shape. Preserved unknown fields (any
 // key a newer frontend added that this sidecar doesn't model) are spread UNDER these on save, so they survive a
 // re-save by older code rather than being dropped. agentId is always rebuilt (identity), never preserved raw.
-const ROSTER_KNOWN_FIELDS = ['agentId', 'system', 'name', 'model', 'provider', 'role', 'approvalMode', 'executionProfile', 'skills', 'effortSource', 'reasoningEffort', 'track'];
+const ROSTER_KNOWN_FIELDS = ['agentId', 'system', 'name', 'model', 'provider', 'role', 'approvalMode', 'executionProfile', 'skills', 'effortSource', 'effortPicked', 'reasoningEffort', 'track'];
 // saveAgentRoster(updatedAt?) — persist the live roster. The optional updatedAt is the CLIENT's freshness stamp
 // (from POST /api/roster body.updatedAt); handleRoster passes it after its anti-clobber gate accepts a push, so the
 // stored envelope records the exact stamp we accepted (a later push older than it is refused). Server-internal
@@ -2708,7 +2713,8 @@ function saveAgentRoster(updatedAt) {
     fs.mkdirSync(WORKSPACES, { recursive: true });
     const agents = [...agentRoster].map(([agentId, a]) => {
       const known = { agentId, system: a.system || '', name: a.name || agentId, model: a.model || null, provider: a.provider || null, role: a.role || '', approvalMode: (a.approvalMode === 'full') ? 'full' : 'ask', executionProfile: executionProfiles.normalizeId(a.executionProfile, { approvalMode: a.approvalMode, backendId: executionEnvironment && executionEnvironment.backendId }), skills: Array.isArray(a.skills) ? a.skills : [], reasoningEffort: a.reasoningEffort || null, track: a.track || '' };   // S3: track = the earned track-record line (see replaceAgentRoster)
-      if (a.effortSource === 'class' || a.effortSource === 'pin') known.effortSource = a.effortSource;   // W3.3: only when set (replaceAgentRoster)   // Class Loadouts S1: per-agent package + execution envelope persist beside approval posture.
+      if (a.effortSource === 'class' || a.effortSource === 'pin') known.effortSource = a.effortSource;   // W3.3: only when set (replaceAgentRoster)
+      if (a.effortPicked === true && a.reasoningEffort) known.effortPicked = true;   // W3.8: only when set (replaceAgentRoster)   // Class Loadouts S1: per-agent package + execution envelope persist beside approval posture.
       // P1.1: forward-compat field preservation — carry any UNKNOWN keys from the last-seen raw record under the
       // known ones, so a field a newer frontend added isn't silently eaten when older sidecar code re-saves.
       const rawRec = agentRosterRaw.get(agentId);
@@ -4365,8 +4371,8 @@ function auxLoopEffort(o, provider, model) {
    row): the adapter's own word for what its request put on the wire (provider.effortAsSent), read after the call, so a rung
    the endpoint refused and the adapter resent is named as resent. `sent` = the per-request effort the call carried (falsy:
    none, so the effort the adapter was built with went out); `req` (optional) = the request, where its shape decides the wire.
-   Never the dial: claude-cli is told an effort only per request (--effort), so a call that carried none ran on the CLI's own
-   default and says 'cli-default'; Codex sends minimal as low and max as xhigh; Opus 5.5 always thinks (none goes out as low);
+   Never the dial: claude-cli says what its child's argv carried (a request's own --effort, the run's effort when
+   STARNET_CLI_EFFORT sends it, clamped to the model; else 'cli-default', the CLI's own default); Codex sends minimal as low and max as xhigh; Opus 5.5 always thinks (none goes out as low);
    an OpenRouter model that takes no reasoning field is sent no effort at all. null = the adapter cannot say, or its request
    carried no effort: a record leaves the field out rather than guess. */
 function effortAsRun(provider, model, sent, req) {
@@ -4425,6 +4431,43 @@ function briefReadOnlyShell() { return /^(1|true|yes|on)$/i.test(String(ENV('BRI
    shown on its first request, so it ships dark until an A/B on real models passes, and with it off every request is the
    one this build sent before it. */
 function prefixLaneOn(suffix) { return /^(1|true|yes|on)$/i.test(String(ENV(suffix) || '').trim()); }
+/* cliCompactTools — COMPACT CLAUDE-CLI TOOL TEXT (cost audit W2.2), the switch, read here and nowhere else:
+   STARNET_CLI_COMPACT_TOOLS through ENV(). '1' = on: on the Claude sign-in route each tool's parameters ride as a signature
+   instead of its JSON Schema (providers/claude-cli.js COMPACT TOOL TEXT; a schema the notation cannot say exactly keeps its
+   JSON). '0', unset, blank or anything else = off, the default until an A/B on the real CLI passes: every system prompt
+   file is byte-identical to before. The factory asks each time it builds a claude-cli adapter (attachClaudeCli), so a run
+   never changes form midway. Locked by test/claude-cli-compact-tools.test.js and test/claude-cli-compact-tools.e2e.test.js. */
+function cliCompactTools() { return String(ENV('CLI_COMPACT_TOOLS') || '').trim() === '1'; }
+/* cliEffortMode — WIRE THE CLAUDE-CLI EFFORT (cost audit W3.8), the switch ('off' | 'picked' | 'all'), read here and nowhere
+   else: STARNET_CLI_EFFORT through ENV(), parsed by the pure EffortClamp.cliMode (only the words 'picked' and 'all' turn it
+   on). The Claude sign-in route was built with no effort, so a main run's `claude` child got no --effort and ran on the
+   CLI's own default whatever the dial said (its records say 'cli-default', W1.12).
+     off     (unset, blank, anything else: the default) exactly that: every argv, env and catalog entry as before.
+     picked  a run's effort is sent only when the Commander set it themselves for the agent whose effort the run resolved
+             (effortPickedFor); a class-applied default, which would raise usage, stays on the CLI's default.
+     all     every run's resolved effort is sent.
+   Sent means clamped to what the model takes, by the resolver the Anthropic adapter uses (providers/effort-clamp.js), and
+   every record names exactly the argv's value or 'cli-default' (effortAsRun reads the adapter). A request's own effort
+   (self-talk, a background loop) is sent in every mode, as before. The factory asks each time it builds a claude-cli
+   adapter; the page learns the state from GET /api/providers (cliEffort, present only when on).
+   Locked by test/claude-cli-effort.test.js and test/claude-cli-effort.e2e.test.js. */
+function cliEffortMode() { return EffortClamp.cliMode(ENV('CLI_EFFORT')); }
+attachClaudeCli({ compactTools: cliCompactTools, effortMode: cliEffortMode });
+/* effortPickedFor — is this run's effort the Commander's OWN PICK? (W3.8 'picked'.) Yes only when the roster row the ONE
+   effort rule read for it (run-wire.js: the agent's own row when it holds an effort, else the Overseer's when the agent
+   follows the station) carries the pick mark and its effort is the one the run resolved. The mark (effortPicked) is written
+   by the page at the moment of a hand action that names an effort: the dock's effort press, /reasoning and /fast, a pin
+   saved with another effort, the summon card's own effort; and here by POST /api/agent/model when it names one. Everything
+   else is NOT a pick, and under 'picked' runs on the CLI's default exactly as today: a class-applied default, an effort a
+   model pick merely carried along, one copied from the Overseer at summon, any effort set before the switch was turned on,
+   and a per-run effort in a request body (the page and the terminal send the dial with every run, so it cannot be told from
+   a default; it counts only when it equals the marked row's effort). */
+function effortPickedFor(agentId, asked, wire) {
+  const id = String(agentId || '').trim() || 'agent';
+  const own = agentRoster.get(id) || null, hero = agentRoster.get('agent') || null;
+  const row = (own && own.reasoningEffort) ? own : ((wire && wire.followsStation && hero && hero.reasoningEffort) ? hero : null);
+  return !!(row && row.effortPicked === true && normalizeReasoningEffort(row.reasoningEffort) === asked);
+}
 /* crewEffort — LEANER CREW DEFAULTS, the effort half (W3.3: CrewDefaults.effortRule decides, this host applies it). A CREW
    run (a worker, a clone, a line stage: CrewDefaults.surfaceOf) whose effort is its class's applied default above medium
    asks for medium per request; the run after a failed verify (o.crewRetry: a review gate sent the work back, a structured
@@ -4433,8 +4476,9 @@ function prefixLaneOn(suffix) { return /^(1|true|yes|on)$/i.test(String(ENV(suff
    a pin, or a row with no marker, keeps its effort. The want goes through the one clamp (AuxGovernor.clampEffort over the
    rungs the provider lists): no list, no override, and a rung above the asked effort is never sent (CrewDefaults.sendable:
    the rule only lowers; the record then says 'unsent'). A route whose main requests carry no effort is never handed one:
-   claude-cli is told an effort only per request and a main run there sends none (W3.8 not chosen), so a claude-cli crew
-   run sends nothing, runs on the CLI's own default ('cli-default') and its record says 'unsent'. `hops` = the primary and
+   claude-cli is told an effort only per request while a main run there sends none (STARNET_CLI_EFFORT off, or 'picked' and
+   a class-applied effort: W3.8), so such a claude-cli crew run sends nothing, runs on the CLI's own default ('cli-default')
+   and its record says 'unsent'; under 'all' the route carries the run's effort and the rule lowers it like any other. `hops` = the primary and
    every fallback the run may land on; `lineId` = the line the run WORKS for: runOnceCore's capLine, the one rule its line
    budget cap and stage team read, and nothing else (o.lineId is never read here). A terminal routine (runsLine !== true,
    Andrew's 08-07 ruling) is not line work though LINE WATCH stamps its crate with the bay's line, so it is no crew run and
@@ -22697,6 +22741,8 @@ async function handleAgentModel(req, res) {
   const next = Object.assign({}, cur, { model, provider }, effort ? { reasoningEffort: effort } : {}, dropFull ? { approvalMode: 'ask' } : {});
   // LEANER CREW DEFAULTS (W3.3): an effort named here is a hand pick, never a class default the crew rule may lower
   if (effort) { if (CrewDefaults.isOn(crewDefaultsMode())) next.effortSource = 'pin'; else delete next.effortSource; }
+  // WIRE THE CLAUDE-CLI EFFORT (W3.8): ...and it is the Commander's own pick (effortPickedFor), marked only while that switch is on
+  if (effort) { if (cliEffortMode() !== EffortClamp.CLI_OFF) next.effortPicked = true; else delete next.effortPicked; }
   agentRoster.set(agentId, next);
   if (dropFull) agentRosterRaw.set(agentId, Object.assign({}, raw && typeof raw === 'object' ? raw : {}, { approvalMode: 'ask' }));
   if (!saveAgentRoster()) { agentRoster.set(agentId, cur); if (dropFull) { if (raw) agentRosterRaw.set(agentId, raw); else agentRosterRaw.delete(agentId); } return json(500, { error: 'could not save the roster' }); }
@@ -24859,6 +24905,9 @@ async function runOnceCore(o) {
   // dock does move ITS selection to the base row and saves it: modeldock.js catalogEquivalent); this run's own events,
   // history and cost name the model it really used.
   model = chatModelId(providerId, model);
+  // W3.8: whether the run's effort is the Commander's own pick. Only STARNET_CLI_EFFORT=picked asks, and only the claude-cli
+  // adapter is told (the sign-in chain and a provider fallback below); off and all never look, so their runs build as before.
+  const effortPicked = cliEffortMode() === EffortClamp.CLI_PICKED && effortPickedFor(agentId, reasoningEffort, runWire);
   const runKey = providerRuntimeKey(providerId, callerCredential ? key : '');
   const baseUrl = providerRuntimeBaseUrl(providerId, callerCredential ? (o.baseUrl || o.base_url || '') : '', runKey, callerCredential ? key : '', callerCredential && o.keyInRequest === true);   // #89: a page copy's endpoint rides only its own key (review r8: unless /api/run's body sent that key)
   // S3 (decision 7; credential-store.js inFlight): each adapter this run builds below is watched on the key it sends when that
@@ -26549,10 +26598,11 @@ async function runOnceCore(o) {
     const chain = accountChain(providerId);
     const byKey = new Map(chain.map(a => [a.credKey, a]));
     const ordered = credPool.order(chain.map(a => a.credKey));
-    const onAccount = a => a.id ? selectProvider({ provider: providerId, configDir: a.dir, reasoningEffort, usageAccount: a.id }) : selectProvider({ provider: providerId, reasoningEffort });
+    const onAccount = a => a.id ? selectProvider({ provider: providerId, configDir: a.dir, reasoningEffort, effortPicked, usageAccount: a.id }) : selectProvider({ provider: providerId, reasoningEffort, effortPicked });
     const first = byKey.get(ordered[0]);
     activePrimaryKey = first.credKey;
-    if (first.id) { provider = onAccount(first); auxVisionProvider = provider; studioModelProvider = provider; }
+    // W3.8: the primary sign-in's adapter was built above without the run's pick; a picked effort builds it again with it
+    if (first.id || effortPicked) { provider = onAccount(first); auxVisionProvider = provider; studioModelProvider = provider; }
     rotationFallbacks = ordered.slice(1).map(k => { const a = byKey.get(k); return { provider: onAccount(a), providerId, model, credKey: k, account: a.label }; });
   }
   if (oauthAccounts && oauthAccounts.length > 1) {
@@ -26588,7 +26638,7 @@ async function runOnceCore(o) {
     } else if (providerUsesDeviceOAuth(fbProviderId)) {
       fbProvider = selectProvider({ provider: fbProviderId, fetch: globalThis.fetch, tokenProvider: () => ensureOAuthAccessToken(fbProviderId), headersProvider: () => oauthInferenceHeaders(fbProviderId), baseUrl: fbBaseUrl, reasoningEffort });
     } else {
-      fbProvider = runWatch.watch(selectProvider({ provider: fbProviderId, fetch: globalThis.fetch, key: fbKey, baseUrl: fbBaseUrl, reasoningEffort }), fbProviderId, fbKey, { sentByCaller: fb.keyInRequest === true && fbKey === String(fb.key || fb.apiKey || fb.api_key || '').trim() });
+      fbProvider = runWatch.watch(selectProvider({ provider: fbProviderId, fetch: globalThis.fetch, key: fbKey, baseUrl: fbBaseUrl, reasoningEffort, effortPicked }), fbProviderId, fbKey, { sentByCaller: fb.keyInRequest === true && fbKey === String(fb.key || fb.apiKey || fb.api_key || '').trim() });
     }
     // its limits (billing-class.js): unmetered, maxCostUsd (its PER RUN under the run's cap), maxUnpricedTokens
     providerFallbacks.push(Object.assign({ provider: fbProvider, providerId: fbProviderId, model: fbModel, credKey: fbKey || null, cost: makeCostEngine({ priceOf: fbProvider.priceOf, route: fbProviderId }) }, fbBilling.entry));
@@ -31401,7 +31451,8 @@ function handleProviders(req, res) {
   // confirmation reads this so it names the ACTUAL store honestly (keychain vs this browser) — never claims
   // keychain when the key is in fact held in the browser (truthful-telemetry law).
   // LEANER CREW DEFAULTS (W3.4): the page preselects a summon's tier model only while the station's switch is on (present only then)
-  res.end(JSON.stringify(Object.assign({ providers, keychainMode: DESKTOP_SHELL }, CrewDefaults.isOn(crewDefaultsMode()) ? { crewDefaults: CrewDefaults.ON } : {})));
+  res.end(JSON.stringify(Object.assign({ providers, keychainMode: DESKTOP_SHELL }, CrewDefaults.isOn(crewDefaultsMode()) ? { crewDefaults: CrewDefaults.ON } : {},
+    cliEffortMode() !== EffortClamp.CLI_OFF ? { cliEffort: cliEffortMode() } : {})));   // W3.8: present only when on (the page marks effort picks and words its dial lines by it)
 }
 
 // One public verdict. Evidence is bound to the exact active pair; OAuth accounts have separate private

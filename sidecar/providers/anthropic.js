@@ -3,9 +3,9 @@
    messages wire, then normalizes Anthropic SSE back to HarnessEvent. */
 'use strict';
 (function (root, factory) {
-  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./provider.js'), require('./errorClass.js'), require('./prices.js'), require('./toolschema.js'), require('./cache-ttl.js'));
-  else { root.SK = root.SK || {}; root.SK.providers = root.SK.providers || {}; root.SK.providers.anthropic = factory(root.SK.providers.provider, root.SK.providers.errorClass, root.SK.providers.prices, root.SK.providers.toolschema, root.SK.providers.cacheTtl); }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (provider, errorClass, prices, toolschema, cacheTtl) {
+  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./provider.js'), require('./errorClass.js'), require('./prices.js'), require('./toolschema.js'), require('./cache-ttl.js'), require('./effort-clamp.js'));
+  else { root.SK = root.SK || {}; root.SK.providers = root.SK.providers || {}; root.SK.providers.anthropic = factory(root.SK.providers.provider, root.SK.providers.errorClass, root.SK.providers.prices, root.SK.providers.toolschema, root.SK.providers.cacheTtl, root.SK.providers.effortClamp); }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (provider, errorClass, prices, toolschema, cacheTtl, effortClamp) {
   'use strict';
 
   const normalizeFinish = provider.normalizeFinish;
@@ -67,28 +67,13 @@
 
      A NON-Claude model reached through an Anthropic-compatible baseUrl gets NOTHING. Those endpoints are third
      party and a thinking parameter they never implemented is a hard 400, not a degrade (provider-compat law). */
-  const EFFORT_ORDER = ['none', 'minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
+  /* THE LADDER AND THE CLAMP live in effort-clamp.js (cost audit W3.8): the Claude sign-in route (claude-cli.js) asks the same
+     resolver which levels a model takes, so the two routes to one model cannot disagree. Imported, not copied. */
+  const { LEGACY_CLAUDE, hasAny, isClaude, normalizeEffort, effortsFor, clampEffort } = effortClamp;
   // Legacy manual-thinking budgets. Each must land BELOW max_tokens (the wire rejects budget >= max_tokens)
   // and at or above Anthropic's 1024 floor; applyThinking clamps both ends against the resolved ceiling.
   const LEGACY_BUDGET = { minimal: 1024, low: 4000, medium: 8000, high: 16000, xhigh: 32000, max: 32000 };
   const LEGACY_MIN_BUDGET = 1024;
-  // Substring-matched in BOTH the dashed and dotted spellings: catalog ids arrive dashed, hand-typed model
-  // fields and imported agent dossiers arrive dotted, and both reach this adapter.
-  const LEGACY_CLAUDE = [
-    'claude-3',
-    'claude-opus-4-0', 'claude-opus-4.0', 'claude-opus-4-1', 'claude-opus-4.1',
-    'claude-sonnet-4-0', 'claude-sonnet-4.0',
-    'claude-opus-4-2025', 'claude-sonnet-4-2025',
-    'claude-opus-4-5', 'claude-opus-4.5',
-    'claude-sonnet-4-5', 'claude-sonnet-4.5',
-    'claude-haiku-4-5', 'claude-haiku-4.5'
-  ];
-  // The 4.6 family predates the `xhigh` level (low/medium/high/max only) — offering it there is a 400.
-  const NO_XHIGH_CLAUDE = ['claude-opus-4-6', 'claude-opus-4.6', 'claude-sonnet-4-6', 'claude-sonnet-4.6'];
-  // Thinking is ALWAYS ON for these: an explicit {type:'disabled'} is refused at any effort, so 'none' is never
-  // offered; saved OFF settings clamp to adaptive thinking at the lowest supported effort.
-  // Opus 5.5 rejects disabled thinking; Opus 5 still supports it, so do not match all Opus 5.x.
-  const ALWAYS_THINKING_CLAUDE = ['claude-fable', 'claude-mythos', 'claude-opus-5-5', 'claude-opus-5.5'];
   /* SONNET 5.5 OFF (#73). `{type:'disabled'}` is a 400 on Sonnet 5.5 ("send {type:'between_tools'} instead"); its OFF
      switch is `{type:'between_tools'}` — NO other field inside `thinking` (no display/budget_tokens/block_binding),
      accepted only at effort `high` or below, so it rides with no effort at all (the server default, high, is
@@ -150,45 +135,7 @@
   // so it can never come from a stored transcript, and never reaches a wire or the journal (JSON skips it).
   const TOOL_REFS = Symbol('toolRefs');
 
-  const modelKey = (id) => String(id == null ? '' : id).toLowerCase();
-  function hasAny(id, list) { const k = modelKey(id); for (const s of list) if (k.indexOf(s) >= 0) return true; return false; }
-  function isClaude(id) { return modelKey(id).indexOf('claude') >= 0; }
-  function alwaysThinks(id) { return hasAny(id, ALWAYS_THINKING_CLAUDE); }
   function bindsThinking(id) { return isClaude(id) && hasAny(id, BINDING_CLAUDE); }
-  function normalizeEffort(v) {
-    const k = String(v == null ? '' : v).trim().toLowerCase().replace(/[\s_-]+/g, '');
-    const map = {
-      off: 'none', none: 'none', no: 'none', disabled: 'none',
-      min: 'minimal', minimal: 'minimal',
-      low: 'low', med: 'medium', mid: 'medium', medium: 'medium', high: 'high',
-      extra: 'xhigh', xtra: 'xhigh', extrahigh: 'xhigh', xhigh: 'xhigh', max: 'max'
-    };
-    return map[k] || 'medium';
-  }
-  // The levels this model actually accepts, ascending. Legacy models publish the BUDGET tiers under the same
-  // vocabulary so one Commander-facing control drives both contracts.
-  function effortsFor(id) {
-    if (!isClaude(id)) return ['none'];
-    if (hasAny(id, LEGACY_CLAUDE)) return ['none', 'low', 'medium', 'high', 'xhigh', 'max'];
-    const out = ['low', 'medium', 'high'];
-    if (!hasAny(id, NO_XHIGH_CLAUDE)) out.push('xhigh');
-    out.push('max');
-    if (!alwaysThinks(id)) out.unshift('none');
-    return out;
-  }
-  // A level this model does not publish is CLAMPED to its nearest neighbour, never dropped: asking a 4.6 model
-  // for 'xhigh' means "as hard as you can", and 'max' is the honest answer. Ties resolve UPWARD (the list is
-  // ascending and the comparison is <=), so 'minimal' becomes 'low' rather than silently switching thinking OFF.
-  function clampEffort(want, allowed) {
-    const i = EFFORT_ORDER.indexOf(want);
-    if (i < 0) return allowed.indexOf('medium') >= 0 ? 'medium' : allowed[allowed.length - 1];
-    let best = allowed[0], bestD = Infinity;
-    for (const a of allowed) {
-      const d = Math.abs(EFFORT_ORDER.indexOf(a) - i);
-      if (d <= bestD) { bestD = d; best = a; }
-    }
-    return best;
-  }
 
   function cleanBaseUrl(value) {
     return String(value || DEFAULT_BASE).trim().replace(/\/+$/, '');
