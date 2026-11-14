@@ -1126,10 +1126,14 @@
     return kind === PE_SUBSYSTEM_CONSOLE ? null : UNPROVEN_PROGRAM_REFUSAL;
   }
   /* A PLANTED STAND-IN. cmd looks in the working folder before PATH, so a git.cmd (or rg.bat, node.exe, ...) dropped into a
-     cloned repo runs instead of the real tool for a plain `git status`. A folder's own script that nothing on PATH shares a name
-     with (gradlew, build.bat) still runs as before; only a name the working folder SHADOWS is refused. */
+     cloned repo runs instead of the real tool for a plain `git status`. Only the everyday tools an agent runs on the assumption
+     that they ARE the real ones are guarded, and only when the folder's copy shadows one on PATH: a project's own make.bat
+     (Sphinx's `make html`), gradlew or build.bat is what its README means and still runs as before. */
+  const SHADOW_GUARDED = new Set(('git gh rg grep findstr where node npm npx pnpm yarn bun deno python python3 py pip pip3 uv '
+    + 'curl wget ssh scp tar powershell pwsh cmd code cargo rustc go dotnet java javac winget choco').split(' '));
   function shadowedProgram(value, file, opts) {
     const P = opts.pathMod;
+    if (!SHADOW_GUARDED.has(String(value).toLowerCase().replace(/\.(?:exe|cmd|bat|com)$/i, ''))) return null;
     if (!P || !file || P.dirname(P.resolve(file)).toLowerCase() !== P.resolve(opts.cwd).toLowerCase()) return null;
     const env = Object.assign({}, opts.env || process.env, { NoDefaultCurrentDirectoryInExePath: '1' });
     const onPath = cmdProgramFile(value, Object.assign({}, opts, { env: env }));
