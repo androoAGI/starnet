@@ -865,6 +865,7 @@ test/personality-no-sample.test.js
 test/modelpicker.test.js
 test/model-provider-reconcile.test.js
 test/managed-model-93.test.js
+test/onboarding-openrouter-pick.test.js
 test/modelpicker-credits-door.test.js
 test/batch-models.test.js
 test/model-catalog-truth.test.js
@@ -874,6 +875,7 @@ test/reasoning-migration-0125.test.js
 test/model-reasoning-presets.test.js
 test/grok-reasoning-truth.test.js
 test/reasoning-dials.test.js
+test/dock-effort-wording.test.js
 test/provider-connections-ui.test.js
 test/newhero-reset.test.js
 test/harness-internal.test.js
@@ -1860,6 +1862,8 @@ test/cross-run-replay.test.js
 test/batched-ageing.test.js
 test/batched-ageing.invariant.test.js
 test/native-defer.invariant.test.js
+test/batch-hint.test.js
+test/delegation-hint.test.js
 test/loop.tool-args-local-endpoint.test.js
 test/granted-context.approval-line.test.js
 test/browser-signin-survives.test.js

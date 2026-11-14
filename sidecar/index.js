@@ -469,6 +469,7 @@ const WorkflowTakeover = require('./workflow-takeover.js');
 const TaskBriefPolicy = require('./taskbrief-policy.js');       // host validation + mutation boundary
 const { registerTaskBriefTools } = require('./taskbrief-tools.js'); // structured ask/proceed controls
 const CrewCall = require('./crew-call.js');   // names a crew member the Commander asked for at the END of the lead prompt
+const DelegationHint = require('./delegation-hint.js');   // W2.9: the WHAT A WORKER COSTS line of the team note and its switch's parser (delegationHintOn reads STARNET_DELEGATION_HINT through ENV())
 const TaskIntent = require('../frontend/app/fork.js').TaskIntent;    // shared TASK_QUESTION protocol + prompt doctrine
 const ForkMarkers = require('../frontend/app/fork.js');               // the one choice-marker grammar (parse / stripMarkers)
 const CommanderContext = require('./commander-context.js');    // bounded provenance-labelled task context
@@ -476,6 +477,7 @@ const threadmine = require('./threadmine.js');                // NS-6: pure post
 const OneShot = require('./oneshot-model.js');                 // W3.5: which model a one-shot pass runs on (the family's small model) + its one retry
 const AuxGovernor = require('./auxgovernor.js');              // aux-budget lane: PURE joint ceiling over the post-run aux passes (priority + budget)
 const CrewDefaults = require('../frontend/app/crewdefaults.js');   // LEANER CREW DEFAULTS (W3.3 + W3.4): the switch's parser and its crew effort rule (crewDefaultsMode reads STARNET_CREW_DEFAULTS through ENV(); the page loads the same module)
+const BatchHint = require('./batch-hint.js');                // W2.3: the batching sentence at the end of the task doctrine and its switch's parser (batchHintOn reads STARNET_BATCH_HINT through ENV())
 const { makeAuxAdmission } = require('./aux-admission.js');
 const LearnedTail = require('./learned-tail.js');             // issue #105: learned blocks of a persona stay out of the cached prefix
 const DeclinedIndex = require('./declinedindex.js');         // flagship cross-wire (NS-8 lite): read-side shared declined index — a decline ANYWHERE suppresses a re-propose EVERYWHERE
@@ -4364,6 +4366,11 @@ function effortAsRun(provider, model, sent, req) {
   if (!provider || typeof provider.effortAsSent !== 'function') return null;
   try { return provider.effortAsSent(model, sent || undefined, req) || null; } catch (e) { failNote('aux.effort', e); return null; }
 }
+/* delegationHintOn — the WHAT A WORKER COSTS switch (cost audit W2.9), read here and nowhere else: STARNET_DELEGATION_HINT
+   through ENV(), parsed by the pure DelegationHint.on ('1' is on; unset, blank, '0' and anything else are off). Read at each
+   use. Off by default: the line changes what a lead is told about delegating, so it waits for an A/B on real team tasks
+   (delegation-hint.js). */
+function delegationHintOn() { return DelegationHint.on(ENV('DELEGATION_HINT')); }
 /* crewDefaultsMode — the LEANER CREW DEFAULTS switch ('lean' | 'off'), read here and nowhere else: STARNET_CREW_DEFAULTS
    through ENV(), the sidecar's one env reader (a STARNET_ value that is set wins even when blank, else the legacy SKYNET_
    one), parsed by the pure CrewDefaults.mode. Read at each use, like ENV('LEAN_CREW') and ENV('AUX_EFFORT'). Off by
@@ -4389,6 +4396,10 @@ function cliReplayStream(run) {
    request; the ledger drops every record made under another epoch, so a deleted session or a forgotten memory never comes
    back through an earlier turn's note. */
 function cliReplayEpoch() { return String(sessionTombstones.latestAt()) + ':' + cliReplayForgets; }
+/* batchHintOn — the BATCHING SENTENCE switch (cost audit W2.3), read here and nowhere else: STARNET_BATCH_HINT through ENV(),
+   parsed by the pure BatchHint.on ('1' is on; unset, blank, '0' and anything else are off). Read at each use. Off by default:
+   the sentence changes what a model is told about tool calls, so it waits for an A/B on real models (batch-hint.js). */
+function batchHintOn() { return BatchHint.on(ENV('BATCH_HINT')); }
 /* crewEffort — LEANER CREW DEFAULTS, the effort half (W3.3: CrewDefaults.effortRule decides, this host applies it). A CREW
    run (a worker, a clone, a line stage: CrewDefaults.surfaceOf) whose effort is its class's applied default above medium
    asks for medium per request; the run after a failed verify (o.crewRetry: a review gate sent the work back, a structured
@@ -27381,7 +27392,10 @@ async function runOnceCore(o) {
     + 'If a dedicated tool answers "not connected", immediately continue down this ladder with the next safe, already-authorized route. Do not ask merely because the fallback is louder. Ask only when that next route itself needs Commander authentication, exact consent, or a genuinely material choice. Mention connection setup only if it remains the final blocker after the alternatives are exhausted. '
     + 'After any action that changes the world, VERIFY it took effect with a read-back tool (e.g. now-playing after play, a listing after a write, a probe after a start) before reporting done. '
     + 'A tool error is information: read it and change strategy — never repeat the identical failing call. Escalate automatically through safe authorized routes, and disclose a more visible or consequential route when its own consent boundary requires it. '
-    + 'Blocked sites, dead links and throttled engines are ordinary web weather: route around them, and mention an obstacle in your reply only if it changed the outcome — never narrate routine obstacles as failures, and never apologize for them. ';
+    + 'Blocked sites, dead links and throttled engines are ordinary web weather: route around them, and mention an obstacle in your reply only if it changed the outcome — never narrate routine obstacles as failures, and never apologize for them. '
+    // THE BATCHING SENTENCE (cost audit W2.3): '' unless STARNET_BATCH_HINT=1, so the doctrine is byte-identical with the
+    // switch off. On: independent calls together in one reply, a call whose arguments need an unseen result in the next.
+    + BatchHint.line(batchHintOn(), { todo: wireNames.indexOf('todo') >= 0 });
   /* FILES BEFORE THE SHELL (2026-10-25, a v0.14.0 report on gpt-5.6-luna): this block used to OPEN with "when the Commander
      names a local project folder, first anchor shell_exec.cwd", and the file tools came up only as "inspect before editing" —
      so with an INTEL CAB and a WORKBENCH both on the wire a Codex-trained model listed and read files with dir / Select-String /
@@ -27548,7 +27562,10 @@ async function runOnceCore(o) {
       + (anyTrack ? '\n  A [bracketed] note is that specialist\'s REAL track record on this station — earned from work the '
         + 'Commander rated and runs the harness watched finish. Use it to pick the right worker; it is evidence, not a '
         + 'permission level, and an agent without one is simply new, not worse.' : '');
-    teamNote += seatLine + spawnLine;
+    // WHAT A WORKER COSTS (cost audit W2.9): '' unless STARNET_DELEGATION_HINT=1, so the note is byte-identical with the switch
+    // off. One line for both variants of this note (the Overseer coordinating the crew, and every other run that holds
+    // team.dispatch), right after the two bullets that offer workers.
+    teamNote += seatLine + spawnLine + DelegationHint.line(delegationHintOn());
     // Class Loadouts S1: the class list here is composed from the SHARED catalog (id + tagline), never hardcoded,
     // so the summon prose can't drift from the Recruitment Bay's actual classes as new ones are added.
     const classListLine = SPECIALIST_CLASSES.map(c => c.id + (c.tagline ? ' — ' + c.tagline : '')).join('; ');

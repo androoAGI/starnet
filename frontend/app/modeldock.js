@@ -212,12 +212,32 @@ const ModelDock = (() => {
     none: 'no extra reasoning — fastest, cheapest',
     minimal: 'a touch of reasoning',
     low: 'light reasoning — quick answers',
-    medium: 'balanced reasoning — the default',
+    medium: 'balanced reasoning',
     high: 'deep reasoning — slower, more careful',
     xhigh: 'very deep reasoning',
     max: 'maximum reasoning — slowest, most thorough'
   };
-  function effortMeaning(id) { return EFFORT_MEANING[normalizeEffort(id)] || EFFORT_MEANING.medium; }
+  /* WHAT THE TOOLTIP ADDS TO A LEVEL'S GLOSS (cost audit W3.13, 2026-11-14): two facts, each only where it is true.
+     - USAGE. xhigh and max use noticeably more of the Commander's usage, and nothing in the dock said so. Said in words
+       only: the station keeps no per-level figures to show, and another harness's multipliers are not ours to quote
+       (truthful telemetry). Not said on a route whose runs are never given the dial (the registry's
+       effortDialReachesRuns: the Claude CLI), where the level changes no usage.
+     - THE DEFAULT. "the default" was part of medium's gloss, so on Codex (whose default is low) the tooltip called the
+       wrong level the default. It marks the level this PROVIDER runs at when nothing was chosen: the registry's
+       defaultReasoningEffort (low on Codex, none on Kimi and Ollama, medium elsewhere), the same value
+       Harness.getReasoningEffort falls back to.
+     A hint inside the existing tooltip: no new element, no confirm step, nothing gated. */
+  const EFFORT_USES_MORE = { xhigh: true, max: true };
+  const EFFORT_USAGE_NOTE = 'uses noticeably more of your usage';
+  const EFFORT_DEFAULT_NOTE = 'the default';
+  function effortMeaning(id, p) {
+    const effort = normalizeEffort(id);
+    const prov = normalizeProvider(p || provider());
+    let text = EFFORT_MEANING[effort] || EFFORT_MEANING.medium;
+    if (EFFORT_USES_MORE[effort] && providerRegistry.effortDialReachesRuns(prov)) text += ' — ' + EFFORT_USAGE_NOTE;
+    if (effort === providerRegistry.defaultReasoningEffortForProvider(prov)) text += ' — ' + EFFORT_DEFAULT_NOTE;
+    return text;
+  }
 
   /* A model with NO reasoning dial is not a model with reasoning OFF (2026-09-27 Grok user report: "none of my
      grok models have reasoning on"). With no dial, 'none' sends nothing and the model runs its own default, which
@@ -849,7 +869,7 @@ const ModelDock = (() => {
       '<div class="mdt-row mdt-prov">' + esc(providerLabel(p)) + '</div>' +
       '<div class="mdt-sep"></div>' +
       '<div class="mdt-row mdt-tier"><b>' + esc(def.label) + '</b> · reasoning effort</div>' +
-      '<div class="mdt-row mdt-mean">' + esc(def === MODEL_DEFAULT_EFFORT ? 'no dial — the model uses its own reasoning default' : effortMeaning(effort)) + '</div>' +
+      '<div class="mdt-row mdt-mean">' + esc(def === MODEL_DEFAULT_EFFORT ? 'no dial — the model uses its own reasoning default' : effortMeaning(effort, p)) + '</div>' +
       '<div class="mdt-hint">click to change model &amp; effort</div>';
   }
 
@@ -1074,7 +1094,7 @@ const ModelDock = (() => {
     starnetDry,
     labels: { model: modelLabel, provider: providerLabel, group: groupOf, short: shortModelName, normProvider: normalizeProvider, orGroup: openRouterGroupName },
     efforts: { optionsFor: effortOptionsFor, label: effortLabel, clamp: clampEffortForModel, list: () => EFFORTS.slice(), presetsFor: reasoningPresetsFor, presetFor: reasoningPresetFor, forPreset: effortForPreset },
-    _internals: { tierIndexFrom, tiersFor, reasoningPresetsFor, reasoningPresetFor, effortForPreset, effortOptionsFor, clampEffortForModel, modelFamily, supportsReasoning, selectorLabel, catalogEquivalent, isAgentModel, asModel, dialLess, effortShown }
+    _internals: { tierIndexFrom, tiersFor, reasoningPresetsFor, reasoningPresetFor, effortForPreset, effortOptionsFor, clampEffortForModel, modelFamily, supportsReasoning, selectorLabel, catalogEquivalent, isAgentModel, asModel, dialLess, effortShown, effortMeaning }
   };
 })();
 
