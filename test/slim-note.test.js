@@ -12,6 +12,13 @@
       whole request, where the chat line is its first line only); a line with no row, a row with one line and a pack
       without its sources pass as they came; no ask the unset note shows is ever missing; the evidence block keeps its
       own bounds.
+   C. THE FIRST-SKILL LINE. The paragraph an agent with no saved skills gets moves whole into the stable text; an index
+      of saved skills stays in the note with its heading.
+   D. THE QUEST BLOCK. Its how-to header and minting doctrine become the guide, word for word but for one added sentence
+      (where the list is) and one re-pointed phrase ("open quest above" -> "open quest in that block"); the guide is the
+      same text with and without open quests; the note keeps the same stanzas, or the block's own "no open quests" line.
+   E. THE HOST'S WIRING. runOnceCore plans only for a run that has a note, never a granted run, only with the switch on;
+      the moved text closes the system prompt's per-conversation tail and never enters cacheSystemPrefix.
 
    RED on the base (57c741da7): sidecar/slim-note.js does not exist and nothing reads the switch. */
 'use strict';
@@ -22,6 +29,10 @@ const vm = require('node:vm');
 const SlimNote = require('../sidecar/slim-note.js');
 const ContextPack = require('../sidecar/contextpack.js');
 const CommanderContext = require('../sidecar/commander-context.js');
+const RuntimeSkills = require('../sidecar/skills/runtime.js');
+const QuestInject = require('../sidecar/questinject.js');
+const FinishLine = require('../sidecar/finish-line.js');
+const Provider = require('../sidecar/providers/provider.js');
 const { readSidecarIndex, sidecarSourceFiles } = require('./helpers/source.js');
 
 const IDX = readSidecarIndex();   // the switch is read in index.js itself: this pins that file's own text
@@ -36,13 +47,14 @@ A.ok(IDX.indexOf("function slimNoteOn() { return SlimNote.on(ENV('SLIM_NOTE')); 
   const named = [];
   for (const f of sidecarSourceFiles()) { const n = f.text.split("ENV('SLIM_NOTE')").length - 1; if (n) named.push(f.rel + ' x' + n); }
   A.eq(named, ['sidecar/index.js x1'], 'A: the switch is read at one place');
-  const env = sidecarSourceFiles().filter(f => /SLIM_NOTE/.test(f.text.replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '')) && f.rel !== 'sidecar/index.js').map(f => f.rel);
-  A.eq(env, [], 'A: no other sidecar file names the switch in code');
+  const env = sidecarSourceFiles().filter(f => /process\.env\.(?:STARNET|SKYNET)_SLIM_NOTE|\[['"](?:STARNET|SKYNET)_SLIM_NOTE['"]\]/.test(f.text)).map(f => f.rel);
+  A.eq(env, [], 'A: no sidecar file reads the switch from the environment itself');
   const mod = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'slim-note.js'), 'utf8').replace(/\/\*[\s\S]*?\*\/|\/\/[^\n]*/g, '');
   A.ok(!/process\.env|Date\.now|new Date|Math\.random|require\('(?:node:)?fs'\)/.test(mod), 'A: the module is pure (no env, clock, random or fs)');
   // every line of index.js that calls the module either reads the switch or sits behind it
   const uses = IDX.split('\n').filter(l => /\bSlimNote\.(?!on\()[A-Za-z]+\(/.test(l));
-  A.ok(uses.length >= 1 && uses.every(l => /slimNoteOn\(\) \? SlimNote\./.test(l)), 'A: index.js reaches the module only behind slimNoteOn(): ' + JSON.stringify(uses.map(l => l.trim().slice(0, 90))));
+  const guarded = l => /slimNoteOn\(\) \? SlimNote\./.test(l) || IDX.indexOf('slimNoteOn()) {\n' + l + '\n') > 0;   // on its own line, or the first line of an if that reads the switch
+  A.ok(uses.length >= 1 && uses.every(guarded), 'A: index.js reaches the module only behind slimNoteOn(): ' + JSON.stringify(uses.filter(l => !guarded(l)).map(l => l.trim().slice(0, 90))));
 }
 
 /* ---------- B. one ask, once ---------- */
@@ -130,6 +142,86 @@ A.eq(IDX.split('nightshiftContextPack(evidence).activityLines').length - 1, 0, '
   A.eq(read(false), p.activityLines.slice(0, 8), 'B: the host\'s reader, switch off: the pack\'s lines, the first 8, as on the base');
   A.eq(read(true), SlimNote.activityLines(p), 'B: the host\'s reader, switch on: one line per ask');
   A.eq(read(true).length, 4, 'B: four asks, four lines');
+}
+
+/* ---------- C. the first-skill line ---------- */
+const skillIndex = (skills, opts) => RuntimeSkills.composeIndex(skills, Object.assign({ emptyGuide: true, canManage: true, budget: 6000 }, opts || {})).text;
+const GUIDE = skillIndex([]);
+const SKILL = { id: 'tidy', name: 'tidy', summary: 'How to tidy a folder', state: 'active', agentId: 'agent' };
+{
+  A.ok(GUIDE.indexOf('\n\n## SAVED AGENT SKILLS\nYou have no saved skills yet. ') === 0 && RuntimeSkills.isEmptyGuide(GUIDE), 'C: an agent with no saved skills gets the first-skill line, and the module knows it');
+  A.ok(RuntimeSkills.isEmptyGuide(skillIndex([Object.assign({}, SKILL, { state: 'archived' })])) && skillIndex([Object.assign({}, SKILL, { state: 'archived' })]).indexOf('(1 archived;') > 0, 'C: so is the line of an agent whose skills are all archived');
+  A.ok(RuntimeSkills.isEmptyGuide(skillIndex([], { canManage: false })), 'C: and the skill.write wording');
+  const index = skillIndex([SKILL]);
+  A.ok(index.indexOf('\n\n## SAVED AGENT SKILLS (mandatory)\nBefore replying, scan this skill index.') === 0 && !RuntimeSkills.isEmptyGuide(index), 'C: an index of saved skills is not the first-skill line');
+  for (const v of ['', null, undefined, 'x', 7]) A.ok(!RuntimeSkills.isEmptyGuide(v), 'C: ' + JSON.stringify(v) + ' is not the first-skill line');
+  const p = SlimNote.plan({ skills: GUIDE, quests: '' });
+  A.eq([p.skills, p.stable, p.quests], ['', GUIDE, ''], 'C: THE FIRST-SKILL LINE MOVES WHOLE: it leaves the note and is the stable text, byte for byte');
+  const q = SlimNote.plan({ skills: index, quests: '' });
+  A.eq([q.skills, q.stable], [index, ''], 'C: A SAVED-SKILL INDEX STAYS IN THE NOTE, heading and all (it is ranked by the message and says "scan this skill index")');
+  A.eq(SlimNote.plan({}), { skills: '', quests: '', stable: '' }, 'C: no blocks, nothing moved');
+  A.eq(SlimNote.plan(null), { skills: '', quests: '', stable: '' }, 'C: no input');
+}
+
+/* ---------- D. the quest block ---------- */
+const QI = QuestInject._internals;
+const quest = (n, extra) => Object.assign({ id: 'q:' + n, title: 'Quest number ' + n + ' for the Commander', contract: { type: 'attest', key: '' }, groundedIn: 'fact ' + n, domain: 'research' }, extra || {});
+{
+  const none = QuestInject.questBlock([]);
+  const some = QuestInject.questBlock([quest(1), quest(2, { steps: [{ key: 's1', label: 'first step', done: false }] })]);
+  const a = QuestInject.split(none), b = QuestInject.split(some);
+  A.ok(a && b, 'D: both forms of the block split');
+  A.eq(a.list, 'STATION QUESTS — you have no open quests for the Commander right now.', 'D: no open quests: the note keeps the block\'s own first line');
+  A.ok(none.indexOf(a.list + '\n\n') === 0, 'D: which is the unset block\'s first line, byte for byte');
+  A.eq(b.list, QI.LIST_HEAD + '\n\n' + QI.stanza(quest(1)) + '\n\n' + QI.stanza(quest(2, { steps: [{ key: 's1', label: 'first step', done: false }] })), 'D: open quests: the note keeps every stanza, byte for byte, under a one-line head');
+  A.ok(some.slice(-(b.list.length - QI.LIST_HEAD.length)) === b.list.slice(QI.LIST_HEAD.length), 'D: the stanzas are the tail of the unset block');
+  A.eq(a.guide, b.guide, 'D: THE GUIDE IS THE SAME TEXT WITH AND WITHOUT OPEN QUESTS (a quest minted mid-conversation never moves the system prompt)');
+  // word for word: undo the two re-pointings and the guide is the block's own fixed text
+  const undone = a.guide.replace(' ' + QI.LIST_POINTER, '').replace('NO matching open quest in that block', 'NO matching open quest above');
+  A.eq(undone, QI.HEADER + '\n\n' + QI.MINT_DOCTRINE, 'D: THE GUIDE IS THE HOW-TO HEADER AND THE MINTING DOCTRINE, WORD FOR WORD, but for one added sentence and one re-pointed phrase');
+  A.ok(some.indexOf(undone + '\n\n') === 0 && none.indexOf(QI.MINT_DOCTRINE) > 0, 'D: which is exactly what the unset block carries ahead of its quests');
+  A.eq((a.guide.match(/NO matching open quest in that block/g) || []).length, 1, 'D: the doctrine points at the block the note carries');
+  A.ok(a.guide.indexOf('open quest above') < 0, 'D: nothing in the system prompt points "above" at a list that is not there');
+  A.ok(a.guide.indexOf('Your open quests are listed in the STATION QUESTS block of this run\'s context note, which also says when you have none.') > 0, 'D: the guide says where the list is, and that it says when there is none');
+  A.ok(a.list.indexOf('STATION QUESTS') === 0 && b.list.indexOf('STATION QUESTS') === 0, 'D: the note\'s half opens with the name the guide and the quest.update tool call it by');
+  for (const t of [a.guide, a.list, b.list]) A.eq(Provider.inertHostTags(t), t, 'D: no host fence tag in either half (the note fence leaves them as written)');
+  // the cap: the same quests are shown
+  const many = []; for (let n = 1; n <= 12; n++) many.push(quest(n));
+  const capped = QuestInject.questBlock(many), c = QuestInject.split(capped);
+  A.ok(capped.indexOf('…and ') > 0 && c.list.indexOf('…and ') > 0, 'D: a ledger over the cap: the "...and N more" line stays');
+  A.eq(c.list.slice(QI.LIST_HEAD.length), capped.slice((QI.HEADER + '\n\n' + QI.MINT_DOCTRINE).length), 'D: and the same stanzas are shown as when unset (nothing is cut that was shown, nothing more is shown)');
+  // what is not a block this module wrote
+  for (const v of ['', null, 'STATION QUESTS', none + ' ', some.slice(5), QI.HEADER + '\n\n' + QI.MINT_DOCTRINE + '\n\n']) A.eq(QuestInject.split(v), null, 'D: ' + JSON.stringify(String(v).slice(0, 30)) + ' is not split');
+  const odd = SlimNote.plan({ skills: '', quests: 'SOMETHING ELSE' });
+  A.eq([odd.quests, odd.stable], ['SOMETHING ELSE', ''], 'D: a block the rule does not know stays whole in the note');
+  // the note takes the list the way it took the block
+  A.eq(QuestInject.withQuests('NOTE', b.list), 'NOTE\n\n' + b.list, 'D: withQuests places the list as it placed the block');
+  // both together: one stable text, the first-skill line first (the order the note had them in)
+  const p = SlimNote.plan({ skills: GUIDE, quests: none });
+  A.eq(p, { skills: '', quests: a.list, stable: GUIDE + '\n\n' + a.guide }, 'D: the first-skill line and the quest guide make one stable text, in the note\'s order');
+  A.eq(FinishLine.append('PREFIX' + p.stable, { isTask: true, internal: false, tools: [] }).indexOf('PREFIX' + p.stable + '\n\n' + FinishLine.MARKER), 0, 'D: it sits before FINISH THE JOB, which still closes the system prompt');
+  const bytes = s => Buffer.byteLength(s);
+  console.log('[slim-note] the note without the moved paragraphs: no saved skills and no open quests ' + (bytes(GUIDE) + 2 + bytes(none)) + ' -> ' + bytes(a.list) + ' bytes; an index and two quests '
+    + bytes(some) + ' -> ' + bytes(b.list) + ' bytes (the quest block alone)');
+  A.ok(bytes(GUIDE) + bytes(none) - bytes(a.list) > 1100 && bytes(some) - bytes(b.list) > 1100, 'D: more than 1,100 bytes leave the note either way');
+}
+
+/* ---------- E. the host's wiring ---------- */
+{
+  const START = IDX.indexOf('async function runOnceCore(');
+  const CORE = IDX.slice(START, IDX.indexOf('\n}\n', START) + 2);
+  A.ok(CORE.length > 100000, 'E: runOnceCore is sliced');
+  const planAt = CORE.indexOf("if (stablePrefix && !grantedRun && slimNoteOn()) {\n    const slim = SlimNote.plan({ skills: runtimeSkillBlock, quests: questsBlock");
+  A.ok(planAt > 0, 'E: the plan is made only for a run with a note (stablePrefix), never a granted run, and only with the switch on');
+  A.ok(CORE.indexOf("if (grantedRun) { questsBlock = '';") < planAt && CORE.indexOf('runtimeSkillBlock = PromptScrub.scrubStored(rs.text') < planAt, 'E: after the blocks are composed and a granted run\'s are blanked');
+  A.ok(planAt < CORE.indexOf('  const perRunBlocks = ') && planAt < CORE.indexOf('  const taskSystem = '), 'E: before the note and the system prompt are assembled');
+  const cachePrefix = CORE.slice(CORE.indexOf('  const cacheSystemPrefix = '), CORE.indexOf('  /* CACHE-STABLE PREFIX (lean-prompt'));
+  A.ok(cachePrefix.length > 500 && cachePrefix.indexOf('slimStable') < 0, 'E: the cached prefix (cacheSystemPrefix) never takes the moved text');
+  A.ok(CORE.indexOf('? FinishLine.append(cacheSystemPrefix + serviceKeysBlock + taskDoctrine + journeyBlock + deliverableNote + slimStable, { isTask, internal, tools: resolved.tools })') > 0,
+    'E: it closes the system prompt\'s per-conversation tail, before FINISH THE JOB');
+  A.eq(CORE.split('slimStable').length - 1, 4, 'E: and is used nowhere else (declared, set, placed; named once in the comment)');
+  A.ok(CORE.indexOf(': FinishLine.append(cacheSystemPrefix + PromptScrub.scrubStored(delegatedBlock + stationEvidenceBlock + runtimeSkillBlock\n      + preloadedSkillBlock + serviceKeysBlock + taskIntentNote + awayBriefingNote + directDomainBlock + journeyBlock\n      + deliverableNote + crewCallNote + runtimeBlock), { isTask, internal, tools: resolved.tools });') > 0,
+    'E: STARNET_STABLE_PREFIX=0 keeps its one system prompt as it was');
 }
 
 A.report('slim-note.test');
