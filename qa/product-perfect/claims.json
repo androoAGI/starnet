@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "667c441dc90dbaea8e4c80ca4aef4d05f6d9d45b",
+    "sourceCommit": "6ebe5f3fc6c5438fd319f22b9c29be9584a95db8",
     "pathSetSha256": "967af97ff9c6cbb9e744a70595665e2d29d64aa71efb2efaba623913bea16068",
     "files": [
       {
@@ -358,8 +358,8 @@
       },
       {
         "path": "frontend/app/chatresize.js",
-        "bytes": 5637,
-        "sha256": "b1d383b6df3f13ef9f39d5530006962b9ef481fca7b46844cb93d93aa451396c"
+        "bytes": 6643,
+        "sha256": "6447ec0063dda6d47c4e7c9a655450fd7849678fc06a7e2a5c194204f33fdb64"
       },
       {
         "path": "frontend/app/classicons.js",
@@ -1258,8 +1258,8 @@
       },
       {
         "path": "frontend/app/stationui.js",
-        "bytes": 1017819,
-        "sha256": "408c4d4c22cef7ecc5c4d232dbb83b274f233438115b7faa1704be94fe161126"
+        "bytes": 1018254,
+        "sha256": "9e43afa2238d1a357c9b60768493bf2ae5fb79e6e823f0efd446101042812895"
       },
       {
         "path": "frontend/app/steering-message.js",
@@ -1843,8 +1843,8 @@
       },
       {
         "path": "frontend/css/vector.css",
-        "bytes": 293764,
-        "sha256": "4210fe14d29fcd2f469c3b5524dfbb4e9e2ddba33363270d05ef7b9f736567bd"
+        "bytes": 311138,
+        "sha256": "562fbbd254c2ce1818d3216be5b5c13d75a20c3057545a64cd3bb03a466a5cc2"
       },
       {
         "path": "frontend/css/warroom.css",
