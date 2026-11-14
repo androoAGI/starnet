@@ -137,6 +137,7 @@ const { recoverToolResult } = require('./tool-recovery.js'); // bounded retry fo
 const transcriptStoreModule = require('./transcriptstore.js');
 const TurnView = require('./turn-view.js');
 const CrossRunReplay = require('./cross-run-replay.js');   // W1.8: earlier runs' replayed results ride as a head and a handle, in a window
+const SlimNote = require('./slim-note.js');   // cost lane: the slim per-run note (STARNET_SLIM_NOTE, off by default)
 const OverseerDelivery = require('./overseer-delivery.js');
 const { makeTranscriptStore } = transcriptStoreModule;
 const { makeRunJournal, DISPATCH_BOUNDARY_MODEL, quotesForgotten: journalQuotesForgotten } = require('./run-journal.js');
@@ -4468,6 +4469,10 @@ function effortPickedFor(agentId, asked, wire) {
   const row = (own && own.reasoningEffort) ? own : ((wire && wire.followsStation && hero && hero.reasoningEffort) ? hero : null);
   return !!(row && row.effortPicked === true && normalizeReasoningEffort(row.reasoningEffort) === asked);
 }
+/* slimNoteOn — the SLIM PER-RUN NOTE switch (sidecar/slim-note.js), read here and nowhere else: STARNET_SLIM_NOTE through
+   ENV(), parsed by the pure SlimNote.on ('1' is on; '0', anything else and unset are off). Read at each use, like the
+   switch above. Off by default: with it off no caller reaches slim-note.js and every request is as it was. */
+function slimNoteOn() { return SlimNote.on(ENV('SLIM_NOTE')); }
 /* crewEffort — LEANER CREW DEFAULTS, the effort half (W3.3: CrewDefaults.effortRule decides, this host applies it). A CREW
    run (a worker, a clone, a line stage: CrewDefaults.surfaceOf) whose effort is its class's applied default above medium
    asks for medium per request; the run after a failed verify (o.crewRetry: a review gate sent the work back, a structured
@@ -10923,7 +10928,9 @@ function commanderEvidenceInputs(evidence) {
   const learning = personalizationStore.read().enabled;
   try { topics = learning ? Interests.summary(interestsState, { trustedOnly: true, now: Date.now(), limit: 8 }) : []; } catch (_) {}
   try { threads = threadsStore.openThreads(6); } catch (_) {}
-  try { activity = (nightshiftContextPack(evidence).activityLines || []).slice(0, 8); } catch (_) {}
+  // SLIM NOTE (slim-note.js): the pack's pool names a finished task twice, as its brief and as the chat line that asked for
+  // it; with the switch on a transcript row is listed once, before the same 8-line bound. Off: the pack's lines as they came.
+  try { const pack = nightshiftContextPack(evidence); activity = (slimNoteOn() ? SlimNote.activityLines(pack) : (pack.activityLines || [])).slice(0, 8); } catch (_) {}
   try { worksignal = learning ? String((scoutState.context && scoutState.context.worksignalSummary) || '') : ''; } catch (_) {}
   let goal = null; try { goal = commanderGoals.get() || null; } catch (_) {}
   let verdicts = null; try { verdicts = learning ? recommendationLedger.summary() : null; } catch (_) {}
@@ -27769,7 +27776,7 @@ async function runOnceCore(o) {
   // a run never waits for the build id (VD-HANDOVER-01: a diagnostic never holds a run). [RUNTIME] reads the version as
   // it stands: while a checkout's git has not answered it says the build is still resolving (sidecar/version-source.js)
   const runtimeVersion = computeVersionSurface();
-  const runtimeBlock = runtimeIdentityBlock({ provider: providerId, model, agentId, runId, surface, trigger, fallbackModels, harness: runtimeVersion.harness || versionSource.runtimeHarness(), app: runtimeVersion.app, now: Date.now(), shell: shellRuntime });
+  let runtimeBlock = runtimeIdentityBlock({ provider: providerId, model, agentId, runId, surface, trigger, fallbackModels, harness: runtimeVersion.harness || versionSource.runtimeHarness(), app: runtimeVersion.app, now: Date.now(), shell: shellRuntime });
   // RUNTIME SKILL LIBRARY (skill-builder-gap): index the agent's own authored skills + preload any it invokes,
   // riding the same skill.view/skill.manage capability gate. Never breaks a run.
   try {
@@ -27948,6 +27955,26 @@ async function runOnceCore(o) {
   // GHSA-2hpj NEW-1: what a granted run is not given (granted-context.js INPUTS, 'withheld'); its system has no learned tail
   if (grantedRun) { questsBlock = ''; journeyBlock = ''; runtimeSkillBlock = ''; awayBriefingNote = ''; crewCallNote = ''; evidenceBlock = ''; }
   const persona = grantedRun ? { stable: system || '', learned: '' } : stablePrefix ? LearnedTail.split(system) : { stable: system || '', learned: '' };
+  /* THE SLIM NOTE (cost lane, 2026-11-14; sidecar/slim-note.js; STARNET_SLIM_NOTE=1, off by default). The per-run note (below) is
+     new on every message, so no provider ever reads it from cache, and some of its paragraphs are the same bytes on every
+     message: the first-skill line an agent with no saved skills gets, the quest how-to with its minting doctrine, and
+     the [RUNTIME] block's closing instruction. With the switch on they close cacheSystemPrefix instead (slimStable), the
+     part of the system prompt every route reads from cache from a conversation's first message. The system prompt's
+     tail would not do: on the Claude API it carries no anchor of its own, so a conversation's first two messages write
+     it again. The note keeps what changes: a saved-skill index with its own heading, the list of open quests or the line
+     saying there are none, and every identity line of [RUNTIME]. Each paragraph is moved whole; the two that point at
+     their own block (the doctrine at the quest list, the instruction at [RUNTIME]) say where it now is. Each is the
+     same text on every message: the quest guide whether or not a quest is open, the first-skill line until the agent
+     has a skill (then the prefix moves once, as it does when the floor or a recipe changes).
+     NEVER FOR A GRANTED RUN (granted-context.js INPUTS slim-note-guides): the skill and quest blocks are withheld from
+     it above, and nothing moves, its [RUNTIME] block included. With STARNET_STABLE_PREFIX=0 there is no note, so nothing
+     moves either (the lane's other half, an ask listed once in the commander evidence, still applies there). Off: every
+     byte is as before. */
+  let slimStable = '';
+  if (stablePrefix && !grantedRun && slimNoteOn()) {
+    const slim = SlimNote.plan({ skills: runtimeSkillBlock, quests: questsBlock, runtime: runtimeBlock });
+    runtimeSkillBlock = slim.skills; questsBlock = slim.quests; runtimeBlock = slim.runtime; slimStable = slim.stable;
+  }
   const cacheSystemPrefix = persona.stable + toolNote + teamNote + operatorManual
     // A tool deferred as CERTAINLY unavailable (resolved.unavailable: no image connection, no Spotify token, no PTY...)
     // is not a power this run has, even though it stays searchable. The ground-truth block must not claim it while the
@@ -27963,7 +27990,7 @@ async function runOnceCore(o) {
           mediaRoute: !!(studioRoute && studioRoute.ok),
           // ROOM SCOPE: lazy (called only when a floor object is missing); the room it names is stable per agent, so the cached prefix holds.
           // hasBay first: an agent crewing no dock on the router's plan (the bayless hero) never reads or validates the saved floor
-          scopeFn: () => { try { return scopeForRun({ loadStation: savedFloor, agentId, runStation: o.station, extraObjects: o.extraObjects, interactive: surface === 'interactive', floorless: !!o.floorless, hasBay: () => observe.docksOf(agentId).length > 0 }); } catch (e) { failNote('capsummary.roomscope', e); return null; } } }) + skillBlock;
+          scopeFn: () => { try { return scopeForRun({ loadStation: savedFloor, agentId, runStation: o.station, extraObjects: o.extraObjects, interactive: surface === 'interactive', floorless: !!o.floorless, hasBay: () => observe.docksOf(agentId).length > 0 }); } catch (e) { failNote('capsummary.roomscope', e); return null; } } }) + skillBlock + slimStable;
   /* CACHE-STABLE PREFIX (lean-prompt, 2026-10-12). Everything below that changes per MESSAGE — the run's skill index
      (ranked by this message), a /skill preload, the Task Brief (its id is the run's), the away briefing, a one-host
      check, the crew call, [RUNTIME] (run id, today) and the open quests — used to close the system prompt, so the
@@ -28006,6 +28033,7 @@ async function runOnceCore(o) {
      that exists today: it keeps the census true if either of those ever moves. */
   const delegatedBlock = (!grantedRun && typeof o.delegatedContext === 'string' && o.delegatedContext.trim()) ? '\n\n' + PromptScrub.scrubStored(o.delegatedContext.trim()) : '';
   // the crew call is NOT a run-context block: it trails the Commander's words as its own <crew_call> note (below)
+  // (with STARNET_SLIM_NOTE on, runtimeSkillBlock, runtimeBlock and questsBlock are here without their constant paragraphs: THE SLIM NOTE, above)
   const perRunBlocks = LearnedTail.tail(persona.learned) + delegatedBlock + runtimeSkillBlock + preloadedSkillBlock + taskBriefContext + stationEvidenceBlock + awayBriefingNote + directDomainBlock + runtimeBlock;
   const taskSystem = stablePrefix
     ? FinishLine.append(cacheSystemPrefix + serviceKeysBlock + taskDoctrine + journeyBlock + deliverableNote, { isTask, internal, tools: resolved.tools, restated: howToWorkLean })

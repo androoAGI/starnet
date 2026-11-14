@@ -78,7 +78,8 @@ function host(saveImpl) {
     Recommendation: { preferenceTallies: () => ({}) }, nightshiftPreferenceWeights: () => ({}),
     stationTrackRecordLines: () => [], threadsStore: { openThreads: () => [] }, contextpack: CP,
     Interests: { summary: () => [] }, interestsState: {}, scoutState: { context: {} },
-    recommendationLedger: { summary: () => null }, commanderDossier: { get: () => ({}) }
+    recommendationLedger: { summary: () => null }, commanderDossier: { get: () => ({}) },
+    slimNoteOn: () => false   // STARNET_SLIM_NOTE off, the default
   };
   const api = vm.runInNewContext("let _stationEpochMemo = { stamp: '', epoch: 1 };\n" + bodies.join('\n') +
     '\n({ evidenceRows, stationEpoch, nightshiftContextPack, commanderEvidenceContext, standingWorkNotice })', sandbox);

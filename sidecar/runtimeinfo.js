@@ -78,6 +78,8 @@
     return Object.prototype.hasOwnProperty.call(HOST_FACTS, p) ? HOST_FACTS[p] : NEUTRAL_HOST;
   }
 
+  // the block's closing instruction: the same bytes on every run, the only line of it that is not a fact about this run
+  const ANSWER_LINE = 'If the Commander asks what StarNet build, model, provider, run, surface, or session you are using, answer from this block. For mutable harness state such as scheduler health, routines, connectors, or errors, call station.inspect. Do not guess or invent a CLI command.';
   function runtimeIdentityBlock(o) {
     o = o || {};
     const provider = oneLine(o.provider, 'unknown', 80);
@@ -107,9 +109,21 @@
     // year-old month. The station's clock is the truth; `now` is injected by the caller (this file never reads a clock).
     const today = todayLine(o.now);
     if (today) lines.push(today);
-    lines.push('If the Commander asks what StarNet build, model, provider, run, surface, or session you are using, answer from this block. For mutable harness state such as scheduler health, routines, connectors, or errors, call station.inspect. Do not guess or invent a CLI command.');
+    lines.push(ANSWER_LINE);
     return '\n\n' + lines.join('\n');
   }
 
-  return { oneLine, runtimeIdentityBlock, todayLine, shellLine, hostFacts };
+  /* THE BLOCK WITHOUT ITS STANDING LINE (cost lane, 2026-11-14; sidecar/slim-note.js, STARNET_SLIM_NOTE). The block rides the
+     per-run note, which no cache reads, and its closing instruction is 267 bytes that never change. splitGuide() takes a
+     block runtimeIdentityBlock() wrote and returns it without that line (block: every identity line, as written) and
+     the line for the system prompt (guide): word for word, with "answer from this block" re-pointed at the block it no
+     longer sits in. A text this module did not write returns null, and the caller leaves it whole. */
+  const THIS_BLOCK = 'answer from this block';
+  function splitGuide(block) {
+    const b = String(block == null ? '' : block), tail = '\n' + ANSWER_LINE;
+    if (b.indexOf('\n\n[RUNTIME]\n') !== 0 || b.length <= tail.length || b.slice(-tail.length) !== tail || ANSWER_LINE.indexOf(THIS_BLOCK) < 0) return null;
+    return { block: b.slice(0, -tail.length), guide: ANSWER_LINE.replace(THIS_BLOCK, 'answer from the [RUNTIME] block of this run\'s context note') };
+  }
+
+  return { oneLine, runtimeIdentityBlock, splitGuide, todayLine, shellLine, hostFacts };
 });

@@ -150,6 +150,8 @@ const GATES = {
   'awayBriefingNote': /if \(grantedRun\) \{[^}\n]*awayBriefingNote = '';/,
   'crewCallNote': /if \(grantedRun\) \{[^}\n]*crewCallNote = '';/,
   'evidenceBlock': /if \(grantedRun\) \{[^}\n]*evidenceBlock = '';/,
+  // STARNET_SLIM_NOTE: the paragraphs moved from the note to the system are taken only when the run is not granted
+  'slimStable': /let slimStable = '';\n\s*if \(stablePrefix && !grantedRun && slimNoteOn\(\)\) \{\n\s*const slim = SlimNote\.plan\(\{ skills: runtimeSkillBlock, quests: questsBlock[^}]*\}\);\n[^\n]*slimStable = slim\.stable;\n\s*\}/,
   'persona.learned': /const persona = grantedRun \? \{ stable: system \|\| '', learned: '' \} : /,
   'stationEvidenceBlock': /if \(o\.stationEvidence === true && !internal && !taskBrief && !grantedRun\) \{/,
   'taskBriefContext': /if \(isTask && o\.taskKey && !o\.toolsOptional && !grantedRun\) \{/,
@@ -177,6 +179,9 @@ for (const row of G.INPUTS) {
   if (!row.vars.length && row.granted === 'withheld') A.ok(/^(commander-dossier|active-goal|standing-brief|project-house-rules|persona-crew-line|persona-approval-line|persona-learned-tail)$/.test(row.id) || false,
     row.id + ': an input with no name of its own rides the system, which a granted run rebuilds (above)');
 }
+// the slim note's moved paragraphs have that one source, taken after the granted blanking: nothing else ever sets them
+A.eq((CORE.match(/\bslimStable = /g) || []).length, 2, 'slimStable is set at two places: its empty start and the one plan behind !grantedRun');
+A.ok(CORE.indexOf("if (grantedRun) { questsBlock = '';") > 0 && CORE.indexOf("if (grantedRun) { questsBlock = '';") < CORE.indexOf("let slimStable = '';"), 'the blocks it is taken from are blanked for a granted run before it is planned');
 // the run that counts, and what decides it
 A.ok(/const grantedRun = GrantedContext\.grantedRun\(surface, unattendedGrants\) && !!grantedInstructions;/.test(CORE), 'a granted run is one still holding its grants after the drive check');
 A.ok(/const grantJob = \(unattendedGrants\.length && o\.noAgent !== true && o\.cronJobId != null\) \? \(cronStore\.getJob\(cronJobs, String\(o\.cronJobId\)\) \|\| null\) : null;/.test(CORE), 'the instructions are read off the routine record and the roster, never off the caller');

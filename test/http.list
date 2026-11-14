@@ -326,6 +326,8 @@ test/memory-learning-boundary.http.test.js
 test/skills.candidate-lifecycle.http.test.js
 test/skills.evaluation-spend.http.test.js
 test/lean-prompt.e2e.test.js
+test/slim-note.e2e.test.js
+test/slim-note.granted.http.test.js
 test/dormant-followups.e2e.test.js
 test/prefix-lanes.e2e.test.js
 test/loop-truth.e2e.test.js

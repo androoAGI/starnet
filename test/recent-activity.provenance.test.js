@@ -29,7 +29,8 @@ const sandbox = { Map, Set, Date: { now: () => now }, TrustedLearning: Learning,
   commanderGoals: { get: () => ({ text: 'UNSOURCED_GOAL_LABEL' }) }, autonomyLedger: { list: () => [] }, nightshiftBeliefMap: () => ({}),
   Recommendation: { preferenceTallies: () => ({}) }, nightshiftPreferenceWeights: () => ({}), stationTrackRecordLines: () => [],
   redact: text => text, threadsStore: { openThreads: () => [] }, personalizationStore: { read: () => ({ enabled: false }) },
-  commanderDossier: { get: () => '' }, failNote(tag, error) { throw new Error(tag + ': ' + error.message); } };
+  commanderDossier: { get: () => '' }, failNote(tag, error) { throw new Error(tag + ': ' + error.message); },
+  slimNoteOn: () => false };   // STARNET_SLIM_NOTE off, the default
 vm.createContext(sandbox);
 for (const name of ['evidenceRows', 'nightshiftContextPack', 'commanderEvidenceInputs']) vm.runInContext(sidecarFunctionSource(name), sandbox);
 const pack = sandbox.nightshiftContextPack({});

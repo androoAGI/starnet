@@ -55,7 +55,32 @@
 
   // the MINIMAL block emitted when the agent has NO open quests: a short frame + the minting doctrine only. This is
   // NOT '' — an empty ledger for a task run should still invite grounded minting (plan §E). withQuests appends it.
-  const MINT_ONLY = 'STATION QUESTS — you have no open quests for the Commander right now.\n\n' + MINT_DOCTRINE;
+  const NONE_LINE = 'STATION QUESTS — you have no open quests for the Commander right now.';
+  const MINT_ONLY = NONE_LINE + '\n\n' + MINT_DOCTRINE;
+
+  /* THE TWO HALVES OF THE BLOCK (cost lane, 2026-11-14; sidecar/slim-note.js, STARNET_SLIM_NOTE). The block rides the
+     per-run note beside the newest message, which no cache reads, and its how-to header and minting doctrine are the
+     same bytes on every message: 1,240 characters ahead of a quest that takes 290. split() takes a block questBlock()
+     wrote and returns the constant half for the system prompt (guide) and what is left for the note (list).
+       guide  the header and the doctrine, word for word, with the two places that point at the list re-pointed: one
+              sentence saying where the list is, and the doctrine's "open quest above" as "open quest in that block"
+              (the list is no longer above it). The same text whether the list is empty or not, so a quest minted or
+              finished in the middle of a conversation never moves the system prompt.
+       list   exactly the stanzas (and the "...and N more" line) questBlock() kept under BLOCK_CAP, under a one-line
+              head; an empty ledger keeps its own first line.
+     A block this module did not write returns null, and the caller leaves it whole. */
+  const LIST_HEAD = 'STATION QUESTS — your open quests for the Commander right now:';
+  const LIST_POINTER = 'Your open quests are listed in the STATION QUESTS block of this run\'s context note, which also says when you have none.';
+  const ABOVE = 'NO matching open quest above';
+  const GUIDE = HEADER + ' ' + LIST_POINTER + '\n\n' + MINT_DOCTRINE.replace(ABOVE, 'NO matching open quest in that block');
+  function split(block) {
+    const b = String(block == null ? '' : block);
+    if (MINT_DOCTRINE.indexOf(ABOVE) < 0) return null;   // the doctrine no longer points at the list that way: nothing is re-pointed blind
+    if (b === MINT_ONLY) return { guide: GUIDE, list: NONE_LINE };
+    const head = FIXED + '\n\n';
+    if (b.indexOf(head) === 0 && b.length > head.length) return { guide: GUIDE, list: LIST_HEAD + '\n\n' + b.slice(head.length) };
+    return null;
+  }
 
   // contract type → the one-line "how this completes" phrasing the agent reads under each quest.
   function completesWhen(contract) {
@@ -141,5 +166,7 @@
     return sys ? (sys + '\n\n' + b) : b;
   }
 
-  return { questBlock: questBlock, withQuests: withQuests, _internals: { completesWhen: completesWhen, nextStep: nextStep, stanza: stanza, BLOCK_CAP: BLOCK_CAP, MINT_ONLY: MINT_ONLY, MINT_DOCTRINE: MINT_DOCTRINE } };
+  return { questBlock: questBlock, withQuests: withQuests, split: split,
+    _internals: { completesWhen: completesWhen, nextStep: nextStep, stanza: stanza, BLOCK_CAP: BLOCK_CAP, MINT_ONLY: MINT_ONLY, MINT_DOCTRINE: MINT_DOCTRINE,
+      HEADER: HEADER, GUIDE: GUIDE, LIST_HEAD: LIST_HEAD, LIST_POINTER: LIST_POINTER, NONE_LINE: NONE_LINE } };
 });

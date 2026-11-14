@@ -71,13 +71,18 @@
      index below, and an agent with no saved skills got no index, so a new agent was never asked. With
      `emptyGuide`, an empty skillbase still gets one short constant block (constant, so the cached prefix stays
      stable) telling the agent what a skill is and when to save one. */
+  const GUIDE_HEAD = '\n\n## SAVED AGENT SKILLS\n';   // the index's own heading reads "## SAVED AGENT SKILLS (mandatory)"
+  /* Is this composeIndex() text the first-skill line, and not an index of saved skills? The line is the same bytes on
+     every message until the agent has a skill, which is what lets the slim per-run note (sidecar/slim-note.js) carry it
+     in the cached system prompt instead; an index is ranked by the message and stays beside it. */
+  function isEmptyGuide(text) { return typeof text === 'string' && text.indexOf(GUIDE_HEAD) === 0; }
   function emptyGuide(canManage, archived) {
     // archived > 0: the agent HAS skills, all archived. "No saved skills yet" would be false and would steer it to
     // recreate instead of restore, so the line says what is true.
     const opening = archived > 0
       ? 'You have no active saved skills (' + archived + ' archived; skill.list with includeArchived shows them, and skill.manage action restore brings one back). '
       : 'You have no saved skills yet. ';
-    return '\n\n## SAVED AGENT SKILLS\n'
+    return GUIDE_HEAD
       + opening + 'A skill is a procedure you write down so your next runs start from it instead of working it out again. '
       + 'When a task makes you work out a non-trivial procedure (a multi-step workflow, a fix for a tricky error, a format or approach the Commander wants), save it '
       + (canManage ? 'with skill.manage (action create)' : 'with skill.write')
@@ -242,5 +247,5 @@
     const rel = context.bm25(list.map(s => ({ title: s.name, body: s.summary || s.description || '' })), str(query));
     return orderByQuery(list.filter((s, i) => rel.scores[i] > 0 || cleanLine(s.name).toLowerCase().includes(str(query).toLowerCase())), str(query), context);
   }
-  return { composeIndex, extractInvocations, composeLoaded, searchIndex, supportFileLine, scrubSkillText };
+  return { composeIndex, isEmptyGuide, extractInvocations, composeLoaded, searchIndex, supportFileLine, scrubSkillText };
 });
