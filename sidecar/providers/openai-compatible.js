@@ -493,6 +493,17 @@
       return Object.assign({}, opts.headers || {}, { [runIdHeader]: runId });
     }
     const listPrices =(prices && typeof prices.priceOf === 'function') ? prices : null;
+    /* A PAID FOLD CAN READ THE RUN'S OWN PREFIX HERE (W2.7, history-edit.js prefixFold) only where this endpoint's caching
+       is known. An endpoint that takes explicit anchors (the managed route) gives its stamper's own answer
+       (openrouter.prefixFoldFor: a Claude model). Any other declares it when its price family documents a cached-input
+       rate (prices.js cachesPrompts: OpenAI, DeepSeek, Mistral cache a repeated prompt prefix by themselves; five
+       minutes is the shortest life any of them documents). A custom or local endpoint has no price family: it bills
+       nothing, or caches nothing StarNet can name, and its fold stays chunked. A tool the reply names is only streamed. */
+    const prefixFoldOf = (cacheControl && typeof opts.prefixFold === 'function') ? opts.prefixFold : null;
+    function prefixFold(model) {
+      if (cacheControl) return prefixFoldOf ? prefixFoldOf(model) : null;
+      return (priceFamily && listPrices && typeof listPrices.cachesPrompts === 'function' && listPrices.cachesPrompts(priceFamily)) ? { ttlMs: 300000 } : null;
+    }
     const defaultEffort = String(opts.reasoningEffort || '');
     /* PROFILE-DOCUMENTED LEVELS (registry `reasoningModels`) for endpoints whose catalog publishes none — OpenAI's
        /v1/models carries only id/created/owned_by. First match wins; a model no rule matches stays unknown. A
@@ -853,7 +864,12 @@
       // Strict Chat Completions endpoints (Mistral: 422 extra_forbidden) reject StarNet's own bookkeeping keys on a
       // message (ts, streamId, agentId, the `reasoning` parking field) — only Chat Completions message keys leave.
       body.messages = provider.chatWireMessages(body.messages);
-      if (cacheControl) body.messages = cacheControl(body.messages, req.model, req.cacheSystemPrefix, req.neverReread === true && !(req.tools && req.tools.length));
+      if (cacheControl) {
+        // W2.7: a fold from the run's own prefix anchors where the run's last request did (openrouter.js applyCacheControl, prior)
+        const read = provider.prefixReadOf(req);
+        const prior = read ? provider.chatWireMessages(provider.projectRoles(provider.prepareWireMessages(sent.slice(0, read), 'chat'), policy)) : null;
+        body.messages = cacheControl(body.messages, req.model, req.cacheSystemPrefix, req.neverReread === true && !(req.tools && req.tools.length), prior);
+      }
       // OLLAMA NATIVE: size the window to THIS request before it leaves (the model's trained maximum is one local
       // /api/show, cached per model). requestWithRetry resizes once more if Ollama counts more tokens than estimated.
       let wire = null;
@@ -1586,7 +1602,7 @@
 
     // localRuntime names the Ollama server this instance talks to, so the loop never fails a local out-of-memory
     // over to another model on the same server.
-    return { stream, listModels, verifyCredential, warmCatalog, contextLimit, outputLimit, priceOf, supportsTools, supportsImages, reasoningEfforts, effortAsSent, cacheAnchors, endpointFacts: endpointFactsOf, localRuntime: nativeBase || undefined };
+    return { stream, listModels, verifyCredential, warmCatalog, contextLimit, outputLimit, priceOf, supportsTools, supportsImages, reasoningEfforts, effortAsSent, cacheAnchors, prefixFold, endpointFacts: endpointFactsOf, localRuntime: nativeBase || undefined };
   }
 
   return { makeOpenAICompatibleProvider, _internals: { normalizeModel, reportedWindow, cleanBaseUrl, responseErrorDetail, safeErrorField, makeArgsTracker, clampToDeclared, canonicalEffort, paramNamed, supportedEffortsFrom, toolsForceNone, replayReasoningContent } };

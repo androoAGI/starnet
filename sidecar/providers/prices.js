@@ -322,6 +322,12 @@
     if (family === 'anthropic' && cacheTtl && cacheTtl.longestTier() === '1h') return ANTHROPIC_1H;
     return CACHE[family] || NO_CACHE;
   }
+  // a family whose vendor documents a cached-input rate (CACHE above) caches a repeated prompt prefix: what a fold from a
+  // run's own prefix needs of a route with no explicit anchors (W2.7, openai-compatible.js prefixFold)
+  function cachesPrompts(family) {
+    const c = Object.prototype.hasOwnProperty.call(CACHE, String(family)) ? CACHE[String(family)] : null;
+    return !!(c && c.read < 1);
+  }
 
   /* cacheRatesOf(id) -> { read, write } | null   THE CACHE RATES A MODEL IS DOCUMENTED TO BILL, WHEREVER IT IS SERVED
      (W2.1 review). Billing prices a cache read at its FAMILY's rate (CACHE above): Anthropic's 0.10x over-reports the
@@ -447,5 +453,5 @@
     return promptTierTokens(id);
   }
 
-  return { priceOf, pricingBlock, setLiveLookup, promptTierTokens, promptTierCeiling, cacheRatesOf, _internals: { ANTHROPIC, GEMINI, OPENAI, XAI, GROQ, MISTRAL, DEEPSEEK, TOGETHER, FIREWORKS, TABLES, CACHE, OVERRIDES, PROMPT_TIERS, BILLED_COST_ROUTES } };
+  return { priceOf, pricingBlock, setLiveLookup, promptTierTokens, promptTierCeiling, cacheRatesOf, cachesPrompts, _internals: { ANTHROPIC, GEMINI, OPENAI, XAI, GROQ, MISTRAL, DEEPSEEK, TOGETHER, FIREWORKS, TABLES, CACHE, OVERRIDES, PROMPT_TIERS, BILLED_COST_ROUTES } };
 });

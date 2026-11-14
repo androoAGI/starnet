@@ -28431,6 +28431,10 @@ async function runOnceCore(o) {
       // W2.1 batched ageing: old tool results and successful write arguments leave the request view in batches that pay
       // for themselves (history-edit makeAgeing). OFF until an A/B on real models passes (on: STARNET_BATCHED_AGEING=1)
       batchedAgeing: /^(1|true|yes|on)$/i.test(String(ENV('BATCHED_AGEING') || '').trim()),
+      // W2.7 fold from the prefix: a paid fold sends the run's own next request with the summarize instruction appended, so
+      // the provider reads the conversation from its prompt cache instead of being sent it again as text, on the routes
+      // that can (history-edit prefixFold). OFF until an A/B on real models passes (on: STARNET_FOLD_FROM_PREFIX=1)
+      foldFromPrefix: /^(1|true|yes|on)$/i.test(String(ENV('FOLD_FROM_PREFIX') || '').trim()),
       // P0.2 credential rotation: the live key + a hook the loop calls as it rotates away from a failed one,
       // so a rate-limit/auth/billing key gets a cooldown (credPool) and isn't tried first next run.
       // activePrimaryKey, NOT runKey: when the run's own key was still cooling we STARTED on a warm pool key,

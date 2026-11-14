@@ -45,6 +45,7 @@ const { makeGenerationReceipt } = require('./providers/provider.js');
 
 const fidelity = require('./compaction-fidelity.js');
 const HistoryEdit = require('./history-edit.js');   // the one history-edit resolver: a fold's own request writes no cache
+const { COMPACTION_SECTIONS } = require('./context.js');   // the sections the summary prompt demands (a fold from the prefix checks for one)
 
 const DEFAULT_CHUNK_CHARS = 48000;
 const DEFAULT_MAX_CHUNKS = 12;
@@ -200,19 +201,20 @@ function makeSummarizer(deps) {
     let running = (typeof prevSummary === 'string' && prevSummary.trim()) ? prevSummary.trim() : '';
     let usd = 0, tokens = 0, produced = false, rejected = null; const unpriced = [];
 
-    async function attempt(useModel, userMsg, hasPrev) {
+    // fromPrefix: the run's own request with the instruction appended (W2.7, below), sent as it is; absent: a chunk's own prompt
+    async function attempt(useModel, userMsg, hasPrev, fromPrefix) {
       // A FOLD CHUNK IS NEVER READ AGAIN (W1.7): no cache write (history-edit foldRequest -> neverReread, as the aux meter's
       // one-shots). Each chunk's prefix is unique to it, so the anchors only ever paid the write premium (1.25x / 2.0x).
-      const req = HistoryEdit.foldRequest({ model: useModel, stream: true, signal, messages: [
+      const req = fromPrefix || HistoryEdit.foldRequest({ model: useModel, stream: true, signal, messages: [
         { role: 'system', content: summaryPrompt({ prevSummary: hasPrev }) },
         { role: 'user', content: userMsg }
       ] });
-      const effort = auxEffortFor(sProvider, useModel);
+      const effort = fromPrefix ? null : auxEffortFor(sProvider, useModel);   // a fold from the prefix keeps the run's own effort: another one misses its cache
       if (effort) req.reasoningEffort = effort;
-      if (deps.runId) req.runId = deps.runId;   // run attribution (starnet proxy header; other providers ignore it)
+      if (deps.runId && !fromPrefix) req.runId = deps.runId;   // run attribution (starnet proxy header; other providers ignore it)
       if (beforeAttempt && !(await beforeAttempt({ request: req, provider: sProvider, cost: sCost }))) throw admissionStop;
       const noteGeneration = generationReceipt.begin();
-      let out = '', usage = null, finish = null, truncated = false, sawUsageOrOutput = false, done = false, perCall = true;
+      let out = '', usage = null, finish = null, truncated = false, sawUsageOrOutput = false, done = false, perCall = true, called = false;
       try {
         const it = deps.streamFn ? deps.streamFn(req, sProvider) : sProvider.stream(req);
         for await (const ev of it) {
@@ -223,6 +225,7 @@ function makeSummarizer(deps) {
           if (ev.type === 'text') out += ev.delta;
           else if (ev.type === 'usage') { usage = ev.usage; noteGeneration(usage && usage.generation_id); }
           else if (ev.type === 'done') { done = true; finish = ev.finishReason || null; truncated = !!ev.truncated; }
+          else if (ev.type === 'tool_start') called = true;   // only a fold from the prefix carries tools: the call is never run (below)
         }
       } finally {
         // Every real attempt books once, even if its stream, a later chunk, or the merge fails. No usage is invented.
@@ -234,14 +237,48 @@ function makeSummarizer(deps) {
         if (c.unpriced) unpriced.push({ model: useModel, tokensIn: c.tokensIn || 0, tokensOut: c.tokensOut || 0 });
       }
       const text = out.trim();
-      return { text, rejected: rejectReason(text, finish, truncated) };
+      return { text, rejected: rejectReason(text, finish, truncated), called };
+    }
+    const memoryFor = (transcript) => { try { return memoryBlockFor(transcript) || ''; } catch (_) { return ''; } };
+
+    /* A FOLD FROM THE RUN'S OWN PREFIX (W2.7; history-edit.js prefixFold decides where, and the loop hands live.prefix only
+       then). ONE request: the run's own next request with the summarize instruction appended (prefixInstruction: the same
+       summary prompt, memory block and previous summary a chunk gets), so the provider reads the conversation from its
+       prompt cache instead of being sent it again as text. The reply is the summary only when it is whole: not cut, not
+       refused, not empty, no tool named (the request carries the run's tools so the cache hits, and nothing it names is
+       ever run), and holding at least one of the sections the prompt demands (a model that carried on with the task
+       instead is not a summary). Anything else, a provider error included, falls back to the chunked fold below, which
+       starts from the same previous summary: the fold is then exactly today's. A fold on an auxiliary model has nothing
+       cached for that model, so it is chunked as before. An abort, a refused spend and a silent local server end the fold
+       as they do for a chunk. */
+    let prefixFallback = '';   // a fold from the prefix was sent and its reply was not taken: why
+    const prefix = live && live.prefix && typeof live.prefix === 'object' && live.prefix.request ? live.prefix : null;
+    const prefixSkipped = prefix && sModel !== runModel ? 'aux-model' : '';   // ...or it was never sent
+    if (prefix && !prefixSkipped) {
+      if (signal.aborted) { const e = new Error('aborted'); e.name = 'AbortError'; throw e; }
+      const instruction = prefixInstruction({ prompt: summaryPrompt({ prevSummary: !!running }), memBlock: chunks.length ? memoryFor(chunks[0]) : '',
+        prevSummary: running, kept: prefix.kept, keptHead: prefix.keptHead });
+      const request = HistoryEdit.prefixFoldRequest(Object.assign({}, prefix.request, { signal, stream: true }), instruction, prefix.read);
+      let res = null;
+      try { res = await attempt(runModel, '', !!running, request); }
+      catch (e) {
+        if (signal.aborted || e === admissionStop || (e && e.localModelTimeout === true)) throw e;
+        prefixFallback = 'error';
+      }
+      if (res) {
+        prefixFallback = res.rejected || (res.called ? 'tool-call' : !res.text ? 'empty' : !hasSection(res.text, deps.sections) ? 'no-sections' : '');
+        if (!prefixFallback) {
+          const r = { summary: res.text, usd, tokens, chunks: 1, truncatedChars: 0, prefix: true };
+          if (unpriced.length) r.unpricedUsage = unpriced;
+          return r;
+        }
+      }
     }
 
     for (let n = 0; n < chunks.length; n++) {
       if (signal.aborted) { const e = new Error('aborted'); e.name = 'AbortError'; throw e; }
       const transcript = chunks[n];
-      let memBlock = '';
-      try { memBlock = n === 0 ? (memoryBlockFor(transcript) || '') : ''; } catch (_) { memBlock = ''; }
+      const memBlock = n === 0 ? memoryFor(transcript) : '';
       const hasPrev = !!running;
       const prevBlock = hasPrev ? 'PREVIOUS SUMMARY (update this — merge the new turns in, drop anything now obsolete):\n' + running + '\n\n' : '';
       const part = chunks.length > 1 ? ' (part ' + (n + 1) + ' of ' + chunks.length + ')' : '';
@@ -271,10 +308,47 @@ function makeSummarizer(deps) {
     const r = { summary: (produced && !rejected) ? running : '', usd, tokens, chunks: chunks.length, truncatedChars };
     if (rejected) r.rejected = rejected;
     if (unpriced.length) r.unpricedUsage = unpriced;
+    if (prefixFallback) r.prefixFallback = prefixFallback;   // the fold from the prefix was tried and not taken (the loop notes it)
+    if (prefixSkipped) r.prefixSkipped = prefixSkipped;
     return r;
   }
   summarize.drain = transcriptDrain;
   return summarize;
 }
 
-module.exports = { makeSummarizer, partition, partitionDetailed, renderMessage, looksLikeRefusal, rejectReason, DEFAULT_CHUNK_CHARS, DEFAULT_MAX_CHUNKS };
+/* THE INSTRUCTION A FOLD FROM THE PREFIX APPENDS (W2.7). Everything a chunk's request says, in one host message after the
+   run's own conversation: the summary prompt word for word (the same sections, the same carry-forward rule), the durable
+   memory block and the previous summary exactly as a chunk gets them, and the ask. What differs is only what a chunk never
+   needed to be told: that this is the host speaking (the run's system prompt is still in force, so "summarize" would
+   otherwise read as the Commander's next request), that no tool may be called, and which part is replaced. The model sees
+   the whole conversation, the kept tail included; it is told the tail stays, and to include anything it is unsure about,
+   so the summary can only hold more than a chunked one, never less. Fenced as a host turn (provider.js LOOP_HOST_TAGS:
+   the tag every route already keeps for the host and makes inert in anyone else's text).
+   o: { prompt, memBlock, prevSummary, kept: how many newest messages stay, keptHead: how the first of them begins } */
+const KEPT_HEAD_CHARS = 160;
+function prefixInstruction(o) {
+  o = o || {};
+  const kept = Math.max(0, Math.floor(Number(o.kept) || 0));
+  const head = String(o.keptHead == null ? '' : o.keptHead).replace(/\s+/g, ' ').trim().slice(0, KEPT_HEAD_CHARS);
+  const scope = kept > 0
+    ? 'The newest ' + kept + ' message' + (kept === 1 ? '' : 's') + ' above stay' + (kept === 1 ? 's' : '') + ' in the conversation word for word after your summary'
+      + (head ? ' (that part begins: "' + head + '")' : '') + '. Every turn before them is replaced by the summary, so it must carry all of that part. If you are unsure whether something belongs to the replaced part, include it.'
+    : 'Every turn above is replaced by the summary, so it must carry all of it.';
+  const prev = String(o.prevSummary == null ? '' : o.prevSummary).trim();
+  return '<host_turn>\n'
+    + 'The host is folding this conversation to free context. This message is from the host, not from the Commander. Do not continue the task and do not call any tool: reply with the summary and nothing else.\n\n'
+    + String(o.prompt == null ? '' : o.prompt) + '\n\n'
+    + (o.memBlock ? o.memBlock + '\n\n' : '')
+    + (prev ? 'PREVIOUS SUMMARY (update this — merge the new turns in, drop anything now obsolete):\n' + prev + '\n\n' : '')
+    + 'Summarize the earlier part of the conversation above so it can replace the raw turns. ' + scope
+    + '\n</host_turn>';
+}
+// a summary holds at least one of the sections the prompt demands: a line that opens "## <name>" (any case; "## Completed:"
+// and "## Completed (so far)" count, "## Completedness" and a heading inside a sentence do not)
+function hasSection(text, sections) {
+  const names = (Array.isArray(sections) && sections.length ? sections : COMPACTION_SECTIONS).map(name => String(name).toLowerCase());
+  const heads = String(text == null ? '' : text).split('\n').map(l => l.trim().toLowerCase()).filter(l => l.indexOf('## ') === 0).map(l => l.slice(3).trim());
+  return names.some(name => heads.some(h => h.indexOf(name) === 0 && !/[a-z0-9]/.test(h.charAt(name.length))));
+}
+
+module.exports = { makeSummarizer, partition, partitionDetailed, renderMessage, looksLikeRefusal, rejectReason, prefixInstruction, hasSection, DEFAULT_CHUNK_CHARS, DEFAULT_MAX_CHUNKS };

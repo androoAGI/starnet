@@ -669,6 +669,27 @@
          human-paced gap. The sliding anchors then only cover the newest message and the run's own turns after it, so
          every 1-hour marker stays before every 5-minute one (prompt-caching.md:172). */
       const msgs = converted.messages;
+      /* A FOLD FROM THE RUN'S OWN PREFIX READS THE CACHE AND WRITES NOTHING (W2.7, provider.js prefixReadOf). The request is
+         the run's own next request with one host message appended. Its message anchors go exactly where the run's last
+         request put them: that request's messages are built and stamped again by this same function, and each anchor is
+         carried over to the same block here when the block is byte-identical. Every anchor then sits on an entry the run
+         wrote, so the prefix up to the last of them is read; the turns after it and the appended message carry no anchor,
+         so nothing is written for a run that will never read it (the fold replaces these turns). The static prefix above
+         is anchored as always: the run wrote those entries too. */
+      const read = stamping ? provider.prefixReadOf(req) : 0;
+      if (read) {
+        const prior = buildBody(Object.assign({}, req, { messages: req.messages.slice(0, read), prefixRead: 0 }), wire).messages;
+        for (let m = 0; m < prior.length && m < msgs.length; m++) {
+          const was = prior[m] && prior[m].content, now = msgs[m] && msgs[m].content;
+          if (!Array.isArray(was) || !Array.isArray(now) || prior[m].role !== msgs[m].role) continue;
+          for (let b = 0; b < was.length && b < now.length; b++) {
+            if (!was[b] || !was[b].cache_control || !now[b] || typeof now[b] !== 'object') continue;
+            const bare = Object.assign({}, was[b]); delete bare.cache_control;
+            if (JSON.stringify(bare) === JSON.stringify(now[b])) now[b] = Object.assign({}, now[b], { cache_control: was[b].cache_control });
+          }
+        }
+        return body;
+      }
       let slots = 4 - systemAnchors, from = 0;
       if (stamping && cacheTtl.anchorsHistory(ttl)) {
         const end = historyEnd(msgs);
@@ -1066,10 +1087,15 @@
        history), so a read lands only on one of them. system 'prefix': beside a tool anchor only the cache-stable prefix
        of a split system is anchored (TOOL ANCHOR); 'all': every system block is. Read per call, like the stamping. */
     function cacheAnchors() { return { history: cacheTtl.anchorsHistory(cacheTtl.mode()), system: toolAnchorOn() ? 'prefix' : 'all' }; }
+    /* A PAID FOLD CAN READ THE RUN'S OWN PREFIX HERE (W2.7, history-edit.js prefixFold). A request that repeats the run's
+       last one and appends to it reads the cache up to the anchors that request wrote (buildBody carries them over), for
+       as long as a tail anchor's entry lives; a tool the reply names is only streamed to the caller. Not for a model of a
+       third-party Anthropic-compatible endpoint (what it caches is unknown), and not with caching switched off. */
+    function prefixFold(model) { return (!CACHE_OFF && isClaude(model)) ? { ttlMs: cacheTtl.tailTtlMs(cacheTtl.mode()) } : null; }
     /* PRESERVED THINKING IS THE LOOP'S TO KEEP CONSISTENT (W1.7): on these models a history edit unbinds every block at or
        after it, so the loop's request view (history-edit.js makeRequestView) strips exactly those, once, instead of
        replaying them into a drop cascade. Asked per model; the rescue below still covers anything this list misses. */
-    return { stream, listModels, verifyCredential, warmCatalog, catalogHttpStatus, catalogFetchError, contextLimit, outputLimit, priceOf, supportsTools, reasoningEfforts, bindsThinking, effortAsSent, cacheAnchors };
+    return { stream, listModels, verifyCredential, warmCatalog, catalogHttpStatus, catalogFetchError, contextLimit, outputLimit, priceOf, supportsTools, reasoningEfforts, bindsThinking, effortAsSent, cacheAnchors, prefixFold };
   }
 
   return { makeAnthropicProvider, _internals: { messagesToAnthropic, toAnthropicTools, normalizeUsage, normalizeModel, cleanBaseUrl, headerBag, firstUnbound } };

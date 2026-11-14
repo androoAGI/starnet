@@ -233,6 +233,7 @@
         // an endpoint that relays to OpenRouter (the managed proxy) takes OpenRouter's cache breakpoints verbatim
         cacheControl: profile.explicitCache === 'openrouter' ? openrouter.applyCacheControl : null,
         cacheAnchors: profile.explicitCache === 'openrouter' ? openrouter.cacheAnchorsFor : null,   // where those breakpoints let a read land
+        prefixFold: profile.explicitCache === 'openrouter' ? openrouter.prefixFoldFor : null,   // ...and whether a fold can read the run's own prefix through them (W2.7)
         // Local runtimes may need to load a model before returning headers. Hosted providers retain the
         // shared 30s connect ceiling; only profiles that prove a different need override it (an env override wins).
         connectTimeoutMs: resolveMaxOutputTokens(wire, 'connectTimeoutMs') || undefined,

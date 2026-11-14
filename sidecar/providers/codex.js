@@ -613,7 +613,13 @@
         { headers: { Authorization: 'Bearer ' + (token || ''), Accept: 'application/json' }, signal: o && o.signal },
         j => (Array.isArray(j.models) ? j.models : []).filter(m => m && typeof m.slug === 'string' && m.slug.trim()).map(m => ({ id: m.slug })), !!token, classifyApiError);
     }
-    return { stream, listModels, verifyCredential, contextLimit, priceOf, supportsTools, reasoningEfforts, effortAsSent };
+    /* A PAID FOLD CAN READ THE RUN'S OWN PREFIX HERE (W2.7, history-edit.js prefixFold). The Responses backend caches a
+       repeated prompt prefix by itself, under the prompt_cache_key every request of a run shares (promptCacheKey: the
+       account, the model, the stable instructions), so the run's own request with one message appended reads what its
+       last request left; five minutes is the life the vendor documents at the least. A tool the reply names is only
+       streamed. What a sign-in plan counts for a cached token is not published: fewer fresh tokens go out, no saving is claimed. */
+    function prefixFold() { return { ttlMs: 300000 }; }
+    return { stream, listModels, verifyCredential, contextLimit, priceOf, supportsTools, reasoningEfforts, effortAsSent, prefixFold };
   }
 
   /* #118 (2026-10-15): the ids a listModels() answer proves the ACCOUNT offers, in the backend's priority order. The
