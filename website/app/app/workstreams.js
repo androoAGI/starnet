@@ -57,7 +57,11 @@
   // resurrected rows the Commander had deliberately removed. A deleted id lands here, rides
   // serialize()/init(), and adopt() refuses it unless the caller passes revive:true (a deliberate
   // human re-open, e.g. the OUTBOX crate's "review"). Bounded so the list can't grow unboundedly.
-  const MAX_TOMBS = 500;
+  // 20000, the sidecar's own bound (session-tombstones.js MAX_STREAMS; save-merge.js TOMBS_MAX mirrors this): at 500 a
+  // station that cleaned up thousands of routine sessions lost the oldest deletes, and every one still in the run list came
+  // back on the next boot (customer report 11-10: 72 removed routine sessions re-formed after a restart). A quiet routine
+  // run is no longer kept at all (drop(), autosessions.js), so it costs this list nothing.
+  const MAX_TOMBS = 20000;
   let tombs = [];       // string ids of deleted workstreams, oldest first
   // FORGOTTEN SESSIONS (qa/bugs/3e926b6a): the subset the Commander deleted AS A CONVERSATION (the rail's Delete, and
   // station.control session.delete, which asks them first) — del(id, { forget: true }). It rides the save as
@@ -558,6 +562,19 @@
     if (activeId === id) activeId = generalId;
     // its delegated workers' threads were its record: they go with it (never left behind, unreachable)
     for (const k of ws.filter(x => x.worker === true && x.parentStreamId === id)) del(k.id, opts);
+    return true;
+  }
+  /* DROP a record that never held anything worth keeping — a routine run that said nothing (autosessions.js isQuietSession).
+     Unlike del() it leaves NO tombstone: nothing was deleted, the record is simply not kept, and the seams that could mint it
+     again (cron backfill) refuse a quiet run on their own. General and the open session are never dropped. */
+  function drop(id) {
+    if (!id || id === generalId || id === activeId) return false;
+    const i = ws.findIndex(w => w.id === id);
+    if (i < 0) return false;
+    const w = ws[i];
+    ws.splice(i, 1);
+    dropSeals(id);
+    if (w.worker) delegatedAgents = null;
     return true;
   }
   // DOSSIER › DELETE AGENT support: drop every (non-General) stream bound to a now-deleted agent so the rail
@@ -1213,7 +1230,7 @@
     exportConversation, clearConversation, attachmentRefs, attachmentInUse, runIdsOf,
     previewArchive, archivePreview, canUndo, undoLast,
     create, startSession, isUntouched, adopt, get, active, activeId: getActiveId, generalId: getGeneralId, isHidden, homeOf, titleOf,
-    switch: switchTo, rename, setAgent, setLane, setProjectRoot, pin, archive, del, removeByAgent, isDeleted, touch, markUnread, markRead, unread: isUnread,
+    switch: switchTo, rename, setAgent, setLane, setProjectRoot, pin, archive, del, drop, removeByAgent, isDeleted, touch, markUnread, markRead, unread: isUnread,
     pruneRoutineSessions, isRoutineReceipt, awaitsCommander, ROUTINE_KEEP,
     autoTitle, retitle, deriveTitle, needsModelTitle, isLowSignal, titleBasis,
     finalDeliveryText, appendRun, noteRunEnd, recordDeliverable, knownDeliverable, addCost, costOf, noteModel, modelOf,

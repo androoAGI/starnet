@@ -949,6 +949,7 @@ test/cron-session-hydration.test.js
 test/routine-receipts.test.js
 test/routine-receipts-unopened.test.js
 test/routine-spend-pause-words.test.js
+test/routine-quiet-records.test.js
 test/loopjob.test.js
 test/loopjob-check.test.js
 test/loopjob-driver.test.js

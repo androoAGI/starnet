@@ -172,6 +172,56 @@ const AutoSessions = ((TurnMerge) => {
   function transcriptHasReadableOutput(turns) {
     return (Array.isArray(turns) ? turns : []).some(t => t && t.role === 'assistant' && String(t.content == null ? '' : t.content).trim());
   }
+  // a transcript that is a quiet run's: no assistant prose, or only the exact [SILENT] reply
+  function transcriptIsQuiet(turns) {
+    return !(Array.isArray(turns) ? turns : []).some(t => t && t.role === 'assistant' && String(t.content == null ? '' : t.content).trim()
+      && String(t.content).trim() !== '[SILENT]');
+  }
+
+  /* A QUIET RUN MAKES NO SESSION (customer report 11-10: 5,800 routine sessions, nearly all "routine ran, nothing to report",
+     filled browser storage). A fire that SUCCEEDED and said nothing — no reply, or the exact [SILENT] — is in RUN HISTORY
+     (GET /api/cron/history) and its durable transcript; a rail row repeating "nothing to report" every minute is only weight.
+     A quiet session is dropped (Workstreams.drop, no tombstone) once it settles, the boot backfill never forms one, and the
+     ones an older build saved are cleared at boot. Anything a person did to it, or anything it holds beyond the routine's own
+     prompt and the quiet marker, keeps it: the open session, a pin, a rename, a follow-up, a deliverable, a second run, a
+     failed / stopped / unread-transcript line, a run still going. A packed history (save v7) is judged by its row count: the
+     prompt alone may be packed, never a second row. */
+  const QUIET_MARK = '— routine ran, nothing to report —';
+  function isQuietSession(ws) {
+    if (!ws || !validStream(ws.id) || !hasWS()) return false;
+    if (Workstreams.activeId && Workstreams.activeId() === ws.id) return false;
+    if (ws.pinned || ws.titleAuto === false || ws.goalLoop || ws.worker || ws.parentStreamId || ws.conversationMode === 'group') return false;
+    if (Array.isArray(ws.deliverables) && ws.deliverables.length) return false;
+    if (ws.lastRunOk !== true || (Array.isArray(ws.runIds) && ws.runIds.length > 1)) return false;
+    if (hasCh() && Channels.isBusy && Channels.isBusy(ws.id)) return false;
+    let marker = false, users = 0;
+    for (const m of (Array.isArray(ws.history) ? ws.history : [])) {
+      if (!m) continue;
+      if (m.sys) { if (m.content === QUIET_MARK && !m.error && !m.transcriptPending) { marker = true; continue; } return false; }
+      if (m.role === 'user') { users++; continue; }
+      return false;
+    }
+    if (!marker) return false;
+    let packed = 0;
+    if (ws.historyRef) {
+      const HR = typeof HistoryRef !== 'undefined' ? HistoryRef : null;
+      if (!HR || !HR.countOf || !HR.isRef) return false;
+      packed = HR.countOf(ws.historyRef) - ws.historyRef.filter(el => !(HR.isRef(el) || (HR.isStub && HR.isStub(el)))).length;
+    }
+    return users + packed <= 1;
+  }
+  function dropIfQuiet(ws) {
+    if (!isQuietSession(ws) || !Workstreams.drop || !Workstreams.drop(ws.id)) return false;
+    if (hasCh() && Channels.end) Channels.end(ws.id);
+    return true;
+  }
+  // the quiet sessions an older build saved: cleared once per boot, before the backfill reads the run list
+  function pruneQuiet() {
+    if (!hasWS() || !Workstreams.all) return 0;
+    let n = 0;
+    for (const ws of Workstreams.all().slice()) if (validStream(ws && ws.id) && dropIfQuiet(ws)) n++;
+    return n;
+  }
 
   // cron.result can beat the final transcript append. Retry only that short persistence window and remember whether
   // any complete HTTP read succeeded, so foldTurns can distinguish an empty transcript from an unreachable one.
@@ -281,6 +331,8 @@ const AutoSessions = ((TurnMerge) => {
 
     foldTurns(ws, loaded.turns, outcome, reason, loaded.fetchOk, endedAt, words);
     if (hasCh()) Channels.end(id);   // clear the busy/running channel state
+    // a fire that succeeded and said nothing keeps no session (isQuietSession)
+    if ((outcome === 'ok' || outcome === 'silent') && loaded.fetchOk && dropIfQuiet(ws)) { refreshRail(); persist(); return; }
     // if this session is the one on screen, re-render it so the folded output is visible immediately.
     if (hasChat() && Workstreams.activeId && Workstreams.activeId() === id) Chat.load(ws);
     pruneReceipts();
@@ -416,6 +468,7 @@ const AutoSessions = ((TurnMerge) => {
     backfilling = true;
     try {
       await loadRoutines();   // names first so backfilled rows are titled
+      pruneQuiet();           // the quiet sessions an older build kept (isQuietSession)
       let runs = [];
       try {
         const r = await fetch('/api/runs?agent=*&limit=100', { cache: 'no-store' });
@@ -484,15 +537,23 @@ const AutoSessions = ((TurnMerge) => {
           if (hasCh()) Channels.end(sid);
           continue;
         }
+        // A QUIET RUN FORMS NO SESSION (isQuietSession): a while-away fire that succeeded and said nothing is read first and
+        // skipped. The run is DONE (it is in the run list), so its transcript is whole: one read, no persistence-race retries.
+        let early = null;
+        if (!existing && settle.outcome === 'ok') {
+          early = await fetchTranscript(String(run.agentId || 'agent'), sid, options || { waits: [] });
+          if (early.fetchOk && transcriptIsQuiet(early.turns)) continue;
+        }
         // adopt (idempotent) — an existing seed-only session is preserved by adopt; a while-away run is already DONE.
         // A run that finished while the station was CLOSED arrives UNREAD (lastReadAt 0: the Commander has never
         // opened it), so the rail lamp shows what ran while you were gone. A session already on this page keeps its own.
         Workstreams.adopt({ id: sid, title: jobName || String(run.title || 'Routine').split('\n')[0].slice(0, 80) || 'Routine', agentId: String(run.agentId || 'agent'), lane: 'active', history: (existing && existing.history) || [], automation: { kind: 'routine', id: run.cronJobId || '', name: jobName || run.title || 'Routine' }, lastReadAt: existing ? undefined : 0 });
         const ws = Workstreams.get(sid);
         if (!ws) continue;
-        const loaded = await fetchTranscript(ws.agentId, sid, options);
+        const loaded = early && early.fetchOk ? early : await fetchTranscript(ws.agentId, sid, options);
         foldTurns(ws, loaded.turns, settle.outcome, settle.why, loaded.fetchOk, run.ts);   // run.ts = real end time, never boot time
         if (hasCh()) Channels.end(sid);   // a backfilled run is DONE → clear any wedged busy/running state
+        if (settle.outcome === 'ok' && loaded.fetchOk) dropIfQuiet(ws);   // a session a reload left mid-run, whose fire then said nothing
       }
       pruneReceipts();
       refreshRail();
@@ -566,7 +627,7 @@ const AutoSessions = ((TurnMerge) => {
   }
   function reset() { routines = null; stopReconcilePoll(); }   // a fresh Commander re-reads the catalogue; sessions are cleared by Workstreams.reset()
 
-  return { init, reset, _internals: { onFire, onResult, fireSlots, beginSession, completeSession, foldTurns, recordOutcome, outcomeOfRun, whyOfRun, fireOf, settleOf, backfill, reconcileBusy, fetchTranscript, hasReadableOutput, loadRoutines, routineFor, validStream, streamOf } };
+  return { init, reset, _internals: { onFire, onResult, fireSlots, beginSession, completeSession, foldTurns, recordOutcome, outcomeOfRun, whyOfRun, fireOf, settleOf, backfill, reconcileBusy, fetchTranscript, hasReadableOutput, loadRoutines, isQuietSession, pruneQuiet, transcriptIsQuiet, routineFor, validStream, streamOf } };
 })(typeof module !== 'undefined' && module.exports ? require('./turnmerge.js') : globalThis.TurnMerge);
 
 if (typeof module !== 'undefined' && module.exports) module.exports = { AutoSessions };
