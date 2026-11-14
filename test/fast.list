@@ -1697,6 +1697,7 @@ test/line-names.test.js
 test/worldmodel-moveprops.test.js
 test/build-move-settle.test.js
 test/build-room-delete-sendto.test.js
+test/build-proptile-pressed-state.test.js
 test/floor-wave2.test.js
 test/buildmode-halls.test.js
 test/trigger-sweep.test.js
