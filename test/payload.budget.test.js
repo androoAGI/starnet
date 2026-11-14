@@ -158,8 +158,8 @@ const BUDGET = {
 // the comms-task call on the claude-cli route, where the tool schemas are text inside the system prompt file (bytes)
 const CLI_BUDGET = { systemBytes: 85194 };
 /* THE PREFIX LANES, EACH ON ALONE (cost audit W3.9; every switch is OFF by default, so the rows above are what ships).
-   One more hermetic station per switch sends the comms-task call again, on the model wire and on claude-cli, and each row
-   is that call's own ratchet: the measurement plus the comms-task row's headroom (tool bytes +223, fixed prefix +160,
+   One more hermetic station per switch sends the comms-task call again (from the starter floor less the props a row's
+   `without` names), on the model wire and on claude-cli, and each row is that call's own ratchet: the measurement plus the comms-task row's headroom (tool bytes +223, fixed prefix +160,
    claude-cli +20; system chars as the comms-task row unless the lane moves them). A row comes in with its lane and is
    only ever tightened. */
 const LANE_BUDGET = {
@@ -170,7 +170,13 @@ const LANE_BUDGET = {
   // W3.9b, two doctrine blocks said once (CONNECTING A PLATFORM as its rules with the walk-through behind manual.read; HOW
   // TO WORK without the three sentences FINISH THE JOB restates): 32,206 -> 30,243 system chars (+90 headroom, as the
   // comms-task row), 87,962 -> 85,959 prefix bytes; tools untouched; claude-cli 85,174 -> 83,171
-  STARNET_PREFIX_DOCTRINE: { systemChars: 30333, tools: 70, toolBytes: 58227, prefixBytes: 86119, cliBytes: 83191 }
+  STARNET_PREFIX_DOCTRINE: { systemChars: 30333, tools: 70, toolBytes: 58227, prefixBytes: 86119, cliBytes: 83191 },
+  // W3.9c, recipes read without the SERVER CART. The comms-task call itself is untouched (it has skill.view), so this row
+  // is the call the lane is for: the same task from the starter floor WITHOUT its notebook (`without`). Off, that call
+  // inlines every enabled recipe body (88,324 prefix bytes: 40,294 of system text, 60 tools); on, it carries the recipe
+  // index and one more tool, recipe_read: 31,057 system chars, 61 tools, 48,486 tool bytes, 77,775 prefix bytes;
+  // claude-cli 75,475
+  STARNET_PREFIX_RECIPES: { without: ['notebook'], systemChars: 31147, tools: 61, toolBytes: 48709, prefixBytes: 77935, cliBytes: 75495 }
 };
 
 /* THE COMMS PERSONA: the `system` the station page sends for its lead (frontend/app/app.js composeSystemPrompt), composed
@@ -358,7 +364,7 @@ function shape(b) {
     await comms.dispose(); comms = null;
     const laneMeasured = {};
     for (const lane of Object.keys(LANE_BUDGET)) {
-      const floorObjects = (LANE_BUDGET[lane].floor || starter).map(objectType => ({ objectType }));
+      const floorObjects = starter.filter(t => (LANE_BUDGET[lane].without || []).indexOf(t) < 0).map(objectType => ({ objectType }));
       comms = SidecarFixture.create({ prefix: 'starnet-payload-lane-', timeoutMs: 20000, env: Object.assign({}, commsEnv, { [lane]: '1' }) });
       await comms.start();
       A.eq((await comms.json('POST', '/api/roster', { updatedAt: Date.now(), agents: [{ agentId: 'agent', system: persona, name: 'NOVA', provider: 'custom', model: 'fixture-model',

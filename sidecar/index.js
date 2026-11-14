@@ -284,6 +284,7 @@ const { runtimeIdentityBlock } = require('./runtimeinfo.js');
 const { makeDiagnostics, proxyHostOnly } = require('./diagnostics.js');   // T3.9: pure paste-ready bug-report assembler (redacted, truthful)
 const LiveDoctor = require('./live-doctor.js');                           // opt-in bounded live proof + secret-free receipt
 const { makeStationInspectTool } = require('./tools/builtin/station-inspect.js');
+const { makeRecipeReadTool, NAME: RECIPE_READER } = require('./tools/builtin/recipe-read.js');   // recipe.read — an INSTALLED SKILL recipe's body for a run with no skill.view on its wire (STARNET_PREFIX_RECIPES)
 const { makeManualReadTool } = require('./tools/builtin/manual-read.js');   // manual.read — the operator manual's reference sections, on demand
 const { makeStationShowTool } = require('./tools/builtin/station-show.js');   // station.show — the agent opens a StarNet window/tab for the Commander (frontend/app/places.js)
 const memcore = require('./memcore.js');
@@ -4374,6 +4375,8 @@ function crewDefaultsMode() { return CrewDefaults.mode(ENV('CREW_DEFAULTS')); }
      STARNET_PREFIX_TAIL      the specialist tail leaves the wire (capability/followups.js)
      STARNET_PREFIX_DOCTRINE  CONNECTING A PLATFORM rides as its rules with the walk-through behind manual.read, and HOW TO
                               WORK drops the three sentences FINISH THE JOB restates (manual.js, finish-line.js)
+     STARNET_PREFIX_RECIPES   a run with no skill.view on its wire reads a recipe with recipe.read and carries the recipe
+                              index, no longer every enabled body (tools/builtin/recipe-read.js)
    '1' (or true / yes / on) is on; '0', blank or unset is off. Every one is OFF by default: each changes what a model is
    shown on its first request, so it ships dark until an A/B on real models passes, and with it off every request is the
    one this build sent before it. */
@@ -18541,7 +18544,8 @@ async function toolsetsPreview(agentId, extraObjects, placement) {
     keySaveOffered: false, directDomain: false, leanCrew: ENV('LEAN_CREW'), crewCount: crewCountFor(agentId), connectorDefer: CONNECTOR_DEFER,
     availability: deferralOff ? {} : { mediaRoute: !!(studioRoute && studioRoute.ok), voiceRoute, ptyRuntime: terminalSessions.available() },
     followups: deferralOff ? undefined : followupFactsFor(agentId),   // the same live handles and records the run reads
-    prefixTail: prefixLaneOn('PREFIX_TAIL')                            // ...and the same switch (the specialist tail)
+    prefixTail: prefixLaneOn('PREFIX_TAIL'),                           // ...and the same switches (the specialist tail,
+    recipeReader: prefixLaneOn('PREFIX_RECIPES')                       // the recipe reader of a run without skill.view)
   };
   const projectedStation = ProjectTools.projectStation({ id: agentId }, origin, role, facts).station;
   facts.dynamicTools = await registerRoomTools(registry, projectedStation, agentId, providerId);
@@ -25616,6 +25620,9 @@ async function runOnceCore(o) {
       return recipe ? { name: recipe.name, content: skillsCatalog.viewText(recipe) } : null;
     }
   }).register(registry);   // H4: skill.write/list/view/manage — the agent's reusable procedure library (memory capability)
+  // recipe.read (cost audit W3.9c): the same per-run recipe list, for a run whose wire has no skill.view. Registered like
+  // every tool; only the projection offers it, and only while STARNET_PREFIX_RECIPES is on.
+  makeRecipeReadTool({ find: name => skillsCatalog.find(runRecipes, name), view: skillsCatalog.viewText }).register(registry);
   Todo.makeTodoTool({ store: notebookStore }).register(registry);   // in-session task plan — shares the notebook's per-agent kv store ('todo:'+agentId)
   DeliverableTool.makeDeliverableTool({ notes: deliverableNotes }).register(registry);   // deliverable_note — the agent's OWN name for what it made; drained by runOnce at run end
   makeToolSearchTool({ registry }).register(registry);   // tool.search — finds a GRANTED but unadvertised tool (CAP_REGISTRY `deferred: true`) and reveals it for the rest of the run; rides the computer object so no surface is stranded
@@ -26081,7 +26088,10 @@ async function runOnceCore(o) {
     // DORMANT FOLLOW-UP CONTROLS (cost audit W1.3): live handles and records, read only where a deferral can apply
     followups: (isTask && !deferralOff) ? followupFactsFor(agentId) : undefined,
     // THE SPECIALIST TAIL (cost audit W3.9a): held like a dormant follow-up only while STARNET_PREFIX_TAIL is on
-    prefixTail: prefixLaneOn('PREFIX_TAIL')
+    prefixTail: prefixLaneOn('PREFIX_TAIL'),
+    // THE RECIPE READER (cost audit W3.9c): a run with no skill.view on its wire is offered recipe.read only while
+    // STARNET_PREFIX_RECIPES is on
+    recipeReader: prefixLaneOn('PREFIX_RECIPES')
   };
   // Host-created group-turn closures scope these tools to this exact live group turn; registering them is this run's effect.
   if (Array.isArray(o.groupTools)) for (const def of o.groupTools) registry.register(def);
@@ -27612,6 +27622,9 @@ async function runOnceCore(o) {
         ? skillsCatalog.composeIndex(skillLibrary(), recipeOpts)
         : skillsCatalog.compose(skillLibrary(), recipeOpts))
       : '';
+    // THE RECIPE READER (cost audit W3.9c, STARNET_PREFIX_RECIPES): a run the projection offered recipe.read (it has no
+    // skill.view) carries the same index, naming the reader it can call, and no longer the bodies.
+    if (isTask && coreNames.indexOf(RECIPE_READER) >= 0) skillBlock = skillsCatalog.composeIndex(skillLibrary(), Object.assign({ reader: RECIPE_READER }, recipeOpts));
   } catch (_) { /* a skill-injection hiccup must never break a run */ }
   // STARNET OPERATOR MANUAL: how the station works, so the agent can guide a stuck Commander. Interactive
   // only (same gate as capsummary — a Commander is present to help and the build UI exists). Sits right

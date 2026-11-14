@@ -320,11 +320,14 @@
       if (lines.length && used + line.length > budget) { omitted++; continue; }
       lines.push(line); used += line.length;
     }
+    // opts.reader: the tool on this run's wire that serves a recipe body. skill.view unless the caller names another
+    // (recipe.read, the reader of a run without the SERVER CART: tools/builtin/recipe-read.js). Absent, the text is as before.
+    const reader = String(opts.reader || 'skill.view');
     const head = '\n\n## INSTALLED SKILLS\n'
       + 'Your Commander enabled these ready-made skill recipes and your workstation supports them. '
       + 'When a task matches one, FOLLOW its recipe instead of improvising.\n'
-      + 'This is an INDEX, not the recipes. Before following one, load its full text with skill.view using the name in '
-      + 'brackets (e.g. skill.view {"name": "' + viewName(offered[0]) + '"}); never work from the one-line summary alone.\n\n';
+      + 'This is an INDEX, not the recipes. Before following one, load its full text with ' + reader + ' using the name in '
+      + 'brackets (e.g. ' + reader + ' {"name": "' + viewName(offered[0]) + '"}); never work from the one-line summary alone.\n\n';
     const tail = omitted ? ('\n\n(' + omitted + ' more enabled skill' + (omitted > 1 ? 's were' : ' was')
       + ' omitted here to keep the prompt lean.)') : '';
     return head + lines.join('\n') + tail;

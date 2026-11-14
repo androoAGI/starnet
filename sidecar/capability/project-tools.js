@@ -4,7 +4,7 @@
 
    projectTools(agent, origin, role, facts) -> {
      station, resolved, preAuthorityTools, widgetScope, keySaveOffered, crewless, deferralOff,
-     connectorDeferral, unavailable, dormantFollowups, specialistTail, advertised, deferredWire, pendingFacts, sources, rows
+     connectorDeferral, unavailable, dormantFollowups, specialistTail, recipeReader, advertised, deferredWire, pendingFacts, sources, rows
    }
 
    This is the assembly runOnce used to do inline, MOVED here step for step in the same order, so the run, GET
@@ -33,7 +33,8 @@
             keySaveOffered, directDomain, leanCrew, crewCount, connectorDefer: { bytes, tools },
             availability: { mediaRoute, voiceRoute, spotifyConnected, ptyRuntime },
             followups: { terminal, shellBg, routines, loops, tasks } (capability/followups.js: false = proven none),
-            prefixTail (true = STARNET_PREFIX_TAIL is on: the specialist tail is held like a dormant follow-up) } */
+            prefixTail (true = STARNET_PREFIX_TAIL is on: the specialist tail is held like a dormant follow-up),
+            recipeReader (true = STARNET_PREFIX_RECIPES is on: a run with no skill.view on its wire is offered recipe.read) } */
 'use strict';
 
 const { composeOffice, stationWithObject, stationWithConnectors } = require('./office.js');
@@ -46,6 +47,7 @@ const { isRoutineTrigger } = require('../routine-identity.js');
 const { dangerKey } = require('../permissions.js');
 const CrewDiet = require('../crew-diet.js');
 const Followups = require('./followups.js');
+const { NAME: RECIPE_READER } = require('../tools/builtin/recipe-read.js');
 const { planConnectorDeferral } = require('../tools/builtin/toolsearch.js');
 const { note: failNote } = require('../failopen.js');
 
@@ -277,11 +279,27 @@ function projectTools(agent, origin, role, facts) {
   }
   // CORE vs DEFERRED on the wire: both granted; only the core list rides every request (task runs only).
   const deferredNames = new Set((deferralOff ? [] : (resolved.deferred || [])).filter(n => !ddw(n)));
+  /* THE RECIPE READER (cost audit W3.9c, facts.recipeReader = STARNET_PREFIX_RECIPES). A task run whose wire has no
+     skill.view gets every enabled recipe body inline, because its index could name no tool the run can call. With the
+     switch on, that run is offered recipe.read instead (tools/builtin/recipe-read.js: the recipes this run was offered,
+     and nothing else), so its prompt can carry the index. A host offer like the Task Brief controls, not a room prop:
+     it rides only where skill.view does not, decided here on the final wire so the run, GET /api/toolsets and a
+     channel's /tools agree; no SERVER CART power comes with it. Off (the default), no run holds it. */
+  let recipeReader = false;
+  if (isTask && facts.recipeReader === true && registry && typeof registry.get === 'function' && registry.get(RECIPE_READER)
+    && !(resolved.tools.indexOf('skill.view') >= 0 && !deferredNames.has('skill.view') && !ddw('skill.view'))) {
+    if (resolved.tools.indexOf(RECIPE_READER) < 0) resolved.tools.push(RECIPE_READER);
+    if (!resolved.grants.some(g => g && g.tool === RECIPE_READER)) resolved.grants.push({ capId: 'recipes', tool: RECIPE_READER, scope: 'read', requiresConsent: false, network: false });
+    resolved.approvalRules[RECIPE_READER] = { requiresConsent: false, scope: 'read', network: false };
+    resolved.networkCaps[RECIPE_READER] = false;
+    injected[RECIPE_READER] = injected[RECIPE_READER] || 'recipe-reader';
+    recipeReader = true;
+  }
   const coreNames = resolved.tools.filter(n => !deferredNames.has(n) && !ddw(n));
   const advertised = isTask ? coreNames : [];
   const deferredWire = isTask ? Array.from(deferredNames) : [];
   const projection = { station, resolved, preAuthorityTools, widgetScope, keySaveOffered, crewless, deferralOff,
-    connectorDeferral, unavailable, dormantFollowups, specialistTail, advertised, coreNames, deferredNames, deferredWire, pendingFacts, sources, injected };
+    connectorDeferral, unavailable, dormantFollowups, specialistTail, recipeReader, advertised, coreNames, deferredNames, deferredWire, pendingFacts, sources, injected };
   projection.rows = rowsOf(projection, { agentId, registry, authority: facts.authority, surface, enabledToolsets, directDomain: facts.directDomain, groupTurn: Array.isArray(origin.groupTools) });
   return projection;
 }

@@ -11,6 +11,7 @@
      lead      the crew lead call: the same lead with one specialist on the roster (the full crew kit and briefing).
      worker    the first call of that specialist, dispatched by the lead (team.dispatch, approved once at the prompt).
      cli       the comms call on the claude-cli route: the --system-prompt-file, the argv and the stdin the CLI is handed.
+   (cartlessCli, the cart-less call on claude-cli, is captured after those five and is measured only.)
    Each API call is { body, system, tools, raw }: the parsed request, its system text, its tools array and the request
    normalized for hashing (normalize: the run id, the Task Brief id, the clock and the temp paths of THIS boot become
    fixed words; nothing else is touched).
@@ -296,6 +297,13 @@ async function capture(envExtra, opts) {
       out.lead = call(mainOf(from, LEAD_TASK));
       out.worker = call(mainOf(from, WORKER_TASK, true));
     }
+    // ---- cartlessCli: the cart-less call on the claude-cli route. Measured only (it runs after the five the golden holds,
+    //      the lead alone on the roster again), so a lane can say what it saves there.
+    await roster([leadRow]);
+    const cartlessCliBefore = cliLog().length;
+    out.cartlessCliRun = await task('prefix-rig-cartless-cli', starter.filter(t => t !== 'notebook'), COMMS_TASK, { provider: 'claude-cli', model: 'claude-sonnet-5-5' });
+    const cartlessCliMains = cliLog().slice(cartlessCliBefore).filter(c => String(c.system).indexOf('\n\n# Tools\n') >= 0);
+    out.cartlessCli = cartlessCliMains.length ? { system: String(cartlessCliMains[0].system), args: cartlessCliMains[0].args, stdin: String(cartlessCliMains[0].stdin || ''), calls: cartlessCliMains.length } : null;
     // GET /api/toolsets: the TOOLSETS readout of a COMMS run on the starter floor (the same projection the run asks)
     const placedQuery = encodeURIComponent(starter.map(t => encodeURIComponent(t)).join(','));
     const view = (await fixture.json('GET', '/api/toolsets?placed=' + placedQuery)).body || {};

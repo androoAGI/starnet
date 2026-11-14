@@ -22,6 +22,10 @@
         index rides, CONNECTING A PLATFORM is its rules (manual.js CONNECTING_CORE), and HOW TO WORK is without the three
         sentences FINISH THE JOB restates. FINISH THE JOB is byte-identical and still last; the tools array is untouched;
         and a model that calls manual_read connecting gets the whole section, every moved sentence in it.
+   STARNET_PREFIX_RECIPES (W3.9c): the calls that carry skill_view are byte-identical. The floor without the SERVER CART
+        gains one tool, recipe_read, and its system text carries the recipe index (naming recipe.read) where every enabled
+        recipe body was inline; no memory tool comes with it; recipe_read library:plan returns the recipe, and a name that
+        was not offered returns nothing.
 
    Record the golden only on the base (or when a default byte changes on purpose, saying so in that commit):
      node test/prefix-lanes.e2e.test.js --update */
@@ -33,6 +37,7 @@ const { execFileSync } = require('node:child_process');
 const R = require('./helpers/prefix-rig.js');
 const M = require('../sidecar/manual.js');
 const FinishLine = require('../sidecar/finish-line.js');
+const SkillsCatalog = require('../sidecar/skills/catalog.js');
 
 const GOLDEN = path.join(__dirname, 'fixtures', 'prefix-lanes-golden.json');
 const CALLS = ['comms', 'cartless', 'lead', 'worker'];
@@ -209,9 +214,77 @@ function checkDoctrine(off, on) {
     lane + ': manual_read lists connecting as a section to read on this run (' + String(results[1] || '').slice(0, 160) + ')');
 }
 
+/* ---------------------------------------------------------------- STARNET_PREFIX_RECIPES */
+const MEMORY_WIRE = ['notebook_write', 'notebook_read', 'notebook_feedback', 'recall_conversation', 'skill_write', 'skill_manage', 'skill_list', 'skill_view', 'widget_get', 'widget_set'];
+const LIB = SkillsCatalog.loadDir(path.join(__dirname, '..', 'sidecar', 'skills', 'library'), fs, path);
+// the recipes the cart-less floor is offered: its room's gear (the lead's office and its placed props), nothing switched off
+const cartlessOpts = starter => ({ overrides: {}, placedTypes: ['computer', 'orchestrator'].concat(starter.filter(t => t !== 'notebook')), agentSkills: [] });
+
+async function recipeScenarios(ctx) {
+  const cartless = ctx.starter.filter(t => t !== 'notebook');
+  const from = ctx.mark();
+  const run = await ctx.task('prefix-rig-recipes', cartless, R.scripted([
+    { name: 'recipe_read', args: { name: 'library:plan' } }, { name: 'recipe_read', args: { name: 'Make a Plan' } }, { name: 'recipe_read', args: { name: 'library:no-such-recipe' } }]));
+  const view = (await ctx.fixture.json('GET', '/api/toolsets?placed=' + encodeURIComponent(cartless.map(t => encodeURIComponent(t)).join(',')))).body || {};
+  return { run, calls: ctx.bodiesFrom(from).filter(b => Array.isArray(b.tools) && b.tools.length), preview: view.run || null };
+}
+
+function checkRecipes(off, on) {
+  const lane = 'STARNET_PREFIX_RECIPES';
+  // a run that has skill.view is untouched
+  for (const id of ['comms', 'lead', 'worker']) {
+    const a = off[id], b = on[id];
+    A.ok(a && b && a.names.indexOf('skill_view') >= 0, lane + ' ' + id + ': the call carries skill_view');
+    A.ok(b.system === a.system && JSON.stringify(b.tools) === JSON.stringify(a.tools) && restOf(b, on.known) === restOf(a, off.known), lane + ' ' + id + ': byte-identical with the switch on (it reads recipes with skill_view already)');
+    A.ok(b.names.indexOf('recipe_read') < 0, lane + ' ' + id + ': recipe_read is not offered where skill_view is');
+  }
+  A.ok(off.cli && on.cli && on.cli.system === off.cli.system, lane + ' claude-cli: the comms call is byte-identical (it has skill_view)');
+  // the floor without the SERVER CART
+  const a = off.cartless, b = on.cartless;
+  const opts = cartlessOpts(off.starter);
+  const inline = SkillsCatalog.compose(LIB, opts), index = SkillsCatalog.composeIndex(LIB, Object.assign({ reader: 'recipe.read' }, opts));
+  A.ok(inline.length > 10000 && a.system.split(inline).length === 2, lane + ' cartless: the base call carries every enabled recipe body inline (' + R.bytes(inline) + ' B)');
+  A.eq(b.names.filter(n => n !== 'recipe_read'), a.names, lane + ' cartless: every tool keeps its place');
+  A.eq(b.names.filter(n => n === 'recipe_read').length, 1, lane + ' cartless: recipe_read joins the wire, once');
+  A.ok(JSON.stringify(b.tools.filter(t => t.function.name !== 'recipe_read')) === JSON.stringify(a.tools), lane + ' cartless: every other tool schema is byte-identical');
+  for (const n of MEMORY_WIRE) A.ok(b.names.indexOf(n) < 0 && R.namedDeferred(b.system).indexOf(n) < 0, lane + ' cartless: ' + n + ' is neither on the wire nor loadable (no SERVER CART power came with the reader)');
+  A.eq(liveNames(b.system), b.names, lane + ' cartless: the [HARNESS] live list is the tools array, name for name');
+  A.ok(b.system.replace(LIVE_RE, '<LIVE>') === a.system.replace(inline, () => index).replace(LIVE_RE, '<LIVE>'), lane + ' cartless: the system text is the base with the recipe bodies replaced by their index, and nothing else (but the live list, which names the reader)');
+  const block = b.system.slice(b.system.indexOf('## INSTALLED SKILLS'), b.system.indexOf('## INSTALLED SKILLS') + index.length);
+  A.ok(block.indexOf('recipe.read') > 0 && block.indexOf('skill.view') < 0, lane + ' cartless: the index names recipe.read, the reader this run has, and never skill.view');
+  for (const r of SkillsCatalog.live(LIB, opts)) A.ok(b.system.indexOf('[' + SkillsCatalog.viewName(r) + ']') >= 0 && b.system.indexOf(r.body) < 0, lane + ' cartless: ' + r.slug + ' is indexed, its body no longer inline');
+  A.ok(restOf(b, on.known) === restOf(a, off.known), lane + ' cartless: the rest of the request is identical');
+  const s = saving(lane, 'cartless', a, b);
+  A.ok(s.system >= 10500 && s.tools < 0 && s.tools > -600 && s.prefix >= 10000, lane + ' cartless: saves ' + s.prefix + ' B of fixed prefix (the bodies, less the reader\'s own schema; at least 10000)');
+  // the same floor on claude-cli: the index and the reader's own line are text in the system prompt file
+  A.ok(off.cartlessCli && on.cartlessCli, lane + ' cartless claude-cli: the call was captured off and on');
+  if (off.cartlessCli && on.cartlessCli) {
+    A.ok(off.cartlessCli.system.indexOf(inline) >= 0 && on.cartlessCli.system.indexOf(index) >= 0 && on.cartlessCli.system.indexOf(inline) < 0, lane + ' cartless claude-cli: the bodies are replaced by the index there too');
+    A.ok(on.cartlessCli.system.indexOf('\n- recipe_read: ') >= 0 && off.cartlessCli.system.indexOf('\n- recipe_read: ') < 0, lane + ' cartless claude-cli: recipe_read is in the # Tools text');
+    const saved = R.bytes(off.cartlessCli.system) - R.bytes(on.cartlessCli.system);
+    console.log('[prefix-lanes] ' + lane + ' cartless claude-cli: system prompt file ' + R.bytes(off.cartlessCli.system) + ' -> ' + R.bytes(on.cartlessCli.system) + ' B (saves ' + saved + ')');
+    A.ok(saved >= 10000, lane + ' cartless claude-cli: saves ' + saved + ' B of system prompt file (at least 10000)');
+  }
+  // the reader works, and serves only what was offered
+  const x = on.extra || {};
+  A.eq(x.run && x.run.end && x.run.end.reason, 'done', lane + ': the recipe_read run completes');
+  const last = (x.calls || [])[(x.calls || []).length - 1] || {};
+  const results = (last.messages || []).filter(m => m.role === 'tool').map(m => R.text(m.content));
+  A.eq(results.length, 3, lane + ': all three recipe_read calls answered (' + JSON.stringify(last.messages && last.messages.filter(m => m.role === 'assistant').map(m => m.content)).slice(0, 120) + ')');
+  const plan = SkillsCatalog.find(SkillsCatalog.live(LIB, opts), 'library:plan');
+  A.ok(!!plan && (results[0] || '').indexOf(plan.body.trim()) >= 0 && (results[0] || '').indexOf('[library:plan]') >= 0, lane + ': recipe_read library:plan put the whole recipe in front of the model, the body the base inlined');
+  A.ok((results[1] || '') === (results[0] || ''), lane + ': the display name loads the same text');
+  A.ok(/No installed recipe named "library:no-such-recipe"/.test(results[2] || ''), lane + ': a recipe that was not offered is not served');
+  const view = x.preview || {};
+  A.ok((view.advertised || []).indexOf('recipe.read') >= 0 && view.rows && view.rows['recipe.read'] && view.rows['recipe.read'].source === 'recipe-reader' && view.rows['recipe.read'].state === 'advertised',
+    lane + ': GET /api/toolsets previews the cart-less floor with recipe.read advertised, offered by the host');
+  A.ok(((on.preview || {}).advertised || []).indexOf('recipe.read') < 0, lane + ': ...and the starter floor (it has the cart) without it');
+}
+
 const LANES = [
   { env: 'STARNET_PREFIX_TAIL', scenarios: tailScenarios, check: checkTail },
-  { env: 'STARNET_PREFIX_DOCTRINE', scenarios: doctrineScenarios, check: checkDoctrine }
+  { env: 'STARNET_PREFIX_DOCTRINE', scenarios: doctrineScenarios, check: checkDoctrine },
+  { env: 'STARNET_PREFIX_RECIPES', scenarios: recipeScenarios, check: checkRecipes }
 ];
 
 (async () => {

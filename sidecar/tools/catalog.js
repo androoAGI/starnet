@@ -28,6 +28,7 @@ const FACTORIES = [
   ['makeKeyTools', () => b('keys.js').makeKeyTools({ ownerTexts: () => null, save: noop, tainted: () => true })],
   ['makeStationInspectTool', () => b('station-inspect.js').makeStationInspectTool({ inspect: () => ({}) })],
   ['makeManualReadTool', () => b('manual-read.js').makeManualReadTool()],
+  ['makeRecipeReadTool', () => b('recipe-read.js').makeRecipeReadTool({})],
   ['makeStationShowTool', () => b('station-show.js').makeStationShowTool({ station: {} })],
   ['makeAppTools', () => b('apps.js').makeAppTools({ apps: {}, now: clock.now, compile: () => '' })],
   ['makeBrowserTools', (registry, platform) => b('browser.js').makeBrowserTools({ session: {}, platform })],

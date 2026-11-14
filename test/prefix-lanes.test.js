@@ -24,11 +24,27 @@
          named in FinishLine.RESTATED are in the block with no tool at all), FINISH itself is untouched, and the append
          cannot be skipped once the sentences are gone.
 
+   STARNET_PREFIX_RECIPES — recipes read without the SERVER CART (W3.9c, sidecar/tools/builtin/recipe-read.js):
+     R1. recipe.read serves exactly the recipes a run was offered, each as the text skill.view serves and the inline block
+         carried, and nothing else: not a recipe that is disabled or whose gear is not placed, not a saved skill;
+         the index names the reader the run has (recipe.read), and without one it is the text it always was;
+     R2. the WHOLE authority-census matrix: with the switch on, a task run whose wire has no skill.view gains recipe.read
+         (advertised, impact none, no consent, source 'recipe-reader') and NOTHING else: no SERVER CART tool is granted
+         that the room did not grant, every other row is identical; a run that has skill.view, and a chat turn, are the
+         matrix as committed; runOnceCore's own projection block agrees cell for cell;
+     R3. the reader is a station self-knowledge read (never deferred, never a toggleable family, no CAP_REGISTRY row).
+
    The switch itself (S): prefixLaneOn is on for 1 / true / yes / on only, and the run and the TOOLSETS preview read the
    same one. The request bytes (OFF identical to the base, the ON saving) are test/prefix-lanes.e2e.test.js. */
 'use strict';
 const A = require('./_assert.js');
+const fs = require('node:fs');
 const path = require('node:path');
+const SkillsCatalog = require('../sidecar/skills/catalog.js');
+const { makeRecipeReadTool, NAME: RECIPE_READER } = require('../sidecar/tools/builtin/recipe-read.js');
+const { CAP_REGISTRY } = require('../sidecar/capability/registry.js');
+const { makeRegistry } = require('../sidecar/tools/registry.js');
+const { impactOfTool, enforceEnabledToolsets, IMPACTS } = require('../sidecar/inputpolicy.js');
 const M = require('../sidecar/manual.js');
 const FinishLine = require('../sidecar/finish-line.js');
 const { makeManualReadTool } = require('../sidecar/tools/builtin/manual-read.js');
@@ -275,6 +291,95 @@ const withFacts = (sc, more) => Object.assign({}, sc, { facts: Object.assign({},
     A.eq(FinishLine.append('IDENTITY', Object.assign({ restated: true }, opts)), FinishLine.append('IDENTITY', opts), 'restated changes nothing where the block rides anyway');
     A.eq(FinishLine.append('X', { isTask: false, restated: true }), 'X', 'restated never adds the block to a chat turn');
     A.eq(FinishLine.append('X', { isTask: true, internal: true, restated: true }), 'X', '...or to internal self-talk');
+  }
+
+  /* ---------- R1. recipe.read: the offered recipes, and nothing else ---------- */
+  const MEMORY_TOOLS = CAP_REGISTRY.notebook.map(g => g.tool);   // what the SERVER CART grants
+  {
+    const lib = SkillsCatalog.loadDir(path.join(ROOT, 'sidecar', 'skills', 'library'), fs, path);
+    const opts = { overrides: {}, placedTypes: ['computer'], agentSkills: [] };
+    const offered = SkillsCatalog.live(lib, opts);
+    A.ok(offered.length >= 3 && offered.length < lib.length, 'a bare desk is offered the recipes that need no gear (' + offered.length + ' of ' + lib.length + ')');
+    const { tool } = makeRecipeReadTool({ find: name => SkillsCatalog.find(offered, name), view: SkillsCatalog.viewText });
+    A.eq([tool.name, tool.capability, tool.impact, tool.scope, tool.requiresConsent], ['recipe.read', 'stationinfo', 'none', 'read', false], 'a read-only, consent-free station self-knowledge tool');
+    A.eq(RECIPE_READER, 'recipe.read', 'one name, exported');
+    const inline = SkillsCatalog.compose(lib, opts);
+    for (const r of offered) {
+      const byName = tool.run({ name: SkillsCatalog.viewName(r) });
+      A.ok(byName.content === SkillsCatalog.viewText(r), 'recipe.read ' + SkillsCatalog.viewName(r) + ' serves what skill.view serves');
+      A.ok(byName.content.indexOf(r.body) >= 0 && inline.indexOf(r.body) >= 0, '...the exact body the inline block carried');
+      A.ok(tool.run({ name: r.slug }).content === byName.content && tool.run({ name: r.name.toUpperCase() }).content === byName.content, '...by slug or display name too');
+    }
+    const notOffered = lib.find(r => offered.indexOf(r) < 0);
+    A.ok(/^No installed recipe named /.test(tool.run({ name: SkillsCatalog.viewName(notOffered) }).content), 'a recipe this run was not offered (' + notOffered.slug + ') is not served');
+    const off = SkillsCatalog.live(lib, { overrides: { [offered[0].slug]: false }, placedTypes: ['computer'], agentSkills: [] });
+    const gated = makeRecipeReadTool({ find: name => SkillsCatalog.find(off, name), view: SkillsCatalog.viewText }).tool;
+    A.ok(/^No installed recipe named /.test(gated.run({ name: SkillsCatalog.viewName(offered[0]) }).content), 'a recipe the Commander switched off is not served');
+    for (const name of ['Deploy the site', 'deploy-the-site', 'notebook:agent', '../library/plan/SKILL.md', 'library:', '   '])
+      A.ok(/^(No installed recipe named |Name a recipe\. )/.test(tool.run({ name }).content), 'nothing but an offered recipe is readable: ' + JSON.stringify(name));
+    A.ok(/^Name a recipe\. /.test(tool.run({}).content) && /^Name a recipe\. /.test(tool.run().content), 'no name: says how to name one');
+    A.ok(/No installed recipe named/.test(makeRecipeReadTool().tool.run({ name: 'library:plan' }).content), 'with no resolver wired it serves nothing');
+    // the index names the reader the run has
+    const recipeIndex = SkillsCatalog.composeIndex(lib, opts), indexReader = SkillsCatalog.composeIndex(lib, Object.assign({ reader: RECIPE_READER }, opts));
+    A.ok(recipeIndex.split('skill.view').length === 3 && recipeIndex.indexOf('recipe.read') < 0, 'the index names skill.view (twice) when no reader is named: the text it always was');
+    A.ok(indexReader === recipeIndex.split('skill.view').join('recipe.read'), 'with the reader named, the index differs only in the tool it names');
+    for (const r of offered) A.ok(indexReader.indexOf('[' + SkillsCatalog.viewName(r) + ']') >= 0 && indexReader.indexOf(r.body) < 0, 'the index lists ' + r.slug + ' by the name recipe.read takes, without its body');
+    console.log('[prefix-lanes] RECIPES: inline ' + Buffer.byteLength(inline) + ' B -> index ' + Buffer.byteLength(indexReader) + ' B');
+    A.ok(Buffer.byteLength(inline) - Buffer.byteLength(indexReader) >= 10000, 'the index is at least 10,000 B smaller than the bodies');
+    // the wiring
+    A.ok(/makeRecipeReadTool\(\{ find: name => skillsCatalog\.find\(runRecipes, name\), view: skillsCatalog\.viewText \}\)\.register\(registry\);/.test(index), 'the run registers recipe.read over the recipes its prompt offered');
+    A.ok(/if \(isTask && coreNames\.indexOf\(RECIPE_READER\) >= 0\) skillBlock = skillsCatalog\.composeIndex\(skillLibrary\(\), Object\.assign\(\{ reader: RECIPE_READER \}, recipeOpts\)\);/.test(index),
+      'the prompt carries the index naming recipe.read exactly when recipe.read is on this run\'s wire');
+    A.eq(index.split("recipeReader: prefixLaneOn('PREFIX_RECIPES')").length - 1, 2, 'the run and the TOOLSETS preview hand the projection the same switch');
+  }
+
+  /* ---------- R2. the whole census matrix ---------- */
+  {
+    const ON_R = { PREFIX_RECIPES: true };
+    let readerRuns = 0, viewRuns = 0, checked = 0;
+    for (const sc of C.scenarios()) {
+      const base = await C.projectMatrix(ROOT, sc);
+      const on = await C.projectMatrix(ROOT, withPrefix(sc, ON_R));
+      const wants = !!sc.origin.o.isTask && base.advertised.indexOf('skill.view') < 0;
+      A.eq(on.advertised.indexOf(RECIPE_READER) >= 0, wants, sc.id + ': recipe.read is offered ' + (wants ? 'because' : 'only where') + ' the wire has no skill.view');
+      A.eq(on.granted, base.granted.concat(wants ? [RECIPE_READER] : []), sc.id + ': ' + (wants ? 'the reader is the ONLY grant added' : 'grants are identical'));
+      A.eq(on.advertised, base.advertised.concat(wants ? [RECIPE_READER] : []), sc.id + ': the wire is the same' + (wants ? ', plus the reader' : ''));
+      A.eq(on.deferred, base.deferred, sc.id + ': nothing is deferred by the switch');
+      A.eq(on.withheldExplained, base.withheldExplained, sc.id + ': nothing is withheld by the switch');
+      A.eq(on.unavailable, base.unavailable, sc.id + ': nothing is called unavailable by the switch');
+      for (const n of Object.keys(base.rows)) A.eq(on.rows[n], base.rows[n], sc.id + ' ' + n + ': row unchanged');
+      A.eq(Object.keys(on.rows).filter(n => !base.rows[n]), wants ? [RECIPE_READER] : [], sc.id + ': no other row appears');
+      for (const n of MEMORY_TOOLS) A.eq(on.granted.indexOf(n) >= 0, base.granted.indexOf(n) >= 0, sc.id + ': the SERVER CART\'s ' + n + ' is granted exactly as the room grants it');
+      if (wants) {
+        readerRuns++;
+        A.eq(on.rows[RECIPE_READER], { state: 'advertised', impact: 'none', consent: 'none', source: 'recipe-reader' }, sc.id + ': advertised, no impact, no consent, offered by the host (not a prop)');
+        A.ok(base.granted.indexOf('skill.view') < 0 || base.deferred.indexOf('skill.view') >= 0, sc.id + ': this run cannot call skill.view on its first request');
+        const cap = await C.runOnceMatrix(ROOT, withPrefix(sc, ON_R));
+        A.eq(cap.failNotes, [], sc.id + ': the runOnce cut ran clean');
+        A.eq(C.diffMatrix({ [sc.id]: on }, { [sc.id]: C.cellsFromRunOnce(cap, ROOT) }), [], sc.id + ': runOnceCore (the census cut) offers the same reader');
+        checked++;
+      } else if (sc.origin.o.isTask) viewRuns++;
+    }
+    A.ok(readerRuns >= 5 && viewRuns >= 10, 'the matrix holds both kinds of task run (' + readerRuns + ' without skill.view, ' + viewRuns + ' with it)');
+    A.eq(checked, readerRuns, 'every reader run was re-checked through the runOnce cut');
+    const chat = C.scenarios().find(s => s.id === 'desktop.chat@ask');
+    A.eq(C.diffMatrix({ x: await C.projectMatrix(ROOT, chat) }, { x: await C.projectMatrix(ROOT, withPrefix(chat, ON_R)) }), [], 'a chat turn (no tools on the wire) is offered nothing');
+    const bare = C.scenarios().find(s => s.id === 'desktop.bare@ask');
+    A.ok((await C.projectMatrix(ROOT, withPrefix(bare, ON_R))).advertised.indexOf(RECIPE_READER) >= 0, 'the desk with no SERVER CART placed is offered the reader');
+    A.ok((await C.projectMatrix(ROOT, bare)).granted.indexOf(RECIPE_READER) < 0 && (await C.projectMatrix(ROOT, withPrefix(bare, { PREFIX_TAIL: true }))).granted.indexOf(RECIPE_READER) < 0,
+      'with the switch off, and under another lane\'s switch, no run holds it');
+  }
+
+  /* ---------- R3. a station self-knowledge read ---------- */
+  {
+    A.ok(Object.keys(CAP_REGISTRY).every(k => CAP_REGISTRY[k].every(g => g.tool !== RECIPE_READER)), 'recipe.read is no prop\'s grant (no CAP_REGISTRY row): only the host offers it');
+    A.ok(F.TAIL_TOOLS.indexOf(RECIPE_READER) < 0 && F.ALL_CONTROLS.indexOf(RECIPE_READER) < 0, 'it is never held off the wire (the index must point at an advertised tool)');
+    const reg2 = makeRegistry();
+    makeRecipeReadTool({}).register(reg2);
+    A.eq(impactOfTool(reg2.get(RECIPE_READER)), IMPACTS.NONE, 'declared impact none');
+    const kept = enforceEnabledToolsets({ tools: [RECIPE_READER], deferred: [], grants: [], approvalRules: {}, networkCaps: {} }, reg2, ['web']);
+    A.eq(kept.tools, [RECIPE_READER], 'a routine restricted to other toolsets keeps it, like manual.read (a freebie, never a toggleable family)');
+    A.ok(reg.get(RECIPE_READER) && reg.get(RECIPE_READER).impact === 'none', 'the declared catalogue holds it');
   }
 
   A.report('prefix-lanes');

@@ -44,6 +44,7 @@ const FACTORIES = [
   ['makeKeyTools', r => req(r, 'sidecar/tools/builtin/keys.js').makeKeyTools({ ownerTexts: () => null, save: noop, tainted: () => false })],
   ['makeStationInspectTool', r => req(r, 'sidecar/tools/builtin/station-inspect.js').makeStationInspectTool({ inspect: () => ({}) })],
   ['makeManualReadTool', r => req(r, 'sidecar/tools/builtin/manual-read.js').makeManualReadTool()],
+  ['makeRecipeReadTool', r => req(r, 'sidecar/tools/builtin/recipe-read.js').makeRecipeReadTool({})],
   ['makeStationShowTool', r => req(r, 'sidecar/tools/builtin/station-show.js').makeStationShowTool({ station: {} })],
   ['makeAppTools', r => req(r, 'sidecar/tools/builtin/apps.js').makeAppTools({ apps: {}, now: clock.now, compile: () => '' })],
   ['makeBrowserTools', r => req(r, 'sidecar/tools/builtin/browser.js').makeBrowserTools({ session: {} })],
@@ -564,7 +565,8 @@ async function projectMatrix(root, scenario, overrides) {
     availability: { mediaRoute: h.mediaRoute, voiceRoute: h.voiceRoute, ptyRuntime: h.pty },
     // runOnce reads the follow-up facts only where a deferral can apply (a task run, tool search on)
     followups: (o.isTask && !h.deferralOff) ? h.followups : undefined,
-    prefixTail: h.prefix.PREFIX_TAIL === true
+    prefixTail: h.prefix.PREFIX_TAIL === true,
+    recipeReader: h.prefix.PREFIX_RECIPES === true
   };
   if (Array.isArray(o.groupTools)) for (const def of o.groupTools) registry.register(def);
   const { station } = PT.projectStation({ id: AGENT }, origin, role, facts);
