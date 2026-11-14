@@ -2095,8 +2095,13 @@ const turnDual = TurnDual.make({ now: () => Date.now(), hash: s => crypto.create
   env: name => process.env[name], read: () => loadResilient(TURN_IDENTITY_FILE, 'turn identity modes'),
   save: value => saveResilient(TURN_IDENTITY_FILE, value), failNote,
   soak: { dir: WORKSPACES, save: saveResilient, read: f => readJsonResilient({ fs: fs }, f), version: computeVersionSurface } });
+// W2.6 window step: a long chat's window starts at a mark of the canonical rows instead of sliding one exchange per send
+// (historyfit.js stepStart, turn-window.js apply), and the earlier-conversation note of a stream past the canonical rows'
+// limit is rendered from a mark too (earlier-conversation.js frontMark). OFF until an A/B on real models passes (on:
+// STARNET_WINDOW_STEP=1). Read here and nowhere else.
+const windowStepOn = () => /^(1|true|yes|on)$/i.test(String(ENV('WINDOW_STEP') || '').trim());
 const turnWindow = TurnWindow.make({ transcriptStore, turnDual, failNote, limitOf: turnWindowLimitOf, compactAt: RUN_CONTEXT_DEFAULTS.compactAt,
-  noteIdentity: (runId, fields) => runStore.noteIdentity(runId, fields), runForgotten: runId => quoteForgottenRun(runId) });
+  noteIdentity: (runId, fields) => runStore.noteIdentity(runId, fields), runForgotten: runId => quoteForgottenRun(runId), windowStep: windowStepOn });
 /* A PAID FOLD'S SUMMARY IS KEPT (context-budget-and-fold, summary-ledger.js). A fold lives only in the run's message array, so
    every send of a long chat past the fold line summarized the same range again (14 paid calls and 14 different notes in 14
    sends, probed). The ledger keeps the note per stream, with the canonical rows it stands for and a digest of them, and a
@@ -2107,6 +2112,7 @@ const SUMMARIES_DIR = path.join(WORKSPACES, SummaryLedger.DIR_NAME);
 const summaryLedger = SummaryLedger.makeSummaryLedger({ fs, path, dir: SUMMARIES_DIR, now: () => Date.now(), redact: text => redact(text), writeDurable: writeFileDurable,
   deletedAt: id => sessionTombstones.deletedAt(id), deletedSince: at => sessionTombstones.list().some(e => e.at >= at) });
 const canonicalRows = streamId => transcriptStore.view('model-replay', streamId, { limit: 3000, shape: 'pairs', rows: true });
+const CANONICAL_ROWS_LIMIT = 3000;   // the limit canonicalRows reads with: a list this long has rows before its front
 /* forgetDeletedSessionSummaries() — a deleted conversation's kept summaries go the moment the delete is learned (sync), and so
    do those whose rows READ a deleted conversation (quote-forget). Not a hook inside forgetDeletedSessionMemory: turn-identity's
    forget registry takes summaryLedger as one register({ name, sourceOf, forget }) line. An unfinished earlier pass is retried at boot. */
@@ -24798,7 +24804,9 @@ async function runOnceCore(o) {
   // routine's folder, a re-scoped coordinated thread, a project chat): the note names the saved file the way THIS run's
   // tools resolve it. COMMS and the channel hubs used to expand before runOnce, with no root or a stale one.
   const directive = TurnDirective.capture(messages, { typedDirective: o.typedDirective, turnId: runStartExtra.turnId, recovery: o.recovery ? { title: o.recovery.sourceTitle } : null });   // the Commander's words, once, before files expand (e7dcb889; null = no user message)
-  messages = turnWindow.apply(messages, o, { agentId, runId, directive, reused: turnReuse });
+  const windowCtx = { agentId, runId, directive, reused: turnReuse };
+  messages = turnWindow.apply(messages, o, windowCtx);
+  const windowStepped = windowCtx.step || null;   // W2.6: what a stepped window added to the posted one or left out of it (never set with the switch off)
   messages = await attachments.expandForRun(messages, agentId, o.projectRoot);
   const attachReport = attachments.resentOf(messages);   // what the expansion read and sent, per reference (size and sha256 of the bytes read): the taint below follows it, and the directive's attachment rows record it (TurnDirective.install)
   const attachTaint = attachReport.some(e => e && e.bytes === true) ? taintPolicy.ATTACHMENT_TAINT : null;   // TAINT FOLLOWS THE BYTES: read off the expansion's own report, before `messages` is reassigned; a reference whose bytes were not re-sent (a marker, an unreadable or binary file) taints nothing
@@ -28064,7 +28072,10 @@ async function runOnceCore(o) {
           catch (e) { failNote('run.summaryTag', e); summaryRun.alignment = null; }
         }
         if (cut > 0) {
-          const dropped = rows.slice(0, cut);
+          // W2.6 window step: in a stream past the canonical rows' limit the note is rendered from a front mark, so its oldest
+          // end holds still between two steps as its newest end does (a mark at or past the cut: from the front, as before)
+          const front = windowStepOn() ? EarlierConversation.frontMark(rows, CANONICAL_ROWS_LIMIT) : 0;
+          const dropped = front > 0 && front < cut ? rows.slice(front, cut) : rows.slice(0, cut);
           const wired = (d) => d && d.function && d.function.name === 'recall_conversation';
           const searchTool = (toolDefs.some(wired) || (deferredToolDefs || []).some(wired)) ? 'recall_conversation' : '';
           // ownerVoice (review memory-learning-06): a run a non-owner or a group chat started (and its workers: tasteWithheld
@@ -28350,6 +28361,9 @@ async function runOnceCore(o) {
     // start above does, or the floor pairs a multi-bay agent's run with its OLDEST crate and lights the wrong bay.
     // (and a voice turn's route, so COMMS can say once why a voice model was passed over)
     if (name === 'agent.run.start' && payload && payload.runId === runId && (runStartExtra.dockId || runStartExtra.workitemId || runStartExtra.notices || runStartExtra.voiceRoute)) payload = Object.assign({}, payload, runStartExtra);
+    // W2.6 window step: the page measures its next budget against what this run was sent, so a window the station stepped
+    // says how many rows and dialogue tokens (the page's own ruler) that added or left out (turn-window.js ctx.step)
+    if (windowStepped && name === 'agent.run.start' && payload && payload.runId === runId) payload = Object.assign({}, payload, { windowStep: { rows: windowStepped.rows, delta: windowStepped.delta } });
     // BALANCE CEILING (additive, like completionVerdict below): this run's per-run stop fired at the ceiling admission
     // clamped to the StarNet balance, so every stop line names the balance + the top-up door, not a cap to raise.
     // A failover's own (lower) ceiling or the unpriced-token seatbelt carries a different cap and is left alone.
@@ -28531,6 +28545,10 @@ async function runOnceCore(o) {
       // by reference, so the tools array and the cached prompt stay as they were (providers/anthropic.js NATIVE DEFERRAL).
       // OFF until one real request confirms the API takes these fields from this adapter (on: STARNET_NATIVE_DEFER=1)
       nativeDefer: /^(1|true|yes|on)$/i.test(String(ENV('NATIVE_DEFER') || '').trim()),
+      // W2.7 fold from the prefix: a paid fold sends the run's own next request with the summarize instruction appended, so
+      // the provider reads the conversation from its prompt cache instead of being sent it again as text, on the routes
+      // that can (history-edit prefixFold). OFF until an A/B on real models passes (on: STARNET_FOLD_FROM_PREFIX=1)
+      foldFromPrefix: /^(1|true|yes|on)$/i.test(String(ENV('FOLD_FROM_PREFIX') || '').trim()),
       // P0.2 credential rotation: the live key + a hook the loop calls as it rotates away from a failed one,
       // so a rate-limit/auth/billing key gets a cooldown (credPool) and isn't tried first next run.
       // activePrimaryKey, NOT runKey: when the run's own key was still cooling we STARTED on a warm pool key,

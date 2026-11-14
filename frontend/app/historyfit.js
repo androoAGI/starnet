@@ -70,6 +70,47 @@
     const capped = real.length > HISTORY_CAP ? real.slice(-HISTORY_CAP) : real;
     return fitHistoryBytes(capped, HISTORY_WIRE_MAX_BYTES);
   }
+  /* THE WINDOW MOVES IN STEPS (cost lane W2.6; off unless the station turns it on: STARNET_WINDOW_STEP). Past the row cap, or
+     past the token fit on a small window, the window above starts one exchange later on every send, so the history a send
+     opens with is never what the provider's prompt cache holds from the send before: every message of a long chat pays to
+     write the whole window again. stepStart names the start from fixed MARKS instead: the rows whose place in the stream's
+     canonical replayable rows (ordinal 0 is the stream's first) is a multiple of a mark spacing. Between two marks the window
+     only grows at its newest end, so one send's history is the next send's prefix, byte for byte.
+       - ROWS. The start is the last 40-row mark at or before the row cap's own start (n - HISTORY_CAP): the window holds
+         HISTORY_CAP to HISTORY_CAP + 39 rows, never fewer than the sliding window holds at the same point.
+       - THE HARD BOUNDS (the wire byte cap, the token budget) bound it as before. When they cut the stepped window, the start
+         is the first mark at or after the cut, on the widest spacing of 40, 20, 10 or 4 rows the room holds. The room ends at
+         the sliding window's own start while that window fits whole (so still never fewer rows than it holds); once the
+         budget cuts the sliding window too, a third of the rows the budget holds (at least two thirds of them stay in view,
+         and at least 80 rows when it holds a full 119).
+       - No mark in the room (a budget of a few rows): the sliding window's start, as before.
+     rows: the canonical replayable rows, oldest first, the new directive last. options.budget: the token budget (absent: no
+     token fit). options.base: the ordinal of rows[0] (0: the rows start at the stream's first). Returns the start index.
+     ONE RESOLVER: a mark can only be named by a holder of the canonical rows, which is the station (sidecar/turn-window.js
+     steps the posted page window and its own with this one function); the page keeps 120 rows and no ordinals. */
+  const WINDOW_STEP = 40;
+  const STEP_MARKS = [WINDOW_STEP, 20, 10, 4];
+  function stepStart(rows, options) {
+    const src = Array.isArray(rows) ? rows : [], o = options || {}, n = src.length;
+    const budget = Number.isFinite(o.budget) ? Math.max(1, o.budget) : null;
+    const base = Number.isSafeInteger(o.base) ? o.base : 0;
+    // the start of what the hard bounds keep of rows[from..n): the wire byte cap, then the token budget, newest first
+    const fit = from => {
+      let kept = fitHistoryBytes(src.slice(from), HISTORY_WIRE_MAX_BYTES);
+      if (budget !== null) kept = fitHistoryTokens(kept, budget);
+      return n - kept.length;
+    };
+    const past = (at, spacing) => (((base + at) % spacing) + spacing) % spacing;   // rows past the last mark at or before `at`
+    const capStart = Math.max(0, n - HISTORY_CAP), sliding = fit(capStart);
+    const lo = Math.max(0, capStart - past(capStart, WINDOW_STEP));
+    const hard = fit(lo);
+    if (hard === lo) return lo;
+    const room = sliding === capStart ? capStart - hard : Math.floor((n - hard) / 3);
+    for (const spacing of STEP_MARKS) {
+      if (spacing <= room + 1) return hard + (spacing - past(hard, spacing)) % spacing;
+    }
+    return sliding;
+  }
   /* ONE BUDGET AUTHORITY (context-budget-and-fold). The server folds a run once its prompt passes compactAt of the window the run
      works in, and publishes both on every model row (/api/models: runWindow, compactAt; context.js RUN_CONTEXT_DEFAULTS is the one
      place the share lives). A fit to that same line means a fitted send is never already past the fold, so a long chat stops paying
@@ -104,8 +145,10 @@
     if (state && (!state.model || state.model === m.selected) && state.limit) limit = state.limit;
     if (state && (!state.model || state.model === m.selected) && state.used > 0 && (state.measured || state.projected)) {
       // the measured overhead already holds the system prompt and tool schemas (state.used minus the dialogue it carried): it is
-      // the only thing taken off the line, never the unmeasured reserve besides
-      const dialogue = contextEstimateMessages(fitted), overhead = Math.max(0, state.used - dialogue);
+      // the only thing taken off the line, never the unmeasured reserve besides. A station that stepped the window (stepStart)
+      // sent stepDelta more dialogue tokens than this page posted (fewer when negative) and said so on the run's start: that
+      // dialogue was carried too, so a step never reads as a larger or a smaller overhead
+      const dialogue = contextEstimateMessages(fitted) + (Number.isFinite(state.stepDelta) ? state.stepDelta : 0), overhead = Math.max(0, state.used - dialogue);
       budget = Math.max(1, Math.floor(windowFor(limit) * (share || LEGACY_FIT_SHARE)) - overhead);
       fitted = fitHistoryTokens(base, budget);
     }
@@ -142,6 +185,6 @@
     }
     return { messages, post };
   }
-  return { HISTORY_CAP, HISTORY_WIRE_MAX_BYTES, utf8Bytes, fitHistoryBytes, fitHistoryTokens, contextEstimateMessages,
-    endOnUserTurn, windowRows, uncalibratedBudget, fitModel, capsOf, hasForeign, skipWait, stationWindowFallback, sendPlan };
+  return { HISTORY_CAP, HISTORY_WIRE_MAX_BYTES, WINDOW_STEP, utf8Bytes, fitHistoryBytes, fitHistoryTokens, contextEstimateMessages,
+    endOnUserTurn, windowRows, stepStart, uncalibratedBudget, fitModel, capsOf, hasForeign, skipWait, stationWindowFallback, sendPlan };
 });

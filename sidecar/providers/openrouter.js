@@ -138,8 +138,28 @@
   function cacheAnchorsFor(model) {
     return supportsExplicitCache(model) ? { history: cacheTtl.anchorsHistory(cacheTtl.mode()), system: 'all' } : null;
   }
-  function applyCacheControl(messages, model, cacheSystemPrefix, neverReread) {
+  /* A PAID FOLD CAN READ THE RUN'S OWN PREFIX ON THIS WIRE FOR A CLAUDE MODEL (W2.7, history-edit.js prefixFold): its
+     anchors are explicit, so applyCacheControl can put a fold's exactly where the run's last request put them (prior,
+     below) and the read is certain for as long as a tail anchor's entry lives. Any other model is cached, if at all, by
+     whichever upstream OpenRouter routes the request to: nothing here can say the prefix is read, so nothing is declared
+     and its fold stays chunked. The managed route stamps through applyCacheControl too and gives this same answer. */
+  function prefixFoldFor(model) {
+    return supportsExplicitCache(model) ? { ttlMs: cacheTtl.tailTtlMs(cacheTtl.mode()) } : null;
+  }
+  /* prior (W2.7, provider.js prefixReadOf): the wire of the messages the run's last request carried, when this request is
+     a fold from the run's own prefix. Those messages are stamped exactly as that request was, by this same function, and
+     each anchor is carried over to the same message here when the message is byte-identical: every anchor then sits on
+     an entry the run wrote, and the messages after them carry none, so the fold reads the run's cache and writes nothing. */
+  function applyCacheControl(messages, model, cacheSystemPrefix, neverReread, prior) {
     if (neverReread === true || !Array.isArray(messages) || !supportsExplicitCache(model)) return messages;
+    if (Array.isArray(prior) && prior.length) {
+      const stamped = applyCacheControl(prior, model, cacheSystemPrefix, false);
+      const out = messages.slice();
+      for (let i = 0; i < stamped.length && i < out.length; i++) {
+        if (stamped[i] !== prior[i] && JSON.stringify(prior[i]) === JSON.stringify(out[i])) out[i] = stamped[i];
+      }
+      return out;
+    }
     // The tier each anchor asks for (cache-ttl.js, read once per call): the leading system anchors are STABLE, the
     // sliding tail anchors the TAIL. Under the default both are the 5-minute tier: the exact wire from before.
     const ttl = cacheTtl.mode();
@@ -380,7 +400,10 @@
       // A model the catalog (or its own earlier refusal) calls text-only gets each image as a short note instead: OpenRouter
       // refuses the whole request otherwise (404 "No endpoints found that support image input"). Unknown keeps them.
       const sent = supportsImages(req.model) === false ? provider.withoutImageParts(req.messages, req.model) : req.messages;
-      const body = { model: req.model, messages: applyCacheControl(provider.chatWireMessages(chatRoleProjection(provider.prepareWireMessages(sent, 'chat'), req.model)), req.model, req.cacheSystemPrefix, req.neverReread === true && !(req.tools && req.tools.length)), stream: true, usage: { include: true } };
+      // W2.7: a fold from the run's own prefix anchors where the run's last request did (applyCacheControl, prior)
+      const read = provider.prefixReadOf(req);
+      const prior = read ? provider.chatWireMessages(chatRoleProjection(provider.prepareWireMessages(sent.slice(0, read), 'chat'), req.model)) : null;
+      const body = { model: req.model, messages: applyCacheControl(provider.chatWireMessages(chatRoleProjection(provider.prepareWireMessages(sent, 'chat'), req.model)), req.model, req.cacheSystemPrefix, req.neverReread === true && !(req.tools && req.tools.length), prior), stream: true, usage: { include: true } };
       if (reasoning) body.reasoning = reasoning;
       if (req.tools && req.tools.length) {
         // Grammar-safe property keys on every tool (OpenRouter fronts Anthropic/Bedrock, which 400 the whole request
@@ -655,8 +678,8 @@
       return provider.verifyResponse(doFetch, baseUrl + '/auth/key', { headers: { Authorization: 'Bearer ' + (key || ''), Accept: 'application/json' }, signal: o && o.signal },
         j => j && j.data && typeof j.data === 'object' && !Array.isArray(j.data) ? [{ credential: true }] : [], !!key, classifyApiError);
     }
-    return { stream, listModels, verifyCredential, warmCatalog, contextLimit, outputLimit, priceOf, supportsTools, supportsImages, reasoningEfforts, effortAsSent, cacheAnchors: cacheAnchorsFor };
+    return { stream, listModels, verifyCredential, warmCatalog, contextLimit, outputLimit, priceOf, supportsTools, supportsImages, reasoningEfforts, effortAsSent, cacheAnchors: cacheAnchorsFor, prefixFold: prefixFoldFor };
   }
 
-  return { makeOpenRouterProvider, applyCacheControl, cacheAnchorsFor, attachCatalogCache, _internals: { normalizeReasoningEffort, reasoningEffortsForModel, clampReasoningEffortForModel, repairToolPairs } };
+  return { makeOpenRouterProvider, applyCacheControl, cacheAnchorsFor, prefixFoldFor, attachCatalogCache, _internals: { normalizeReasoningEffort, reasoningEffortsForModel, clampReasoningEffortForModel, repairToolPairs } };
 });

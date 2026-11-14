@@ -52,6 +52,10 @@
   function anchorsHistory(m) { return (known(m) ? m : mode()) === 'mixed'; }
   // the dearest tier a request in this mode can write: what a write whose tier split went unreported is priced at
   function longestTier(m) { return (known(m) ? m : mode()) === '5m' ? '5m' : '1h'; }
+  // how long the entry a TAIL anchor wrote can still be read (the newest messages of a run's last request): what a fold
+  // from the run's own prefix has to arrive within (W2.7, history-edit.js prefixFold). One hour only when every anchor is
+  // on the 1-hour tier: 'mixed' anchors the newest messages on the 5-minute one
+  function tailTtlMs(m) { return (known(m) ? m : mode()) === '1h' ? 3600000 : 300000; }
   // usage.cache_creation as the provider reported it: the two documented counts, nothing else, never a made-up one
   // (a missing or non-numeric count stays missing; cost.js prices per tier only when both are there and add up)
   function reportedSplit(cc) {
@@ -63,5 +67,5 @@
     return Object.keys(out).length ? out : null;
   }
 
-  return { MODES, DEFAULT_MODE, mode, control, anchorsHistory, longestTier, reportedSplit };
+  return { MODES, DEFAULT_MODE, mode, control, anchorsHistory, longestTier, tailTtlMs, reportedSplit };
 });

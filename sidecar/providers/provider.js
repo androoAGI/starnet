@@ -1177,7 +1177,18 @@
     return isBatchOnlyModel(providerId, model) ? String(model).trim().replace(BATCH_VARIANT, '') : model;
   }
 
-  return { EVENT_TYPES, FINISH, GENERATION_IDS_MAX, generationId, generationFields, makeGenerationReceipt, normalizeFinish, verifyResponse, timeouts, runtime, repairToolPairs, preserveClaudeContinuations,
+  /* A FOLD FROM THE RUN'S OWN PREFIX (W2.7, sidecar/history-edit.js prefixFoldRequest). Such a request is the run's own next
+     request with one host message appended, and names in req.prefixRead how many leading messages the run's last request
+     carried. An adapter with explicit cache anchors (anthropic.js buildBody, openrouter.js applyCacheControl) places its
+     message anchors exactly where that request placed them and none after, so every anchor lands on an entry the run
+     already wrote: the fold reads the run's cache and writes nothing. An adapter with no explicit anchors ignores it.
+     prefixReadOf(req) -> that count, or 0 for every other request. */
+  function prefixReadOf(req) {
+    const n = req && req.prefixRead, len = req && Array.isArray(req.messages) ? req.messages.length : 0;
+    return Number.isSafeInteger(n) && n > 0 && n < len ? n : 0;
+  }
+
+  return { EVENT_TYPES, prefixReadOf, FINISH, GENERATION_IDS_MAX, generationId, generationFields, makeGenerationReceipt, normalizeFinish, verifyResponse, timeouts, runtime, repairToolPairs, preserveClaudeContinuations,
     RUN_CONTEXT_OPEN, RUN_CONTEXT_CLOSE, runContextNote, isRunContextNote, CREW_CALL_OPEN, CREW_CALL_CLOSE, crewCallFence, isCrewCallNote,
     HOST_NOTE_TAGS, LOOP_HOST_TAGS, isHostNote, isClaudeModel, userSideHostNotes, chatRoleProjection, projectRoles, chatRolePolicy, inertHostTags, inertHostFences,
     prepareWireMessages, remapToolCallIds, ANTHROPIC_TOOL_ID, chatWireMessages, CHAT_WIRE_KEYS, isBatchOnlyModel, chatModelId,

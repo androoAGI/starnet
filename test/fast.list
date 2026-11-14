@@ -601,6 +601,8 @@ test/turn-dual.forget.test.js
 test/turn-soak.qa.test.js
 test/turn-window.test.js
 test/turn-window.review.test.js
+test/window-step.test.js
+test/window-step.invariant.test.js
 test/turn-delivery.test.js
 test/turn-delivery.files.test.js
 test/deliverable-rows.render.test.js
@@ -1867,6 +1869,8 @@ test/batched-ageing.signin.invariant.test.js
 test/native-defer.invariant.test.js
 test/batch-hint.test.js
 test/delegation-hint.test.js
+test/fold-from-prefix.test.js
+test/fold-from-prefix.invariant.test.js
 test/loop.tool-args-local-endpoint.test.js
 test/granted-context.approval-line.test.js
 test/browser-signin-survives.test.js

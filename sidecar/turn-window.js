@@ -2,6 +2,7 @@
 'use strict';
 const crypto = require('node:crypto');
 const Fit = require('../frontend/app/historyfit.js');
+const Gauge = require('../frontend/app/ctxgauge.js');   // the page's own ruler: what a stepped window added or left out is told in it
 const Kinds = require('../frontend/app/turnkinds.js');
 const Merge = require('../frontend/app/turnmerge.js');
 const View = require('./turn-view.js');
@@ -140,6 +141,23 @@ function make(d) {
     note('turn.window.forgotten', new Error(dropped + ' posted history row(s) quote a deleted session and were left out of the window'));
     return { messages: kept, dropped, unvouched };
   }
+  /* A POSTED WINDOW FROM A MARK (apply, THE WINDOW MOVES IN STEPS). src: the posted messages; combined: the canonical rows with
+     the new directive last; start: the mark's index in them. The posted window is placed by the durable row its first message
+     stands on. Returns the posted messages from the mark on (the station's rows in front when the page's first row comes
+     after the mark; the posted rows before the mark left out when it comes before), the same array when it already starts
+     there, or null when nothing places it. Row ids ride the result for the caller's own record. */
+  function postedFrom(src, combined, start, newestAt, streamId) {
+    const keyOf = row => row && row.streamId === streamId && !row.foreign && row.idFrom !== 'collision' && positiveId(row.rowId) ? row.rowId : 0;
+    const posted = identities(src, streamId), canonical = identities(combined, streamId);
+    const first = src.findIndex(m => m && m.role !== 'system'), firstKey = first >= 0 ? keyOf(posted[first]) : 0;
+    const at = firstKey ? canonical.findIndex(row => keyOf(row) === firstKey) : -1;
+    if (at < 0) return null;
+    if (start === at) return src;
+    if (start < at) return View.concat(src.slice(0, first), View.slice(combined, start, at), src.slice(first));
+    const markKey = keyOf(canonical[start]);
+    const to = start === combined.length - 1 ? newestAt : markKey ? posted.findIndex((row, i) => i > first && keyOf(row) === markKey) : -1;
+    return to < 0 ? null : src.filter((m, i) => i >= to || (m && m.role === 'system'));
+  }
   function apply(messages, o, ctx) {
     const floored = forgetFloor(messages, o);
     messages = floored.messages;
@@ -168,11 +186,32 @@ function make(d) {
       if (budget !== null) fitted = Fit.fitHistoryTokens(fitted, budget);
       const window = View.slice(combined, combined.length - fitted.length);
       record(compare(src.filter(m => m && m.role !== 'system'), window, o.streamId));
-      const selected = !foreign && (mode === 'id' || required) ? View.concat(system, window) : messages;
+      let selected = !foreign && (mode === 'id' || required) ? View.concat(system, window) : messages;
+      /* THE WINDOW MOVES IN STEPS (cost lane W2.6; d.windowStep: STARNET_WINDOW_STEP, off by default). The window above slides:
+         past the row cap or the token fit its first row changes on every send, so the provider's prompt cache never holds the
+         history a send opens with. With the switch on the start is a mark of the canonical rows (historyfit.js stepStart, the
+         one resolver), which moves once in many sends. The station's own window (ID mode, a required window) simply starts
+         there. A posted page window keeps every row the page sent from the mark on, byte for byte: the station only puts
+         its own rows in front of it, from the mark to the page's first row, or leaves out the posted rows before the mark
+         (a token budget that cut the window). It is returned as a plain posted window, so everything after this seam places
+         it exactly as it places a page window today. A branch copy, or a posted window that stands on no durable row of
+         this stream, rides as posted. The comparison above is still the page against the sliding window, as before.
+         ctx.step tells the page what the step added or left out, by its own ruler (run start, windowStep): its budget for
+         the next send is measured against what was sent, not against what it posted. */
+      let stepped = null;
+      if (!foreign && typeof d.windowStep === 'function' && d.windowStep() === true) {
+        const start = Fit.stepStart(combined, { budget: budget === null ? undefined : budget, base: -carried.length });
+        stepped = mode === 'id' || required ? View.concat(system, View.slice(combined, start)) : postedFrom(src, combined, start, newestAt, o.streamId);
+        if (stepped && stepped.length === selected.length) stepped = null;   // the same start: the window as it was
+      }
+      if (stepped) {
+        ctx.step = { rows: stepped.length - selected.length, delta: Gauge.estimateMessages(stepped) - Gauge.estimateMessages(selected) };
+        selected = stepped;
+      }
       const selectedIds = identities(selected, o.streamId).filter(r => r.streamId === o.streamId && positiveId(r.rowId)).map(r => r.rowId);
       if (typeof d.noteIdentity === 'function') d.noteIdentity(ctx.runId, { windowRowIds: {
         first: selectedIds[0] || 0, last: selectedIds.at(-1) || 0, count: selectedIds.length, sha256: hash(JSON.stringify(selectedIds)) } });
-      return selected;
+      return stepped && !(mode === 'id' || required) ? Array.from(selected) : selected;
     } catch (error) {
       note('turn.window.unvouched', error); record({ classes: ['unvouched'] });
       if (required && !postedHistory({ messages: src })) throw historyUnavailable(error);

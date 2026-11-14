@@ -103,10 +103,15 @@ const Harness = (() => {
 
   /* Register the conversation a run belongs to, plus our estimate of the messages it was given.
      Called by chat() the moment it latches a runId, so the bus fold below can attribute the run's
-     cost events to the right conversation and calibrate the overhead against what we actually sent. */
-  function registerRun(runId, agentId, streamId, messages) {
+     cost events to the right conversation and calibrate the overhead against what we actually sent.
+     step: the run start's windowStep, from a station that steps a long chat's window (historyfit.js stepStart): it sent
+     step.delta more dialogue tokens than this page posted (fewer when negative), by this page's own ruler. The overhead
+     fit and the next send's budget count what was sent. A station that does not step never sends one. */
+  function registerRun(runId, agentId, streamId, messages, step) {
     if (!runId) return;
     runConv[runId] = { key: convKey(agentId, streamId), sentEstimate: estOf(messages), calibrated: false, agentId: String(agentId || 'agent') };
+    const stepDelta = step && Number.isFinite(step.delta) ? Math.round(step.delta) : 0;
+    if (stepDelta) runConv[runId].stepDelta = stepDelta;
     contextRev++;
   }
 
@@ -130,7 +135,7 @@ const Harness = (() => {
        instead would have inflated the overhead ~4x and every projection with it. */
     const firstOfRun = !!(reg && !reg.seen);
     if (reg) reg.seen = true;
-    if (firstOfRun && m && hasEst()) rememberOverhead(reg.agentId + SEP + m, CtxGauge.calibrateFromEstimate(payload.tokensIn, reg.sentEstimate));
+    if (firstOfRun && m && hasEst()) rememberOverhead(reg.agentId + SEP + m, CtxGauge.calibrateFromEstimate(payload.tokensIn, reg.sentEstimate + (reg.stepDelta || 0)));
     const prev = contextByKey[key];
     const baseline = firstOfRun ? payload.tokensIn
       : ((prev && prev.runId === (payload.runId || '')) ? prev.baseline : 0);
@@ -138,6 +143,7 @@ const Harness = (() => {
       used: payload.tokensIn, model: m, runId: payload.runId || '',
       sentEstimate: reg ? reg.sentEstimate : -1, baseline: baseline || 0, live: true
     };
+    if (reg && reg.stepDelta) contextByKey[key].stepDelta = reg.stepDelta;   // the dialogue a stepped window carried beyond (or short of) what was posted
     contextRev++;
   }
   // A run ended: its measurement stops being "what the model is holding right now". The reading stays
@@ -1074,6 +1080,9 @@ const Harness = (() => {
     // window, which composer fit checks keep using (the sidecar folds a run inside the smaller one)
     const run = runWindowOf(model);
     const base = { agentId: aid, streamId: String(streamId || ''), model, limit, runWindow: (run > 0 && limit > 0 && run < limit) ? run : limit };
+    // the reading's run was sent a stepped window (registerRun): the dialogue it carried beyond what the page posted rides
+    // the state, so the next send's fit takes it off the overhead (historyfit.js fitModel)
+    if (hasRec && rec.stepDelta) base.stepDelta = rec.stepDelta;
 
     // 1. in flight — report what the provider says the model is holding this second
     if (hasRec && rec.live) return Object.assign(base, { used: rec.used, measured: true, projected: false });
@@ -1670,7 +1679,7 @@ const Harness = (() => {
             // avoid painting this run's fill onto some other session, the messages to learn what the
             // harness adds on top of them. run.start always precedes agent.cost on this stream, so the
             // bus fold below always finds the registration.
-            if (payload.runId && !internal) registerRun(payload.runId, agentId || 'agent', streamId, messages);
+            if (payload.runId && !internal) registerRun(payload.runId, agentId || 'agent', streamId, messages, payload.windowStep);
             if (!runId) { runId = payload.runId; onRunId && onRunId(runId, payload); }
             else if (payload.runId && payload.runId !== runId) { delegatedRuns.add(payload.runId); if (delegatedRuns.size > 400) delegatedRuns.delete(delegatedRuns.values().next().value); }
             break;

@@ -1626,6 +1626,23 @@
       (TOOL_IMAGE_KEEP > 0 && holdsHistory()) ? Math.max(TOOL_IMAGE_STEP, HELD_IMAGE_TURNS - TOOL_IMAGE_KEEP) : TOOL_IMAGE_STEP);
     const viewOf = (msgs) => (ageing ? ageing.view(screensView(msgs)) : screensView(msgs));
     const wireMessages = () => viewOf(messages);
+    /* A PAID FOLD FROM THE RUN'S OWN PREFIX (W2.7, history-edit.js prefixFold). Off unless the host turns it on
+       (o.foldFromPrefix: STARNET_FOLD_FROM_PREFIX), and then no request and no fold differs from before. With it on, a paid
+       fold sends the run's own next request with the summarize instruction appended, where the route, the cache and the
+       window allow, so the provider reads the conversation from its prompt cache instead of being sent it again as text.
+       lastSent: what the last request that reached the provider carried (history-edit sentMark) and when it went out. */
+    const foldFromPrefix = o.foldFromPrefix === true && !!HistoryEdit && typeof HistoryEdit.prefixFold === 'function';
+    let lastSent = null;
+    // The fields every request of this run carries besides its messages, tools and signal: the main call's, and a fold
+    // from the prefix's, which hits the run's cache only while it carries the very same ones.
+    const requestFields = (req) => {
+      if (typeof o.isTask === 'boolean') req.isTask = o.isTask;
+      if (o.runId) req.runId = o.runId;   // run attribution: only a profile that names a runIdHeader sends it (starnet)
+      if (o.cacheSystemPrefix) req.cacheSystemPrefix = o.cacheSystemPrefix;
+      if (o.reasoningEffort) req.reasoningEffort = o.reasoningEffort;   // a per-run override (station self-talk: the aux effort); absent = the provider's own default
+      if (outputCapTokens > 0) req.maxTokens = outputCapTokens;   // the ceiling a provider named (output_cap)
+      return req;
+    };
     /* THE HOST PARKER, NOTED (W1.7): a park that fails leaves its body unsaved, and says so. The host parker (index.js)
        swallows its own errors and answers null; elideToolResult never asks it to save quoted words (its one refusal), so
        a null or a missing path is a failed write, noted like a throw. onNothing(tool) words the note. */
@@ -2488,12 +2505,37 @@
         if (stop) { compactionSpendStop = stop; return false; }
         return !signal.aborted;
       };
-      try { r = await summarize(foldOlder, prevSummary, { provider, model, cost, generationReceipt, beforeAttempt, settleAttempt }); }   // prevSummary => the summarizer MERGE-updates it (H5.2)
+      const live = { provider, model, cost, generationReceipt, beforeAttempt, settleAttempt };
+      /* W2.7 (the switch on only): where the route, the cache and the window allow (history-edit prefixFold, the one
+         decision), the summarizer is handed the run's own next request to append its instruction to, what the last
+         request carried of it (read), and what stays word for word after the summary (the kept tail). */
+      let prefixWhy = '';
+      if (foldFromPrefix) {
+        let route = null;
+        try { route = (provider && typeof provider.prefixFold === 'function') ? provider.prefixFold(model) : null; } catch (e) { failNote('loop.provider.prefixFold', e); }
+        const wire = wireMessages();
+        // what the last request left is cached for the provider and model it went to: after a rotation or a fallback
+        // (another adapter, another model) this run has sent nothing there
+        const sameRoute = !!lastSent && lastSent.provider === provider && lastSent.model === model;
+        const where = HistoryEdit.prefixFold({ on: true, route, holdsHistory: holdsHistory(), force: !!force, last: sameRoute ? lastSent : null, messages: wire, tools,
+          now: hasClock ? waitClock() : undefined, promptTokens: anchor, windowTokens: windowTokens() });
+        if (where.ok) {
+          const head = plan.tail.find(m => m && m.role !== 'system') || null;
+          // the run's requests declare its deferred tools up front while native deferral is on (W2.4): the fold carries the same flag, so its tools array is theirs
+          const foldRequest = requestFields({ model, messages: wire, tools });
+          if (nativeDeferKey(wire)) foldRequest.nativeDefer = nativeDefer;
+          live.prefix = { request: foldRequest, read: where.read, kept: plan.tail.length,
+            keptHead: head ? fidelity.contentText(head.content) : '' };
+        } else prefixWhy = where.why;
+      }
+      try { r = await summarize(foldOlder, prevSummary, live); }   // prevSummary => the summarizer MERGE-updates it (H5.2)
       catch (e) {
         if (e && e.localModelTimeout === true && !signal.aborted) { compactionFatal = e; usageReading = null; return false; }   // ends the turn (above)
         if (++compactionFails >= 2) compactionOff = true; usageReading = null; return false;   // summarizer threw -> skip
       }
       if (signal.aborted) return false;
+      // W2.7: a fold from the prefix that was tried and not taken is noted: the chunked fold ran in its place
+      if (r && typeof r === 'object' && r.prefixFallback) failNote('loop.compaction.prefixFold', new Error('the fold from the run\'s own prefix was not taken (' + r.prefixFallback + '); the chunked fold ran'));
       const summary = (typeof r === 'string') ? r : ((r && r.summary) || '');
       /* A CUT-OFF OR REFUSED SUMMARY IS A FAILED ONE (compaction-summarizer.js rejectReason): a fragment like
          "Audit config files. VALUE_01=" or "I'm sorry, but I can't..." must never replace the history. `rejected`
@@ -2525,6 +2567,9 @@
       if (r && typeof r === 'object') {   // chunked-fold telemetry (additive): how many summarizer calls, and whether the input was cut
         if (r.chunks > 0) compactEv.chunks = r.chunks;
         if (r.truncatedChars > 0) compactEv.truncatedChars = r.truncatedChars;
+        // W2.7 (the switch on only): the summary came from the run's own cached prefix, or why it did not
+        if (r.prefix === true) compactEv.prefix = true;
+        else if (foldFromPrefix) compactEv.prefixWhy = String(r.prefixFallback || r.prefixSkipped || prefixWhy || '');
       }
       if (onFold) {
         try {
@@ -2849,11 +2894,8 @@
           if (view && view.stripped > 0) failNote('loop.historyEdit.thinkingStripped', view.unproven
             ? 'the run\'s first request on ' + String(model) + ' replays the thinking of ' + view.stripped + ' turn(s) it never saw produced (a recovered history: its tools, system prompt or turns may differ from when that thinking was made); those blocks were removed before the request'
             : 'a history edit at message ' + view.editAt + ' unbound the thinking of ' + view.stripped + ' earlier turn(s) on ' + String(model) + '; those blocks were removed before the request');
-          const req = { model, messages: view ? view.messages : outgoing, tools, signal: attempt.signal, stream: true };
+          const req = requestFields({ model, messages: view ? view.messages : outgoing, tools, signal: attempt.signal, stream: true });
           if (deferKey) req.nativeDefer = nativeDefer;
-          if (typeof o.isTask === 'boolean') req.isTask = o.isTask;
-          if (o.runId) req.runId = o.runId;   // run attribution: only a profile that names a runIdHeader sends it (starnet)
-          if (o.cacheSystemPrefix) req.cacheSystemPrefix = o.cacheSystemPrefix;
           // W3.7: the conversation this run continues and the time of this request, for the Claude Code replay ledger
           // (providers/cli-replay-ledger.js). Only when the host names one (index.js cliReplayStream: STARNET_CLI_REPLAY_LEDGER);
           // without it the request has no such field and every adapter's bytes are as before.
@@ -2865,10 +2907,10 @@
             if (typeof o.cliReplayEpoch === 'function') { try { epoch = String(o.cliReplayEpoch()); } catch (e) { failNote('loop.cliReplay.epoch', e); known = false; } }
             if (known) req.replay = { stream: String(o.cliReplayStream), at: (clock && typeof clock.now === 'function') ? waitClock() : null, epoch };
           }
-          if (o.reasoningEffort) req.reasoningEffort = o.reasoningEffort;   // a per-run override (station self-talk: the aux effort); absent = the provider's own default
-          if (outputCapTokens > 0) req.maxTokens = outputCapTokens;   // the ceiling a provider named (output_cap)
           if (retriesUsed > 0) req.preStreamRetries = 0;              // the ladder owns pacing: one request per rung
           if (localBusyResent) req.localBusyResent = true;            // this rung is a busy local server's one re-send
+          // W2.7: what this request carries and when it goes out, kept once its stream has run to its end (lastSent)
+          const sending = foldFromPrefix ? Object.assign(HistoryEdit.sentMark(req.messages, tools), { at: hasClock ? waitClock() : null, provider, model }) : null;
           for await (const ev of provider.stream(req)) {
             if (signal.aborted) break;
             // a runaway call was aborted: drain what the adapter already holds (its next read sees the abort, cancels the
@@ -2932,6 +2974,7 @@
             else if (ev.type === 'tool_done') argsStream.delete(ev.index);   // its arguments are whole: no longer streaming
           }
           streamClosed = !signal.aborted;
+          if (sending && streamClosed && sawStreamEvent) lastSent = sending;   // the provider answered it: its prefix is what the cache holds
         } catch (e) { streamErr = e; }
         finally { waiting.stop(); }
         /* THE BACKSTOP (history-edit view.unbound): a prefix change the view did not make still reached the API, which
@@ -3087,6 +3130,7 @@
             if (fb.cost) cost = fb.cost;                          // cross-provider: price subsequent turns by the new provider's catalog
             if (typeof fb.billingClassOf === 'function') nextBillingClassOf = fb.billingClassOf;   // its route's payer, from its first attempt
             provider = fb.provider;
+            lastSent = null;   // W2.7: nothing this run sent is cached for the credential, adapter or model it moves to
             if (typeof fb.maxCostUsd === 'number' && fb.maxCostUsd > 0) maxCostUsd = fb.maxCostUsd;
             if (typeof fb.maxUnpricedTokens === 'number' && fb.maxUnpricedTokens > 0) maxUnpricedTokens = fb.maxUnpricedTokens;
             if (fb.model) model = fb.model;   // the next agent.cost carries the switched model — the visible failover signal

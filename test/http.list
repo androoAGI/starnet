@@ -373,6 +373,7 @@ test/effective-limits.fallback.http.test.js
 test/turn-window.http.test.js
 test/turn-window.phone.http.test.js
 test/turn-window.caller-shape.http.test.js
+test/window-step.http.test.js
 test/transcript-cursor.http.test.js
 test/forget.tool-quotes.http.test.js
 test/forget.tool-quotes.timing.http.test.js
@@ -393,6 +394,7 @@ test/seal-held-words.http.test.js
 test/retired-grant-notice.http.test.js
 test/cross-run-replay.invariant.test.js
 test/batched-ageing.signin.e2e.test.js
+test/fold-from-prefix.http.test.js
 test/granted-context.approval-flip.http.test.js
 test/granted-drop-notice.http.test.js
 test/granted-line-skill.http.test.js

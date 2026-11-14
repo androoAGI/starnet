@@ -57,6 +57,10 @@
       it pins (the static prefix; with cache TTL 'mixed', the end of the conversation's history), so everything after
       that anchor is written again, a resumed conversation included. On an automatic-prefix route the read reaches the
       edit. Whatever weighs an edit's cost asks here.
+   7. A PAID FOLD CAN READ THE RUN'S OWN CONVERSATION FROM THE CACHE (prefixFold, prefixFoldRequest, W2.7). Off unless the
+      host turns it on (STARNET_FOLD_FROM_PREFIX). The fold sends the run's own next request with the summarize
+      instruction appended, where the route, the cache and the window allow; anywhere else, and whenever its reply is
+      not a whole summary, the chunked fold of 3. runs as before.
 
    Pure apart from the injected parker and the request view's in-place strip (1.); no clock; UMD so loop.js can load it
    wherever it loads. */
@@ -589,7 +593,88 @@
     };
   }
 
-  return { makeRequestView, elideToolResult, foldRequest, headTail, isElided, makeAgeing, readFloor, inheritMarkers, ELIDED, ELIDE_HEAD, HEAD_SHARE, ARG_ELIDED,
+  // ---------------------------------------------------------------- 7. a fold from the run's own prefix
+  /* A PAID FOLD READS THE RUN'S OWN CONVERSATION FROM THE CACHE (W2.7, cost audit 2026-11-08; off unless the host turns it on:
+     STARNET_FOLD_FROM_PREFIX). The chunked fold (3., compaction-summarizer.js) renders the folded turns to text and sends
+     them to the summarizer as fresh 48k-character prompts: every byte of them at the full input price, although the
+     provider's prompt cache holds those very turns from the run's last request. A fold from the prefix sends the run's own
+     request again (the same system prompt, the same tools, the same messages, the same effort) with ONE host message
+     appended, the summarize instruction, and takes the reply as the summary: the provider reads the prefix at its
+     cache-read price. Append-only, so on a binding model it invalidates no thinking block (1.).
+
+     sentMark(messages, tools) -> { keys, toolsKey }: what a request carried, as the wire keys of 1. (reasoning left out), kept
+     by the loop for the last request that reached the provider. Keys, not the messages: a turn rewritten in place since
+     then is the same object with another key.
+
+     prefixFold(o) -> { ok: true, read } | { ok: false, why }      WHERE IT CAN BE DONE: the one decision.
+       o.on            the switch
+       o.route         what the adapter declares for the model (provider.prefixFold(model)): { ttlMs } when a request that
+                       repeats an earlier request of the run and appends to it is read from the provider's prompt cache,
+                       and a tool call in the reply is only reported to the caller, never run by the adapter
+       o.holdsHistory  the provider holds the run's history itself (claude-cli's persistent child)
+       o.force         the fold is an overflow recovery: the prefix is already past the window
+       o.last          { keys, toolsKey, at }: the sentMark of the run's last request that reached the provider, and the clock
+                       when it went out; null when the run has sent none
+       o.messages, o.tools   what the run's next request would carry
+       o.now           the same clock now (not a number, or no o.last.at: the cache entry's age is not judged)
+       o.promptTokens  what that request weighs (the loop's usage anchor); o.windowTokens the model's window
+     why, when it cannot, and the chunked fold runs instead:
+       'off'      the switch
+       'route'    the adapter declares nothing. claude-cli: the CLI holds the conversation and runs the model's tool calls
+                  itself, so a summarize turn could act, and would stay in the child's history; its one-shot child sends
+                  the transcript as ONE block, which a longer copy never matches. A local server (Ollama, a custom local
+                  endpoint) bills nothing. Gemini's native adapter and the replay adapter declare no prompt cache.
+       'overflow' an overflow recovery
+       'unsent'   nothing of this conversation was sent by this run yet (a preflight fold of a resumed history)
+       'edited'   a message or the tools the last request carried are not what the next would carry (a screen capture
+                  aged out, a batch aged, a tool revealed since): the cache entries behind the change are dead
+       'cold'     the last request is older than the provider keeps an entry: the read would miss, and on a route with
+                  explicit anchors the fold would write the whole prefix again for a run that never reads it
+       'window'   the prefix, the instruction and room for the summary do not fit the window
+     read: how many leading messages the last request carried. The fold request names it (prefixRead) and the adapters with
+     explicit cache anchors place their message anchors exactly where that request placed them, and none after: every
+     anchor lands on an entry that exists, so the fold reads and writes nothing. */
+  const PREFIX_FOLD_COLD_MARGIN_MS = 30000;   // a request needs time to arrive before the entry it reads expires
+  const PREFIX_FOLD_ROOM = 0.05;              // of the window, never under PREFIX_FOLD_ROOM_MIN tokens: the instruction and the summary
+  const PREFIX_FOLD_ROOM_MIN = 8000;
+  const toolsKeyOf = tools => hashOf(JSON.stringify(tools || null));
+  function sentMark(messages, tools) {
+    return { keys: (Array.isArray(messages) ? messages : []).map(wireKey), toolsKey: toolsKeyOf(tools) };
+  }
+  function prefixFold(o) {
+    o = o || {};
+    const no = why => ({ ok: false, why });
+    if (o.on !== true) return no('off');
+    const route = o.route;
+    if (!route || typeof route !== 'object' || o.holdsHistory) return no('route');
+    if (o.force) return no('overflow');
+    const last = o.last;
+    if (!last || !Array.isArray(last.keys) || !last.keys.length) return no('unsent');
+    const now = Array.isArray(o.messages) ? o.messages : [];
+    if (now.length < last.keys.length || last.toolsKey !== toolsKeyOf(o.tools)) return no('edited');
+    for (let i = 0; i < last.keys.length; i++) if (last.keys[i] !== wireKey(now[i])) return no('edited');
+    const ttl = Number(route.ttlMs);
+    if (ttl > 0 && typeof o.now === 'number' && typeof last.at === 'number' && o.now - last.at > ttl - PREFIX_FOLD_COLD_MARGIN_MS) return no('cold');
+    const window = Math.floor(Number(o.windowTokens) || 0), prompt = Math.floor(Number(o.promptTokens) || 0);
+    if (window > 0 && prompt + Math.max(PREFIX_FOLD_ROOM_MIN, Math.floor(window * PREFIX_FOLD_ROOM)) > window) return no('window');
+    return { ok: true, read: last.keys.length };
+  }
+  /* prefixFoldRequest(base, instruction, read) -> the fold's request: the run's own request (base: model, messages, tools and
+     every field its requests carry) with the instruction appended as ONE host message (role 'system', fenced by its
+     writer: every adapter sends a later system message as a user turn, providers/provider.js projectRoles, exactly as it
+     sends the loop's own mid-run notes). Nothing else differs from the request the run would send next: the tools array
+     is the same object and no tool choice is set, because a changed tool choice invalidates the cached messages
+     (claude-api prompt-caching.md, the invalidation table: tool_choice keeps the tools and system caches, not the
+     messages cache). So the reply may still name a tool: the caller runs nothing from this request and takes a reply
+     that names one as no summary. */
+  function prefixFoldRequest(base, instruction, read) {
+    const req = Object.assign({}, base);
+    req.messages = (Array.isArray(base && base.messages) ? base.messages : []).concat([{ role: 'system', content: String(instruction == null ? '' : instruction) }]);
+    if (Number.isSafeInteger(read) && read > 0) req.prefixRead = read;
+    return req;
+  }
+
+  return { makeRequestView, elideToolResult, foldRequest, prefixFold, prefixFoldRequest, sentMark, headTail, isElided, makeAgeing, readFloor, inheritMarkers, ELIDED, ELIDE_HEAD, HEAD_SHARE, ARG_ELIDED,
     AGEING: { KEEP_TURNS: AGE_KEEP_TURNS, BATCH_CHARS: AGE_BATCH_CHARS, MIN_TURNS: AGE_MIN_TURNS, SHORT_RUN: AGE_SHORT_RUN, HORIZON: AGE_HORIZON, ASSUMED_RATES: AGE_ASSUMED_RATES, WRITE_ARGS },
     _internals: { wireKey, hashOf, stubText, utf8Bytes, stripFrom, argStubText, charsOf } };
 });
