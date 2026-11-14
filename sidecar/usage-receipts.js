@@ -15,6 +15,14 @@
                                                                which beat/routine/loop (ref) and which start of it (start): the
                                                                unattended rail counts these (unattended-admission.js). Absent
                                                                on everything a person started.
+       child?, replay?, replayed?, replayNotes?,               W3.7, Claude Code only: how the call was served (claude-cli.js HOW A
+                                                               CALL WAS SERVED). child = 'reuse' (the run's live child took only what
+                                                               was new), a fresh child and why ('first', 'warm', 'run', 'history',
+                                                               'reply', 'tools', 'model', 'effort', 'system', 'dead', 'empty') or
+                                                               'oneshot'. With STARNET_CLI_REPLAY_LEDGER on: replay = the ledger's
+                                                               verdict, replayed = the history entries sent as the last run sent
+                                                               them, replayNotes = the characters of past notes among them. Beside
+                                                               cacheRead / cacheWrite this is what a message's first call cost, and why.
        window?: { seenAt, windows: [{ id, usedPct, resetsAt, minutes, status? }] } }   the plan-window reading this call saw
 
    Counts and identifiers only: never a word of the prompt, the reply, or an error message.
@@ -128,7 +136,7 @@ function makeUsageReceipts(opts) {
 
   // model: the model as it ran — the one the provider said served the call (a usage event's `model`: claude-cli names what
   // an alias such as `haiku` resolved to), else the one the request asked for (W3.5)
-  function receipt(meta, req, startedAt, usage, end, status, served, who) {
+  function receipt(meta, req, startedAt, usage, end, status, served, who, cli) {
     const at = now();
     const asked = req && req.model != null ? req.model : '';
     const rec = { v: 1, at, ms: Math.max(0, at - startedAt), provider: meta.pid, account: meta.acct, model: ident(served || asked, 200) };
@@ -141,15 +149,22 @@ function makeUsageReceipts(opts) {
     const w = windowSeen(meta.pid, meta.acct, startedAt);
     if (w) rec.window = w;
     if (who) Object.assign(rec, who);
+    // how a Claude Code call was served (a usage event's `cli`): bounded identifiers and whole counts, nothing else
+    if (cli && typeof cli === 'object') {
+      if (cli.start != null && String(cli.start)) rec.child = ident(cli.start, 24);
+      if (cli.replay != null && String(cli.replay)) rec.replay = ident(cli.replay, 24);
+      if (Number.isInteger(cli.replayed) && cli.replayed > 0) rec.replayed = cli.replayed;
+      if (Number.isInteger(cli.replayNotes) && cli.replayNotes >= 0 && rec.replayed) rec.replayNotes = cli.replayNotes;
+    }
     return rec;
   }
 
   async function* receipted(iterable, req, meta, startedAt, who) {
-    let usage = null, events = 0, sawDone = false, threw = false, status = null, served = '';
+    let usage = null, events = 0, sawDone = false, threw = false, status = null, served = '', cli = null;
     try {
       for await (const ev of iterable) {
         events++;
-        if (ev && ev.type === 'usage' && ev.usage) { usage = ev.usage; if (typeof ev.model === 'string' && ev.model) served = ev.model; }   // cumulative: the last one is the call's
+        if (ev && ev.type === 'usage' && ev.usage) { usage = ev.usage; if (typeof ev.model === 'string' && ev.model) served = ev.model; if (ev.cli) cli = ev.cli; }   // cumulative: the last one is the call's
         else if (ev && ev.type === 'done') sawDone = true;
         yield ev;
       }
@@ -160,7 +175,7 @@ function makeUsageReceipts(opts) {
     } finally {
       if (usage || events > 0 || threw) {
         let rec = null;
-        try { rec = receipt(meta, req, startedAt, usage, threw ? 'error' : sawDone ? 'done' : 'stopped', status, served, who); append(rec); }
+        try { rec = receipt(meta, req, startedAt, usage, threw ? 'error' : sawDone ? 'done' : 'stopped', status, served, who, cli); append(rec); }
         catch (e) { note('usage-receipts.record', e); rec = null; }
         if (rec && onRecord) { try { onRecord(rec); } catch (e) { note('usage-receipts.onRecord', e); } }
       }

@@ -4369,6 +4369,26 @@ function effortAsRun(provider, model, sent, req) {
    one), parsed by the pure CrewDefaults.mode. Read at each use, like ENV('LEAN_CREW') and ENV('AUX_EFFORT'). Off by
    default; not STARNET_LEAN_CREW, the zero-crew diet (crew-diet.js), which is on by default. */
 function crewDefaultsMode() { return CrewDefaults.mode(ENV('CREW_DEFAULTS')); }
+/* cliReplayStream — the CLAUDE CODE REPLAY LEDGER switch (W3.7: providers/cli-replay-ledger.js, claude-cli.js REPLAY LEDGER),
+   read here and nowhere else: STARNET_CLI_REPLAY_LEDGER through ENV(). '1' = on; unset, '0' or anything else = off, and then
+   this names no stream, the loop puts nothing on its requests and every request, argv and system text is what it was. On, it
+   names the conversation a run continues, for that run's requests (loop.js req.replay): the run's stream and its agent (two
+   agents on one stream never share a record). Only a conversation's own runs get one: a run with the cache-stable prefix (its
+   per-run note rides the newest message, which is what the ledger replays), on a stream, that is not internal self-talk, a
+   recovery, a group turn, a granted run or a delegated worker. Off by default until a real-CLI A/B passes. */
+function cliReplayStream(run) {
+  if (String(ENV('CLI_REPLAY_LEDGER') || '').trim() !== '1') return '';
+  const r = run || {};
+  if (!r.streamId || !r.stablePrefix || r.internal || r.recovery || r.groupTools || r.granted || r.delegatedBy) return '';
+  return String(r.streamId) + '|' + String(r.agentId || '');   // a COMMS stream id holds no '|'
+}
+/* cliReplayEpoch — what a replayed note may not outlive (docs/DECISIONS.md, What a deleted session leaves behind). A note the
+   ledger replays is a copy of what the host knew when it was written: recalled memories, the Commander's recent activity, a
+   task brief. The epoch is the newest session delete (sessionTombstones.latestAt) and the count of memories forgotten since boot
+   (every memory.forget the station emits: the Memory Core, a notebook removal, a session's purge). The loop reads it for each
+   request; the ledger drops every record made under another epoch, so a deleted session or a forgotten memory never comes
+   back through an earlier turn's note. */
+function cliReplayEpoch() { return String(sessionTombstones.latestAt()) + ':' + cliReplayForgets; }
 /* crewEffort — LEANER CREW DEFAULTS, the effort half (W3.3: CrewDefaults.effortRule decides, this host applies it). A CREW
    run (a worker, a clone, a line stage: CrewDefaults.surfaceOf) whose effort is its class's applied default above medium
    asks for medium per request; the run after a failed verify (o.crewRetry: a review gate sent the work back, a structured
@@ -6637,7 +6657,8 @@ const chanBus = { emit: (name, payload) => {
 const stationBridge = makeStationBridge({ emit: (name, payload) => { try { sse.broadcast(name, payload); } catch (_) {} } });
 
 const chanEmitValidated = makeEmitter(chanBus, e => console.warn('[channel-event]', e.kind, e.event, (e.errors || []).join(';')));
-const chanEmit = (name, payload) => { try { return chanEmitValidated(name, redact(payload)); } catch (_) {} };
+let cliReplayForgets = 0;   // memories forgotten since boot: half of the Claude Code replay ledger's forget epoch (cliReplayEpoch)
+const chanEmit = (name, payload) => { if (name === 'memory.forget') cliReplayForgets += 1; try { return chanEmitValidated(name, redact(payload)); } catch (_) {} };
 /* ---- STEP-IN (2026-09-29): the station-wide browser HANDOFF host. An agent that hits a login / 2FA / CAPTCHA calls
    browser.need_human; its run parks HERE (own id, own 30-minute wait — never the /api/run consent socket) and the
    station shows the agent's live browser in the STEP-IN window. State changes ride the SAME validated SSE bus as
@@ -28417,6 +28438,9 @@ async function runOnceCore(o) {
       // W2.1 batched ageing: old tool results and successful write arguments leave the request view in batches that pay
       // for themselves (history-edit makeAgeing). OFF until an A/B on real models passes (on: STARNET_BATCHED_AGEING=1)
       batchedAgeing: /^(1|true|yes|on)$/i.test(String(ENV('BATCHED_AGEING') || '').trim()),
+      // W3.7 the Claude Code replay ledger: the conversation this run continues ('' = off: STARNET_CLI_REPLAY_LEDGER, cliReplayStream)
+      cliReplayStream: cliReplayStream({ streamId, agentId, stablePrefix, internal, recovery: o.recovery, groupTools: o.groupTools, granted: grantedRun, delegatedBy: o.delegatedBy }),
+      cliReplayEpoch,
       // P0.2 credential rotation: the live key + a hook the loop calls as it rotates away from a failed one,
       // so a rate-limit/auth/billing key gets a cooldown (credPool) and isn't tried first next run.
       // activePrimaryKey, NOT runKey: when the run's own key was still cooling we STARTED on a warm pool key,

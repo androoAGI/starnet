@@ -2818,6 +2818,17 @@
           if (typeof o.isTask === 'boolean') req.isTask = o.isTask;
           if (o.runId) req.runId = o.runId;   // run attribution: only a profile that names a runIdHeader sends it (starnet)
           if (o.cacheSystemPrefix) req.cacheSystemPrefix = o.cacheSystemPrefix;
+          // W3.7: the conversation this run continues and the time of this request, for the Claude Code replay ledger
+          // (providers/cli-replay-ledger.js). Only when the host names one (index.js cliReplayStream: STARNET_CLI_REPLAY_LEDGER);
+          // without it the request has no such field and every adapter's bytes are as before.
+          // The host's forget epoch rides it (cliReplayEpoch): a note written before a session was deleted or a memory forgotten is
+          // never replayed. An epoch that cannot be read sends no replay at all (today's bytes).
+          if (o.cliReplayStream) {
+            let epoch = '';
+            let known = true;
+            if (typeof o.cliReplayEpoch === 'function') { try { epoch = String(o.cliReplayEpoch()); } catch (e) { failNote('loop.cliReplay.epoch', e); known = false; } }
+            if (known) req.replay = { stream: String(o.cliReplayStream), at: (clock && typeof clock.now === 'function') ? waitClock() : null, epoch };
+          }
           if (o.reasoningEffort) req.reasoningEffort = o.reasoningEffort;   // a per-run override (station self-talk: the aux effort); absent = the provider's own default
           if (outputCapTokens > 0) req.maxTokens = outputCapTokens;   // the ceiling a provider named (output_cap)
           if (retriesUsed > 0) req.preStreamRetries = 0;              // the ladder owns pacing: one request per rung

@@ -1,0 +1,212 @@
+{
+ "about": "sha256 of every claude child's argv, system prompt file and stdin lines for the conversations test/claude-cli-replay-ledger.test.js drives, as the BASE commit's sidecar/providers/claude-cli.js sends them (tool-call ids masked). The lane must send exactly these with the replay ledger off. Re-record only from the base's own claude-cli.js (see the test header).",
+ "recordedFrom": "57c741da7",
+ "cases": {
+  "persistent child, 8 messages": [
+   [
+    {
+     "args": "7a0894da67607aae52e50bbf88bf05207874dc1721a48f0455d513a7dcd9ee8e",
+     "system": "374e564294ade61fcf42843e7b3115959bcfb7c4f490a72c1c55f8d1900565e3",
+     "inputs": [
+      "5b4fdaacd56eb68eedceba2ff9ec1175eb5a25552cccb2bec440af58cf10ef8c",
+      "8019b65123252cea0ddd6a3581d2a9441398fc57b540a26af38540c71e303921"
+     ],
+     "bytes": 9489
+    }
+   ],
+   [
+    {
+     "args": "7a0894da67607aae52e50bbf88bf05207874dc1721a48f0455d513a7dcd9ee8e",
+     "system": "374e564294ade61fcf42843e7b3115959bcfb7c4f490a72c1c55f8d1900565e3",
+     "inputs": [
+      "f8e4b6156dfbacaaa775c1bb14b7062fb7fe66ad2465c3675f1de9e986f6cf6d",
+      "14d060ca060114bb0d943ff272433b048075a73e6a44a3c4aefb34bf04372689"
+     ],
+     "bytes": 11039
+    }
+   ],
+   [
+    {
+     "args": "7a0894da67607aae52e50bbf88bf05207874dc1721a48f0455d513a7dcd9ee8e",
+     "system": "374e564294ade61fcf42843e7b3115959bcfb7c4f490a72c1c55f8d1900565e3",
+     "inputs": [
+      "2f6b706db90c77f27618f24d1cd927484d6e604ce46824b43a807ccca756cb2a",
+      "e43fb253c4220f5e3170dc8ae7c7727bf5998007254589919ca3a13c36840aac"
+     ],
+     "bytes": 12732
+    }
+   ],
+   [
+    {
+     "args": "7a0894da67607aae52e50bbf88bf05207874dc1721a48f0455d513a7dcd9ee8e",
+     "system": "374e564294ade61fcf42843e7b3115959bcfb7c4f490a72c1c55f8d1900565e3",
+     "inputs": [
+      "af099232298f580a6d53071664fb3f6a81bdd3866c88e3367c15fc6e39ab358a",
+      "25f3ee8f993536fd836ef340e7c765ef8a352468d37cae3260325905aac4acb0"
+     ],
+     "bytes": 14260
+    }
+   ],
+   [
+    {
+     "args": "7a0894da67607aae52e50bbf88bf05207874dc1721a48f0455d513a7dcd9ee8e",
+     "system": "374e564294ade61fcf42843e7b3115959bcfb7c4f490a72c1c55f8d1900565e3",
+     "inputs": [
+      "3b3c13cc1f2ba14826d0f616b74efdc5492ff8f0696afdc84d53991728481672",
+      "6c056497539c0237df760da1c82ceab19a17c9031273f05ee06b880c27bdfd2f"
+     ],
+     "bytes": 15972
+    }
+   ],
+   [
+    {
+     "args": "7a0894da67607aae52e50bbf88bf05207874dc1721a48f0455d513a7dcd9ee8e",
+     "system": "374e564294ade61fcf42843e7b3115959bcfb7c4f490a72c1c55f8d1900565e3",
+     "inputs": [
+      "965ebaba97278179a6e424889453ce66717e18666fcb90668e2241f185e1f5b8",
+      "2b1be76cb0fd471a4fe6db60a85a0ba08d03403f087880f7e36441ce53d9f459"
+     ],
+     "bytes": 17523
+    }
+   ],
+   [
+    {
+     "args": "7a0894da67607aae52e50bbf88bf05207874dc1721a48f0455d513a7dcd9ee8e",
+     "system": "374e564294ade61fcf42843e7b3115959bcfb7c4f490a72c1c55f8d1900565e3",
+     "inputs": [
+      "f26fbc6face4df601b42aee629890f5b06dc7c1aa8e809d64f5a618d1637bf99",
+      "68bd9a4fffb3043f5d3c2a56c0acc7a3f6aa360449eb926cc8c8bdf32815d10b"
+     ],
+     "bytes": 19222
+    }
+   ],
+   [
+    {
+     "args": "7a0894da67607aae52e50bbf88bf05207874dc1721a48f0455d513a7dcd9ee8e",
+     "system": "374e564294ade61fcf42843e7b3115959bcfb7c4f490a72c1c55f8d1900565e3",
+     "inputs": [
+      "46de794d32ae0ec91028ee14f26dd0841809eb7bf2f2ce4059573d9d02cef078",
+      "910220d2dc06924c587417d1cfbd08abfc9d292743c3bb2a9d5fdbb63c109d61"
+     ],
+     "bytes": 20794
+    }
+   ]
+  ],
+  "one-shot turns (STARNET_CLAUDE_CLI_PERSIST=0), 4 messages": [
+   [
+    {
+     "args": "7a0894da67607aae52e50bbf88bf05207874dc1721a48f0455d513a7dcd9ee8e",
+     "system": "0a0e8ab43d550d5f03b4f381a8118f23a2c70b587a90bdb5c0215720163cd09c",
+     "inputs": [
+      "5b4fdaacd56eb68eedceba2ff9ec1175eb5a25552cccb2bec440af58cf10ef8c"
+     ],
+     "bytes": 8725
+    },
+    {
+     "args": "7a0894da67607aae52e50bbf88bf05207874dc1721a48f0455d513a7dcd9ee8e",
+     "system": "0a0e8ab43d550d5f03b4f381a8118f23a2c70b587a90bdb5c0215720163cd09c",
+     "inputs": [
+      "ec9367745f52f7ab0bc6bdfd22aacd1e18f1c85d0b9af5f5ef2f9e9a42b1555c"
+     ],
+     "bytes": 9512
+    }
+   ],
+   [
+    {
+     "args": "7a0894da67607aae52e50bbf88bf05207874dc1721a48f0455d513a7dcd9ee8e",
+     "system": "0a0e8ab43d550d5f03b4f381a8118f23a2c70b587a90bdb5c0215720163cd09c",
+     "inputs": [
+      "f8e4b6156dfbacaaa775c1bb14b7062fb7fe66ad2465c3675f1de9e986f6cf6d"
+     ],
+     "bytes": 10285
+    },
+    {
+     "args": "7a0894da67607aae52e50bbf88bf05207874dc1721a48f0455d513a7dcd9ee8e",
+     "system": "0a0e8ab43d550d5f03b4f381a8118f23a2c70b587a90bdb5c0215720163cd09c",
+     "inputs": [
+      "dc19ebe5a4a56fee7fd9227433db158e1cf226e7439f9f49e0dbf748f15de609"
+     ],
+     "bytes": 11062
+    }
+   ],
+   [
+    {
+     "args": "7a0894da67607aae52e50bbf88bf05207874dc1721a48f0455d513a7dcd9ee8e",
+     "system": "0a0e8ab43d550d5f03b4f381a8118f23a2c70b587a90bdb5c0215720163cd09c",
+     "inputs": [
+      "2f6b706db90c77f27618f24d1cd927484d6e604ce46824b43a807ccca756cb2a"
+     ],
+     "bytes": 11978
+    },
+    {
+     "args": "7a0894da67607aae52e50bbf88bf05207874dc1721a48f0455d513a7dcd9ee8e",
+     "system": "0a0e8ab43d550d5f03b4f381a8118f23a2c70b587a90bdb5c0215720163cd09c",
+     "inputs": [
+      "fc721e6cd87fdb60f471897891431b51e55d856bccf53d2e5128c4ae8c039d6a"
+     ],
+     "bytes": 12755
+    }
+   ],
+   [
+    {
+     "args": "7a0894da67607aae52e50bbf88bf05207874dc1721a48f0455d513a7dcd9ee8e",
+     "system": "0a0e8ab43d550d5f03b4f381a8118f23a2c70b587a90bdb5c0215720163cd09c",
+     "inputs": [
+      "af099232298f580a6d53071664fb3f6a81bdd3866c88e3367c15fc6e39ab358a"
+     ],
+     "bytes": 13501
+    },
+    {
+     "args": "7a0894da67607aae52e50bbf88bf05207874dc1721a48f0455d513a7dcd9ee8e",
+     "system": "0a0e8ab43d550d5f03b4f381a8118f23a2c70b587a90bdb5c0215720163cd09c",
+     "inputs": [
+      "46b9ef78c94bf77086347c6f2850ab6e0f738caeae36f765ba55446ca863026d"
+     ],
+     "bytes": 14283
+    }
+   ]
+  ],
+  "chat turns (no tools), 4 messages": [
+   [
+    {
+     "args": "7a0894da67607aae52e50bbf88bf05207874dc1721a48f0455d513a7dcd9ee8e",
+     "system": "0babf8345234d7419dcbdb8f5a5e4184ad5c2ff5d4bf0f478b4431b3e0db50ff",
+     "inputs": [
+      "5b4fdaacd56eb68eedceba2ff9ec1175eb5a25552cccb2bec440af58cf10ef8c"
+     ],
+     "bytes": 7959
+    }
+   ],
+   [
+    {
+     "args": "7a0894da67607aae52e50bbf88bf05207874dc1721a48f0455d513a7dcd9ee8e",
+     "system": "0babf8345234d7419dcbdb8f5a5e4184ad5c2ff5d4bf0f478b4431b3e0db50ff",
+     "inputs": [
+      "f8e4b6156dfbacaaa775c1bb14b7062fb7fe66ad2465c3675f1de9e986f6cf6d"
+     ],
+     "bytes": 9519
+    }
+   ],
+   [
+    {
+     "args": "7a0894da67607aae52e50bbf88bf05207874dc1721a48f0455d513a7dcd9ee8e",
+     "system": "0babf8345234d7419dcbdb8f5a5e4184ad5c2ff5d4bf0f478b4431b3e0db50ff",
+     "inputs": [
+      "2f6b706db90c77f27618f24d1cd927484d6e604ce46824b43a807ccca756cb2a"
+     ],
+     "bytes": 11212
+    }
+   ],
+   [
+    {
+     "args": "7a0894da67607aae52e50bbf88bf05207874dc1721a48f0455d513a7dcd9ee8e",
+     "system": "0babf8345234d7419dcbdb8f5a5e4184ad5c2ff5d4bf0f478b4431b3e0db50ff",
+     "inputs": [
+      "af099232298f580a6d53071664fb3f6a81bdd3866c88e3367c15fc6e39ab358a"
+     ],
+     "bytes": 12735
+    }
+   ]
+  ]
+ }
+}
