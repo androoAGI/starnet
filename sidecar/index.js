@@ -27807,8 +27807,9 @@ async function runOnceCore(o) {
      same text on every message: the quest guide whether or not a quest is open, the first-skill line until the agent
      has a skill (then the prefix moves once, as it does when the floor or a recipe changes).
      NEVER FOR A GRANTED RUN (granted-context.js INPUTS slim-note-guides): the skill and quest blocks are withheld from
-     it above, and nothing moves, its [RUNTIME] block included. Off, or with STARNET_STABLE_PREFIX=0 (no note to slim),
-     every byte is as before. */
+     it above, and nothing moves, its [RUNTIME] block included. With STARNET_STABLE_PREFIX=0 there is no note, so nothing
+     moves either (the lane's other half, an ask listed once in the commander evidence, still applies there). Off: every
+     byte is as before. */
   let slimStable = '';
   if (stablePrefix && !grantedRun && slimNoteOn()) {
     const slim = SlimNote.plan({ skills: runtimeSkillBlock, quests: questsBlock, runtime: runtimeBlock });
