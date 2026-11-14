@@ -27616,7 +27616,7 @@ async function runOnceCore(o) {
   // a run never waits for the build id (VD-HANDOVER-01: a diagnostic never holds a run). [RUNTIME] reads the version as
   // it stands: while a checkout's git has not answered it says the build is still resolving (sidecar/version-source.js)
   const runtimeVersion = computeVersionSurface();
-  const runtimeBlock = runtimeIdentityBlock({ provider: providerId, model, agentId, runId, surface, trigger, fallbackModels, harness: runtimeVersion.harness || versionSource.runtimeHarness(), app: runtimeVersion.app, now: Date.now(), shell: shellRuntime });
+  let runtimeBlock = runtimeIdentityBlock({ provider: providerId, model, agentId, runId, surface, trigger, fallbackModels, harness: runtimeVersion.harness || versionSource.runtimeHarness(), app: runtimeVersion.app, now: Date.now(), shell: shellRuntime });
   // RUNTIME SKILL LIBRARY (skill-builder-gap): index the agent's own authored skills + preload any it invokes,
   // riding the same skill.view/skill.manage capability gate. Never breaks a run.
   try {
@@ -27854,17 +27854,19 @@ async function runOnceCore(o) {
   const delegatedBlock = (!grantedRun && typeof o.delegatedContext === 'string' && o.delegatedContext.trim()) ? '\n\n' + PromptScrub.scrubStored(o.delegatedContext.trim()) : '';
   /* THE SLIM NOTE (cost lane, 2026-11-14; sidecar/slim-note.js; STARNET_SLIM_NOTE=1, off by default). The note below is new on
      every message, so no provider ever reads it from cache, and some of its paragraphs are the same bytes on every
-     message: the first-skill line an agent with no saved skills gets, and the quest how-to with its minting doctrine.
-     With the switch on they ride the system prompt's per-conversation tail instead (slimStable: after cacheSystemPrefix,
-     which is untouched, and before FINISH THE JOB), where every route reads them from cache. The note keeps what changes:
-     a saved-skill index with its own heading, and the list of open quests or the line saying there are none. Each
-     paragraph is moved whole; the doctrine, which points at the quest list, says where that list now is.
-     NEVER FOR A GRANTED RUN (granted-context.js INPUTS slim-note-guides): the blocks these come from are withheld from
-     it above, and nothing moves. Off, or with STARNET_STABLE_PREFIX=0 (no note to slim), every byte is as before. */
+     message: the first-skill line an agent with no saved skills gets, the quest how-to with its minting doctrine, and
+     the [RUNTIME] block's closing instruction. With the switch on they ride the system prompt's per-conversation tail
+     instead (slimStable: after cacheSystemPrefix, which is untouched, and before FINISH THE JOB), where every route reads
+     them from cache. The note keeps what changes: a saved-skill index with its own heading, the list of open quests or
+     the line saying there are none, and every identity line of [RUNTIME]. Each paragraph is moved whole; the two that
+     point at their own block (the doctrine at the quest list, the instruction at [RUNTIME]) say where it now is.
+     NEVER FOR A GRANTED RUN (granted-context.js INPUTS slim-note-guides): the skill and quest blocks are withheld from
+     it above, and nothing moves, its [RUNTIME] block included. Off, or with STARNET_STABLE_PREFIX=0 (no note to slim),
+     every byte is as before. */
   let slimStable = '';
   if (stablePrefix && !grantedRun && slimNoteOn()) {
-    const slim = SlimNote.plan({ skills: runtimeSkillBlock, quests: questsBlock });
-    runtimeSkillBlock = slim.skills; questsBlock = slim.quests; slimStable = slim.stable;
+    const slim = SlimNote.plan({ skills: runtimeSkillBlock, quests: questsBlock, runtime: runtimeBlock });
+    runtimeSkillBlock = slim.skills; questsBlock = slim.quests; runtimeBlock = slim.runtime; slimStable = slim.stable;
   }
   // the crew call is NOT a run-context block: it trails the Commander's words as its own <crew_call> note (below)
   const perRunBlocks = LearnedTail.tail(persona.learned) + delegatedBlock + runtimeSkillBlock + preloadedSkillBlock + taskBriefContext + stationEvidenceBlock + awayBriefingNote + directDomainBlock + runtimeBlock;

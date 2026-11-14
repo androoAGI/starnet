@@ -18,15 +18,17 @@
         for the system prompt's per-conversation tail, which every route reads from cache:
           - the first-skill line an agent with no saved skills gets (skills/runtime.js emptyGuide), whole;
           - the quest how-to and the minting doctrine (questinject.js split), leaving the list of open quests, or the
-            line saying there are none, in the note.
-        Each is moved whole. The doctrine points at the quest list ("open quest above"), so it says where that list now
-        is; those are the only words that differ. The saved-skill index keeps its own heading (it says "scan this skill
-        index" and sits on the index), and nothing learned or recalled is touched.
+            line saying there are none, in the note;
+          - the [RUNTIME] block's closing instruction (runtimeinfo.js splitGuide), leaving every identity line.
+        Each is moved whole. The two that point at their own block ("open quest above", "answer from this block") say
+        where that block now is; those are the only words that differ. The saved-skill index keeps its own heading
+        (it says "scan this skill index" and sits on the index), and nothing learned or recalled is touched.
 
    The host reads the switch at one place (index.js slimNoteOn) and calls this module only when it is on. Pure: no
    clock, no fs, no env. */
 'use strict';
 const QuestInject = require('./questinject.js');
+const RuntimeInfo = require('./runtimeinfo.js');
 const RuntimeSkills = require('./skills/runtime.js');
 
 // '1' (true, yes, on) is on; '0', anything else and unset are off
@@ -51,19 +53,22 @@ function activityLines(pack) {
   return out;
 }
 
-/* plan({ skills, quests }) -> { skills, quests, stable }
-   The blocks as runOnceCore composed them (runtimeSkillBlock, questsBlock) go in; they come out without their constant
-   paragraphs, and `stable` is those paragraphs as one text ('' when nothing moved), opening with a blank line like
-   every block of the system prompt. A block this rule does not recognise comes back as it went in. */
+/* plan({ skills, quests, runtime }) -> { skills, quests, runtime, stable }
+   The blocks as runOnceCore composed them (runtimeSkillBlock, questsBlock, runtimeBlock) go in; they come out without
+   their constant paragraphs, and `stable` is those paragraphs as one text ('' when nothing moved), opening with a blank
+   line like every block of the system prompt. A block this rule does not recognise comes back as it went in. */
 function plan(blocks) {
   const b = blocks || {};
   let skills = b.skills == null ? '' : String(b.skills);
   let quests = b.quests == null ? '' : String(b.quests);
+  let runtime = b.runtime == null ? '' : String(b.runtime);
   const moved = [];
   if (RuntimeSkills.isEmptyGuide(skills)) { moved.push(skills.trim()); skills = ''; }
   const q = quests ? QuestInject.split(quests) : null;
   if (q) { moved.push(q.guide); quests = q.list; }
-  return { skills, quests, stable: moved.length ? '\n\n' + moved.join('\n\n') : '' };
+  const r = runtime ? RuntimeInfo.splitGuide(runtime) : null;
+  if (r) { moved.push(r.guide); runtime = r.block; }
+  return { skills, quests, runtime, stable: moved.length ? '\n\n' + moved.join('\n\n') : '' };
 }
 
 module.exports = { on, activityLines, plan };

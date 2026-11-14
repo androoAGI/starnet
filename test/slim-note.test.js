@@ -17,6 +17,9 @@
    D. THE QUEST BLOCK. Its how-to header and minting doctrine become the guide, word for word but for one added sentence
       (where the list is) and one re-pointed phrase ("open quest above" -> "open quest in that block"); the guide is the
       same text with and without open quests; the note keeps the same stanzas, or the block's own "no open quests" line.
+   D2. THE [RUNTIME] BLOCK. Its closing instruction moves word for word, but for the phrase that points at the block
+      ("answer from this block" -> "answer from the [RUNTIME] block of this run's context note"); every identity line
+      stays in the note.
    E. THE HOST'S WIRING. runOnceCore plans only for a run that has a note, never a granted run, only with the switch on;
       the moved text closes the system prompt's per-conversation tail and never enters cacheSystemPrefix.
 
@@ -32,6 +35,7 @@ const CommanderContext = require('../sidecar/commander-context.js');
 const RuntimeSkills = require('../sidecar/skills/runtime.js');
 const QuestInject = require('../sidecar/questinject.js');
 const FinishLine = require('../sidecar/finish-line.js');
+const RuntimeInfo = require('../sidecar/runtimeinfo.js');
 const Provider = require('../sidecar/providers/provider.js');
 const { readSidecarIndex, sidecarSourceFiles } = require('./helpers/source.js');
 
@@ -159,8 +163,8 @@ const SKILL = { id: 'tidy', name: 'tidy', summary: 'How to tidy a folder', state
   A.eq([p.skills, p.stable, p.quests], ['', GUIDE, ''], 'C: THE FIRST-SKILL LINE MOVES WHOLE: it leaves the note and is the stable text, byte for byte');
   const q = SlimNote.plan({ skills: index, quests: '' });
   A.eq([q.skills, q.stable], [index, ''], 'C: A SAVED-SKILL INDEX STAYS IN THE NOTE, heading and all (it is ranked by the message and says "scan this skill index")');
-  A.eq(SlimNote.plan({}), { skills: '', quests: '', stable: '' }, 'C: no blocks, nothing moved');
-  A.eq(SlimNote.plan(null), { skills: '', quests: '', stable: '' }, 'C: no input');
+  A.eq(SlimNote.plan({}), { skills: '', quests: '', runtime: '', stable: '' }, 'C: no blocks, nothing moved');
+  A.eq(SlimNote.plan(null), { skills: '', quests: '', runtime: '', stable: '' }, 'C: no input');
 }
 
 /* ---------- D. the quest block ---------- */
@@ -198,12 +202,38 @@ const quest = (n, extra) => Object.assign({ id: 'q:' + n, title: 'Quest number '
   A.eq(QuestInject.withQuests('NOTE', b.list), 'NOTE\n\n' + b.list, 'D: withQuests places the list as it placed the block');
   // both together: one stable text, the first-skill line first (the order the note had them in)
   const p = SlimNote.plan({ skills: GUIDE, quests: none });
-  A.eq(p, { skills: '', quests: a.list, stable: GUIDE + '\n\n' + a.guide }, 'D: the first-skill line and the quest guide make one stable text, in the note\'s order');
+  A.eq(p, { skills: '', quests: a.list, runtime: '', stable: GUIDE + '\n\n' + a.guide }, 'D: the first-skill line and the quest guide make one stable text, in the note\'s order');
   A.eq(FinishLine.append('PREFIX' + p.stable, { isTask: true, internal: false, tools: [] }).indexOf('PREFIX' + p.stable + '\n\n' + FinishLine.MARKER), 0, 'D: it sits before FINISH THE JOB, which still closes the system prompt');
   const bytes = s => Buffer.byteLength(s);
   console.log('[slim-note] the note without the moved paragraphs: no saved skills and no open quests ' + (bytes(GUIDE) + 2 + bytes(none)) + ' -> ' + bytes(a.list) + ' bytes; an index and two quests '
     + bytes(some) + ' -> ' + bytes(b.list) + ' bytes (the quest block alone)');
   A.ok(bytes(GUIDE) + bytes(none) - bytes(a.list) > 1100 && bytes(some) - bytes(b.list) > 1100, 'D: more than 1,100 bytes leave the note either way');
+}
+
+/* ---------- D2. the [RUNTIME] block's closing instruction ---------- */
+{
+  const ident = { provider: 'anthropic', model: 'claude-test', agentId: 'agent', runId: 'run-1234', surface: 'interactive', trigger: 'directive', harness: 'v0.15.2-0-gtest', app: '0.15.2', now: NOW };
+  const LINE = 'If the Commander asks what StarNet build, model, provider, run, surface, or session you are using, answer from this block. For mutable harness state such as scheduler health, routines, connectors, or errors, call station.inspect. Do not guess or invent a CLI command.';
+  for (const [name, o] of [['a chat turn', ident], ['a task with a shell', Object.assign({}, ident, { shell: { backend: 'local', platform: 'win32' } })],
+    ['fallback models', Object.assign({}, ident, { fallbackModels: ['a/b', 'c/d'] })], ['no clock', Object.assign({}, ident, { now: 0 })]]) {
+    const block = RuntimeInfo.runtimeIdentityBlock(o);
+    A.ok(block.indexOf('\n\n[RUNTIME]\n') === 0 && block.slice(-LINE.length) === LINE, 'D2 ' + name + ': the block closes with its standing instruction');
+    const s = RuntimeInfo.splitGuide(block);
+    A.ok(s, 'D2 ' + name + ': it splits');
+    A.eq(s.block + '\n' + LINE, block, 'D2 ' + name + ': THE NOTE KEEPS EVERY IDENTITY LINE, byte for byte (the block without its last line)');
+    A.ok(s.block.indexOf('Run id: run-1234') > 0 && s.block.indexOf('Requested model at run start: claude-test') > 0 && s.block.indexOf('If the Commander asks') < 0, 'D2 ' + name + ': the run id and model stay; the instruction left');
+    A.eq(s.guide.replace('answer from the [RUNTIME] block of this run\'s context note', 'answer from this block'), LINE, 'D2 ' + name + ': THE INSTRUCTION MOVES WORD FOR WORD, but for the one phrase that points at the block');
+    A.eq(Provider.inertHostTags(s.guide), s.guide, 'D2 ' + name + ': no host fence tag in it');
+  }
+  const block = RuntimeInfo.runtimeIdentityBlock(ident);
+  A.eq(RuntimeInfo.splitGuide(block).guide, RuntimeInfo.splitGuide(RuntimeInfo.runtimeIdentityBlock(Object.assign({}, ident, { runId: 'other', model: 'm2', now: NOW + 5 * DAY }))).guide, 'D2: the moved line is the same text for every run, model and day');
+  for (const v of ['', null, '[RUNTIME]', block + ' ', block.slice(2), '\n\n[RUNTIME]\n' + LINE.slice(1), '\n' + LINE]) A.eq(RuntimeInfo.splitGuide(v), null, 'D2: ' + JSON.stringify(String(v).slice(0, 24)) + ' is not split');
+  const chat = SlimNote.plan({ runtime: block });   // a chat turn's note is the [RUNTIME] block alone
+  A.eq([chat.runtime + '\n' + LINE, chat.stable], [block, '\n\n' + RuntimeInfo.splitGuide(block).guide], 'D2: a chat turn: the one line moves, nothing else');
+  const all = SlimNote.plan({ skills: GUIDE, quests: QuestInject.questBlock([]), runtime: block });
+  A.eq(all.stable, GUIDE + '\n\n' + QuestInject.split(QuestInject.questBlock([])).guide + '\n\n' + RuntimeInfo.splitGuide(block).guide, 'D2: the three moved paragraphs make one stable text: skills, quests, runtime');
+  A.eq(SlimNote.plan({ runtime: 'NOT A RUNTIME BLOCK' }), { skills: '', quests: '', runtime: 'NOT A RUNTIME BLOCK', stable: '' }, 'D2: a text the rule does not know stays whole in the note');
+  A.ok(Buffer.byteLength(block) - Buffer.byteLength(chat.runtime) === Buffer.byteLength(LINE) + 1, 'D2: ' + (Buffer.byteLength(LINE) + 1) + ' bytes leave every note');
 }
 
 /* ---------- E. the host's wiring ---------- */
