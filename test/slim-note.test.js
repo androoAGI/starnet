@@ -246,7 +246,8 @@ const quest = (n, extra) => Object.assign({ id: 'q:' + n, title: 'Quest number '
   A.ok(planAt < CORE.indexOf('  const cacheSystemPrefix = ') && planAt < CORE.indexOf('  const perRunBlocks = ') && planAt < CORE.indexOf('  const taskSystem = '), 'E: before the cached prefix, the note and the system prompt are assembled');
   const cachePrefix = CORE.slice(CORE.indexOf('  const cacheSystemPrefix = '), CORE.indexOf('  /* CACHE-STABLE PREFIX (lean-prompt'));
   A.ok(cachePrefix.length > 500 && /\) \+ skillBlock \+ slimStable;\n$/.test(cachePrefix), 'E: THE MOVED TEXT CLOSES THE CACHED PREFIX (cacheSystemPrefix), after the installed-skill index');
-  A.ok(CORE.indexOf('? FinishLine.append(cacheSystemPrefix + serviceKeysBlock + taskDoctrine + journeyBlock + deliverableNote, { isTask, internal, tools: resolved.tools })') > 0,
+  // (the prefix lane's STARNET_PREFIX_DOCTRINE adds an option after tools: the pin is the text the tail is composed from)
+  A.ok(CORE.indexOf('? FinishLine.append(cacheSystemPrefix + serviceKeysBlock + taskDoctrine + journeyBlock + deliverableNote, { isTask, internal, tools: resolved.tools') > 0,
     'E: the system prompt\'s tail is composed as before (the tail has no cache anchor of its own on the Claude API: a conversation\'s first messages would write the moved text again)');
   A.eq(CORE.split('slimStable').length - 1, 4, 'E: and is used nowhere else (declared, set, placed; named once in the comment)');
   A.ok(CORE.indexOf(': FinishLine.append(cacheSystemPrefix + PromptScrub.scrubStored(delegatedBlock + stationEvidenceBlock + runtimeSkillBlock\n      + preloadedSkillBlock + serviceKeysBlock + taskIntentNote + awayBriefingNote + directDomainBlock + journeyBlock\n      + deliverableNote + crewCallNote + runtimeBlock), { isTask, internal, tools: resolved.tools });') > 0,
