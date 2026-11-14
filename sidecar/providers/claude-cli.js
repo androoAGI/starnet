@@ -28,14 +28,15 @@
    thrown as a 429 `usage_limit_reached`, which errorClass files as quota_exhausted: the loop rotates to the next
    account instead of retrying this one.
 
-   makeClaudeCliProvider({ spawn?, bin?, env?, configDir?, platform?, fs?, os?, idleMs?, statusTtlMs?, persist?, persistIdleMs?, persistEndGraceMs?, onRateLimit? })
+   makeClaudeCliProvider({ spawn?, bin?, env?, configDir?, platform?, fs?, os?, idleMs?, statusTtlMs?, persist?, persistIdleMs?, persistEndGraceMs?, onRateLimit?, replayLedger? })
      onRateLimit(info): each run's `rate_limit_event` (its rate_limit_info: this sign-in's usage windows) — sub-usage.js
+     replayLedger: the REPLAY LEDGER a request carrying `replay` reads and writes (default: the one this module keeps)
      -> { stream, listModels, release, persistStats, contextLimit, priceOf, supportsTools, reasoningEfforts, effortAsSent } */
 'use strict';
 (function (root, factory) {
-  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./provider.js'), require('./cache-ttl.js'));
-  else { root.SK = root.SK || {}; (root.SK.providers = root.SK.providers || {}).claudeCli = factory(root.SK.providers.provider, root.SK.providers.cacheTtl); }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (provider, cacheTtl) {
+  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./provider.js'), require('./cache-ttl.js'), require('./cli-replay-ledger.js'));
+  else { root.SK = root.SK || {}; (root.SK.providers = root.SK.providers || {}).claudeCli = factory(root.SK.providers.provider, root.SK.providers.cacheTtl, root.SK.providers.cliReplayLedger); }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (provider, cacheTtl, replayLedgerLib) {
   'use strict';
 
   const timeouts = provider.timeouts;
@@ -194,6 +195,9 @@
   // The same for a persistent child (PERSISTENT CHILD): its first user message holds the conversation so far, and each
   // later one only what StarNet added after the child's own reply.
   const PERSIST_TRANSCRIPT_NOTE = '# Conversation\nThe first user message holds the conversation so far, oldest first, as <user>, <assistant>, <tool_result> and <system_note> blocks. Each later user message holds, in the same blocks, what happened after your previous reply. Continue as the assistant: write only your next reply.';
+  // Closes either note on a request that rides the REPLAY LEDGER: an earlier <user> block may then still carry the host
+  // notes it was sent with. Fixed text in the cached part of the system prompt, the same on every message of the stream.
+  const REPLAY_NOTE = ' An earlier <user> block may still carry the <run_context>, <recalled-memory> or <crew_call> note it was sent with: that is the host\'s context for that earlier message, kept as it was. Only the latest of those notes in the conversation is current: use its run id, date, brief, skills and memories, never an earlier block\'s.';
 
   /* Leading system messages become the CLI system prompt; everything after goes on stdin as ONE stream-json user
      message with ONE text block per transcript entry (later system messages stay in place as notes, like the native
@@ -236,7 +240,9 @@
   }
   const TOOLS_SLOT = '\u0000tools\u0000';
   /* The transcript entries, ONE text block each: { text, tool?, at } (at = the index in `rest` of the message that opened
-     the entry; consecutive tool results share one entry).
+     the entry; consecutive tool results share one entry). A user entry that carries host notes also says what it is
+     without them (`bare`) and whether one of them is the run-context note (`runNote`): the REPLAY LEDGER reads both, and
+     nothing that is sent does.
      HOST NOTES JOIN THEIR USER TURN BY POSITION (review 2026-10-13). Host notes placed right BEFORE a user message (the
      run-context note, recall, a conversation summary) are that user entry's leading text, and <crew_call> notes right
      AFTER it (provider.js CREW CALL NOTE) close the same entry — the way a chat wire carries them (provider
@@ -255,11 +261,15 @@
     const noteText = (from, to) => rest.slice(from, to).map(m => textOf(m.content).trim()).filter(Boolean).join('\n\n');
     const joined = new Array(n).fill(false);
     const leadOf = new Map(), trailOf = new Map();   // user index -> the notes it carries
+    const runLead = new Set();                       // user indexes whose leading notes hold the run-context note
     for (let i = 0; i < n;) {
       if (!leadNote(rest[i])) { i++; continue; }
       let j = i;
       while (j < n && leadNote(rest[j])) j++;
-      if (j < n && rest[j] && rest[j].role === 'user') { for (let k = i; k < j; k++) joined[k] = true; leadOf.set(j, noteText(i, j)); }
+      if (j < n && rest[j] && rest[j].role === 'user') {
+        for (let k = i; k < j; k++) { joined[k] = true; if (provider.isRunContextNote(rest[k])) runLead.add(j); }
+        leadOf.set(j, noteText(i, j));
+      }
       i = j;
     }
     for (let i = 0; i < n; i++) {
@@ -274,7 +284,10 @@
       const m = rest[at];
       if (m.role === 'user') {
         const lead = leadOf.get(at) || '', trail = trailOf.get(at) || '';
-        entries.push({ text: '<user>\n' + inertTags((lead ? lead + '\n\n' : '') + textOf(m.content, images) + (trail ? '\n\n' + trail : '')) + '\n</user>', at });
+        const own = textOf(m.content, images);   // read once: it numbers the turn's images as it goes
+        const entry = { text: '<user>\n' + inertTags((lead ? lead + '\n\n' : '') + own + (trail ? '\n\n' + trail : '')) + '\n</user>', at };
+        if (lead || trail) { entry.bare = '<user>\n' + inertTags(own) + '\n</user>'; if (runLead.has(at)) entry.runNote = true; }
+        entries.push(entry);
       }
       else if (m.role === 'system') entries.push({ text: '<system_note>\n' + inertTags(textOf(m.content, images)) + '\n</system_note>', at });
       else if (m.role === 'tool') {
@@ -300,14 +313,16 @@
   // A host note that closes a stdin message (a tool reveal: toolsNote), as its own <system_note> entry.
   const noteEntries = (notes, at) => (notes || []).map(t => ({ text: '<system_note>\n' + t + '\n</system_note>', at }));
   // The whole conversation as ONE stream-json user message: what a one-shot child, or a persistent child that has just
-  // started, is given (`notes`: what a replacement child is told after it, see RUN-START TOOLS).
-  function renderTranscript(system, rest, notes) {
+  // started, is given (`notes`: what a replacement child is told after it, see RUN-START TOOLS). `replay`, when the
+  // request rides the REPLAY LEDGER: (entries, system, tail) -> the entries to send (the ledger's, or these same ones).
+  function renderTranscript(system, rest, notes, replay) {
     const images = [];
-    return withBlocks(system, transcriptEntries(rest, images).concat(noteEntries(notes, rest.length)), images);
+    const entries = transcriptEntries(rest, images);
+    return withBlocks(system, (replay ? replay(entries, system, (notes || []).length) : entries).concat(noteEntries(notes, rest.length)), images);
   }
-  function buildPrompt(messages, tools, cachePrefix) {
-    const sp = splitPrompt(messages, tools, cachePrefix);
-    return renderTranscript(sp.system, sp.rest);
+  function buildPrompt(messages, tools, cachePrefix, transcriptNote, replay) {
+    const sp = splitPrompt(messages, tools, cachePrefix, transcriptNote);
+    return renderTranscript(sp.system, sp.rest, null, replay);
   }
   /* What a live persistent child has not seen yet: the entries of every message after its own reply (rest[n]), as ONE
      user message in the same blocks; `notes` (a tool reveal) close it as <system_note> entries. Images keep their
@@ -345,6 +360,9 @@
      mid-turn neither leaves it running nor leaves its prompt file. */
   const LIVE = new Map();
   let exitHooked = false;
+  // The REPLAY LEDGER every adapter of this process shares (the factory builds a fresh adapter per run): what each
+  // conversation's last run was sent, kept in memory only (makeClaudeCliProvider REPLAY LEDGER).
+  const REPLAY = replayLedgerLib ? replayLedgerLib.makeReplayLedger() : null;
   function hookExit() {
     if (exitHooked || typeof process === 'undefined' || typeof process.once !== 'function') return;
     exitHooked = true;
@@ -985,7 +1003,9 @@
       // The persistent child serves the agent loop (a turn that carries tools). A side call (summary, vision, wire test)
       // or a second request while the child is mid-turn runs its own one-shot child and never touches it.
       const persistent = persistOn && Array.isArray(req.tools) && req.tools.length > 0 && !(session && session.busy);
-      const box = {};   // the turn's line reader (makeTurn), once the turn has one: what its init line said about billing
+      // box.turn: the turn's line reader (makeTurn), once the turn has one: what its init line said about billing.
+      // box.start: how this call was served (HOW A CALL WAS SERVED, below); box.replay: what the REPLAY LEDGER did for it.
+      const box = {};
       const turn = persistent ? persistentStream(req, cmd, box) : oneShotStream(req, cmd, box);
       const logUsage = envOf('STARNET_CLAUDE_CLI_PERSIST_LOG') === '1';
       /* A SUBSCRIPTION CALL BILLS NOTHING PER CALL (80de2a75 review). Before this turn's first event, a subscription
@@ -995,6 +1015,13 @@
       let billingSaid = false;
       for await (const ev of turn) {
         if (!billingSaid && box.turn && box.turn.apiKeySource === 'none') { billingSaid = true; yield { type: 'billing', perCall: false }; }
+        // the record this request left in the REPLAY LEDGER lives as long as its sign-in's cache tier: the init line says which
+        if (box.replay && box.replay.record && !box.replay.aged && box.turn && box.turn.apiKeySource != null) {
+          box.replay.aged = true;
+          try { replayLedger.setTtl(box.replay.record, box.turn.apiKeySource === 'none' ? replayLedgerLib.SUBSCRIPTION_TTL_MS : replayLedgerLib.KEY_TTL_MS); }
+          catch (e) { failNote('claudecli.replay', e); }   // the record keeps the short tier: it only replays less
+        }
+        if (ev && ev.type === 'usage' && ev.usage && box.start) ev.cli = servedFacts(box);
         // the diagnostics switch also prints each turn's usage: what the prompt cache did (read vs written) per turn
         if (logUsage && ev && ev.type === 'usage' && ev.usage) {
           const u = ev.usage, d = u.prompt_tokens_details || {};
@@ -1008,7 +1035,8 @@
     const ONE_SHOT_EXIT_GRACE_MS = Number(opts.oneShotExitGraceMs) > 0 ? Number(opts.oneShotExitGraceMs) : 3000;   // after its result line a child normally exits by itself in ~2 s
     async function* oneShotStream(req, cmd, box) {
       const signal = req.signal;
-      const prompt = buildPrompt(req.messages, req.tools, req.cacheSystemPrefix);
+      if (box) box.start = 'oneshot';
+      const prompt = buildPrompt(req.messages, req.tools, req.cacheSystemPrefix, replayOn(req) ? TRANSCRIPT_NOTE + REPLAY_NOTE : undefined, replayFor(req, box));
       const turn = ++seq;
       const sysFile = path.join(os.tmpdir(), 'starnet-claude-cli-' + process.pid + '-' + turn + '-' + require('crypto').randomBytes(6).toString('hex') + '.txt');
       const args = cliArgs(cmd, req, '');
@@ -1182,6 +1210,58 @@
     // STARNET_CLAUDE_CLI_PERSIST_LOG=1: one console line per persistent-child decision (reuse / fresh + why / closed + why)
     const plog = msg => { if (envOf('STARNET_CLAUDE_CLI_PERSIST_LOG') === '1') console.log('[claude-cli persist] ' + msg); };
 
+    /* REPLAY LEDGER (cost lane W3.7, 2026-11-14; the whole rule is cli-replay-ledger.js). Every new message of a
+       conversation is a new run with a new child, and that child's first message is the whole conversation. The last
+       run's first message ended with its ask carrying its host notes; today's history carries that ask bare, so the
+       bytes differ there and the CLI, which caches a request up to its last block, reads only the system prompt and
+       writes the whole conversation again on every message. A request that names its conversation (req.replay =
+       { stream, at, epoch }: the loop sets it only while the host's STARNET_CLI_REPLAY_LEDGER switch is on, index.js
+       cliReplayStream) has the entries of every WHOLE-transcript message it renders (a one-shot child, a fresh or a warm
+       persistent child) resolved by the ledger: history entries the last run's first message of this stream was sent
+       with go out again as they were sent, so this message starts with the bytes that one ended on. The newest
+       message's own entry, with its notes, is always today's. Its system prompt closes its conversation note with
+       REPLAY_NOTE (which notes are current). A lineage is the account, model, effort and exact system prompt (the tool
+       list rides it): any of them changed, a history that no longer matches, a session deleted or a memory forgotten
+       since the record was made (req.replay.epoch), past notes over the cap, a record older
+       than its cache entry or too far back for the API to find, an image, a throw: today's bytes (the ledger's verdict says
+       which; a throw is noted).
+       WITHOUT req.replay NOTHING HERE RUNS: the system prompt, the argv and every stdin byte are as they were.
+       The ledger is this module's (the factory builds a fresh adapter per run), bounded, and lost on restart. */
+    const replayLedger = opts.replayLedger || REPLAY;
+    const replayOn = req => !!(replayLedger && req && req.replay && typeof req.replay.stream === 'string' && req.replay.stream
+      && req.runId != null && String(req.runId) && req.neverReread !== true);
+    function replayFor(req, box) {
+      if (!replayOn(req)) return null;
+      return (entries, system, tail) => {
+        try {
+          const lineage = sha1(JSON.stringify([String(opts.configDir || ''), String(req.model || ''), effortOf(req), String(system || '')]));
+          const r = replayLedger.plan(entries, { stream: req.replay.stream, lineage, runId: String(req.runId), epoch: req.replay.epoch, at: req.replay.at, images: text => text.split(IMAGE_MARK).length - 1, tail });
+          if (box) box.replay = { verdict: r.verdict, replayed: r.replayed, notes: r.noteBytes, record: r.record };
+          bump(stats.replay || (stats.replay = {}), r.verdict);
+          plog('replay ledger: ' + r.verdict + (r.replayed ? ' (' + r.replayed + ' entries as sent, ' + r.noteBytes + ' chars of past notes)' : ''));
+          return r.entries;
+        } catch (e) {
+          failNote('claudecli.replay', e);
+          if (box) box.replay = { verdict: 'error', replayed: 0, notes: 0, record: null };
+          return entries;   // fail open: today's bytes
+        }
+      };
+    }
+    /* HOW A CALL WAS SERVED (W3.7 telemetry). A usage event says it beside its counts, as `cli` (provider.js), and the
+       call's usage receipt keeps it (usage-receipts.js: child, replay…): start = 'reuse' (the live child took only what
+       was new), a fresh child and why ('first', 'warm', or planDelta's reason: 'run', 'history', 'reply', 'tools',
+       'model', 'effort', 'system', 'dead', 'empty') or 'oneshot'; and, when the request rode the ledger, its verdict,
+       the entries it replayed and the past-note characters among them. With the receipt's own cache read and write
+       this is what a run's first call cost and why. Identifiers and counts only. */
+    function servedFacts(box) {
+      const f = { start: box.start };
+      if (box.replay) {
+        f.replay = box.replay.verdict;
+        if (box.replay.replayed) { f.replayed = box.replay.replayed; f.replayNotes = box.replay.notes; }
+      }
+      return f;
+    }
+
     function openSession(cmd, req, system, key, runId) {
       const sysFile = path.join(os.tmpdir(), 'starnet-claude-cli-' + process.pid + '-s' + (++sessionSeq) + '-' + require('crypto').randomBytes(6).toString('hex') + '.txt');
       fs.writeFileSync(sysFile, system, { encoding: 'utf8', mode: 0o600 });
@@ -1335,27 +1415,29 @@
 
     async function* persistentStream(req, cmd, box) {
       const signal = req.signal;
-      const sp = splitPrompt(req.messages, req.tools, req.cacheSystemPrefix, PERSIST_TRANSCRIPT_NOTE);
+      const sp = splitPrompt(req.messages, req.tools, req.cacheSystemPrefix, replayOn(req) ? PERSIST_TRANSCRIPT_NOTE + REPLAY_NOTE : PERSIST_TRANSCRIPT_NOTE);
       const key = sessionKey(req, sp.base);
       const runId = req.runId == null ? '' : String(req.runId);
+      const replay = replayFor(req, box);   // REPLAY LEDGER: resolves the entries of a whole-transcript message; null without req.replay
+      const fresh = why => { bump(stats.fresh, why); if (box) box.start = why; };   // a fresh child, and why (HOW A CALL WAS SERVED)
       let s = session, prompt = null, start = null;
       if (s && !s.primed) {
         // a WARM child started for this run (see prewarm): it holds nothing yet, so it takes the whole history
         start = childStart(sp, req, runId);
         if (s.alive && s.key === key && s.runId === runId && s.signal === (signal || null) && s.systemHash === sha1(start.system)) {
-          prompt = renderTranscript(start.system, sp.rest, start.notes); bump(stats.fresh, 'warm'); plog('use warm child ' + (s.child && s.child.pid)); keptTools(start);
-        } else { closeSession(s, 'warm_unused'); s = null; bump(stats.fresh, 'first'); plog('fresh child: warm one did not fit'); }
+          prompt = renderTranscript(start.system, sp.rest, start.notes, replay); fresh('warm'); plog('use warm child ' + (s.child && s.child.pid)); keptTools(start);
+        } else { closeSession(s, 'warm_unused'); s = null; fresh('first'); plog('fresh child: warm one did not fit'); }
       } else if (s) {
         const plan = planDelta(s, key, runId, signal, sp.rest, req);
         // only the entries after the child's own reply; null = nothing sendable: start fresh instead
         if (plan.delta) prompt = renderDelta(sp.rest, plan.n, plan.added.length ? [toolsNote(plan.added)] : []);
         if (prompt && plan.added.length) { stats.announced = (stats.announced || 0) + plan.added.length; plog('announce ' + plan.added.length + ' revealed tool(s): ' + plan.added.map(t => t.name).join(', ')); }
-        if (prompt) { stats.reused++; plog('reuse child ' + (s.child && s.child.pid) + ': +' + plan.delta.length + ' message(s)'); }
-        else { const why = plan.why || 'empty'; bump(stats.fresh, why); plog('fresh child: ' + why); closeSession(s, why); s = null; }
-      } else { bump(stats.fresh, 'first'); plog('fresh child: first'); }
+        if (prompt) { stats.reused++; if (box) box.start = 'reuse'; plog('reuse child ' + (s.child && s.child.pid) + ': +' + plan.delta.length + ' message(s)'); }
+        else { const why = plan.why || 'empty'; fresh(why); plog('fresh child: ' + why); closeSession(s, why); s = null; }
+      } else { fresh('first'); plog('fresh child: first'); }
       if (!s) {
         start = start || childStart(sp, req, runId);
-        s = openSession(cmd, req, start.system, key, runId); prompt = renderTranscript(start.system, sp.rest, start.notes); keptTools(start);
+        s = openSession(cmd, req, start.system, key, runId); prompt = renderTranscript(start.system, sp.rest, start.notes, replay); keptTools(start);
       }
 
       const turn = ++seq;
@@ -1551,5 +1633,5 @@
     };
   }
 
-  return { makeClaudeCliProvider, makeCliHost, effortAsSent, CLI_DEFAULT_EFFORT, _internals: { buildPrompt, makeCallSplitter, parseCall, invokeCall, estimateUsd, toolsPrompt, MODELS } };
+  return { makeClaudeCliProvider, makeCliHost, effortAsSent, CLI_DEFAULT_EFFORT, _internals: { buildPrompt, makeCallSplitter, parseCall, invokeCall, estimateUsd, toolsPrompt, MODELS, replayLedger: REPLAY, REPLAY_NOTE } };
 });

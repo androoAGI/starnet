@@ -23,6 +23,9 @@
          |                                       //   OPTIONAL `model` beside usage: the model the provider says served the call
          |                                       //   (claude-cli: what an alias such as `haiku` resolved to). Receipts and aux
          |                                       //   rows record it as the model as it ran (W3.5); absent = the asked model.
+         |                                       //   OPTIONAL `cli` beside usage (claude-cli only, W3.7): how the call was served,
+         |                                       //   { start, replay?, replayed?, replayNotes? } (claude-cli.js HOW A CALL WAS
+         |                                       //   SERVED). Identifiers and counts; the call's usage receipt keeps them.
          | { type:'done',       finishReason, truncated? }   // finishReason normalized via normalizeFinish()
          |     Adapters emit EXACTLY ONE 'done' per stream, and it is REQUIRED even when the upstream never
          |     stated a finish reason (finishReason: null) — the loop cannot distinguish a finished answer from
