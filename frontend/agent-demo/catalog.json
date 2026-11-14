@@ -761,6 +761,20 @@
       "sourceStandingHeight": 76,
       "readyForStation": true,
       "renderSet": "approved_drevil"
+    },
+    {
+      "id": "yellowminion",
+      "skin": "yellowminion",
+      "name": "Minion",
+      "stage": "complete",
+      "targetStandingHeight": 19,
+      "walkFramesReady": true,
+      "walkReady": true,
+      "complete": true,
+      "retainedOriginal": false,
+      "sourceStandingHeight": 76,
+      "readyForStation": true,
+      "renderSet": "approved_yellowminion"
     }
   ]
 }

@@ -11843,6 +11843,112 @@
       "approved_drevil/walk_south-west_3.png",
       "approved_drevil/walk_south-west_4.png",
       "approved_drevil/walk_south-west_5.png"
+    ],
+    "approved_yellowminion.rot.south": [
+      "approved_yellowminion/rot_south.png"
+    ],
+    "approved_yellowminion.rot.south-east": [
+      "approved_yellowminion/rot_south-east.png"
+    ],
+    "approved_yellowminion.rot.east": [
+      "approved_yellowminion/rot_east.png"
+    ],
+    "approved_yellowminion.rot.north-east": [
+      "approved_yellowminion/rot_north-east.png"
+    ],
+    "approved_yellowminion.rot.north": [
+      "approved_yellowminion/rot_north.png"
+    ],
+    "approved_yellowminion.rot.north-west": [
+      "approved_yellowminion/rot_north-west.png"
+    ],
+    "approved_yellowminion.rot.west": [
+      "approved_yellowminion/rot_west.png"
+    ],
+    "approved_yellowminion.rot.south-west": [
+      "approved_yellowminion/rot_south-west.png"
+    ],
+    "approved_yellowminion.walk.south": [
+      "approved_yellowminion/walk_south_1.png",
+      "approved_yellowminion/walk_south_2.png",
+      "approved_yellowminion/walk_south_3.png",
+      "approved_yellowminion/walk_south_4.png",
+      "approved_yellowminion/walk_south_5.png",
+      "approved_yellowminion/walk_south_6.png"
+    ],
+    "approved_yellowminion.walk.south-east": [
+      "approved_yellowminion/walk_south-east_1.png",
+      "approved_yellowminion/walk_south-east_2.png",
+      "approved_yellowminion/walk_south-east_3.png",
+      "approved_yellowminion/walk_south-east_4.png",
+      "approved_yellowminion/walk_south-east_5.png",
+      "approved_yellowminion/walk_south-east_6.png"
+    ],
+    "approved_yellowminion.walk.east": [
+      "approved_yellowminion/walk_east_1.png",
+      "approved_yellowminion/walk_east_2.png",
+      "approved_yellowminion/walk_east_3.png",
+      "approved_yellowminion/walk_east_4.png",
+      "approved_yellowminion/walk_east_5.png",
+      "approved_yellowminion/walk_east_6.png"
+    ],
+    "approved_yellowminion.walk.north-east": [
+      "approved_yellowminion/walk_north-east_1.png",
+      "approved_yellowminion/walk_north-east_2.png",
+      "approved_yellowminion/walk_north-east_3.png",
+      "approved_yellowminion/walk_north-east_4.png",
+      "approved_yellowminion/walk_north-east_5.png",
+      "approved_yellowminion/walk_north-east_6.png"
+    ],
+    "approved_yellowminion.walk.north": [
+      "approved_yellowminion/walk_north_1.png",
+      "approved_yellowminion/walk_north_2.png",
+      "approved_yellowminion/walk_north_3.png",
+      "approved_yellowminion/walk_north_4.png",
+      "approved_yellowminion/walk_north_5.png",
+      "approved_yellowminion/walk_north_6.png"
+    ],
+    "approved_yellowminion.walk.north-west": [
+      "approved_yellowminion/walk_north-west_1.png",
+      "approved_yellowminion/walk_north-west_2.png",
+      "approved_yellowminion/walk_north-west_3.png",
+      "approved_yellowminion/walk_north-west_4.png",
+      "approved_yellowminion/walk_north-west_5.png",
+      "approved_yellowminion/walk_north-west_6.png"
+    ],
+    "approved_yellowminion.walk.west": [
+      "approved_yellowminion/walk_west_1.png",
+      "approved_yellowminion/walk_west_2.png",
+      "approved_yellowminion/walk_west_3.png",
+      "approved_yellowminion/walk_west_4.png",
+      "approved_yellowminion/walk_west_5.png",
+      "approved_yellowminion/walk_west_6.png"
+    ],
+    "approved_yellowminion.walk.south-west": [
+      "approved_yellowminion/walk_south-west_1.png",
+      "approved_yellowminion/walk_south-west_2.png",
+      "approved_yellowminion/walk_south-west_3.png",
+      "approved_yellowminion/walk_south-west_4.png",
+      "approved_yellowminion/walk_south-west_5.png",
+      "approved_yellowminion/walk_south-west_6.png"
+    ],
+    "approved_yellowminion.sit.south": [
+      "approved_yellowminion/sit_south_4.png"
+    ],
+    "approved_yellowminion.sit.east": [
+      "approved_yellowminion/sit_east_4.png"
+    ],
+    "approved_yellowminion.sit.north": [
+      "approved_yellowminion/sit_north_4.png"
+    ],
+    "approved_yellowminion.sit.west": [
+      "approved_yellowminion/sit_west_4.png"
+    ],
+    "approved_yellowminion.type.north": [
+      "approved_yellowminion/type_north_1.png",
+      "approved_yellowminion/type_north_2.png",
+      "approved_yellowminion/type_north_3.png",
+      "approved_yellowminion/type_north_4.png"
     ]
   }
 }

@@ -1,0 +1,10 @@
+{
+  "id": "yellowminion",
+  "track": "sit",
+  "dir": "east",
+  "job": "222f3e79-c8c2-4eed-9f8a-1297c9f6659e",
+  "result": "frames: 5\nhttps://api.pixellab.ai/mcp/images/222f3e79-c8c2-4eed-9f8a-1297c9f6659e/download?index=0",
+  "packed": true,
+  "lastRaw": "output/agent-animation-study/rollout-20px/full-motion/yellowminion/minimax/sit-east/222f3e79-c8c2-4eed-9f8a-1297c9f6659e/4.png",
+  "frameCount": 5
+}

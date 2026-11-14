@@ -1,0 +1,9 @@
+{
+  "charId": "642a1c26-281e-4bc7-9a1c-121e4806cb31",
+  "rotT": "1",
+  "template": "walking",
+  "mode": "skeleton-v3",
+  "frames": 6,
+  "source": "zip",
+  "animation": "sprite-motion-skel-0930"
+}
