@@ -13,11 +13,25 @@
          runOnceCore's own projection block (the census cut of index.js) reads the switch and agrees cell for cell;
      T4. tool_search finds every tail tool by its name, by its wire name and by a plain-language ask.
 
+   STARNET_PREFIX_DOCTRINE — two doctrine blocks said once (W3.9b, sidecar/manual.js and sidecar/finish-line.js):
+     D1. CONNECTING A PLATFORM on demand: the lean index is the index with that one section replaced by its rules
+         (CONNECTING_CORE); the honesty core is inline (connectors.list with the goal before answering or declining, never
+         assert catalog membership, never invent a menu path, the API KEYS + web_request fallback, "not connected YET");
+         EVERY sentence of the section, moved or kept, is served verbatim by manual.read ("connecting" and "all"); the
+         lean form exists only for the index (never where manual.read is off the wire); and manual.read lists the section
+         as readable, not as already in the prompt, on a run that carries the lean index;
+     D2. HOW TO WORK said once: each of the three sentences the switch drops is restated by FINISH THE JOB (the lines
+         named in FinishLine.RESTATED are in the block with no tool at all), FINISH itself is untouched, and the append
+         cannot be skipped once the sentences are gone.
+
    The switch itself (S): prefixLaneOn is on for 1 / true / yes / on only, and the run and the TOOLSETS preview read the
    same one. The request bytes (OFF identical to the base, the ON saving) are test/prefix-lanes.e2e.test.js. */
 'use strict';
 const A = require('./_assert.js');
 const path = require('node:path');
+const M = require('../sidecar/manual.js');
+const FinishLine = require('../sidecar/finish-line.js');
+const { makeManualReadTool } = require('../sidecar/tools/builtin/manual-read.js');
 const F = require('../sidecar/capability/followups.js');
 const C = require('./helpers/authority-census.js');
 const { makeToolSearchTool } = require('../sidecar/tools/builtin/toolsearch.js');
@@ -163,6 +177,104 @@ const withFacts = (sc, more) => Object.assign({}, sc, { facts: Object.assign({},
       const hit = await search.run({ query: q }, { deferred: pool });
       A.ok(hit.control && hit.control.revealTools.indexOf(n) >= 0, 'tool_search "' + q + '" finds ' + n + ' (got ' + JSON.stringify(hit.control && hit.control.revealTools) + ')');
     }
+  }
+
+  /* ---------- D1. CONNECTING A PLATFORM on demand ---------- */
+  {
+    const B = s => Buffer.byteLength(String(s));
+    const full = M.starnetManual(), idx = M.starnetManualIndex(), lean = M.starnetManualIndexLean();
+    const section = M.manualSection('connecting'), core = M.CONNECTING_CORE;
+    A.ok(idx.split(section).length === 2, 'the index carries CONNECTING A PLATFORM once, whole');
+    A.ok(lean === idx.replace(section, () => core), 'the lean index is the index with that one section replaced by its core, and nothing else');
+    A.ok(lean.indexOf('\n<starnet_operator_manual>\n') === 0 && lean.endsWith('</starnet_operator_manual>'), 'the lean index keeps the manual fence');
+    for (const s of M.MANUAL_SECTIONS.filter(x => x.kind !== 'reference' && x.id !== 'connecting'))
+      A.ok(lean.indexOf(M.manualSection(s.id)) >= 0, s.id + ' (' + s.kind + ') still rides inline VERBATIM');
+    for (const r of M.INLINE_RULE_EXCERPTS) A.ok(lean.indexOf(r) >= 0, 'a rule that lives inside a reference section still rides inline');
+    A.ok(M.starnetManualIndexLean() === lean && !/undefined|null|\[object/.test(core), 'deterministic (it rides the cached prefix), no junk');
+    A.eq(M.ON_DEMAND_RULE_SECTIONS.slice(), ['connecting'], 'one rule section is on demand under the switch');
+    // the honesty core, inline
+    A.ok(/CONNECTING A PLATFORM — the single most common request, and the one you must not improvise\./.test(core), 'core: never improvise it');
+    A.ok(/Before you say whether a platform can be reached, and before declining a task for lack of email, website, calendar, docs or any service access, CALL connectors\.list with `goal` set to the Commander's task in their words/.test(core),
+      'core: connectors.list with the goal before saying a service cannot be reached, or declining');
+    A.ok(/decline only after that call comes back with nothing/.test(core), 'core: decline only after the lookup');
+    A.ok(/NEVER assert that a specific platform is or is not there/.test(core), 'core: never assert catalog membership');
+    A.ok(/NEVER invent a StarNet menu path, settings screen, or button name/.test(core), 'core: never invent a menu path');
+    A.ok(/open CONNECT › ABILITIES and type the platform name into its search box/.test(core), 'core: the one place to send them');
+    A.ok(/guaranteed fallback, which works for ANY platform, listed or not: they paste its API key in CONNECTED › API KEYS and you call its REST API yourself with web_request, referencing the key by its environment-variable NAME/.test(core),
+      'core: the API KEYS + web_request fallback');
+    A.ok(/never say StarNet “cannot” reach a service when what you mean is that it is not connected YET/.test(core), 'core: not connected YET is never "cannot"');
+    A.ok(/call manual\.read section connecting/.test(core) && /Before you walk the Commander through connecting/.test(core) && /whenever a route you suggested did not work/.test(core),
+      'core: read the section before walking anyone through it, and when a route failed');
+    A.ok(/NEVER send the Commander to BUILD MODE to connect a platform/.test(lean), 'the CONNECTORS rule (never BUILD MODE for a connector) is untouched');
+    // every sentence of the section is reachable through manual.read, verbatim
+    const { tool } = makeManualReadTool();
+    const served = tool.run({ section: 'connecting' }).content, servedAll = tool.run({ section: 'all' }).content;
+    A.ok(served === section, 'manual.read connecting serves the whole section verbatim');
+    A.ok(servedAll === full && full.indexOf(section) >= 0, 'manual.read all serves the whole manual, the section in it');
+    A.ok(tool.schema.properties.section.enum.indexOf('connecting') >= 0, 'the schema lists connecting as a section the model can ask for');
+    const sentences = section.split('\n').filter(Boolean).reduce((out, line) => out.concat(line.match(/[^.!?]+[.!?]+(?:\s|$)|[^.!?]+$/g) || [line]), []).map(x => x.trim()).filter(Boolean);
+    A.ok(sentences.length >= 20, 'the section was split into its sentences (' + sentences.length + ')');
+    let moved = 0;
+    for (const sentence of sentences) {
+      const kept = lean.indexOf(sentence) >= 0;
+      if (!kept) moved++;
+      A.ok(served.indexOf(sentence) >= 0 && servedAll.indexOf(sentence) >= 0, (kept ? 'kept' : 'MOVED') + ' sentence is served by manual.read: ' + sentence.slice(0, 60));
+    }
+    A.ok(moved >= 8, 'sentences really moved behind manual.read (' + moved + ' of ' + sentences.length + ')');
+    for (const must of ['1. APPS — the platform has a vetted one-click connector.', '3. CONNECTED, by address', 'Jira/Confluence remains on its verified Zapier route',
+      'never tell them to create a Cloud project or paste client credentials', 'believe them and switch routes; do not repeat it or imply they did it wrong'])
+      A.ok(lean.indexOf(must) < 0 && served.indexOf(must) >= 0, 'moved, and one manual.read away: ' + must);
+    // the lean form exists for the index alone
+    A.ok(M.leanManualBlock(idx) === lean, 'the index becomes its lean form');
+    for (const [name, block] of [['the whole manual (a run without manual.read)', full], ['the phone pointer', M.starnetManualPointer()], ['the terminal pointer', M.starnetManualTerminal()], ['no manual', '']])
+      A.ok(M.leanManualBlock(block) === block, name + ' has no lean form: returned as it came');
+    A.ok(full.indexOf(section) >= 0 && idx.indexOf(section) >= 0, 'the whole manual and the switch-off index still carry the section whole');
+    // manual.read never calls a section "already in your prompt" on a run that carries only its core
+    const plain = tool.run({ section: 'nope' }).content, onDemand = tool.run({ section: 'nope' }, { manualOnDemand: M.ON_DEMAND_RULE_SECTIONS.slice() }).content;
+    A.ok(/Reference sections: navigation, props, troubleshooting, concepts\. Already in your prompt: about, live-state, connectors, approval, connecting\./.test(plain), 'manual.read without the fact answers as before');
+    A.ok(/Reference sections: navigation, props, connecting, troubleshooting, concepts\. Already in your prompt: about, live-state, connectors, approval\./.test(onDemand),
+      'manual.read on a lean-index run lists connecting as a section to read');
+    A.ok(tool.run({ section: 'connecting' }, { manualOnDemand: ['connecting'] }).content === section, '...and serves it the same');
+    console.log('[prefix-lanes] CONNECTING: section ' + B(section) + ' B -> core ' + B(core) + ' B; index ' + B(idx) + ' -> ' + B(lean) + ' B (saves ' + (B(idx) - B(lean)) + ')');
+    A.ok(B(idx) - B(lean) >= 1500, 'the lean index is at least 1,500 B smaller (' + (B(idx) - B(lean)) + ')');
+    // the wiring
+    A.ok(/const operatorManual = prefixLaneOn\('PREFIX_DOCTRINE'\) \? leanManualBlock\(operatorManualWhole\) : operatorManualWhole;/.test(index), 'index.js swaps the manual block only under the switch');
+    A.ok(/if \(operatorManual !== operatorManualWhole\) capCtx\.manualOnDemand = ON_DEMAND_RULE_SECTIONS\.slice\(\);/.test(index), '...and tells manual.read only when the lean index really rides');
+  }
+
+  /* ---------- D2. HOW TO WORK said once ---------- */
+  {
+    const bare = FinishLine.block({ tools: [] });   // the block with no tool-specific line at all
+    A.eq(FinishLine.RESTATED.length, 3, 'three HOW TO WORK sentences are restated by FINISH THE JOB');
+    let bytes = 0;
+    for (const r of FinishLine.RESTATED) {
+      bytes += Buffer.byteLength(r.howToWork);
+      A.eq(index.split(r.howToWork.trim()).length - 1, 1, 'index.js carries the sentence once: ' + r.howToWork.slice(0, 50));
+      A.ok(r.here.length >= 1 && r.here.every(line => bare.indexOf(line) >= 0), 'FINISH THE JOB restates it, on every task run: ' + r.howToWork.slice(0, 50));
+    }
+    A.ok(bytes >= 400, 'the three sentences are ' + bytes + ' B');
+    // each is dropped only by the switch, and only on a run FINISH closes
+    A.ok(/const howToWorkLean = stablePrefix && FinishLine\.rides\(\{ isTask, internal \}\) && prefixLaneOn\('PREFIX_DOCTRINE'\);/.test(index),
+      'the sentences leave only on a cache-stable run FINISH THE JOB closes, under the switch');
+    A.ok(index.indexOf('const stablePrefix = ') > 0 && index.indexOf('const stablePrefix = ') < index.indexOf('const howToWorkLean = ') && index.split('const stablePrefix = ').length === 2,
+      'stablePrefix is declared once, before HOW TO WORK asks it');
+    const gate = "(howToWorkLean ? '' : '";
+    A.ok(index.indexOf("'HOW TO WORK: ' + " + gate + FinishLine.RESTATED[0].howToWork + "'\n    + '" + FinishLine.RESTATED[1].howToWork + "')") >= 0, 'the first two sentences sit behind the one gate, after the HOW TO WORK heading');
+    A.ok(index.indexOf('+ ' + gate + FinishLine.RESTATED[2].howToWork + "')") >= 0, 'the third sits behind the same gate');
+    A.ok(/\? FinishLine\.append\(cacheSystemPrefix \+ serviceKeysBlock \+ taskDoctrine \+ journeyBlock \+ deliverableNote, \{ isTask, internal, tools: resolved\.tools, restated: howToWorkLean \}\)/.test(index),
+      'the cache-stable final seam tells the append the sentences are gone');
+    A.eq(index.split('restated: howToWorkLean').length - 1, 1, 'the STARNET_STABLE_PREFIX=0 seam is as it was (its prompt keeps HOW TO WORK whole)');
+    A.eq(index.split('howToWorkLean').length - 1, 4, 'howToWorkLean is declared once and used three times (two gates, one append)');
+    // FINISH itself: riding, forcing, never trimmed
+    A.eq([FinishLine.rides({ isTask: true, internal: false }), FinishLine.rides({ isTask: false }), FinishLine.rides({ isTask: true, internal: true }), FinishLine.rides()], [true, false, false, false], 'FINISH rides a real task only');
+    const quoted = 'PERSONA that quotes ## FINISH THE JOB in passing';
+    const opts = { isTask: true, internal: false, tools: ['tool.search'] };
+    A.eq(FinishLine.append(quoted, opts), quoted, 'as before: a base that already holds the heading is left alone');
+    const forced = FinishLine.append(quoted, Object.assign({ restated: true }, opts));
+    A.ok(forced.indexOf(quoted) === 0 && forced.endsWith(FinishLine.block(opts)), 'restated: the block closes the prompt even there (the sentences it restates are gone)');
+    A.eq(FinishLine.append('IDENTITY', Object.assign({ restated: true }, opts)), FinishLine.append('IDENTITY', opts), 'restated changes nothing where the block rides anyway');
+    A.eq(FinishLine.append('X', { isTask: false, restated: true }), 'X', 'restated never adds the block to a chat turn');
+    A.eq(FinishLine.append('X', { isTask: true, internal: true, restated: true }), 'X', '...or to internal self-talk');
   }
 
   A.report('prefix-lanes');

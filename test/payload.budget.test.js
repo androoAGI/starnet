@@ -166,7 +166,11 @@ const LANE_BUDGET = {
   // W3.9a, the specialist tail off the wire (3 Resolve tools, 2 widget tools, skill.write): 70 -> 64 tools, 58,004 -> 51,283
   // tool bytes, 87,962 -> 81,241 prefix bytes (the six names move from the live list to the not-loaded list: system
   // unchanged); claude-cli 85,174 -> 78,777
-  STARNET_PREFIX_TAIL: { systemChars: 32296, tools: 64, toolBytes: 51506, prefixBytes: 81401, cliBytes: 78797 }
+  STARNET_PREFIX_TAIL: { systemChars: 32296, tools: 64, toolBytes: 51506, prefixBytes: 81401, cliBytes: 78797 },
+  // W3.9b, two doctrine blocks said once (CONNECTING A PLATFORM as its rules with the walk-through behind manual.read; HOW
+  // TO WORK without the three sentences FINISH THE JOB restates): 32,206 -> 30,243 system chars (+90 headroom, as the
+  // comms-task row), 87,962 -> 85,959 prefix bytes; tools untouched; claude-cli 85,174 -> 83,171
+  STARNET_PREFIX_DOCTRINE: { systemChars: 30333, tools: 70, toolBytes: 58227, prefixBytes: 86119, cliBytes: 83191 }
 };
 
 /* THE COMMS PERSONA: the `system` the station page sends for its lead (frontend/app/app.js composeSystemPrompt), composed

@@ -18,6 +18,10 @@
         the same but for the [HARNESS] not-loaded sentence, which now names them; GET /api/toolsets says 'specialist-tail';
         a widget's own update run still carries widget_get and widget_set from its first call; and a model that searches
         for widget_set gets it on its next call and publishes a reading with it.
+   STARNET_PREFIX_DOCTRINE (W3.9b): the system text is the base's with exactly two edits and nothing else: where the manual
+        index rides, CONNECTING A PLATFORM is its rules (manual.js CONNECTING_CORE), and HOW TO WORK is without the three
+        sentences FINISH THE JOB restates. FINISH THE JOB is byte-identical and still last; the tools array is untouched;
+        and a model that calls manual_read connecting gets the whole section, every moved sentence in it.
 
    Record the golden only on the base (or when a default byte changes on purpose, saying so in that commit):
      node test/prefix-lanes.e2e.test.js --update */
@@ -27,6 +31,8 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { execFileSync } = require('node:child_process');
 const R = require('./helpers/prefix-rig.js');
+const M = require('../sidecar/manual.js');
+const FinishLine = require('../sidecar/finish-line.js');
 
 const GOLDEN = path.join(__dirname, 'fixtures', 'prefix-lanes-golden.json');
 const CALLS = ['comms', 'cartless', 'lead', 'worker'];
@@ -142,8 +148,70 @@ function checkTail(off, on) {
   A.ok(pinned && String(pinned.value) === '7', lane + ': the loaded widget_set really published the reading (' + JSON.stringify(pinned && { id: pinned.id, value: pinned.value }) + ')');
 }
 
+/* ---------------------------------------------------------------- STARNET_PREFIX_DOCTRINE */
+// the base system text with the lane's two edits applied by hand: what the switch must produce, byte for byte
+function doctrineOf(system) {
+  let out = String(system);
+  if (out.indexOf(M.starnetManualIndex()) >= 0) out = out.replace(M.manualSection('connecting'), () => M.CONNECTING_CORE);
+  for (const r of FinishLine.RESTATED) out = out.replace(r.howToWork, () => '');
+  return out;
+}
+const finishOf = system => { const at = String(system).lastIndexOf(FinishLine.MARKER); return at < 0 ? '' : String(system).slice(at); };
+
+async function doctrineScenarios(ctx) {
+  const from = ctx.mark();
+  const run = await ctx.task('prefix-rig-manual', ctx.starter, R.scripted([{ name: 'manual_read', args: { section: 'connecting' } }, { name: 'manual_read', args: {} }]));
+  return { run, calls: ctx.bodiesFrom(from).filter(b => Array.isArray(b.tools) && b.tools.length) };
+}
+
+function checkDoctrine(off, on) {
+  const lane = 'STARNET_PREFIX_DOCTRINE';
+  const section = M.manualSection('connecting');
+  const floors = { comms: 1900, cartless: 1900, lead: 1900, worker: 400 };
+  for (const id of CALLS) {
+    const a = off[id], b = on[id];
+    A.ok(a && b, lane + ' ' + id + ': the call was captured off and on');
+    if (!a || !b) continue;
+    const hasIndex = a.system.indexOf(M.starnetManualIndex()) >= 0;
+    A.eq(hasIndex, id !== 'worker', lane + ' ' + id + ': ' + (id === 'worker' ? 'a worker carries no operator manual' : 'the base call carries the manual index'));
+    for (const r of FinishLine.RESTATED) A.eq(a.system.split(r.howToWork).length - 1, 1, lane + ' ' + id + ': the base HOW TO WORK carries the sentence once: ' + r.howToWork.slice(0, 40));
+    A.ok(b.system === doctrineOf(a.system), lane + ' ' + id + ': the system text is the base with ' + (hasIndex ? 'CONNECTING as its core and ' : '') + 'the three restated sentences out, and nothing else');
+    A.ok(finishOf(b.system) === finishOf(a.system) && finishOf(a.system).length > 1000 && b.system.endsWith(finishOf(a.system)), lane + ' ' + id + ': FINISH THE JOB is byte-identical and still closes the prompt');
+    for (const r of FinishLine.RESTATED) A.ok(r.here.every(line => finishOf(b.system).indexOf(line) >= 0), lane + ' ' + id + ': FINISH THE JOB says it: ' + r.howToWork.slice(0, 40));
+    A.ok(b.system.indexOf('HOW TO WORK: Always take the QUIETEST path that achieves the goal') >= 0 && b.system.indexOf('VERIFY it took effect with a read-back tool') >= 0
+      && b.system.indexOf('Escalate automatically through safe authorized routes') >= 0, lane + ' ' + id + ': HOW TO WORK keeps the quiet-path ladder, the read-back rule and the escalation rule');
+    if (hasIndex) {
+      A.ok(b.system.indexOf(M.starnetManualIndexLean()) >= 0 && b.system.indexOf(section) < 0, lane + ' ' + id + ': the lean index rides in the place of the index');
+      A.ok(b.names.indexOf('manual_read') >= 0 && b.names.indexOf('connectors_list') >= 0, lane + ' ' + id + ': manual_read and connectors_list, which the core names, are on the wire');
+    }
+    A.ok(JSON.stringify(b.tools) === JSON.stringify(a.tools), lane + ' ' + id + ': the tools array is byte-identical');
+    A.ok(restOf(b, on.known) === restOf(a, off.known), lane + ' ' + id + ': the rest of the request is identical');
+    const s = saving(lane, id, a, b);
+    A.ok(s.tools === 0 && s.prefix >= floors[id], lane + ' ' + id + ': saves ' + s.prefix + ' B of fixed prefix, all of it system text (at least ' + floors[id] + ')');
+  }
+  A.ok(off.cli && on.cli, lane + ' claude-cli: the call was captured off and on');
+  if (off.cli && on.cli) {
+    A.ok(on.cli.system === doctrineOf(off.cli.system), lane + ' claude-cli: the system prompt file is the base with the same two edits, and nothing else');
+    A.eq(JSON.stringify(on.cli.args.slice(0, -1)), JSON.stringify(off.cli.args.slice(0, -1)), lane + ' claude-cli: the argv is the same (but for the temp name of the prompt file)');
+    A.ok(R.normalize(on.cli.stdin, on.known) === R.normalize(off.cli.stdin, off.known), lane + ' claude-cli: the stdin is identical');
+    const saved = cliSaving(lane, off, on);
+    A.ok(saved >= 1900, lane + ' claude-cli: saves ' + saved + ' B of system prompt file (at least 1900)');
+  }
+  // one manual.read away: the whole section, and manual.read knows it is not in the prompt
+  const x = on.extra || {};
+  A.eq(x.run && x.run.end && x.run.end.reason, 'done', lane + ': the manual.read run completes');
+  const last = (x.calls || [])[(x.calls || []).length - 1] || {};
+  const results = (last.messages || []).filter(m => m.role === 'tool').map(m => R.text(m.content));
+  A.eq(results.length, 2, lane + ': both manual_read calls answered');
+  const lines = section.split('\n').filter(Boolean);
+  A.ok(lines.length >= 8 && lines.every(line => (results[0] || '').indexOf(line) >= 0), lane + ': manual_read connecting put the WHOLE section in front of the model, every moved line in it (' + lines.length + ' lines)');
+  A.ok(/Reference sections: navigation, props, connecting, troubleshooting, concepts\. Already in your prompt: about, live-state, connectors, approval\./.test(results[1] || ''),
+    lane + ': manual_read lists connecting as a section to read on this run (' + String(results[1] || '').slice(0, 160) + ')');
+}
+
 const LANES = [
-  { env: 'STARNET_PREFIX_TAIL', scenarios: tailScenarios, check: checkTail }
+  { env: 'STARNET_PREFIX_TAIL', scenarios: tailScenarios, check: checkTail },
+  { env: 'STARNET_PREFIX_DOCTRINE', scenarios: doctrineScenarios, check: checkDoctrine }
 ];
 
 (async () => {
@@ -180,8 +248,9 @@ const LANES = [
   }
   A.ok(!!base || process.platform !== 'win32', 'the golden holds the platform the gate runs on (win32)');
 
-  // ================= one lane ON at a time =================
-  for (const lane of LANES) {
+  // ================= one lane ON at a time (--lane=<switch> runs that one alone, for work on a single lane) =================
+  const only = (process.argv.find(a => a.indexOf('--lane=') === 0) || '').slice('--lane='.length);
+  for (const lane of LANES.filter(l => !only || l.env === only)) {
     const on = await R.capture({ [lane.env]: '1' }, { scenarios: lane.scenarios });
     await on.close();
     lane.check(off, on);

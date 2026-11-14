@@ -20,12 +20,16 @@ function makeManualReadTool() {
       + 'troubleshooting (the fix for each stuck case), concepts (what each thing is), or all. Call it before naming any StarNet window, '
       + 'menu, button or prop. Read-only, local, consent-free.',
     schema: { type: 'object', properties: { section: { type: 'string', enum: IDS.concat(['all']) } } },
-    run: (args) => {
+    run: (args, ctx) => {
       const want = String((args && args.section) || '').trim();
       const text = want ? manualSection(want) : null;
       if (text == null) {
-        const ref = MANUAL_SECTIONS.filter(s => s.kind === 'reference').map(s => s.id);
-        const inline = MANUAL_SECTIONS.filter(s => s.kind !== 'reference').map(s => s.id);
+        // ctx.manualOnDemand: the rule sections this run's prompt carries only the core of (STARNET_PREFIX_DOCTRINE: the
+        // host names them when it composes the lean index). They are read here, so they are listed with the reference
+        // sections, never as "already in your prompt". Absent (every other run), the two lists are the manual's own.
+        const onDemand = (ctx && Array.isArray(ctx.manualOnDemand)) ? ctx.manualOnDemand : [];
+        const ref = MANUAL_SECTIONS.filter(s => s.kind === 'reference' || onDemand.indexOf(s.id) >= 0).map(s => s.id);
+        const inline = MANUAL_SECTIONS.filter(s => s.kind !== 'reference' && onDemand.indexOf(s.id) < 0).map(s => s.id);
         return {
           content: (want ? 'No manual section "' + want + '". ' : 'Name a section. ')
             + 'Reference sections: ' + ref.join(', ') + '. Already in your prompt: ' + inline.join(', ') + '. Or "all".',

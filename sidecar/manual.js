@@ -298,11 +298,46 @@ const TOC =
 // reference sections were.
 const MANUAL_INDEX = OPEN + ABOUT + LIVE_STATE + '\n' + TOC + '\n' + CONNECTORS + '\n' + APPROVAL + '\n' + CONNECTING + CLOSE;
 
+/* CONNECTING ON DEMAND (cost audit W3.9b, 2026-11-14; behind STARNET_PREFIX_DOCTRINE, off by default). CONNECTING A
+   PLATFORM is 2,930 B of the index on every interactive task call, and under half of it is the rule: the rest is the
+   walk through the three routes, the platforms reached through another connector and the Google sign-in notes, which a
+   run needs only when the Commander is actually connecting something. With the switch on the index carries
+   CONNECTING_CORE in the section's place: every rule the agent must obey unprompted (look it up with connectors.list and
+   its `goal` before answering or declining; never assert catalog membership; never invent a menu path; the search box;
+   the API KEYS + web_request fallback that works for any platform; "not connected YET" is never "cannot"), in the
+   section's own words wherever a sentence was kept, plus the instruction to read the section before walking anyone
+   through it. Nothing is removed: manual.read section "connecting" (and "all") serves the whole section verbatim, as it
+   always has, and the full manual and the off-switch index are untouched. Constant, so it rides the cached prefix. */
+const CONNECTING_CORE =
+  'CONNECTING A PLATFORM — the single most common request, and the one you must not improvise. Before you say whether ' +
+  'a platform can be reached, and before declining a task for lack of email, website, calendar, docs or any service ' +
+  'access, CALL connectors.list with `goal` set to the Commander\'s task in their words; decline only after that call ' +
+  'comes back with nothing.\n' +
+  'HONESTY RULE — this is the rule that matters most here: WITHOUT that tool you do NOT have a reliable ' +
+  'list of which platforms are in the catalog, so NEVER assert that a specific platform is or is not there, ' +
+  'and NEVER invent a StarNet menu path, settings screen, or button name. Tell the Commander to open ' +
+  'CONNECT › ABILITIES and type the platform name into its search box, and offer the guaranteed fallback, which works ' +
+  'for ANY platform, listed or not: they paste its API key in CONNECTED › API KEYS and you call its REST API yourself ' +
+  'with web_request, referencing the key by its environment-variable NAME. And never say StarNet “cannot” reach a ' +
+  'service when what you mean is that it is not connected YET.\n' +
+  'Before you walk the Commander through connecting, and whenever a route you suggested did not work, call manual.read ' +
+  'section connecting (the three routes step by step, the platforms reached through another connector, Google sign-in) ' +
+  'and follow it.\n';
+// the rule sections whose body is on demand under that switch (manual.read lists them with the reference sections)
+const ON_DEMAND_RULE_SECTIONS = Object.freeze(['connecting']);
+const MANUAL_INDEX_LEAN = OPEN + ABOUT + LIVE_STATE + '\n' + TOC + '\n' + CONNECTORS + '\n' + APPROVAL + '\n' + CONNECTING_CORE + CLOSE;
+
 // argless + constant on purpose: deterministic across runs (resume-safe). opts reserved for future
 // surface/role tailoring without breaking callers.
 function starnetManual(/* opts */) { return MANUAL; }
 // the prompt form for a run whose wire carries manual.read. Constant too — it rides the cached prefix.
 function starnetManualIndex() { return MANUAL_INDEX; }
+// the same index with CONNECTING on demand (STARNET_PREFIX_DOCTRINE)
+function starnetManualIndexLean() { return MANUAL_INDEX_LEAN; }
+/* leanManualBlock — a run's manual block under that switch: the index becomes its lean form, and every other form (the
+   whole manual on a run without manual.read, the phone and terminal pointers, no manual at all) is returned as it came,
+   so the lean index can only ride where the index did: with manual.read on the wire. */
+function leanManualBlock(block) { return block === MANUAL_INDEX ? MANUAL_INDEX_LEAN : block; }
 /* THE OWNER, AWAY FROM THE STATION (2026-10-04): an owner-trusted chat-app turn (Telegram owner DM) used to get NO manual, so
    "how do I set up a schedule?" from a phone was answered from memory. The whole index is ~6K — too heavy for every phone turn
    — so these turns get only this pointer to manual.read (a constant: it rides the cached prefix). */
@@ -331,4 +366,5 @@ function manualSection(id) {
 }
 const MANUAL_SECTIONS = Object.freeze(SECTIONS.map(s => Object.freeze({ id: s.id, kind: s.kind, title: s.title, summary: s.summary || '' })));
 
-module.exports = { starnetManual, starnetManualIndex, starnetManualPointer, starnetManualTerminal, manualSection, MANUAL_SECTIONS, INLINE_RULE_EXCERPTS: Object.freeze([NAV_SESSIONS, NAV_AUTOMATION]) };
+module.exports = { starnetManual, starnetManualIndex, starnetManualPointer, starnetManualTerminal, manualSection, MANUAL_SECTIONS, INLINE_RULE_EXCERPTS: Object.freeze([NAV_SESSIONS, NAV_AUTOMATION]),
+  starnetManualIndexLean, leanManualBlock, CONNECTING_CORE, ON_DEMAND_RULE_SECTIONS };

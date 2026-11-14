@@ -155,7 +155,7 @@ const ProjectTools = require('./capability/project-tools.js');   // ONE projecti
 const ToolCatalog = require('./tools/catalog.js');   // the declared host tool catalogue a readout projects over (never dispatched)
 const { summarizeCapabilities } = require('./capability/capsummary.js');   // truthful "what you can/can't do" so the agent stops over-promising
 const { scopeForRun, makeSavedFloor } = require('./capability/cap-scope.js');   // ...and WHICH room a room-scoped agent's missing gear must go in
-const { starnetManual, starnetManualIndex, starnetManualPointer, starnetManualTerminal } = require('./manual.js');   // truthful "how StarNet works" so the agent can guide a stuck Commander (interactive only); the index form keeps rules inline + a TOC served by manual.read
+const { starnetManual, starnetManualIndex, starnetManualPointer, starnetManualTerminal, leanManualBlock, ON_DEMAND_RULE_SECTIONS } = require('./manual.js');   // truthful "how StarNet works" so the agent can guide a stuck Commander (interactive only); the index form keeps rules inline + a TOC served by manual.read
 const FinishLine = require('./finish-line.js');     // immutable "crawl to the finish line" task doctrine at the final prompt seam
 const { makeHarnessSnapshot } = require('./harness-snapshot.js');   // bounded secret-free build/scheduler/connectors/diagnostics truth for station.inspect
 const { makeOpenRouterProvider } = require('./providers/openrouter.js');
@@ -4370,9 +4370,13 @@ function effortAsRun(provider, model, sent, req) {
    default; not STARNET_LEAN_CREW, the zero-crew diet (crew-diet.js), which is on by default. */
 function crewDefaultsMode() { return CrewDefaults.mode(ENV('CREW_DEFAULTS')); }
 /* prefixLaneOn — the PREFIX cost lanes' switches (cost audit W3.9), each read here and nowhere else, through ENV(), at each
-   use: STARNET_PREFIX_TAIL (the specialist tail leaves the wire: capability/followups.js). '1' (or true / yes / on) is on;
-   '0', blank or unset is off. Every one is OFF by default: each changes what a model is shown on its first request, so it
-   ships dark until an A/B on real models passes, and with it off every request is the one this build sent before it. */
+   use:
+     STARNET_PREFIX_TAIL      the specialist tail leaves the wire (capability/followups.js)
+     STARNET_PREFIX_DOCTRINE  CONNECTING A PLATFORM rides as its rules with the walk-through behind manual.read, and HOW TO
+                              WORK drops the three sentences FINISH THE JOB restates (manual.js, finish-line.js)
+   '1' (or true / yes / on) is on; '0', blank or unset is off. Every one is OFF by default: each changes what a model is
+   shown on its first request, so it ships dark until an A/B on real models passes, and with it off every request is the
+   one this build sent before it. */
 function prefixLaneOn(suffix) { return /^(1|true|yes|on)$/i.test(String(ENV(suffix) || '').trim()); }
 /* crewEffort — LEANER CREW DEFAULTS, the effort half (W3.3: CrewDefaults.effortRule decides, this host applies it). A CREW
    run (a worker, a clone, a line stage: CrewDefaults.surfaceOf) whose effort is its class's applied default above medium
@@ -27354,9 +27358,17 @@ async function runOnceCore(o) {
   // TASK DOCTRINE (2026-07-08, ref-parity): the general operating loop every goliath harness prompt ships and
   // ours didn't — deliverable = proven outcome, quietest-path tool ladder, act→verify→iterate, honest escalation.
   // This block is what stops "open the app on the user's screen and type into it" when a quiet path exists.
+  /* FINISH THE JOB RESTATES THREE OF THESE SENTENCES (cost audit W3.9b, STARNET_PREFIX_DOCTRINE, off by default). The block
+     FinishLine.append closes every task prompt with says again, last and in more words, what the deliverable is, to keep
+     acting until done or honestly blocked, and never to repeat a failing call (finish-line.js RESTATED). With the switch on,
+     a run that block closes leaves those three out of HOW TO WORK. The block itself is never trimmed (its last position
+     is deliberate), and the append below is told the sentences are gone, so it cannot be skipped. Only on the cache-stable
+     prompt (stablePrefix: not a recovery continuation, not STARNET_STABLE_PREFIX=0, whose old single prompt stays whole). */
+  const stablePrefix = !internal && !o.recovery && String(ENV('STABLE_PREFIX') || '').trim() !== '0';   // CACHE-STABLE PREFIX, further down, says what it is
+  const howToWorkLean = stablePrefix && FinishLine.rides({ isTask, internal }) && prefixLaneOn('PREFIX_DOCTRINE');
   const taskDoctrineNote = ''
-    + 'HOW TO WORK: the deliverable is a real outcome proven by real tool output — never a description, a plan, or a promise of future action. '
-    + 'Act with tools NOW and keep going until the task is done or genuinely blocked; if blocked, say so honestly and try a different path — NEVER invent output you did not produce. '
+    + 'HOW TO WORK: ' + (howToWorkLean ? '' : 'the deliverable is a real outcome proven by real tool output — never a description, a plan, or a promise of future action. '
+    + 'Act with tools NOW and keep going until the task is done or genuinely blocked; if blocked, say so honestly and try a different path — NEVER invent output you did not produce. ')
     + 'Always take the QUIETEST path that achieves the goal: (1) a DEDICATED tool for the target service'
     + (hasJukebox ? ' (e.g. spotify_play for Spotify)' : '') + ' — try it FIRST even if you are unsure it is connected; '
     + '(2) HEADLESS work' + (hasShellExec ? ' — shell_exec can drive installed apps invisibly (app URI schemes, app CLIs' + (shellIsCmd ? ', PowerShell' : '') + ')' : '')
@@ -27367,7 +27379,8 @@ async function runOnceCore(o) {
       : '')
     + 'If a dedicated tool answers "not connected", immediately continue down this ladder with the next safe, already-authorized route. Do not ask merely because the fallback is louder. Ask only when that next route itself needs Commander authentication, exact consent, or a genuinely material choice. Mention connection setup only if it remains the final blocker after the alternatives are exhausted. '
     + 'After any action that changes the world, VERIFY it took effect with a read-back tool (e.g. now-playing after play, a listing after a write, a probe after a start) before reporting done. '
-    + 'A tool error is information: read it and change strategy — never repeat the identical failing call. Escalate automatically through safe authorized routes, and disclose a more visible or consequential route when its own consent boundary requires it. '
+    + (howToWorkLean ? '' : 'A tool error is information: read it and change strategy — never repeat the identical failing call. ')
+    + 'Escalate automatically through safe authorized routes, and disclose a more visible or consequential route when its own consent boundary requires it. '
     + 'Blocked sites, dead links and throttled engines are ordinary web weather: route around them, and mention an obstacle in your reply only if it changed the outcome — never narrate routine obstacles as failures, and never apologize for them. ';
   /* FILES BEFORE THE SHELL (2026-10-25, a v0.14.0 report on gpt-5.6-luna): this block used to OPEN with "when the Commander
      names a local project folder, first anchor shell_exec.cwd", and the file tools came up only as "inspect before editing" —
@@ -27613,7 +27626,13 @@ async function runOnceCore(o) {
   const manualBlock = (isTask && ownerTrusted && coreNames.indexOf('manual.read') >= 0) ? starnetManualPointer()
     : (isTask && surface === 'interactive') ? (coreNames.indexOf('manual.read') >= 0 ? starnetManualIndex() : starnetManual()) : '';
   // A terminal (CLI) task turn gets the terminal pointer instead: the desktop manual's "open X / place Y" has no meaning there.
-  const operatorManual = (isTask && o.viewer === 'terminal') ? starnetManualTerminal() : manualBlock;
+  const operatorManualWhole = (isTask && o.viewer === 'terminal') ? starnetManualTerminal() : manualBlock;
+  /* CONNECTING ON DEMAND (cost audit W3.9b, STARNET_PREFIX_DOCTRINE, off by default): the index carries CONNECTING A
+     PLATFORM as its rules alone and manual.read serves the walk-through (manual.js CONNECTING_CORE). Only the index form
+     has a lean form, so it rides only where the index did, with manual.read on the wire; manual.read is told which
+     sections that puts on demand, so it never lists one as already in the prompt. */
+  const operatorManual = prefixLaneOn('PREFIX_DOCTRINE') ? leanManualBlock(operatorManualWhole) : operatorManualWhole;
+  if (operatorManual !== operatorManualWhole) capCtx.manualOnDemand = ON_DEMAND_RULE_SECTIONS.slice();
   // a run never waits for the build id (VD-HANDOVER-01: a diagnostic never holds a run). [RUNTIME] reads the version as
   // it stands: while a checkout's git has not answered it says the build is still resolving (sidecar/version-source.js)
   const runtimeVersion = computeVersionSurface();
@@ -27774,7 +27793,7 @@ async function runOnceCore(o) {
   // Commander suppresses that domain. It grants no tools or authority; it is a bounded planning prior.
   // The cache-stable system prompt (stablePrefix, see CACHE-STABLE PREFIX below) carries the TIER-ONLY form: a count changes
   // with every verified outcome and would re-write the cached prefix mid-conversation. The kill switch keeps the counted one.
-  const stablePrefix = !internal && !o.recovery && String(ENV('STABLE_PREFIX') || '').trim() !== '0';
+  // (`stablePrefix` is declared above the [HARNESS] note, where HOW TO WORK asks it first.)
   let journeyBlock = '';
   if (!internal) { try { const jb = journeyStore.adaptationBlock(agentId, { counts: !stablePrefix }); if (jb) journeyBlock = '\n\n' + jb; } catch (_) { journeyBlock = ''; } }
   /* DELIVERABLE NAMING — asked for at THE one final prompt seam, so every real-work surface gets it identically:
@@ -27856,7 +27875,7 @@ async function runOnceCore(o) {
   // the crew call is NOT a run-context block: it trails the Commander's words as its own <crew_call> note (below)
   const perRunBlocks = LearnedTail.tail(persona.learned) + delegatedBlock + runtimeSkillBlock + preloadedSkillBlock + taskBriefContext + stationEvidenceBlock + awayBriefingNote + directDomainBlock + runtimeBlock;
   const taskSystem = stablePrefix
-    ? FinishLine.append(cacheSystemPrefix + serviceKeysBlock + taskDoctrine + journeyBlock + deliverableNote, { isTask, internal, tools: resolved.tools })
+    ? FinishLine.append(cacheSystemPrefix + serviceKeysBlock + taskDoctrine + journeyBlock + deliverableNote, { isTask, internal, tools: resolved.tools, restated: howToWorkLean })
     : FinishLine.append(cacheSystemPrefix + PromptScrub.scrubStored(delegatedBlock + stationEvidenceBlock + runtimeSkillBlock
       + preloadedSkillBlock + serviceKeysBlock + taskIntentNote + awayBriefingNote + directDomainBlock + journeyBlock
       + deliverableNote + crewCallNote + runtimeBlock), { isTask, internal, tools: resolved.tools });   // STABLE_PREFIX=0: the per-run blocks get the run_context belt
