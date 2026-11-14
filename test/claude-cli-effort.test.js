@@ -277,7 +277,9 @@ const asSent = t => t.effort || 'cli-default';
     A.ok(/row\.effortPicked === true && normalizeReasoningEffort\(row\.reasoningEffort\) === asked/.test(pick) && /wire\.followsStation/.test(pick), 'a pick is the marked roster row the effort rule read, at the effort the run resolved');
     A.eq((idx.match(/effortPickedFor\(/g) || []).length, 2, 'one pick rule, called once per run');
     const built = idx.match(/selectProvider\(\{[^}]*\beffortPicked\b[^}]*\}\)/g) || [];
-    A.eq(built.length, 4, 'the run hands its pick to every adapter it may run on (the primary, each sign-in, a provider fallback)');
+    A.eq(built.length, 3, 'the run hands its pick to every claude-cli adapter it may run on (each sign-in, the primary included, and a provider fallback)');
+    A.ok(/const effortPicked = cliEffortMode\(\) === EffortClamp\.CLI_PICKED && effortPickedFor\(agentId, reasoningEffort, runWire\);/.test(idx) && /if \(first\.id \|\| effortPicked\) \{ provider = onAccount\(first\);/.test(idx),
+      'only the picked mode asks, and a picked effort rebuilds the primary sign-in\'s adapter with it (off and all build exactly as before)');
     A.ok(built.every(s => /reasoningEffort, effortPicked/.test(s)), '...together with the effort it belongs to');
     // the roster keeps the mark only when it is set
     A.ok(/\.\.\.\(\(a && a\.effortPicked === true && a\.reasoningEffort\) \? \{ effortPicked: true \} : \{\}\),/.test(idx) && /if \(a\.effortPicked === true && a\.reasoningEffort\) known\.effortPicked = true;/.test(idx), 'a roster row carries the mark only when set (every other row is byte-identical)');
@@ -302,6 +304,7 @@ const asSent = t => t.effort || 'cli-default';
       A.eq([summon(S, classHigh, { model: '', provider: '', effort: 'max' }).reasoningEffort, summon(S, classHigh, { model: '', provider: '', effort: 'max' }).effortPicked], ['max', true], mode + ': the summon card\'s own effort is a pick');
       A.eq('effortPicked' in summon(S, classHigh, { model: 'claude-sonnet-5-5', provider: 'claude-cli', effort: '' }), false, mode + ': a model picked on the card with effort auto is not a pick');
       A.eq([S.effortPickOf({ id: 'x', reasoningEffort: 'high', effortPicked: true }), S.effortPickOf({ id: 'x', reasoningEffort: 'high' }), S.effortPickOf({ id: 'x', reasoningEffort: null, effortPicked: true })], [{ effortPicked: true }, {}, {}], mode + ': the roster row carries the mark only when set');
+      A.eq([S.effortSourceOf({ id: 'x', reasoningEffort: 'high', effortPicked: true }), S.effortSourceOf({ id: 'x', reasoningEffort: 'high', effortSource: 'class' })], [{ effortPicked: true }, {}], mode + ': what the roster push spreads (effortSourceOf) carries the pick mark, and no W3.3 marker while that switch is off');
       const ag = { id: 'x', reasoningEffort: 'high' };
       S.noteEffortPick(ag, true); const marked = ag.effortPicked; S.noteEffortPick(ag, false);
       A.eq([marked, 'effortPicked' in ag], [true, false], mode + ': the mark is set by a pick and dropped when the effort stops being one');
@@ -309,7 +312,7 @@ const asSent = t => t.effort || 'cli-default';
     for (const off of ['off', undefined]) {
       const S = section(off);
       const ag = summon(S, classHigh, { model: '', provider: '', effort: 'max' });
-      A.eq(['effortPicked' in ag, S.effortPickOf({ id: 'x', reasoningEffort: 'high', effortPicked: true })], [false, {}], 'off (' + off + '): no mark is written and none is sent (the roster push is the one it always was)');
+      A.eq(['effortPicked' in ag, S.effortPickOf({ id: 'x', reasoningEffort: 'high', effortPicked: true }), S.effortSourceOf({ id: 'x', reasoningEffort: 'high', effortPicked: true })], [false, {}, {}], 'off (' + off + '): no mark is written and none is sent (the roster push is the one it always was)');
       const old = { id: 'x', reasoningEffort: 'high', effortPicked: true };
       S.noteEffortPick(old, true);
       A.eq('effortPicked' in old, false, 'off (' + off + '): a hand pick drops a mark an earlier on-period left (nobody vouches for it)');
@@ -359,8 +362,9 @@ const asSent = t => t.effort || 'cli-default';
       w.setAgentModelPin('agent', 'claude-opus-5-5', 'claude-cli', 'max');
       A.eq(['effortPicked' in w.agents.get('eng'), 'effortPicked' in w.agents.get('agent')], [false, false], 'off: no hand action writes a mark');
     }
-    A.ok(/noteEffortPick\(a, true\); if \(storedAgent && storedAgent !== a\) noteEffortPick\(storedAgent, true\);/.test(app), '/reasoning and /fast (applyConfig\'s effort patch) are picks');
-    A.ok(/\.\.\.effortSourceOf\(a\), \.\.\.effortPickOf\(a\) \}\)\);/.test(app) && /\.\.\.\(a\.effortPicked === true \? \{ effortPicked: true \} : \{\}\) \};/.test(app) && /s\.effortPicked === true\) a\.effortPicked = true;/.test(app),
+    A.ok(/noteEffortSource\(a, 'pin', true\); if \(storedAgent && storedAgent !== a\) noteEffortSource\(storedAgent, 'pin', true\);/.test(app), '/reasoning and /fast (applyConfig\'s effort patch) are picks');
+    A.ok(/if \(pick !== undefined\) noteEffortPick\(a, pick\);/.test(A.fnBody(app, 'function noteEffortSource(')), 'the hand actions say it through the one function they already call (noteEffortSource\'s third argument)');
+    A.ok(/function effortSourceOf\(a\) \{ return Object\.assign\(crewEffortSourceOf\(a\), effortPickOf\(a\)\); \}/.test(app) && /\.\.\.effortSourceOf\(a\) \}\)\);/.test(app) && /\.\.\.\(a\.effortPicked === true \? \{ effortPicked: true \} : \{\}\) \};/.test(app) && /s\.effortPicked === true\) a\.effortPicked = true;/.test(app),
       'the mark rides the roster push, the save and the restore');
     const h = read('frontend/app/harness.js');
     A.ok(/cliEffortMode = \(j && \(j\.cliEffort === 'picked' \|\| j\.cliEffort === 'all'\)\) \? j\.cliEffort : 'off';/.test(h) && /\bcrewDefaults, cliEffort, /.test(h), 'the page learns the switch from GET /api/providers');

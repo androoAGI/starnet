@@ -24838,14 +24838,15 @@ async function runOnceCore(o) {
   // own roster record (its pin's effort, else the class applied default — Class Loadouts S1), then the Overseer's effort
   // when the agent follows the station default, then the provider default. Every surface resolves the same rule.
   const reasoningEffort = resolveReasoningEffort(providerId, runWire.reasoningEffort);
-  // W3.8: whether that effort is the Commander's own pick. Only the claude-cli adapter reads it (STARNET_CLI_EFFORT=picked).
-  const effortPicked = effortPickedFor(agentId, reasoningEffort, runWire);
   let model = String(runWire.model || '').trim() || (usingCodex ? CODEX_DEFAULT_MODEL : CRON_DEFAULT_MODEL);
   // A batch-only variant ('<id>:batch') an older build offered and saved can never run on chat/completions (404 on every
   // run); run its base model instead. The sidecar never rewrites the saved roster or routine record (the page's model
   // dock does move ITS selection to the base row and saves it: modeldock.js catalogEquivalent); this run's own events,
   // history and cost name the model it really used.
   model = chatModelId(providerId, model);
+  // W3.8: whether the run's effort is the Commander's own pick. Only STARNET_CLI_EFFORT=picked asks, and only the claude-cli
+  // adapter is told (the sign-in chain and a provider fallback below); off and all never look, so their runs build as before.
+  const effortPicked = cliEffortMode() === EffortClamp.CLI_PICKED && effortPickedFor(agentId, reasoningEffort, runWire);
   const runKey = providerRuntimeKey(providerId, callerCredential ? key : '');
   const baseUrl = providerRuntimeBaseUrl(providerId, callerCredential ? (o.baseUrl || o.base_url || '') : '', runKey, callerCredential ? key : '', callerCredential && o.keyInRequest === true);   // #89: a page copy's endpoint rides only its own key (review r8: unless /api/run's body sent that key)
   // S3 (decision 7; credential-store.js inFlight): each adapter this run builds below is watched on the key it sends when that
@@ -26439,7 +26440,7 @@ async function runOnceCore(o) {
     }
     provider = selectProvider({ provider: providerId, fetch: globalThis.fetch, token: oauthToken, headers: oauthInferenceHeaders(providerId), baseUrl, reasoningEffort });
   } else {
-    provider = runWatch.watch(selectProvider({ provider: providerId, fetch: globalThis.fetch, key: runKey, baseUrl, reasoningEffort, effortPicked }), providerId, runKey, runKeyWatch);
+    provider = runWatch.watch(selectProvider({ provider: providerId, fetch: globalThis.fetch, key: runKey, baseUrl, reasoningEffort }), providerId, runKey, runKeyWatch);
   }
   // S3: a station key let go of before this run reached its adapter (a turn queued behind another, a pre-run await) sends nothing
   { const gone = runKeyGone(provider); if (gone) { endUnstarted(gone, false); return; } }
@@ -26531,7 +26532,8 @@ async function runOnceCore(o) {
     const onAccount = a => a.id ? selectProvider({ provider: providerId, configDir: a.dir, reasoningEffort, effortPicked, usageAccount: a.id }) : selectProvider({ provider: providerId, reasoningEffort, effortPicked });
     const first = byKey.get(ordered[0]);
     activePrimaryKey = first.credKey;
-    if (first.id) { provider = onAccount(first); auxVisionProvider = provider; studioModelProvider = provider; }
+    // W3.8: the primary sign-in's adapter was built above without the run's pick; a picked effort builds it again with it
+    if (first.id || effortPicked) { provider = onAccount(first); auxVisionProvider = provider; studioModelProvider = provider; }
     rotationFallbacks = ordered.slice(1).map(k => { const a = byKey.get(k); return { provider: onAccount(a), providerId, model, credKey: k, account: a.label }; });
   }
   if (oauthAccounts && oauthAccounts.length > 1) {
