@@ -7,15 +7,20 @@ const profiles = require('../execution-profiles.js');
 function effectiveToolsets({ registry, agentId, agent, placed = [], disabled = {}, fullAccess = false, masterBypass = false, lead = false, backendId = 'local' } = {}) {
   agent = agent || {};
   const source = fullAccess ? 'environment' : masterBypass ? 'station' : agent.approvalMode === 'full' ? 'agent' : null;
-  const unrestricted = !!source;
   const profile = profiles.resolve(agent.executionProfile, { approvalMode: agent.approvalMode, backendId });
+  // Full Power's APPROVAL + CAPABILITY halves (no prompts, every tool family, switches overridden) vs its REACH half
+  // (the whole host): a TRUSTED PROJECT agent gets the first two only (execution-profiles.js reachesWholeHost), so its
+  // rows read like any Full Power agent's while its files label stays the profile's.
+  const fullPower = !!source;
+  const unrestricted = profiles.reachesWholeHost(profile, fullPower);
   const onFloor = new Set(placed);
   const projected = new Set(profile.capabilityObjects);
   return {
     authority: { agentId: agentId || null, name: agent.name || agentId || 'Station defaults', unrestricted, source,
+      fenced: fullPower && !unrestricted,
       context: lead ? 'interactive lead' : 'capability grants',
       profile: profile.id, profileLabel: profile.label, filesystemLabel: unrestricted ? 'Whole local computer' : profile.filesystemLabel,
-      approvalLabel: unrestricted ? 'FULL ACCESS — no StarNet approval prompts' : 'ASK — standing grants apply',
+      approvalLabel: fullPower ? 'FULL ACCESS — no StarNet approval prompts' + (unrestricted ? '' : ' inside ' + profile.label + ' reach') : 'ASK — standing grants apply',
       revoke: source === 'environment' ? 'Clear SKYNET_FULL_ACCESS in the launch environment and restart.' : source === 'station' ? 'Turn off the station master bypass in Settings → Permissions; individual Full Access agents stay unrestricted.' : source === 'agent' ? 'Set this agent to ASK in its dossier.' : 'Revoke standing grants in Settings → Permissions.' },
     toolsets: toolsetRows(registry).map(r => {
       const enabled = disabled[r.id] !== false;
@@ -23,9 +28,9 @@ function effectiveToolsets({ registry, agentId, agent, placed = [], disabled = {
       const profileGranted = projected.has(r.object);
       const runtimeGranted = lead && r.object === 'orchestrator';
       return Object.assign({}, r, { toolCount: r.tools.length, enabled, placed: placedHere, profileGranted, runtimeGranted,
-        available: unrestricted || (enabled && (placedHere || profileGranted || runtimeGranted)),
-        grantSource: unrestricted ? 'Full Access' : profileGranted ? profile.label : placedHere ? 'station prop' : runtimeGranted ? 'lead run' : null,
-        switchEffective: !unrestricted, consentGated: !unrestricted && r.consentGated });
+        available: fullPower || (enabled && (placedHere || profileGranted || runtimeGranted)),
+        grantSource: fullPower ? 'Full Access' : profileGranted ? profile.label : placedHere ? 'station prop' : runtimeGranted ? 'lead run' : null,
+        switchEffective: !fullPower, consentGated: !fullPower && r.consentGated });
     })
   };
 }

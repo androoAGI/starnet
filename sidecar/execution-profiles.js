@@ -49,7 +49,7 @@ const PROFILES = Object.freeze({
     capabilityObjects: Object.freeze(['computer', 'cabinet', 'workbench']),
     connectors: true,
     physicalDesktop: 'lease-required',
-    description: 'Runs locally with terminal, files, and connected services. Host files stay limited to project folders you approve.'
+    description: 'Runs locally with terminal, files, and connected services. Host files stay limited to project folders you approve, Full Power included.'
   }),
   'this-computer': Object.freeze({
     id: 'this-computer', label: 'THIS COMPUTER', backend: 'local',
@@ -92,4 +92,19 @@ function catalog(runtime) {
   return IDS.map(id => resolve(id, runtime));
 }
 
-module.exports = { IDS, VALID_IDS, PROFILES, validId, normalizeId, resolve, catalog };
+/* THE REACH FENCE (2026-11-08, Andrew). Full Power is two things: APPROVAL (never stop to ask) and REACH (the whole
+   local computer). TRUSTED PROJECT keeps the first and drops the second, so an unattended agent can work its approved
+   project folders without a single card while everything else on the computer stays out of reach: a path outside
+   them is asked about on a watched run and refused on an unattended one, the terminal keeps the workspace floor,
+   and screen/input control still needs the live desktop lease the profile names. Every reader of "does this run
+   reach the whole host" asks THIS function — runOnce, the toolsets readout, a channel's floor, the dossier copy —
+   so the label and the run are one decision. `profile` is a resolved profile or its id. */
+function fencesHost(profile) {
+  const id = profile && typeof profile === 'object' ? profile.id : profile;
+  return String(id || '') === 'trusted-project';
+}
+function reachesWholeHost(profile, fullPower) {
+  return fullPower === true && !fencesHost(profile);
+}
+
+module.exports = { IDS, VALID_IDS, PROFILES, validId, normalizeId, resolve, catalog, fencesHost, reachesWholeHost };

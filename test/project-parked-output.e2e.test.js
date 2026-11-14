@@ -36,7 +36,10 @@ function startProvider() {
         if (m) seen.parked = m[1];
         let call = null;
         if (results.length === 0) call = { id: 'brief', name: 'brief_proceed', args: { objective: 'page a large output back', deliverable: 'the middle marker', assumptions: ['The project root is already blessed'] } };
-        else if (results.length === 1) call = { id: 'big', name: 'shell_exec', args: { cmd: 'node -e "process.stdout.write(\'PARK_HEAD\\n\'+(\'x\'.repeat(99)+\'\\n\').repeat(750)+\'PARK_MIDDLE_MARKER\\n\'+(\'y\'.repeat(99)+\'\\n\').repeat(750)+\'PARK_TAIL\\n\')"' } };
+        // THE REACH FENCE (2026-11-08): this TRUSTED PROJECT agent is fenced even on Full Power, so its command meets the
+        // workspace text floor, which reads a quoted '\n' escape as a drive-root path; the newline is built instead.
+        // The output is byte-identical (the page offsets below still land on the marker).
+        else if (results.length === 1) call = { id: 'big', name: 'shell_exec', args: { cmd: 'node -e "const n=String.fromCharCode(10);process.stdout.write(\'PARK_HEAD\'+n+(\'x\'.repeat(99)+n).repeat(750)+\'PARK_MIDDLE_MARKER\'+n+(\'y\'.repeat(99)+n).repeat(750)+\'PARK_TAIL\'+n)"' } };
         // Replay the pointer EXACTLY as handed over — no normalizing, no guessing — first whole, then paged.
         else if (results.length === 2 && seen.parked) call = { id: 'readback', name: 'fs_read', args: { path: seen.parked } };
         else if (results.length === 3 && seen.parked) call = { id: 'page', name: 'fs_read', args: { path: seen.parked, offset: 74990, limit: 100 } };   // fs.read pages by CHARACTER: the marker sits at 75010

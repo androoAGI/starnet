@@ -120,7 +120,8 @@ const verdict = (x) => ({ channelSender: x && x.channelSender, channelSenderOwne
     const label = 'Telegram owner DM, FULL POWER';
     const [, origin, posture, facts, sctx] = ROWS.find(r => r[0] === label);
     const s = scenarioOf(label, origin, posture, facts);
-    const call = '{ connectorIds: connectors.ids(), unrestrictedHost, executionProfile }';
+    // THE REACH FENCE (2026-11-08): the readout hands over both Full Power halves (reach + capability) and the profile
+    const call = '{ connectorIds: connectors.ids(), unrestrictedHost, fullPower, executionProfile }';
     let anchored = false;
     const dropped = await C.readoutPlaced(ROOT, s, sctx, { mutate: fn => { anchored = fn.indexOf(call) >= 0; return fn.replace(call, '{ connectorIds: connectors.ids() }'); } });
     A.ok(anchored, 'MUTATION 1 anchor: the readout hands projectStation FULL POWER and the execution profile');

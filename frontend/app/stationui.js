@@ -3020,6 +3020,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     const id = String((a && a.executionProfile) || '');
     return EXECUTION_PROFILES.some(p => p.id === id) ? id : EXECUTION_PROFILE_DEFAULT;
   }
+  // THE REACH FENCE — the page's copy of sidecar/execution-profiles.js fencesHost (one id, locked together by
+  // test/reach-fence.test.js): the reach Full Power never widens past the approved project folders.
+  function reachFencedId(id) { return id === 'trusted-project'; }
   // SANDBOX UNAVAILABLE chip (truthful telemetry): the sidecar's /api/execution-profiles row carries
   // environment.backendMatched from the router's real resolution. When the requested sandbox (Docker /
   // SSH) is not there, the router REFUSES commands rather than quietly running them on the host — so the
@@ -3071,14 +3074,18 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
 
   function approvalCard(a) {
     const full = !!(a && a.approvalMode === 'full');
+    const fenced = reachFencedId(executionProfileId(a));
     const chip = (id, label, desc, sel) =>
       '<button type="button" class="ov-vchip' + (sel ? ' sel' : '') + '" data-approval="' + id + '" data-name="' + esc(label) + '" data-tip="' + esc(desc) + '" aria-pressed="' + (sel ? 'true' : 'false') + '">' + esc(label) + '</button>';
     return '<div class="cf-card" id="ag-approval-card">' +
       '<div class="cf-head"><span class="cf-file">✋ approval prompts</span></div>' +
-      '<div class="cf-desc">ASK respects the selected reach profile and pauses before risky calls. FULL POWER authorizes the whole local computer: all available tools, host paths, arbitrary commands, visible apps, and screen/input control. <code>/yolo</code> is the Full Power shortcut.</div>' +
+      '<div class="cf-desc">ASK respects the selected reach profile and pauses before risky calls. ' + (fenced
+        ? 'FULL POWER never asks, but this agent\'s reach is TRUSTED PROJECT, so it still reaches only your approved project folders: nothing else on this computer.'
+        : 'FULL POWER authorizes the whole local computer: all available tools, host paths, arbitrary commands, visible apps, and screen/input control.') +
+        ' <code>/yolo</code> is the Full Power shortcut.</div>' +
       '<div class="ov-vchips" id="ag-approval-chips">' +
         chip('ask', 'ASK FOR APPROVAL', 'stops to check with you before it writes, runs, or reaches out', !full) +
-        chip('full', 'FULL POWER', 'uses the whole local computer without approval prompts', full) +
+        chip('full', 'FULL POWER', fenced ? 'never asks, inside your approved project folders only' : 'uses the whole local computer without approval prompts', full) +
       '</div>' +
       '<div id="ag-approval-msg" class="msg"></div>' +
     '</div>';
@@ -9692,6 +9699,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
             '<button class="ov-vchip' + (full ? ' sel' : '') + '" data-ap-flip="' + esc(String(a.id)) + '" data-ap-to="full" data-name="NO — JUST DO IT" aria-pressed="' + (full ? 'true' : 'false') + '">NO — JUST DO IT</button>';
           // the EFFECTIVE posture — what this agent will actually do on its next risky call
           const effFull = full || overridden;
+          // THE REACH FENCE (sidecar/execution-profiles.js fencesHost): under TRUSTED PROJECT, Full Power never asks but
+          // still reaches only the approved project folders, so the stored reach DOES limit it and is named as the limit
+          const fenced = effFull && reachFencedId(id);
           /* THE ROW COLLAPSES (2026-08-14, Andrew: "it will be annoying for people who have 10+ agents").
              MEASURED on trunk before changing anything: one expanded row is 394px, so the pane runs 1322px
              at ONE agent and 4454px at ten — 7.4 screens, with the crew block alone 3996px of it, i.e. 90%
@@ -9718,7 +9728,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           // and "whole-station override is ON · returns to FU…" cut off the one fact it is there for (the badge says FULL POWER)
           const stateLine = overridden
             ? (AP ? 'returns to ' + AP.label : 'returns to its custom mix') + ' when the whole-station override is off'
-            : (AP ? AP.agentBlurb : full ? 'full power · the whole local computer' : 'asks first · ' + p.short);
+            : (AP ? AP.agentBlurb : fenced ? 'full power · only my project folders' : full ? 'full power · the whole local computer' : 'asks first · ' + p.short);
           const postureChips = STATION_POSTURES.map(P =>
             '<button class="ov-vchip pc-posture' + (AP && AP.id === P.id ? ' sel' : '') + (P.id === 'open' ? ' danger' : '') + '" data-agent-posture="' + P.id + '" data-agent="' + esc(String(a.id)) + '"' +
               ' title="' + esc(P.agentBlurb) + '" aria-pressed="' + (AP && AP.id === P.id ? 'true' : 'false') + '"' + (can && canAsk ? '' : ' disabled') + '>' + esc(P.label) + '</button>').join('');
@@ -9731,8 +9741,11 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
               '<span class="pc-caret" aria-hidden="true">▸</span>' +
             '</summary>' +
             '<div class="ov-vchips pc-chips pc-posture-chips">' + postureChips + '</div>' +
-            (AP ? '' : '<p class="pc-plain">A custom mix — ' + (full
-              // approvalMode 'full' is the whole local computer (unrestrictedHostNow): the saved reach limits nothing, so it is never named as a limit
+            (AP ? '' : '<p class="pc-plain">A custom mix — ' + (fenced
+              // TRUSTED PROJECT is the one reach Full Power keeps (execution-profiles.js reachesWholeHost)
+              ? 'it has <b>full power</b> inside <b>' + esc(p.plainLabel.toLowerCase()) + '</b> only: nothing else on this computer'
+              : full
+              // approvalMode 'full' with any other reach is the whole local computer (unrestrictedHostNow): the saved reach limits nothing
               ? 'it has <b>full power</b> over the whole local computer; the saved reach below does not limit it'
               : 'it reaches <b>' + esc(p.plainLabel.toLowerCase()) + '</b> and asks before risky steps') + '. Pick an answer above to reset it, or fine-tune below.</p>') +
             '<details class="mc-adv pc-exact"' + (permExactOpen.has(String(a.id)) || id === 'remote-ssh' ? ' open' : '') + ' data-exact-agent="' + esc(String(a.id)) + '"><summary>More options — exact reach, asking, sandbox</summary>' +
@@ -9741,13 +9754,16 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
               // `pc-reach-chips` lays the five rungs out as an EVEN grid rather than a flex-wrap (an ordered scale
               // must read as one). (CSS-only; the chips themselves are unchanged.)
               (can ? '<div class="ov-vchips pc-chips pc-reach-chips">' + reachChips + '</div>' : '<span class="pc-plain">' + esc(p.label) + '</span>') +
-              '<p class="pc-plain">' + (effFull ? 'Full Power currently overrides this stored reach profile; the profile applies again when Full Power is turned off.' : esc(p.plain)) + '</p>' +
+              '<p class="pc-plain">' + (fenced ? esc(p.plain) + ' Full Power does not widen it.'
+                : effFull ? 'Full Power currently overrides this stored reach profile; the profile applies again when Full Power is turned off.' : esc(p.plain)) + '</p>' +
               '<p class="mc-hint pc-truth">' + sandboxChip(row) + 'routes next command to <b>' + esc(routed) + '</b> · availability <b>' + esc(availability) + '</b> · files: ' + esc(p.files) + ' · tools: ' + esc(p.tools) + ' · desktop ' + esc(p.desktop) + '</p>' +
             '</div>' +
             '<div class="pc-axis pc-ask-axis">' +
               '<span class="pc-q">AUTHORITY' + (overridden ? ' <span class="pc-ovr">— OVERRIDDEN BY WHOLE-STATION FULL POWER</span>' : '') + '</span>' +
               (canAsk ? '<div class="ov-vchips pc-chips">' + askChips + '</div>' : '') +
-              '<p class="pc-plain">' + (overridden
+              '<p class="pc-plain">' + (fenced
+                ? 'It never stops to ask' + (overridden ? ' (the whole-station Full Power switch is ON)' : '') + ', inside its approved project folders only. A path outside them asks you on a watched run and is refused on an unattended one; screen and mouse control need a live desktop lease.'
+                : overridden
                 ? 'The whole-station Full Power switch is ON, so this agent has host-wide authority right now. ' + (full
                   ? 'It is also set to retain Full Power on its own.'
                   : 'Turn that switch off and it goes back to stopping for your yes, as selected here.')

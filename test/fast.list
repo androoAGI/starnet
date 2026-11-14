@@ -1455,6 +1455,7 @@ test/workview.test.js
 test/direct-work-launch.test.js
 test/first-value.test.js
 test/effective-toolsets.test.js
+test/reach-fence.test.js
 test/discovery-documents.test.js
 test/value-loop-replay.test.mjs
 test/platform-handoff.test.js

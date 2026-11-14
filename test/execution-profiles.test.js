@@ -46,7 +46,11 @@ const src = readSidecarSource();
 A.ok(/executionProfile\.capabilityObjects[\s\S]{0,180}stationWithObject/.test(src), 'run projection materializes profile capability objects');
 A.ok(/executionProfile\.connectors[\s\S]{0,120}stationWithConnectors/.test(src), 'trusted profiles materialize connector projection');
 A.ok(/executionProfile\.filesystemScope === 'host-paths-except-hard-floor'/.test(src), 'This Computer reaches the path-trust authority seam');
-A.ok(/const unrestrictedHostNow = \(\) => stationBypassNow\(\) \|\| agentFullAccessNow\(\)/.test(src), 'one central predicate composes every Full Power scope');
+A.ok(/const fullPowerNow = \(\) => stationBypassNow\(\) \|\| agentFullAccessNow\(\)/.test(src), 'one central predicate composes every Full Power scope');
+// THE REACH FENCE (2026-11-08): host reach is that predicate through the profile's one fence, never a second composition
+A.ok(/const unrestrictedHostNow = \(\) => executionProfiles\.reachesWholeHost\(executionProfile, fullPowerNow\(\)\)/.test(src), 'host-wide reach = Full Power through the reach fence');
+A.ok(/bypass: \(\) => fullPowerNow\(\) \|\| \(ownerTrusted && !prompt\), unrestrictedHost: unrestrictedHostNow,/.test(src), 'the consent broker never asks under Full Power, fenced or not, and only an unfenced run skips the hardline');
+A.ok(/fullAccess: agentFullAccessNow, hostFenced: reachFenced,/.test(src), 'the run authority learns the fence');
 A.ok(/const stationBypassNow = \(\) => !hostPowerWithheld && \(FULL_ACCESS \|\| masterBypassOn\(\)\)/.test(src), 'the station scopes (env + master bypass) are one withheld-aware predicate');
 A.ok(/Object\.keys\(CAP_REGISTRY\)[\s\S]{0,120}stationWithObject/.test(src), 'Full Power materializes every available built-in capability family');
 A.ok(/exact: '\/api\/execution-profiles'/.test(src), 'backend exposes the authoritative profile/runtime catalog');

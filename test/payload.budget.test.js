@@ -141,15 +141,20 @@ const HOST = '127.0.0.1';
    growth: +232 bytes a call buys back a whole request per consequential message. The comms-task system and prefix budgets
    move by exactly that growth (+121, +232), so each keeps W1.3's headroom; the prefix now sits 72 bytes over the audit's
    87,500, for a later prefix diet to win back. claude-cli 84,558 -> 84,790 bytes and lead-with-crew 55,893 -> 56,033 tool
-   bytes (W1.11: team.subagents' wait and timeoutMs) stay inside their budgets. */
+   bytes (W1.11: team.subagents' wait and timeoutMs) stay inside their budgets.
+   THE REACH FENCE 2026-11-08 (agent/fullaccess-fence-1108): the operator manual's APPROVAL paragraph gains one clause
+   (+63 chars, "a TRUSTED PROJECT reach keeps it to approved project folders"), first drafted at +244 and cut back because
+   every agent pays it on every call; the fenced agent's own approval clause carries the rest. Measured 22,289 /
+   22,510 / 25,457 system chars; tools and tool bytes unchanged. Intended growth: the system budgets move by 60.  Stacked on the cost stack 2026-11-13 (0.15.2 candidate): its +60 system chars / +63 prefix bytes ride the HEAD budgets. THE PRODUCT PHOTO LOCK (agent/product-lock-1109) in the same candidate: image_generate's product argument, +327 tool bytes on comms-task (57,677 -> 58,004) and claude-cli 84,790 -> 85,174 bytes with the fence; each budget = measurement + the headroom it had before (223 / 160 / 20).
+   */
 const BUDGET = {
-  'default-new-install': { systemChars: 22282, tools: 66, toolBytes: 51300 },
-  'fully-granted-floor': { systemChars: 22502, tools: 66, toolBytes: 51300 },
-  'lead-with-crew': { systemChars: 25422, tools: 71, toolBytes: 56230 },
-  'comms-task': { systemChars: 32236, tools: 70, toolBytes: 57900, prefixBytes: 87732 }
+  'default-new-install': { systemChars: 22342, tools: 66, toolBytes: 51300 },
+  'fully-granted-floor': { systemChars: 22562, tools: 66, toolBytes: 51300 },
+  'lead-with-crew': { systemChars: 25482, tools: 71, toolBytes: 56230 },
+  'comms-task': { systemChars: 32296, tools: 70, toolBytes: 58227, prefixBytes: 88122 }
 };
 // the comms-task call on the claude-cli route, where the tool schemas are text inside the system prompt file (bytes)
-const CLI_BUDGET = { systemBytes: 84810 };
+const CLI_BUDGET = { systemBytes: 85194 };
 
 /* THE COMMS PERSONA: the `system` the station page sends for its lead (frontend/app/app.js composeSystemPrompt), composed
    from the page's own functions over the real personas.js and specialties.js, so the comms-task rows measure the prompt a

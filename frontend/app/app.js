@@ -318,6 +318,10 @@ const App = (() => {
   }
   function approvalClause(a) {
     const full = a && a.approvalMode === 'full';
+    // THE REACH FENCE (sidecar/execution-profiles.js fencesHost): TRUSTED PROJECT keeps Full Power's no-asking but not
+    // its whole-computer reach, so the clause must not tell the agent it has the whole computer. Self-contained on purpose:
+    // the CLI lifts this function out of app.js by name (bin/lib/app-modules.js), so it may call no app.js helper.
+    if (full && String(a.executionProfile || '') === 'trusted-project') return '\n\nAUTHORITY — FULL POWER INSIDE YOUR PROJECT FOLDERS: the Commander lets you work without pausing for approval in your own workspace and in the project folders they approved. Your reach is TRUSTED PROJECT, so nothing else on this computer is yours: other host paths, terminal commands that name drive or parent paths, and screen/input control are outside it, and the harness refuses them. When the work truly needs another folder, say which one and why; on a watched run the harness asks the Commander to approve it, and an unattended run is refused. Never try to route around the fence.';
     if (full) return '\n\nAUTHORITY — FULL POWER: the Commander explicitly authorized the whole local computer. Do not pause for approval and do not claim a StarNet policy restriction: use every available tool, arbitrary host commands, host files, visible apps, and screen/input control needed to complete the request. This authority is general, not task-specific. Report only real prerequisites outside StarNet\'s control (for example a missing login, unavailable hardware, an OS elevation prompt, or a disconnected service), and keep trying viable routes before declaring one.';
     return '\n\nAPPROVAL — ASK FIRST: actions that write files, run commands, or reach the network need the Commander\'s approval — but you NEVER ask for it in a chat message. The approval system cannot see chat text; typed replies like "I approve" grant nothing. Instead, just make the tool call: the harness pauses it and shows the Commander a real approval prompt with Approve/Deny buttons, and the decision comes back to you automatically. Reasoning over what you already have needs no approval.';
   }
@@ -2128,7 +2132,7 @@ const App = (() => {
   // mutation/network call), threaded through pushRoster → /api/roster. `np` is the nameplate readout.
   const APPROVAL = Object.freeze([
     Object.freeze({ id: 'ask',  label: 'ASK FOR APPROVAL', icon: '✋', desc: 'stops to check with you before it writes, runs, or reaches out', np: 'asks for approval' }),
-    Object.freeze({ id: 'full', label: 'FULL POWER', icon: '⚡', desc: 'uses the whole local computer without approval prompts',          np: 'full power' })
+    Object.freeze({ id: 'full', label: 'FULL POWER', icon: '⚡', desc: 'never asks; reaches the whole local computer unless its reach is TRUSTED PROJECT', np: 'full power' })
   ]);
   const approvalById = id => APPROVAL.find(a => a.id === id) || APPROVAL[0];
   function applyTheme(t) {

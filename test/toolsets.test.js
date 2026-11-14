@@ -90,7 +90,9 @@ function stationWith(types) {
   A.ok(/handleToolsetsList/.test(idx) && /\/api\/toolsets/.test(idx), 'GET /api/toolsets wired');
   A.ok(/handleToolsetToggle/.test(idx) && /\/api\/toolsets\//.test(idx), 'POST /api/toolsets/:id wired');
   A.ok(/compute.*cannot be toggled|cannot be toggled/.test(idx), 'the toggle route refuses compute');
-  A.ok(/disabledCaps:\s*unrestrictedHostNow\(\)\s*\?\s*new Set\(\)\s*:\s*disabledCapsSet\(\)/.test(idx),
+  // THE REACH FENCE (2026-11-08): the switches follow Full Power's CAPABILITY half (fullPowerNow), not its reach,
+  // so a TRUSTED PROJECT Full Power agent keeps every family like any Full Power agent.
+  A.ok(/disabledCaps:\s*fullPowerNow\(\)\s*\?\s*new Set\(\)\s*:\s*disabledCapsSet\(\)/.test(idx),
     'the run path live-applies disabled toolsets in restricted modes and ignores them in Full Power');
 
   // ---------- 4. SOURCE GUARD: frontend surface + every guarded connectors/Spotify string kept ----------

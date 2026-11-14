@@ -18492,12 +18492,13 @@ async function toolsetsPreview(agentId, extraObjects, placement) {
   const providerId = normalizeProvider(wire.provider || '');
   const stationBypass = FULL_ACCESS || masterBypassOn();
   const agentFull = rec.approvalMode === 'full';
-  const unrestrictedHost = stationBypass || agentFull;
   const executionProfile = executionProfiles.resolve(rec.executionProfile, { approvalMode: rec.approvalMode, backendId: executionEnvironment.backendIdFor(agentId), physicalDesktopLease: false });
+  const unrestrictedHost = executionProfiles.reachesWholeHost(executionProfile, stationBypass || agentFull);   // the run's own reach fence
   const registry = ToolCatalog.buildCatalog();
   // a COMMS run has a live prompt channel: an unclassifiable effect is offered for an exact per-call confirmation
   const authority = makeRunAuthority({ surface: 'interactive', isTask: true, environment: executionEnvironment.forAgent(agentId), confirm: () => 'deny',
-    unattendedGrants: [], ownerTrusted: false, remoteDesktopAuthorized: false, masterBypass: stationBypass, fullAccess: () => agentFull });
+    unattendedGrants: [], ownerTrusted: false, remoteDesktopAuthorized: false, masterBypass: stationBypass, fullAccess: () => agentFull,
+    hostFenced: executionProfiles.fencesHost(executionProfile) });
   const deferralOff = String((process.env && process.env.SKYNET_TOOL_SEARCH) || '').trim() === '0';
   const studioRoute = studioRouteFor(providerId, providerRuntimeKey(providerId, ''), providerRuntimeBaseUrl(providerId, ''));
   let voiceRoute;
@@ -18506,7 +18507,7 @@ async function toolsetsPreview(agentId, extraObjects, placement) {
   const origin = { surface: 'interactive', floorless: false, ownerTrusted: false, trigger: 'directive', isTask: true, extraObjects, unattendedGrants: [] };
   const role = { lead: true, delegatedBy: '' };
   const facts = {
-    registry, authority, connectorIds: connectors.ids(), disabledCaps: disabledCapsSet(), unrestrictedHost,
+    registry, authority, connectorIds: connectors.ids(), disabledCaps: disabledCapsSet(), unrestrictedHost, fullPower: stationBypass || agentFull,
     realDesktopAuthority: unrestrictedHost && computerControl.available(), executionProfile, widgetScope: '',
     internalBriefTools: ['brief.ask', 'brief.update', 'brief.proceed'].filter(n => registry.get(n)), deferralOff,
     keySaveOffered: false, directDomain: false, leanCrew: ENV('LEAN_CREW'), crewCount: crewCountFor(agentId), connectorDefer: CONNECTOR_DEFER,
@@ -23250,12 +23251,13 @@ async function runSlashForChannel(input, ctx) {
     const hostPowerWithheld = typeof ctx.channelSender === 'boolean'
       ? hostPowerWithheldFor({ channelSender: ctx.channelSender, channelSenderOwner: ctx.channelSenderOwner })
       : !ctx.ownerTrusted;
-    const unrestrictedHost = !hostPowerWithheld && (FULL_ACCESS || masterBypassOn() || rec.approvalMode === 'full');
     const executionProfile = executionProfiles.resolve(rec.executionProfile, { approvalMode: hostPowerWithheld ? 'ask' : rec.approvalMode,
       backendId: executionEnvironment.backendIdFor(agentId), physicalDesktopLease: false });
+    const fullPower = !hostPowerWithheld && (FULL_ACCESS || masterBypassOn() || rec.approvalMode === 'full');
+    const unrestrictedHost = executionProfiles.reachesWholeHost(executionProfile, fullPower);
     const floor = ProjectTools.projectStation({ id: agentId },
       { surface: 'autonomous', floorless: true, ownerTrusted: !!ctx.ownerTrusted, station: admit.stationFor(agentId) || undefined },   // a hold throws into the catch below: no placed objects, never the whole default office
-      { lead: false }, { connectorIds: connectors.ids(), unrestrictedHost, executionProfile }).station;
+      { lead: false }, { connectorIds: connectors.ids(), unrestrictedHost, fullPower, executionProfile }).station;
     const room = floor.rooms && floor.agents && floor.agents[agentId] && floor.rooms[floor.agents[agentId].room];
     placed = Array.from(new Set(placedTypesFrom((room && room.objects) || [])));
   } catch (e) { failNote('slash.channel-floor', e); placed = []; }
@@ -24997,7 +24999,9 @@ async function runOnceCore(o) {
   // One central, host-minted meaning for "Full Power": station-wide env/master bypass or this agent's
   // persisted Full Access posture. Every downstream policy seam reads this source instead of inventing a
   // niche exception. It is live so a flip or revocation affects the next tool call.
-  const unrestrictedHostNow = () => stationBypassNow() || agentFullAccessNow();
+  // fullPowerNow is the APPROVAL half (never stop to ask); unrestrictedHostNow (below, after the profile) is the
+  // REACH half, which a TRUSTED PROJECT agent never gets (execution-profiles.js reachesWholeHost).
+  const fullPowerNow = () => stationBypassNow() || agentFullAccessNow();
   // The execution profile is snapshotted for this run's tool projection. Approval remains live and revocable
   // through agentFullAccessNow(); the profile never mints the separate physical-desktop lease.
   const agentExecutionProfileNow = () => {
@@ -25009,9 +25013,12 @@ async function runOnceCore(o) {
     });
   };
   const executionProfile = agentExecutionProfileNow();
+  // THE REACH FENCE: the profile is this run's snapshot, so the fence holds for the whole run; approval stays live.
+  const reachFenced = executionProfiles.fencesHost(executionProfile);
+  const unrestrictedHostNow = () => executionProfiles.reachesWholeHost(executionProfile, fullPowerNow());
   const userControlAuthority = makeRunAuthority({
     surface, isTask, environment: executionEnvironment.forAgent(agentId), confirm: o.prompt, unattendedGrants, ownerTrusted,
-    remoteDesktopAuthorized, masterBypass: stationBypassNow(), fullAccess: agentFullAccessNow,
+    remoteDesktopAuthorized, masterBypass: stationBypassNow(), fullAccess: agentFullAccessNow, hostFenced: reachFenced,
     connectorAuthority: o.connectorAuthority
   });
   const prompt = o.prompt;
@@ -26032,7 +26039,7 @@ async function runOnceCore(o) {
     extraObjects: o.extraObjects, unattendedGrants, enabledToolsets: o.enabledToolsets, groupTools: Array.isArray(o.groupTools) ? o.groupTools : undefined };
   const projectionRole = { lead: !!o.lead, delegatedBy: o.delegatedBy || '' };
   const projectionFacts = {
-    registry, authority: userControlAuthority, connectorIds: connectors.ids(), disabledCaps: disabledCapsSet(), unrestrictedHost: unrestrictedHostNow(),
+    registry, authority: userControlAuthority, connectorIds: connectors.ids(), disabledCaps: disabledCapsSet(), unrestrictedHost: unrestrictedHostNow(), fullPower: fullPowerNow(),
     realDesktopAuthority, executionProfile, widgetScope, internalBriefTools, deferralOff,
     keySaveOffered: !!(isTask && keyTexts && KeyTools.hasKeyCandidate(keyTexts)), directDomain: !!hostScope,
     leanCrew: ENV('LEAN_CREW'), crewCount: crewCountFor(agentId), connectorDefer: CONNECTOR_DEFER, availability,
@@ -26133,8 +26140,9 @@ async function runOnceCore(o) {
     // a FUNCTION, re-read every call: the master FULL BYPASS switch must take effect — and revoke — on the
     // very next tool call without a restart. The frozen env flag and the per-agent posture ride inside it.
     // final review #1: the owner's DM no longer skips cards on its own. It is card-free only through what the desk bound (the
-    // agent's Full Access or FULL BYPASS, both in unrestrictedHostNow); otherwise the hub asks in the chat (channelOwnerCardFree).
-    bypass: () => unrestrictedHostNow(), unrestrictedHost: unrestrictedHostNow, hardline: hardlineFloor, sessionKey: runId,
+    // agent's Full Access or FULL BYPASS). Reach fence: bypass = Full Power's APPROVAL half (fullPowerNow; a TRUSTED PROJECT
+    // agent on Full Access never waits on a card); unrestrictedHost = its REACH half, withheld from a fenced run (fencesHost).
+    bypass: () => fullPowerNow(), unrestrictedHost: unrestrictedHostNow, hardline: hardlineFloor, sessionKey: runId,
     grantsSession, grantsPermanent, persist: persistAllowlist,
     // Full Access is the persisted per-agent posture, so it applies on every surface and every later task.
     // The hardline floor remains above this broker and still denies protected physical/desktop effects.
@@ -26227,7 +26235,8 @@ async function runOnceCore(o) {
       project: tool => !signal?.aborted && userControlAuthority.project(tool),
       authorize: (call, tool) => signal?.aborted ? { ok: false, reason: 'delegating run cancelled' } : userControlAuthority.authorize(call, tool),
       prompt: typeof prompt === 'function' ? (call, tool, ask) => signal?.aborted ? 'deny' : prompt(call, tool, ask) : null,
-      fullAccess: () => !signal?.aborted && unrestrictedHostNow(),
+      // approval half only (read for a worker's connector calls after taint): host reach is never lent through delegation
+      fullAccess: () => !signal?.aborted && fullPowerNow(),
       // host-minted, never tool-supplied: a worker delegated from a non-owner channel run stays below Full Power
       withholdHostPower: hostPowerWithheld,
       untrustedEntry: untrustedEntryRun,   // host-minted: a worker of a payload-started run keeps the taint lock under Full Access
@@ -27763,7 +27772,8 @@ async function runOnceCore(o) {
           // ROOM SCOPE facts: the TOOLSETS switches resolveTools applied and the routine's own toolset list enforceEnabledToolsets
           // applied (gear either one leaves out is no room fix), and the image route makeImageTools was built from (without one
           // a STUDIO only analyzes images)
-          disabledCaps: unrestrictedHostNow() ? new Set() : disabledCapsSet(), enabledToolsets: unrestrictedHostNow() ? null : o.enabledToolsets,
+          // the switches Full Power overrides (its capability half: a TRUSTED PROJECT run keeps it, see project-tools.js fullPowerOf)
+          disabledCaps: fullPowerNow() ? new Set() : disabledCapsSet(), enabledToolsets: fullPowerNow() ? null : o.enabledToolsets,
           mediaRoute: !!(studioRoute && studioRoute.ok),
           // ROOM SCOPE: lazy (called only when a floor object is missing); the room it names is stable per agent, so the cached prefix holds.
           // hasBay first: an agent crewing no dock on the router's plan (the bayless hero) never reads or validates the saved floor

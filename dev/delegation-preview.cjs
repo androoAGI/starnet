@@ -26,7 +26,9 @@ async function provider() {
       return res.end(JSON.stringify({ data: [{ id: 'test/model', context_length: 32000, pricing: { prompt: '0', completion: '0' }, supported_parameters: ['tools'] }] }));
     }
     let body = ''; for await (const c of req) body += c;
-    const parsed = JSON.parse(body), messages = parsed.messages || [];
+    // a body-less probe (a key/credits GET) must not kill the whole dev station: answer it as an empty ask
+    let parsed = {}; try { parsed = JSON.parse(body || '{}'); } catch (_) { parsed = {}; }
+    const messages = parsed.messages || [];
     res.setHeader('Content-Type', 'text/event-stream');
     const send = delta => res.write('data: ' + JSON.stringify({ choices: [{ delta }] }) + '\n\n');
     const call = (name, args) => send({ tool_calls: [{ index: 0, id: name + Date.now(), type: 'function', function: { name, arguments: JSON.stringify(args) } }] });
