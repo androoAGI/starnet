@@ -238,7 +238,8 @@ const hardline = (call) => (call && call.args && /(^|\/)(\.env|permissions\.allo
     const fs = require('fs'); const path = require('path');
     const src = readSidecarSource();
     A.ok(/persistAgentFullAccess\(agentId\)/.test(src), 'the permission-card endpoint persists Full Access');
-    A.ok(/fullAccess: agentFullAccessNow/.test(src), 'run authority receives the live per-agent predicate');
+    // still a live per-call predicate — and a REMOTE SSH agent's Full Power never becomes input/screen authority here (2026-10-19)
+    A.ok(/fullAccess: \(\) => agentFullAccessNow\(\) && !remoteMachineNow\(\)/.test(src), 'run authority receives the live per-agent predicate');
     A.ok(/agentFullAccessNow\(\)/.test(src), 'the consent broker reads that posture on every call');
     A.ok(!/grantsBlanketByAgent|blanketSetFor|grantsBlanket:/.test(src), 'the obsolete process-memory wildcard is gone');
     const ui = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'app', 'chat.js'), 'utf8');

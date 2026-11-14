@@ -48,6 +48,11 @@ many of these — they win on any wording conflict.
   caps, checkpoints, truthful telemetry, OS account privileges, elevation prompts, credentials,
   unavailable hardware, and disconnected external services remain real engineering/runtime facts,
   not StarNet permission denials. ASK and narrower execution modes remain restricted as labeled.
+  - **Amended 2026-10-19 (Andrew): a REMOTE SSH agent keeps its machine.** When an agent's reach is
+  ANOTHER MACHINE, per-agent Full Access or the station master bypass means it never asks and its
+  shell is not held to its remote folder ON THAT MACHINE — it is never routed to, and never gains
+  host paths, apps, screen or input on, this computer. Only choosing THIS COMPUTER as its reach
+  brings it here (`sidecar/index.js` remoteMachineNow / forceLocalForAgent).
   - **Amended 2026-11-08 (Andrew, "build fence") — THE REACH FENCE.** Full Power is two halves: APPROVAL
     (never stop to ask) and REACH (the whole host). An agent whose reach is **TRUSTED PROJECT** keeps the
     approval half and never gets the reach half, under per-agent Full Access AND the station-wide bypass:

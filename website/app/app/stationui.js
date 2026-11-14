@@ -3075,17 +3075,20 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   function approvalCard(a) {
     const full = !!(a && a.approvalMode === 'full');
     const fenced = reachFencedId(executionProfileId(a));
+    // a REMOTE SSH agent's Full Power stays on its own machine (Andrew 2026-10-19) — the card says where it applies
+    const remote = executionProfileId(a) === 'remote-ssh';
     const chip = (id, label, desc, sel) =>
       '<button type="button" class="ov-vchip' + (sel ? ' sel' : '') + '" data-approval="' + id + '" data-name="' + esc(label) + '" data-tip="' + esc(desc) + '" aria-pressed="' + (sel ? 'true' : 'false') + '">' + esc(label) + '</button>';
     return '<div class="cf-card" id="ag-approval-card">' +
       '<div class="cf-head"><span class="cf-file">✋ approval prompts</span></div>' +
-      '<div class="cf-desc">ASK respects the selected reach profile and pauses before risky calls. ' + (fenced
-        ? 'FULL POWER never asks, but this agent\'s reach is TRUSTED PROJECT, so it still reaches only your approved project folders: nothing else on this computer.'
-        : 'FULL POWER authorizes the whole local computer: all available tools, host paths, arbitrary commands, visible apps, and screen/input control.') +
-        ' <code>/yolo</code> is the Full Power shortcut.</div>' +
+      '<div class="cf-desc">' + (remote
+        ? 'ASK pauses before risky calls and keeps its commands inside its folder on the other machine. FULL POWER never asks and lifts that folder limit — <b>on that machine only</b>: it gets nothing on this computer. <code>/yolo</code> is the Full Power shortcut.'
+        : 'ASK respects the selected reach profile and pauses before risky calls. ' + (fenced
+          ? 'FULL POWER never asks, but this agent\'s reach is TRUSTED PROJECT, so it still reaches only your approved project folders: nothing else on this computer.'
+          : 'FULL POWER authorizes the whole local computer: all available tools, host paths, arbitrary commands, visible apps, and screen/input control.') + ' <code>/yolo</code> is the Full Power shortcut.') + '</div>' +
       '<div class="ov-vchips" id="ag-approval-chips">' +
         chip('ask', 'ASK FOR APPROVAL', 'stops to check with you before it writes, runs, or reaches out', !full) +
-        chip('full', 'FULL POWER', fenced ? 'never asks, inside your approved project folders only' : 'uses the whole local computer without approval prompts', full) +
+        chip('full', 'FULL POWER', remote ? 'never asks; any command on its own machine, nothing on this computer' : fenced ? 'never asks, inside your approved project folders only' : 'uses the whole local computer without approval prompts', full) +
       '</div>' +
       '<div id="ag-approval-msg" class="msg"></div>' +
     '</div>';
@@ -3346,7 +3349,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         if (!(access.config && access.config.setApproval)) { setApMsg('approval change unavailable', false); sfx('bad'); return; }
         const ok = access.config.setApproval(a && a.id, id);
         if (ok === false) { setApMsg('could not change approval', false); sfx('bad'); return; }
-        notify(id === 'full' ? '⚡ ' + ((a && a.name) || 'agent') + ' now has Full Power over the local computer' : '✋ ' + ((a && a.name) || 'agent') + ' will ask before risky moves again', id === 'full' ? 'warn' : 'good');
+        notify(id === 'full' ? '⚡ ' + ((a && a.name) || 'agent') + (executionProfileId(a) === 'remote-ssh' ? ' now has Full Power on its own remote machine' : ' now has Full Power over the local computer') : '✋ ' + ((a && a.name) || 'agent') + ' will ask before risky moves again', id === 'full' ? 'warn' : 'good');
         sfx('click'); rerender('agents');
       }));
     }
@@ -9552,6 +9555,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         const n = present.length;
         const noPrompt = present.filter(a => a && a.approvalMode === 'full').length;
         const asks = n - noPrompt;
+        // who holds Full Power over THIS computer: a REMOTE SSH agent's stays on its own machine (Andrew 2026-10-19)
+        const remoteN = present.filter(a => executionProfileId(a) === 'remote-ssh').length;
+        const hostFullN = bypassOn ? n - remoteN : present.filter(a => a && a.approvalMode === 'full' && executionProfileId(a) !== 'remote-ssh').length;
+        const remoteFullN = bypassOn ? remoteN : noPrompt - hostFullN;
         // Whole sentences per branch rather than glued fragments — a concatenated subject and verb
         // disagree the moment the crew count is 1 ("Your one crew member stops and ask you").
         const everyone = (verbSingular, verbPlural) => n === 1
@@ -9559,7 +9566,13 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           : 'All ' + n + ' of your crew ' + verbPlural;
         let head;
         if (!n) head = 'No crew on the station yet. Nothing can run until you summon someone.';
-        else if (bypassOn) head = everyone('has', 'have') + ' Full Power over the local computer — the whole-station switch is ON.';
+        else if (bypassOn) {
+          // a REMOTE SSH agent's Full Power stays on its own machine (Andrew 2026-10-19): never count it as holding this computer
+          const localN = n - remoteN;
+          head = !remoteN ? everyone('has', 'have') + ' Full Power over the local computer — the whole-station switch is ON.'
+            : !localN ? everyone('has', 'have') + ' Full Power on ' + (n === 1 ? 'its' : 'their') + ' own remote machine' + (n === 1 ? '' : 's') + ' and none over this computer — the whole-station switch is ON.'
+            : localN + ' of your ' + n + ' crew ' + (localN === 1 ? 'has' : 'have') + ' Full Power over the local computer; ' + remoteN + ' on another machine ' + (remoteN === 1 ? 'keeps' : 'keep') + ' it there — the whole-station switch is ON.';
+        }
         else if (!noPrompt) head = everyone('stops and asks', 'stop and ask') + ' you before anything risky.';
         else if (!asks) head = everyone('runs', 'run') + ' without stopping to ask you.';
         else head = asks + ' of your ' + n + ' crew ask before anything risky; ' + noPrompt + ' run' + (noPrompt === 1 ? 's' : '') + ' without asking.';
@@ -9569,8 +9582,11 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         glanceWrap.classList.toggle('loud', bypassOn);
         glanceWrap.innerHTML =
           '<p class="pg-line">' + esc(head) + '</p>' +
-          ((bypassOn || noPrompt) ? '<p class="pg-floor">FULL POWER is host-wide: it may use protected files, arbitrary commands, visible apps, and screen/input control. Full Power applies watched or unattended.' +
+          (hostFullN ? '<p class="pg-floor">FULL POWER is host-wide: it may use protected files, arbitrary commands, visible apps, and screen/input control. Full Power applies watched or unattended.' +
             (bypassOn && !snap.envFullAccess ? ' Turn the whole-station override off under <b>Advanced</b> below.' : '') + '</p>' : '') +
+          // only remote holders: say what their Full Power is, not the host-wide paragraph about a state nobody here holds
+          (remoteFullN ? '<p class="pg-floor">FULL POWER on a REMOTE SSH agent stays on its own machine: there it never asks and is not held to its folder. It gets nothing on this computer.' +
+            (!hostFullN && bypassOn && !snap.envFullAccess ? ' Turn the whole-station override off under <b>Advanced</b> below.' : '') + '</p>' : '') +
           // a station with no credential-store key does not seal its permission files (GHSA-2hpj #3): said here, plainly
           (snap.loaded && snap.sealed === false ? '<p class="pg-floor pg-unsealed">This station has no credential-store key, so its permission files are not sealed: a program running as you could change who has Full Access. The StarNet app seals them.</p>' : '');
       };
@@ -9728,7 +9744,7 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
           // and "whole-station override is ON · returns to FU…" cut off the one fact it is there for (the badge says FULL POWER)
           const stateLine = overridden
             ? (AP ? 'returns to ' + AP.label : 'returns to its custom mix') + ' when the whole-station override is off'
-            : (AP ? AP.agentBlurb : fenced ? 'full power · only my project folders' : full ? 'full power · the whole local computer' : 'asks first · ' + p.short);
+            : (AP ? AP.agentBlurb : fenced ? 'full power · only my project folders' : full ? (id === 'remote-ssh' ? 'full power · on its own remote machine' : 'full power · the whole local computer') : 'asks first · ' + p.short);
           const postureChips = STATION_POSTURES.map(P =>
             '<button class="ov-vchip pc-posture' + (AP && AP.id === P.id ? ' sel' : '') + (P.id === 'open' ? ' danger' : '') + '" data-agent-posture="' + P.id + '" data-agent="' + esc(String(a.id)) + '"' +
               ' title="' + esc(P.agentBlurb) + '" aria-pressed="' + (AP && AP.id === P.id ? 'true' : 'false') + '"' + (can && canAsk ? '' : ' disabled') + '>' + esc(P.label) + '</button>').join('');
@@ -9746,7 +9762,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
               ? 'it has <b>full power</b> inside <b>' + esc(p.plainLabel.toLowerCase()) + '</b> only: nothing else on this computer'
               : full
               // approvalMode 'full' with any other reach is the whole local computer (unrestrictedHostNow): the saved reach limits nothing
-              ? 'it has <b>full power</b> over the whole local computer; the saved reach below does not limit it'
+              ? (id === 'remote-ssh'
+                // REMOTE SSH keeps its machine under Full Power (index.js remoteMachineNow): there the reach IS the limit
+                ? 'it has <b>full power on its own remote machine</b> and none over this computer'
+                : 'it has <b>full power</b> over the whole local computer; the saved reach below does not limit it')
               : 'it reaches <b>' + esc(p.plainLabel.toLowerCase()) + '</b> and asks before risky steps') + '. Pick an answer above to reset it, or fine-tune below.</p>') +
             '<details class="mc-adv pc-exact"' + (permExactOpen.has(String(a.id)) || id === 'remote-ssh' ? ' open' : '') + ' data-exact-agent="' + esc(String(a.id)) + '"><summary>More options — exact reach, asking, sandbox</summary>' +
             '<div class="pc-axis">' +
@@ -9755,7 +9774,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
               // must read as one). (CSS-only; the chips themselves are unchanged.)
               (can ? '<div class="ov-vchips pc-chips pc-reach-chips">' + reachChips + '</div>' : '<span class="pc-plain">' + esc(p.label) + '</span>') +
               '<p class="pc-plain">' + (fenced ? esc(p.plain) + ' Full Power does not widen it.'
-                : effFull ? 'Full Power currently overrides this stored reach profile; the profile applies again when Full Power is turned off.' : esc(p.plain)) + '</p>' +
+                : effFull ? (id === 'remote-ssh'
+                  ? 'Full Power keeps it on the other machine: there it never asks and is not held to its folder. It gets nothing on this computer.'
+                  : 'Full Power currently overrides this stored reach profile; the profile applies again when Full Power is turned off.') : esc(p.plain)) + '</p>' +
               '<p class="mc-hint pc-truth">' + sandboxChip(row) + 'routes next command to <b>' + esc(routed) + '</b> · availability <b>' + esc(availability) + '</b> · files: ' + esc(p.files) + ' · tools: ' + esc(p.tools) + ' · desktop ' + esc(p.desktop) + '</p>' +
             '</div>' +
             '<div class="pc-axis pc-ask-axis">' +
@@ -9763,6 +9784,10 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
               (canAsk ? '<div class="ov-vchips pc-chips">' + askChips + '</div>' : '') +
               '<p class="pc-plain">' + (fenced
                 ? 'It never stops to ask' + (overridden ? ' (the whole-station Full Power switch is ON)' : '') + ', inside its approved project folders only. A path outside them asks you on a watched run and is refused on an unattended one; screen and mouse control need a live desktop lease.'
+                : id === 'remote-ssh' && (overridden || full)
+                // a REMOTE SSH agent's Full Power stays on its own machine (Andrew 2026-10-19, index.js remoteMachineNow)
+                ? (overridden ? 'The whole-station Full Power switch is ON. ' : '') + 'On its own remote machine it never asks and may run any command, outside its folder too. It has no authority over this computer: no host files, apps, screen or input.'
+                  + (overridden && !full ? ' Turn that switch off and it goes back to stopping for your yes, as selected here.' : '')
                 : overridden
                 ? 'The whole-station Full Power switch is ON, so this agent has host-wide authority right now. ' + (full
                   ? 'It is also set to retain Full Power on its own.'

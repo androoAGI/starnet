@@ -7,20 +7,26 @@ const profiles = require('../execution-profiles.js');
 function effectiveToolsets({ registry, agentId, agent, placed = [], disabled = {}, fullAccess = false, masterBypass = false, lead = false, backendId = 'local' } = {}) {
   agent = agent || {};
   const source = fullAccess ? 'environment' : masterBypass ? 'station' : agent.approvalMode === 'full' ? 'agent' : null;
+
   const profile = profiles.resolve(agent.executionProfile, { approvalMode: agent.approvalMode, backendId });
   // Full Power's APPROVAL + CAPABILITY halves (no prompts, every tool family, switches overridden) vs its REACH half
   // (the whole host): a TRUSTED PROJECT agent gets the first two only (execution-profiles.js reachesWholeHost), so its
   // rows read like any Full Power agent's while its files label stays the profile's.
   const fullPower = !!source;
   const unrestricted = profiles.reachesWholeHost(profile, fullPower);
+  // REMOTE SSH (Andrew 2026-10-19): Full Power on an agent whose reach is ANOTHER MACHINE means no prompts and no
+  // folder limit THERE; it is never host-wide authority over this computer, so its tools stay its profile's.
+  const remoteMachine = fullPower && agent.executionProfile === 'remote-ssh';
+  const everyFamily = fullPower && !remoteMachine;   // the fence narrows reach, never tools; a remote agent keeps its profile's
   const onFloor = new Set(placed);
   const projected = new Set(profile.capabilityObjects);
   return {
-    authority: { agentId: agentId || null, name: agent.name || agentId || 'Station defaults', unrestricted, source,
-      fenced: fullPower && !unrestricted,
+    authority: { agentId: agentId || null, name: agent.name || agentId || 'Station defaults', unrestricted, source, remoteMachine,
+      fenced: fullPower && !unrestricted && !remoteMachine,
       context: lead ? 'interactive lead' : 'capability grants',
-      profile: profile.id, profileLabel: profile.label, filesystemLabel: unrestricted ? 'Whole local computer' : profile.filesystemLabel,
-      approvalLabel: fullPower ? 'FULL ACCESS — no StarNet approval prompts' + (unrestricted ? '' : ' inside ' + profile.label + ' reach') : 'ASK — standing grants apply',
+      profile: profile.id, profileLabel: profile.label,
+      filesystemLabel: unrestricted ? 'Whole local computer' : remoteMachine ? 'Its own remote machine — no folder limit there, nothing on this computer' : profile.filesystemLabel,
+      approvalLabel: fullPower ? 'FULL ACCESS — no StarNet approval prompts' + (unrestricted || remoteMachine ? '' : ' inside ' + profile.label + ' reach') : 'ASK — standing grants apply',
       revoke: source === 'environment' ? 'Clear SKYNET_FULL_ACCESS in the launch environment and restart.' : source === 'station' ? 'Turn off the station master bypass in Settings → Permissions; individual Full Access agents stay unrestricted.' : source === 'agent' ? 'Set this agent to ASK in its dossier.' : 'Revoke standing grants in Settings → Permissions.' },
     toolsets: toolsetRows(registry).map(r => {
       const enabled = disabled[r.id] !== false;
@@ -28,9 +34,9 @@ function effectiveToolsets({ registry, agentId, agent, placed = [], disabled = {
       const profileGranted = projected.has(r.object);
       const runtimeGranted = lead && r.object === 'orchestrator';
       return Object.assign({}, r, { toolCount: r.tools.length, enabled, placed: placedHere, profileGranted, runtimeGranted,
-        available: fullPower || (enabled && (placedHere || profileGranted || runtimeGranted)),
-        grantSource: fullPower ? 'Full Access' : profileGranted ? profile.label : placedHere ? 'station prop' : runtimeGranted ? 'lead run' : null,
-        switchEffective: !fullPower, consentGated: !fullPower && r.consentGated });
+        available: everyFamily || (enabled && (placedHere || profileGranted || runtimeGranted)),
+        grantSource: everyFamily ? 'Full Access' : profileGranted ? profile.label : placedHere ? 'station prop' : runtimeGranted ? 'lead run' : null,
+        switchEffective: !everyFamily, consentGated: !fullPower && r.consentGated });
     })
   };
 }

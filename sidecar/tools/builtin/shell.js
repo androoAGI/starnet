@@ -184,6 +184,49 @@
   const FLOOR_FORMS = (function (names) {
     return names.length > 1 ? names.slice(0, -1).join(', ') + ' and ' + names[names.length - 1] : names.join('');
   })(FLOOR_RULES.reduce(function (all, r) { return all.concat(r.names); }, []));
+  /* THE REMOTE FOLDER IS THE CLAMP (2026-10-19 live proof). escapesWorkspace deliberately lets forward-slash roots
+     through — on Windows `/S` is usually a flag — so over SSH, where the shell is POSIX and a leading `/` IS a path,
+     an ASK-mode agent's `ls /c/Users/andro/Desktop` listed the remote user's whole Desktop. A remote command may name
+     an absolute path only inside its remote workspace, a standard device node, or a system program directory.
+     Inside quotes a leading `/` is just as often a sed/awk/grep pattern (`sed '/^#/d'`), so there only a path that
+     starts at a real top-level location (/etc, /home, /Users, a /c drive …) is refused. `~`, $HOME and a bare `cd`
+     (all the remote user's home) are refused the same way. Full Power lifts this ON THAT MACHINE (ctx.remoteHostFull)
+     and never on this one. A denylist like the rest of this floor: the durable wall is a dedicated remote account. */
+  const REMOTE_DEVICE_PATHS = new Set(['/dev/null', '/dev/zero', '/dev/random', '/dev/urandom', '/dev/stdin', '/dev/stdout', '/dev/stderr', '/dev/tty']);
+  const REMOTE_PROGRAM_DIRS = ['/bin/', '/sbin/', '/usr/bin/', '/usr/sbin/', '/usr/local/bin/', '/opt/homebrew/bin/'];
+  const REMOTE_TOP_LEVEL = /^\/(etc|home|Users|root|var|tmp|opt|usr|mnt|media|proc|sys|boot|srv|lib|lib32|lib64|run|snap|dev|bin|sbin|private|Volumes|System|Library|Applications|cygdrive|[A-Za-z])(\/|$)/;
+  function posixNormalize(p) {
+    const out = [];
+    for (const seg of String(p).split('/')) {
+      if (!seg || seg === '.') continue;
+      if (seg === '..') out.pop(); else out.push(seg);
+    }
+    return '/' + out.join('/');
+  }
+  function escapesRemoteRoot(cmd, remoteRoot) {
+    const s = String(cmd || ''), root = String(remoteRoot || '').replace(/\/+$/, '');
+    const where = root ? ' (' + root + ')' : '';
+    if (/(^|[\s"'`=(<>|;&])~/.test(s)) return 'home-folder paths (~) are not allowed — commands run inside this agent\'s workspace on the remote machine' + where;
+    if (/\$\{?HOME\b/.test(s)) return 'the remote home folder ($HOME) is not allowed — commands run inside this agent\'s workspace on the remote machine' + where;
+    if (/(^|[;&|\n(])\s*cd\s*(?=$|[;&|\n)])/.test(s)) return 'a bare `cd` goes to the remote home folder — cd into a folder inside the workspace' + where;
+    const re = /(^|[\s"'`=(<>|;&])(\/[^\s"'`;|&<>()]*)/g;
+    let m;
+    while ((m = re.exec(s))) {
+      const raw = m[2], n = posixNormalize(raw), quoted = m[1] === '\'' || m[1] === '"' || m[1] === '`';
+      if (root && (n === root || n.indexOf(root + '/') === 0)) continue;
+      if (REMOTE_DEVICE_PATHS.has(n) || /^\/dev\/fd\/\d+$/.test(n)) continue;
+      if (REMOTE_PROGRAM_DIRS.some(d => n.indexOf(d) === 0)) continue;
+      if (quoted && !REMOTE_TOP_LEVEL.test(raw)) continue;
+      return 'absolute path ' + raw.slice(0, 80) + ' is outside this agent\'s workspace on the remote machine' + where + ' — use a path inside it';
+    }
+    return null;
+  }
+  function remoteRootFor(environment, aid) {
+    try {
+      const d = typeof environment.describeAgent === 'function' ? environment.describeAgent(aid) : environment.describe(aid);
+      return d && d.remote && d.remote.remoteRoot ? String(d.remote.remoteRoot) : null;
+    } catch (_) { return null; }
+  }
 
   /* BUILDS ARE INVISIBLE / THE MACHINE IS NOT THE WORKSPACE (mouse-confinement incident + follow-up, 2026-07-12,
      hardened after code-review 2026-07-12). Agent work must never put a window on the user's screen, touch their
@@ -1754,7 +1797,10 @@
         if (!cmd) throw new Error('empty command');
         const refusal = sandboxRefusal(environment, aid);
         if (refusal) throw refusal;
-        const deny = remoteOwner ? null : escapesWorkspace(cmd);
+        // Full Power on a REMOTE SSH agent (Andrew 2026-10-19): it never asks and is not held to its folder ON THAT
+        // MACHINE; host-minted at run start (inputpolicy runInputContext), never a tool argument
+        const remoteFull = environmentBackendId === 'ssh' && ctx.remoteHostFull === true;
+        const deny = (remoteOwner || remoteFull) ? null : escapesWorkspace(cmd);
         /* FILES BEFORE THE SHELL (2026-10-25): "use paths inside your workspace" was the whole answer to `type C:\proj\notes.md`,
            so a model holding the file tools told the Commander the file was inaccessible. A path refusal names the route that
            reaches it — only when the host says this run carries the file tools (ctx.fileToolsOnWire), and the cwd route only
@@ -1763,6 +1809,8 @@
           ? '. To read, list or search files there, call fs_read / fs_list / fs_search with the full path instead'
             + (environmentBackendId === 'local' ? '; to run a command there, pass that folder as cwd' : '')
           : ''));
+        const remoteDeny = environmentBackendId === 'ssh' && !remoteOwner && !remoteFull ? escapesRemoteRoot(cmd, remoteRootFor(environment, aid)) : null;
+        if (remoteDeny) throw new Error('refused: ' + remoteDeny);
         const jailRoot = environment ? environment.ensureWorkspace(aid) : P.join(ROOT, aid);
         // H2.1 + run-paths: start where THIS run's next command starts (runShellCwd: the run's project root or the
         // private workspace, then this run's own `cd`). The `cd` lives on the run's path object, so two runs of one
@@ -1789,7 +1837,7 @@
         if (authorityDeny) throw new Error('refused: ' + authorityDeny);
         if (remoteOwner && shellTainted && /hooks-allowed\.json/i.test(cmd))
           throw new Error('refused: this run read outside content, so it cannot change StarNet\'s hook approvals (hooks-allowed.json)');
-        const safetyDeny = remoteOwner ? null : commandSafetyRisk(cmd, { cwd: hostCwd, exactCwd: true, fs: fs, pathMod: P, dialect: shellDialect, isWin, env: commandEnvOf(environment, ownEnv, aid, ctx.surface) });
+        const safetyDeny = (remoteOwner || remoteFull) ? null : commandSafetyRisk(cmd, { cwd: hostCwd, exactCwd: true, fs: fs, pathMod: P, dialect: shellDialect, isWin, env: commandEnvOf(environment, ownEnv, aid, ctx.surface) });
         if (safetyDeny) throw new Error('refused [' + safetyDeny.kind + ']: this command ' + safetyDeny.reason + '. StarNet task processes preserve the user\'s control of their computer; use browser.test_* for local UI/game verification.');
         if (!environment) { try { fs.mkdirSync(cwd, { recursive: true }); } catch (_) {} }
         const checkpoint = typeof ctx.checkpointMutation === 'function'
@@ -1854,7 +1902,10 @@
           }
           else if (pm.cwd && (remoteOwner || withinJail(P, pm.cwd, jailRoot))) paths.setShellCwd(pm.cwd);
           const exitCode = (pm.ec != null && !res.timedOut && !res.aborted) ? pm.ec : res.exitCode;
-          const note = res.timedOut ? ' — KILLED (timed out after ' + timeoutMs + 'ms)' : res.aborted ? ' — KILLED (aborted)' : '';
+          // over SSH nothing proves a kill: the receipt says what StarNet actually did to its own connection
+          const note = res.remoteBoundary
+            ? (res.timedOut ? ' — SSH connection closed at the ' + timeoutMs + 'ms timeout' : res.aborted ? ' — SSH connection closed (stopped)' : ' — SSH connection lost')
+            : res.timedOut ? ' — KILLED (timed out after ' + timeoutMs + 'ms)' : res.aborted ? ' — KILLED (aborted)' : '';
           /* HEAD AND TAIL (W1.7). A cut output kept only its first MAX_BYTES, and a build or test log ends where the error is.
              The same MAX_BYTES now holds the first 70% and the last 30% of the full capture, the gap marked in place (history-edit
              headTail). Cut AFTER redaction, so no key straddles the gap; a backend that hands back no full capture keeps the head. */
@@ -1879,6 +1930,17 @@
              the telemetry and the recovery policy all read a successful call. The tool contract is "THROW on error"
              (tool.js): the registry turns this into an isError result whose summary names the cause. The partial
              output and the `[exit -1 — KILLED …]` receipt are kept verbatim. A plain non-zero exit stays a RESULT. */
+          /* A REMOTE BOUNDARY IS NOT A KILL (2026-10-19 live proof). Over SSH, stopping or losing the local client proves
+             nothing about the remote process — the dropped command in the proof had FINISHED remotely while the agent was
+             told nothing ran. The backend names the boundary (environment.js REMOTE_UNCONFIRMED); it is an error whose
+             first line says the command started and its outcome is unknown, never "the host KILLED it". */
+          if (res.remoteBoundary) {
+            const head = 'REMOTE OUTCOME UNKNOWN: ' + res.remoteBoundary + '. Output captured before the connection ended:\n';
+            const lost = new Error(head + content);
+            lost.toolSummary = res.timedOut ? 'timeout · remote outcome unknown' : res.aborted ? 'cancelled · remote outcome unknown' : 'connection lost · remote outcome unknown';
+            if (fullContent) lost.fullContent = head + fullContent;
+            throw lost;
+          }
           if (res.timedOut || res.aborted) {
             const head = (res.timedOut
               ? 'TIMEOUT: the command did not finish within its ' + timeoutMs + 'ms timeout, so the host KILLED it (the whole process tree).'

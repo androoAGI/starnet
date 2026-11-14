@@ -47,10 +47,15 @@ A.ok(/executionProfile\.capabilityObjects[\s\S]{0,180}stationWithObject/.test(sr
 A.ok(/executionProfile\.connectors[\s\S]{0,120}stationWithConnectors/.test(src), 'trusted profiles materialize connector projection');
 A.ok(/executionProfile\.filesystemScope === 'host-paths-except-hard-floor'/.test(src), 'This Computer reaches the path-trust authority seam');
 A.ok(/const fullPowerNow = \(\) => stationBypassNow\(\) \|\| agentFullAccessNow\(\)/.test(src), 'one central predicate composes every Full Power scope');
-// THE REACH FENCE (2026-11-08): host reach is that predicate through the profile's one fence, never a second composition
-A.ok(/const unrestrictedHostNow = \(\) => executionProfiles\.reachesWholeHost\(executionProfile, fullPowerNow\(\)\)/.test(src), 'host-wide reach = Full Power through the reach fence');
-A.ok(/bypass: \(\) => fullPowerNow\(\) \|\| \(ownerTrusted && !prompt\), unrestrictedHost: unrestrictedHostNow,/.test(src), 'the consent broker never asks under Full Power, fenced or not, and only an unfenced run skips the hardline');
-A.ok(/fullAccess: agentFullAccessNow, hostFenced: reachFenced,/.test(src), 'the run authority learns the fence');
+// THE REACH FENCE (2026-11-08) + REMOTE SSH (2026-10-19), stacked in the 0.15.2 candidate: host reach is the one predicate
+// through the profile's fence, and a REMOTE SSH agent's Full Power is never authority over THIS computer
+A.ok(/const unrestrictedHostNow = \(\) => executionProfiles\.reachesWholeHost\(executionProfile, fullPowerNow\(\)\) && !remoteMachineNow\(\)/.test(src), 'host-wide reach = Full Power through the reach fence, never for a REMOTE SSH agent');
+// final review #1: an owner's DM is card-free only through what the desk bound (Full Power's approval half), fenced or remote
+A.ok(/bypass: \(\) => fullPowerNow\(\), unrestrictedHost: unrestrictedHostNow,/.test(src), 'the consent broker never asks under Full Power, fenced or remote, and only a whole-host run skips the hardline');
+A.ok(/fullAccess: \(\) => agentFullAccessNow\(\) && !remoteMachineNow\(\), hostFenced: reachFenced,/.test(src), 'the run authority learns the fence, and a REMOTE SSH agent lends this computer nothing');
+A.ok(/forceLocalForAgent: \(agentId\) => \{[\s\S]{0,160}executionProfile === 'remote-ssh'\) return false/.test(src), 'the router never forces a REMOTE SSH agent onto this computer');
+A.ok(/runInputContext\(accessSurface, isTask, remoteDesktopAuthorized, unrestrictedHostNow\(\), remoteFullPowerNow\(\)\)/.test(src), 'the remote-only Full Power flag reaches the tool context');
+A.ok(Profiles.reachesWholeHost('remote-ssh', true) === false && Profiles.reachesWholeHost('this-computer', true) === true && Profiles.reachesWholeHost('trusted-project', true) === false, 'reachesWholeHost: only an unfenced, local reach under Full Power is the whole host');
 A.ok(/const stationBypassNow = \(\) => !hostPowerWithheld && \(FULL_ACCESS \|\| masterBypassOn\(\)\)/.test(src), 'the station scopes (env + master bypass) are one withheld-aware predicate');
 A.ok(/Object\.keys\(CAP_REGISTRY\)[\s\S]{0,120}stationWithObject/.test(src), 'Full Power materializes every available built-in capability family');
 A.ok(/exact: '\/api\/execution-profiles'/.test(src), 'backend exposes the authoritative profile/runtime catalog');

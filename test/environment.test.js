@@ -209,7 +209,7 @@ function makeFakeSpawn() {
         env: { PATH: 'safe-path', OPENAI_API_KEY: 'ambient-secret' },
         serviceEnv: () => ({ REMOTE_API_KEY: 'explicit-service-secret' }),
         sshConfig: () => target,
-        config: { backend: 'ssh', sshBin: 'sshx', scpBin: 'scpx', sshConnectTimeoutSeconds: 7 } });
+        config: { backend: 'ssh', sshBin: 'sshx', scpBin: 'scpx', sftpBin: 'sftpx', sshConnectTimeoutSeconds: 7 } });
       A.eq(env.backendId, 'ssh', 'SSH backend selected');
       A.eq(env.supports.hostWorkspace, false, 'SSH truthfully reports no bind-mounted host workspace');
       A.eq(env.supports.workspaceSync, true, 'SSH advertises explicit workspace synchronization');
@@ -237,19 +237,57 @@ function makeFakeSpawn() {
       env.rememberCwd('a4', '/etc');
       A.eq(env.getCwd('a4'), '/srv/starnet/a4/src', 'SSH refuses a cwd outside the configured remote root');
 
+      // CHANGED FILES ONLY (2026-10-19 live proof: the whole tree + every full-tar checkpoint used to move both ways
+      // on every command). One local input, one remote output, and `.starnet/` on both sides that never moves.
+      const crypto = require('node:crypto');
+      const shaOf = s => crypto.createHash('sha256').update(s).digest('hex');
+      fs.mkdirSync(path.join(root, 'a4', 'src'), { recursive: true });
+      fs.writeFileSync(path.join(root, 'a4', 'src', 'in put.txt'), 'local input');
+      fs.mkdirSync(path.join(root, 'a4', '.starnet', 'checkpoints'), { recursive: true });
+      fs.writeFileSync(path.join(root, 'a4', '.starnet', 'checkpoints', 'sshcp_old.tar'), 'stale mirror copy');
       spawn.setNext('push-ok', 0);
       spawn.setNext('STARNET_CHECKPOINT\tsshcp_aaaaaaaa\t' + 'a'.repeat(64) + '\t1024\n', 0);
       spawn.setNext('remote-ok', 0);
-      spawn.setNext('starnet-sync-safe', 0);
+      spawn.setNext(shaOf('local input') + '  ./src/in put.txt\n' + 'b'.repeat(64) + '  ./src/out.txt\n' + 'c'.repeat(64) + '  ./../escape.txt\n\nSTARNET_SYNC_LISTED\n', 0);
       spawn.setNext('pull-ok', 0);
       const result = await env.execute({ agentId: 'a4', cmd: 'echo remote', timeoutMs: 2000, surface: 'interactive' });
       A.eq(result.out.trim(), 'remote-ok', 'SSH returns the real remote command result');
       A.eq(result.remoteCheckpointId, 'sshcp_aaaaaaaa', 'foreground execution exposes the exact pre-command remote checkpoint');
-      const scpCalls = spawn.calls.filter(x => x.file === 'scpx');
-      A.eq(scpCalls.length, 2, 'remote command performs one push and one pull');
-      A.ok(scpCalls[0].args.indexOf('a4/.') >= 0 && scpCalls[0].args.some(x => /andrew@buildbox:\/srv\/starnet\/a4\/$/.test(x)), 'push copies the local agent workspace to the exact remote root');
-      A.ok(scpCalls[1].args.some(x => /andrew@buildbox:\/srv\/starnet\/a4\/\.$/.test(x)) && scpCalls[1].args.indexOf('a4') >= 0, 'pull returns remote outputs to the local agent workspace');
-      A.ok(scpCalls.every(x => x.args.indexOf('StrictHostKeyChecking=yes') >= 0 && x.opts.shell === false), 'file sync keeps the same strict host-key and no-local-shell boundary');
+      const sftpCalls = spawn.calls.filter(x => x.file === 'sftpx');
+      A.eq(spawn.calls.filter(x => x.file === 'scpx').length, 0, 'workspace sync no longer copies whole trees with scp');
+      A.eq(sftpCalls.length, 2, 'remote command performs one push batch and one pull batch');
+      const pushBatch = sftpCalls[0].child.stdin.writes.join(''), pullBatch = sftpCalls[1].child.stdin.writes.join('');
+      A.ok(/^-mkdir "\/srv\/starnet\/a4\/src"$/m.test(pushBatch) && /^put -p "src\/in put\.txt" "\/srv\/starnet\/a4\/src\/in put\.txt"$/m.test(pushBatch), 'push sends exactly the changed local file to the exact remote root, quoted');
+      A.ok(!/\.starnet/.test(pushBatch), 'the local mirror\'s .starnet (old pulled checkpoints) is never pushed');
+      A.ok(/^get -p "\/srv\/starnet\/a4\/src\/out\.txt" "src\/out\.txt"$/m.test(pullBatch) && !/in put/.test(pullBatch), 'pull fetches only the remote file that differs from the synced state');
+      A.ok(!/escape/.test(pullBatch), 'a remote path that climbs out of the workspace is never fetched');
+      A.ok(sftpCalls.every(x => x.args.indexOf('StrictHostKeyChecking=yes') >= 0 && x.args.indexOf('BatchMode=yes') >= 0 && x.args.indexOf('-b') >= 0 && x.opts.shell === false && path.resolve(x.opts.cwd) === path.resolve(root, 'a4')), 'file sync keeps the same strict host-key, batch-only and no-local-shell boundary, from the agent mirror');
+      const listing = spawn.calls.find(x => x.file === 'sshx' && /STARNET_SYNC_LISTED/.test(x.child.stdin.writes.join(''))).child.stdin.writes.join('');
+      A.ok(/-cnewer \.starnet\/sync\.ref/.test(listing) && /! -path "\.\/\.starnet\/\*"/.test(listing), 'the remote lists only files changed since its stamp, never .starnet');
+      const checkpointScript = spawn.calls.find(x => x.file === 'sshx' && /tar -cf/.test(x.child.stdin.writes.join(''))).child.stdin.writes.join('');
+      A.ok(/ls -1t '\/srv\/starnet\/a4\/\.starnet\/checkpoints'\/sshcp_\*\.tar[\s\S]*tail -n \+11/.test(checkpointScript), 'each new remote checkpoint prunes all but the newest 10 full tars');
+      const before = spawn.calls.length;
+      spawn.setNext('STARNET_CHECKPOINT\tsshcp_cccccccc\t' + 'c'.repeat(64) + '\t1024\n', 0);
+      spawn.setNext('again-ok', 0);
+      spawn.setNext('\nSTARNET_SYNC_LISTED\n', 0);
+      await env.execute({ agentId: 'a4', cmd: 'echo again', timeoutMs: 2000 });
+      const quiet = spawn.calls.slice(before);
+      A.eq(quiet.filter(x => x.file === 'sftpx').length, 0, 'an unchanged workspace makes no file transfer at all');
+      A.eq(quiet.length, 3, 'an unchanged command costs checkpoint + command + one change listing');
+      const listing2 = quiet[2].child.stdin.writes.join('');
+      A.ok(/mv -f \.starnet\/sync\.next \.starnet\/sync\.ref/.test(listing2), 'a fully pulled listing promotes its stamp to the next reference');
+      // `exit 3` skips the end marker but is the COMMAND's status, not a lost connection
+      A.eq(env._backend._internals.foregroundBoundary({ exitCode: 3 }), '', 'a plain non-zero exit is not an SSH boundary');
+      A.ok(/transport exited 255/.test(env._backend._internals.foregroundBoundary({ exitCode: 255 })) && /timeout/.test(env._backend._internals.foregroundBoundary({ timedOut: true, exitCode: -1 })), 'ssh 255 and our own timeout are boundaries');
+      spawn.setNext('STARNET_CHECKPOINT\tsshcp_dddddddd\t' + 'd'.repeat(64) + '\t1024\n', 0);
+      spawn.setNext('failed on purpose', 3);
+      spawn.setNext('\nSTARNET_SYNC_LISTED\n', 0);
+      const exit3 = await env.execute({ agentId: 'a4', cmd: 'exit 3', timeoutMs: 2000 });
+      A.ok(exit3.exitCode === 3 && !exit3.remoteBoundary && env.describe('a4').availability.state === 'ready', 'a command\'s own exit 3 keeps the host ready and carries no boundary');
+      const safe = env._backend._internals.safeRemoteRel;
+      A.ok(safe('src/a b.txt') && !safe('../x') && !safe('a/../b') && !safe('/etc/passwd') && !safe('a\\b') && !safe('./a'), 'remote paths must stay strictly inside the workspace');
+      if (process.platform === 'win32') A.ok(!safe('a:b') && !safe('trailing.'), 'a name Windows cannot hold is skipped, not allowed to fail every pull');
+      A.eq(env._backend._internals.sftpArg('a "b"\\c'), '"a \\"b\\"\\\\c"', 'sftp batch arguments quote and escape exactly');
       const remoteCall = spawn.calls.find(x => x.file === 'sshx' && x.child.stdin.writes.join('').indexOf('echo remote') >= 0);
       const remoteScript = remoteCall.child.stdin.writes.join('');
       A.ok(remoteScript.indexOf('echo remote') >= 0 && remoteScript.indexOf("cd '/srv/starnet/a4/src'") >= 0, 'remote command runs inside the clamped cwd through stdin');
@@ -262,9 +300,14 @@ function makeFakeSpawn() {
       const remotePoints = await env.listCheckpoints('a4');
       A.eq(remotePoints[0].id, 'sshcp_aaaaaaaa', 'remote checkpoint list returns only verified archive identities');
       spawn.setNext('starnet-checkpoint-restored', 0);
-      spawn.setNext('starnet-sync-safe', 0);
+      spawn.setNext('e'.repeat(64) + '  ./src/out.txt\n' + 'f'.repeat(64) + '  ./src/in put.txt\n\nSTARNET_SYNC_LISTED\n', 0);
       spawn.setNext('pull-ok', 0);
+      const restoreAt = spawn.calls.length;
       A.eq(await env.restoreCheckpoint('a4', 'sshcp_aaaaaaaa'), true, 'remote rewind verifies the archive then refreshes the local mirror');
+      const restoreCalls = spawn.calls.slice(restoreAt);
+      A.ok(/rm -f '\/srv\/starnet\/a4\/\.starnet\/sync\.ref'/.test(restoreCalls[0].child.stdin.writes.join('')), 'a rewind drops the change stamps so the refresh lists the whole restored tree');
+      const refetch = restoreCalls.find(x => x.file === 'sftpx').child.stdin.writes.join('');
+      A.ok(/src\/out\.txt/.test(refetch) && /src\/in put\.txt/.test(refetch), 'after a rewind the emptied mirror refetches every restored file');
 
       const linkPath = path.join(root, 'a4', 'escape-link');
       fs.symlinkSync(root, linkPath, process.platform === 'win32' ? 'junction' : 'dir');
@@ -276,7 +319,7 @@ function makeFakeSpawn() {
       A.ok(remoteLinkRefused, 'workspace pull refuses a remote tree whose symlink boundary cannot be proven');
 
       const restartedCwd = makeEnvironmentManager({ spawn: makeFakeSpawn(), fs, pathMod: path, root, clock,
-        sshConfig: () => target, config: { backend: 'ssh', sshBin: 'sshx', scpBin: 'scpx' } });
+        sshConfig: () => target, config: { backend: 'ssh', sshBin: 'sshx', scpBin: 'scpx', sftpBin: 'sftpx' } });
       A.eq(restartedCwd.getCwd('a4'), '/srv/starnet/a4/src', 'SSH cwd survives sidecar restart through read-back-verified host state');
       A.eq(restartedCwd.supports.persistentSession, true, 'SSH advertises restart continuity only after cwd and remote jobs are persistent');
 
@@ -286,12 +329,13 @@ function makeFakeSpawn() {
         return fs.renameSync(from, to);
       };
       const rejectedCwd = makeEnvironmentManager({ spawn: makeFakeSpawn(), fs: rejectedFs, pathMod: path, root, clock,
-        sshConfig: () => target, config: { backend: 'ssh', sshBin: 'sshx', scpBin: 'scpx' } });
+        sshConfig: () => target, config: { backend: 'ssh', sshBin: 'sshx', scpBin: 'scpx', sftpBin: 'sftpx' } });
       let cwdWriteRejected = false;
       try { rejectedCwd.rememberCwd('a5', '/srv/starnet/a4/rejected'); } catch (e) { cwdWriteRejected = /replace failure/.test(String(e && e.message)); }
       A.ok(cwdWriteRejected, 'SSH cwd update reports a rejected durable replace');
       A.eq(rejectedCwd.getCwd('a5'), '/srv/starnet/a4', 'a rejected SSH cwd update does not survive in memory');
 
+      fs.writeFileSync(path.join(root, 'a4', 'src', 'server.js'), 'require("http")');   // a real change, so the start pushes
       spawn.setNext('push-ok', 0);
       spawn.setNext('STARNET_JOB\tsshbg_aaaaaaaa\t700\trunning\t\n', 0);
       const bg = await env.startBackground({ agentId: 'a4', cmd: 'node server.js', cwd: '/srv/starnet/a4/src' });
@@ -301,17 +345,20 @@ function makeFakeSpawn() {
       const spawnRestart = makeFakeSpawn();
       spawnRestart.setNext('STARNET_JOB\tsshbg_aaaaaaaa\t700\trunning\t\nSTARNET_TAIL\nlistening\n', 0);
       const reattached = makeEnvironmentManager({ spawn: spawnRestart, fs, pathMod: path, root, clock,
-        sshConfig: () => target, config: { backend: 'ssh', sshBin: 'sshx', scpBin: 'scpx' } });
+        sshConfig: () => target, config: { backend: 'ssh', sshBin: 'sshx', scpBin: 'scpx', sftpBin: 'sftpx' } });
       const liveJob = await reattached.statusBackground('a4', 'sshbg_aaaaaaaa');
       A.ok(liveJob && liveJob.running && /listening/.test(liveJob.tail), 'fresh sidecar reattaches to the remote pid and output tail');
 
+      fs.writeFileSync(path.join(root, 'a4', 'src', 'job.sh'), 'sleep 15');
       spawn.setNext('push-ok', 0);
       spawn.setNext('STARNET_CHECKPOINT\tsshcp_bbbbbbbb\t' + 'b'.repeat(64) + '\t1024\n', 0);
       spawn.setNext('ssh: Connection reset by peer', 255);
       spawn.setNext('ssh: connect refused', 255);
-      let disconnectError = '';
-      try { await env.execute({ agentId: 'a4', cmd: 'long-running-command', timeoutMs: 2000 }); } catch (e) { disconnectError = String(e && e.message || e); }
+      let disconnectError = '', disconnectCode = '';
+      try { await env.execute({ agentId: 'a4', cmd: 'long-running-command', timeoutMs: 2000 }); } catch (e) { disconnectError = String(e && e.message || e); disconnectCode = e && e.code; }
       A.ok(/foreground SSH transport exited 255/.test(disconnectError) && /workspace recovery failed/.test(disconnectError), 'foreground disconnect reports the exact unconfirmed process and recovery boundary');
+      // the 2026-10-19 live proof: the dropped command had FINISHED remotely while the agent was told nothing ran
+      A.ok(/STARTED on the remote machine/.test(disconnectError) && /check the remote state before running it again/.test(disconnectError) && disconnectCode === 'remote_unconfirmed', 'a dropped command says it started remotely and is typed so routing cannot relabel it');
       A.eq(env.describe('a4').availability.state, 'unavailable', 'transport loss invalidates cached remote readiness');
 
       const missing = makeEnvironmentManager({ spawn: makeFakeSpawn(), fs, pathMod: path, root, clock, sshConfig: () => null, config: { backend: 'ssh' } });
@@ -336,7 +383,7 @@ function makeFakeSpawn() {
       };
       const env = makeEnvironmentManager({ spawn, fs, pathMod: path, root, clock,
         sshConfig: id => targets[id] || null, sshAgentIds: () => ['a1', 'a2', 'ghost'],
-        config: { backend: 'ssh', sshBin: 'sshx', scpBin: 'scpx' } });
+        config: { backend: 'ssh', sshBin: 'sshx', scpBin: 'scpx', sftpBin: 'sftpx' } });
       spawn.setNext('STARNET_KILLED\t2\n', 0);
       spawn.setNext('STARNET_KILLED\t2\n', 0);
       A.eq(await env.killAllBackground(), 4, 'station-wide reap sums the kills under every configured agent');
@@ -353,7 +400,7 @@ function makeFakeSpawn() {
       const flaky = makeEnvironmentManager({ fs, pathMod: path, root, clock,
         spawn: function (file, args, opts) { calls++; if (args.indexOf('box2') >= 0 || args.some(a => /box2/.test(String(a)))) throw new Error('spawn ssh ENOENT'); return spawn(file, args, opts); },
         sshConfig: id => targets[id] || null, sshAgentIds: () => ['a1', 'a2'],
-        config: { backend: 'ssh', sshBin: 'sshx', scpBin: 'scpx' } });
+        config: { backend: 'ssh', sshBin: 'sshx', scpBin: 'scpx', sftpBin: 'sftpx' } });
       spawn.setNext('STARNET_KILLED\t3\n', 0);
       let flakyErr = null, flakyN = null;
       try { flakyN = await flaky.killAllBackground(); } catch (e) { flakyErr = e; }

@@ -103,8 +103,11 @@ function fencesHost(profile) {
   const id = profile && typeof profile === 'object' ? profile.id : profile;
   return String(id || '') === 'trusted-project';
 }
+// REMOTE SSH (2026-10-19, Andrew): Full Power on an agent whose reach is ANOTHER MACHINE stays on that machine, so it never
+// reaches this one either.
 function reachesWholeHost(profile, fullPower) {
-  return fullPower === true && !fencesHost(profile);
+  const id = profile && typeof profile === 'object' ? profile.id : profile;
+  return fullPower === true && !fencesHost(profile) && String(id || '') !== 'remote-ssh';
 }
 
 module.exports = { IDS, VALID_IDS, PROFILES, validId, normalizeId, resolve, catalog, fencesHost, reachesWholeHost };

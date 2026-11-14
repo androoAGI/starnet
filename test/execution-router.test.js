@@ -183,5 +183,22 @@ router.execute({ agentId: 'safe', cmd: 'x' }).then(async result => {
   A.eq(probed.describeAgent('safe').backendMatched, false, 'UI truth follows');
   dockerState.state = 'ready'; dockerState.error = null;
   A.eq(probed.resolutionFor('safe').matched, true, 'Docker coming up later is honored without a restart');
+
+  // A REMOTE command that STARTED and then lost its connection is not "host unreachable, nothing ran" (2026-10-19 live
+  // proof: the relabelled command had finished remotely). The backend's typed boundary reaches the caller untouched.
+  const sshState = { state: 'ready', error: null };
+  const droppingSsh = Object.assign(fake('ssh'), {
+    describe: () => ({ backend: 'ssh', availability: sshState }),
+    execute: () => {
+      sshState.state = 'unavailable'; sshState.error = 'connect refused';
+      const e = new Error('foreground SSH transport exited 255 before the command finished; the command STARTED on the remote machine and may still be running there'); e.code = 'remote_unconfirmed';
+      return Promise.reject(e);
+    }
+  });
+  const dropped = makeExecutionRouter({ environments: { local, ssh: droppingSsh }, defaultBackendId: 'local', profileForAgent: agentId => profiles[agentId] || 'station-gear', env: {} });
+  let droppedErr = null;
+  try { await dropped.execute({ agentId: 'remote', cmd: 'x' }); } catch (e) { droppedErr = e; }
+  A.eq(droppedErr && droppedErr.code, 'remote_unconfirmed', 'a dropped remote command keeps its own typed error');
+  A.ok(droppedErr && /STARTED on the remote machine/.test(droppedErr.message) && !/NOT run on this computer/.test(droppedErr.message), 'it is never relabelled as an unreachable host where nothing ran');
   A.report('execution-router.test');
 }).catch(e => { console.error(e); process.exitCode = 1; });

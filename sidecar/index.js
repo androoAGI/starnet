@@ -6832,8 +6832,15 @@ const executionEnvironment = makeExecutionRouter({
   // Full Power means this computer, not "all permissions inside a container/SSH profile". Keep the stored
   // profile intact for revocation, and route host-authorized commands to the local backend while active, except a
   // SAFE CELL agent's: the router refuses those with a clear message instead of moving it (GHSA-2hpj #2).
-  forceLocalForAgent: (agentId) => FULL_ACCESS || masterBypassOn()
-    || ((agentRoster.get(String(agentId || '')) || {}).approvalMode === 'full')
+  // REMOTE SSH is the other exception (Andrew 2026-10-19): an agent whose reach is ANOTHER MACHINE keeps working THERE under
+  // Full Power — it never asks and is not clamped to its folder on that machine, and it gets nothing on this one.
+  // Only choosing THIS COMPUTER as its reach brings it here. (The live proof: an approval card's "Full access" on a
+  // plain file write silently moved a remote agent to cmd.exe on the primary PC.)
+  forceLocalForAgent: (agentId) => {
+    const rec = agentRoster.get(String(agentId || '')) || {};
+    if (rec.executionProfile === 'remote-ssh') return false;
+    return FULL_ACCESS || masterBypassOn() || rec.approvalMode === 'full';
+  }
 });
 let executionCleanupTimer = null;
 async function sweepIdleExecutionEnvironments() {
@@ -25014,6 +25021,11 @@ async function runOnceCore(o) {
   // fullPowerNow is the APPROVAL half (never stop to ask); unrestrictedHostNow (below, after the profile) is the
   // REACH half, which a TRUSTED PROJECT agent never gets (execution-profiles.js reachesWholeHost).
   const fullPowerNow = () => stationBypassNow() || agentFullAccessNow();
+  // REMOTE SSH (Andrew 2026-10-19): an agent whose reach is ANOTHER MACHINE holds Full Power THERE — it never asks
+  // (consent bypass below) and its shell is not clamped on that machine (remoteHostFull) — but never over THIS
+  // computer: unrestrictedHostNow() (host paths, desktop, every object family) stays false for it. Live like the rest.
+  const remoteMachineNow = () => ((agentRoster.get(String(agentId || '')) || {}).executionProfile === 'remote-ssh');
+  const remoteFullPowerNow = () => fullPowerNow() && remoteMachineNow();
   // The execution profile is snapshotted for this run's tool projection. Approval remains live and revocable
   // through agentFullAccessNow(); the profile never mints the separate physical-desktop lease.
   const agentExecutionProfileNow = () => {
@@ -25027,10 +25039,11 @@ async function runOnceCore(o) {
   const executionProfile = agentExecutionProfileNow();
   // THE REACH FENCE: the profile is this run's snapshot, so the fence holds for the whole run; approval stays live.
   const reachFenced = executionProfiles.fencesHost(executionProfile);
-  const unrestrictedHostNow = () => executionProfiles.reachesWholeHost(executionProfile, fullPowerNow());
+  const unrestrictedHostNow = () => executionProfiles.reachesWholeHost(executionProfile, fullPowerNow()) && !remoteMachineNow();
   const userControlAuthority = makeRunAuthority({
     surface, isTask, environment: executionEnvironment.forAgent(agentId), confirm: o.prompt, unattendedGrants, ownerTrusted,
-    remoteDesktopAuthorized, masterBypass: stationBypassNow(), fullAccess: agentFullAccessNow, hostFenced: reachFenced,
+    // this computer's input/screen authority: a REMOTE SSH agent's Full Power never reaches it
+    remoteDesktopAuthorized, masterBypass: stationBypassNow() && !remoteMachineNow(), fullAccess: () => agentFullAccessNow() && !remoteMachineNow(), hostFenced: reachFenced,
     connectorAuthority: o.connectorAuthority
   });
   const prompt = o.prompt;
@@ -26051,7 +26064,7 @@ async function runOnceCore(o) {
     extraObjects: o.extraObjects, unattendedGrants, enabledToolsets: o.enabledToolsets, groupTools: Array.isArray(o.groupTools) ? o.groupTools : undefined };
   const projectionRole = { lead: !!o.lead, delegatedBy: o.delegatedBy || '' };
   const projectionFacts = {
-    registry, authority: userControlAuthority, connectorIds: connectors.ids(), disabledCaps: disabledCapsSet(), unrestrictedHost: unrestrictedHostNow(), fullPower: fullPowerNow(),
+    registry, authority: userControlAuthority, connectorIds: connectors.ids(), disabledCaps: disabledCapsSet(), unrestrictedHost: unrestrictedHostNow(), fullPower: fullPowerNow() && !remoteMachineNow(),
     realDesktopAuthority, executionProfile, widgetScope, internalBriefTools, deferralOff,
     keySaveOffered: !!(isTask && keyTexts && KeyTools.hasKeyCandidate(keyTexts)), directDomain: !!hostScope,
     leanCrew: ENV('LEAN_CREW'), crewCount: crewCountFor(agentId), connectorDefer: CONNECTOR_DEFER, availability,
@@ -26152,8 +26165,9 @@ async function runOnceCore(o) {
     // a FUNCTION, re-read every call: the master FULL BYPASS switch must take effect — and revoke — on the
     // very next tool call without a restart. The frozen env flag and the per-agent posture ride inside it.
     // final review #1: the owner's DM no longer skips cards on its own. It is card-free only through what the desk bound (the
-    // agent's Full Access or FULL BYPASS). Reach fence: bypass = Full Power's APPROVAL half (fullPowerNow; a TRUSTED PROJECT
-    // agent on Full Access never waits on a card); unrestrictedHost = its REACH half, withheld from a fenced run (fencesHost).
+    // agent's Full Access or FULL BYPASS). bypass = Full Power's APPROVAL half (fullPowerNow): a TRUSTED PROJECT agent and a
+    // REMOTE SSH agent on Full Access never wait on a card, but reach the broker's bypass tier (BELOW the hardline floor),
+    // never the host-wide tier above it; unrestrictedHost = the REACH half (reachesWholeHost, withheld from both).
     bypass: () => fullPowerNow(), unrestrictedHost: unrestrictedHostNow, hardline: hardlineFloor, sessionKey: runId,
     grantsSession, grantsPermanent, persist: persistAllowlist,
     // Full Access is the persisted per-agent posture, so it applies on every surface and every later task.
@@ -26342,7 +26356,7 @@ async function runOnceCore(o) {
     },
     // The context carries the host-minted remote-owner lease only for a locally paired Telegram owner.
     // All other run flows remain synthetic-only at the tool boundary.
-  }, runInputContext(accessSurface, isTask, remoteDesktopAuthorized, unrestrictedHostNow())));
+  }, runInputContext(accessSurface, isTask, remoteDesktopAuthorized, unrestrictedHostNow(), remoteFullPowerNow())));
 
   // ---- provider + cost ----
   // Codex (personal ChatGPT subscription) authenticates with a freshly-refreshed OAuth access_token instead of

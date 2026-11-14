@@ -141,6 +141,10 @@ A.ok(remoteCtx.remoteDesktopAuthorized, 'remote owner context carries the host l
 const fullPowerCtx = runInputContext('autonomous', true, false, true);
 A.eq(fullPowerCtx.inputMode, 'full-power', 'Full Power context is explicitly host-wide');
 A.ok(fullPowerCtx.physicalInputAuthorized && fullPowerCtx.unrestrictedHost, 'Full Power context carries physical and unrestricted host authority');
+// REMOTE SSH (Andrew 2026-10-19): Full Power on an agent whose reach is another machine lifts its clamp THERE only
+const remoteFullCtx = runInputContext('autonomous', true, false, false, true);
+A.ok(remoteFullCtx.remoteHostFull === true && remoteFullCtx.unrestrictedHost === false && remoteFullCtx.physicalInputAuthorized === false && remoteFullCtx.inputMode === 'synthetic', 'remote Full Power grants no input, screen or host authority on this computer');
+A.eq(runInputContext('autonomous', true, false, true, true).remoteHostFull, false, 'host-wide Full Power never doubles as the remote-only flag');
 
 /* UNATTENDED CONNECTOR GRANT — the Commander's own MCP servers, callable by a granted routine. The critical
    property: external-unknown is ALSO the fail-closed default for anything the host cannot classify, so the

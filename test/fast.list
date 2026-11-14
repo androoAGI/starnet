@@ -301,6 +301,7 @@ test/logo-occlusion.test.js
 test/keepawake.test.js
 test/grace.test.js
 test/shell-session.test.js
+test/shell-remote-ssh.test.js
 test/shell-bg.test.js
 test/shell-bg-io.test.js
 test/shell-visible-window.test.js
