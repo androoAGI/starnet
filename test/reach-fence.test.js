@@ -17,7 +17,8 @@ const { makePathTrust } = require('../sidecar/pathtrust.js');
     const fenced = id === 'trusted-project';
     A.eq(Profiles.fencesHost(id), fenced, 'fencesHost(' + id + ')');
     A.eq(Profiles.fencesHost(Profiles.resolve(id, { approvalMode: 'full' })), fenced, 'fencesHost reads a resolved profile too: ' + id);
-    A.eq(Profiles.reachesWholeHost(Profiles.resolve(id, {}), true), !fenced, 'Full Power reaches the whole host unless fenced: ' + id);
+    // REMOTE SSH (2026-10-19) keeps its Full Power on its own machine, so it never reaches this one either
+    A.eq(Profiles.reachesWholeHost(Profiles.resolve(id, {}), true), !fenced && id !== 'remote-ssh', 'Full Power reaches the whole host unless fenced or remote: ' + id);
     A.eq(Profiles.reachesWholeHost(Profiles.resolve(id, {}), false), false, 'ASK never reaches the whole host: ' + id);
   }
 

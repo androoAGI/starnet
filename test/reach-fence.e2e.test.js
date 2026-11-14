@@ -92,8 +92,8 @@ const modelSaw = (provider, from) => JSON.stringify(provider.requests.slice(from
 const diag = (events) => JSON.stringify(events.filter(e => /permission|tool_result/.test(e.name)).map(e => ({ name: e.name, payload: e.payload })));
 
 async function setAgent(fixture, executionProfile, at) {
-  const r = await fixture.json('POST', '/api/roster', {
-    updatedAt: at,
+  const r = await fixture.deskJson('POST', '/api/roster', {
+    updatedAt: at, raise: ['forge'], raiseProfile: ['forge'],   // the cost stack's desk: a roster push names the Full Access and reach it asks for (deskJson confirms them)
     agents: [{ agentId: 'forge', system: 'You are FORGE.', name: 'FORGE', provider: 'openrouter', model: 'test/model', approvalMode: 'full', executionProfile }]
   });
   A.ok(r.body && r.body.ok === true, 'FORGE saved as Full Access + ' + executionProfile);
