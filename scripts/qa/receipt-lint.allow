@@ -1,0 +1,24 @@
+# Receipt lint allow-list. Read by scripts/qa/receipt-lint.mjs.
+#
+# REVIEWED AT EVERY CUT. Each entry lets one gate step print text that would otherwise make its green a false
+# green. At every release cut the cutter reads each entry again against the test it names, and either keeps it
+# (the text is still deliberate and still printed) or deletes it. The lint notes an entry whose text the log no
+# longer prints. That an entry is deliberate is a HYPOTHESIS until someone has read the test that prints it.
+#
+# Format: <step> | <expected text> [| <expected text> ...]
+# An expected text clears one signal event (a signal line plus the stack frames under it) when that event's line
+# contains it. Any other signal in the same step still fails the lint. An entry must name at least one text.
+# Add an entry only for text the test prints on purpose, never to turn a red receipt green.
+#
+# nav-coach-dismiss: the "storage blocked" case hands the dock tip a localStorage whose getItem/setItem throw
+# Error('blocked') (test/nav-coach-dismiss.test.js:102); the tip logs the throw with its stack and must not break.
+# First allow-listed 2026-11-11 from the v0.15.0 fast receipt (step 888/1784). LIKELY deliberate.
+test/nav-coach-dismiss.test.js | [navdock] could not remember the dock tip was retired (storage blocked) Error: blocked
+# channels.hub: injected faults; secrets() throws "secrets store hiccup" (test/channels.hub.test.js:399) and the
+# roster throws "roster read failed" (:413); the hub logs each throw and must keep answering.
+# First allow-listed 2026-11-11 from the v0.15.0 fast receipt (step 1212/1784). LIKELY deliberate.
+test/channels.hub.test.js | [telegram] secrets() threw in onInbound: secrets store hiccup | [telegram] roster lookup threw in /agents: roster read failed
+# channels.parity: an injected runSlash that throws Error('boom') (test/channels.parity.test.js:106); the hub logs
+# the throw and must answer the chat. First allow-listed 2026-11-11 from the v0.15.0 fast receipt (step
+# 1233/1784). LIKELY deliberate.
+test/channels.parity.test.js | [telegram] /tools threw: boom

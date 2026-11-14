@@ -98,6 +98,7 @@ merge, tag on the merge):
    ```
    npm run test:fast 2>&1 | tee gate-fast.log
    npm run test:http 2>&1 | tee gate-http.log      # when sidecar/ship/route code changed
+   node scripts/qa/receipt-lint.mjs gate-fast.log gate-http.log   # must pass first (§1.4a)
    npm run release:ritual -- --version <ver> --gates-proven-by gate-fast.log --gates-proven-by gate-http.log
    ```
    It verifies the log's **last line** is the runner's green summary
@@ -279,11 +280,53 @@ Read the LAST LINE of each log — `run-fast-tests: OK — N step(s) green` — 
 bump changes the shipped version, and any test coupled to it will fail the train's CI gate AFTER the
 tag is pushed — which burns a version number (tags are never force-moved; a failed tag means cutting
 a patch). This exact mistake cost v0.2.0 AND v0.2.1 on 2026-07-06 (a fixture pinned near the current
-version). Green locally post-bump = the CI gate will be green too. Then tag the re-lock commit:
+version). Green locally post-bump = the CI gate will be green too. Before you tag, the receipt must also
+pass §1.4a. Then tag the re-lock commit:
 
 ```
 git tag v0.2.0
 ```
+
+### 1.4a Gate truth: the receipt lint, red disposition, quiet window (every release)
+
+A green last line proves only that every step exited 0. In the v0.15.0 HTTP receipt
+`forget.tool-quotes.http` printed an `Error:` and its stack, then `OK (6 assertions)`, and scored green.
+So a release receipt also owes these four rules:
+
+1. **The receipt lint passes on every gate log** of the receipt (before `--gates-proven-by`; the ritual
+   does not run it for you yet):
+   ```
+   node scripts/qa/receipt-lint.mjs gate-fast.log gate-http.log
+   ```
+   It fails (exit 1, one line per step) every step scored `ok` whose output holds a stack frame, an
+   `Error:` line, a `FAIL:` line or a logged throw (`threw` / `unhandled`). It also fails a log it cannot
+   read whole (`INCOMPLETE RUN`): a run that stops before its last step, has no `ran X of Y step(s)` tally,
+   or reads a different step count than that tally (a partial log, a gate cut short, or a result line the
+   lint could not follow). Its last line reads `receipt-lint: OK` or `receipt-lint: FAILED`. A false green
+   or an unread step is a red: it takes the disposition below.
+   Text a test prints on purpose is named in `scripts/qa/receipt-lint.allow` (step plus exact text; today
+   `channels.hub`, `channels.parity` and `nav-coach-dismiss`, LIKELY deliberate fault injections).
+   **Review every allow-list entry at every cut**: keep it only while the test still prints that text on
+   purpose (the lint notes an entry whose text is gone). Never add an entry to turn a receipt green.
+2. **Receipts run at default configuration**: `npm run test:fast` and `npm run test:http` exactly as
+   `package.json` defines them, with no environment overrides, filters, shards, changed timeouts or
+   deadlines, or edited lists. The receipt's command line shows it; any other command is not a release
+   receipt.
+3. **Release quiet window**: while a release gate runs, no other gate, soak or browser campaign runs on
+   the shared PC. If the PC cannot be kept quiet, run the release gate on the laptop farm. Record in the
+   receipt where the gate ran and that the window held.
+4. **Red disposition.** The first rule that fits decides, in this order:
+   - a red whose log names a **product refusal** (a refusal code, or a hold sentence such as
+     "blocked_config: the saved floor is invalid; routing is held until it is readable") is a **product
+     row on first sight**: file it in the ledger. Quiet repeats cannot clear it, however many pass;
+   - any **other assertion red** clears only with a **written cause**, or with **6 passing repeats at the
+     same SHA on a quiet runner** (the farm or a VM, never beside another gate), recorded in the receipt
+     with the SHA, the runner and all 6 results. One green re-run clears nothing. A `test/flaky.list`
+     retry that passes is this rule, with its written cause in that list;
+   - a **timeout or readiness red** (the step hit its time bound, or its fixture never became ready) may
+     clear with **one** pass on a quiet runner, recorded in the receipt.
+
+The cut record carries the lint's last line for each gate log and the disposition of every red.
 
 ### 1.5 Push the tag — this is what starts the train
 
