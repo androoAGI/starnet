@@ -30,12 +30,37 @@ function block(opts) {
   return lines.join('\n');
 }
 
+/* opts.restated (cost audit W3.9b, STARNET_PREFIX_DOCTRINE): the caller left out of its own text the sentences this
+   block says again (rides: the one test of whether it may). The block must then close the prompt, so a base that
+   already quotes the heading (a persona, a recipe) no longer stops the append. Absent or false: as before. */
 function append(system, opts) {
   const base = String(system || '');
   opts = opts || {};
-  if (!opts.isTask || opts.internal || base.indexOf(MARKER) >= 0) return base;
+  if (!rides(opts) || (base.indexOf(MARKER) >= 0 && opts.restated !== true)) return base;
   const doctrine = block(opts);
   return base + (base.trim() ? '\n\n' : '') + doctrine;
 }
 
-module.exports = { MARKER, block, append };
+// whether this block closes a run's prompt at all: a real task that is not internal self-talk. The same test append
+// applies, for a caller that drops a sentence only because the block restates it.
+function rides(opts) {
+  return !!(opts && opts.isTask && !opts.internal);
+}
+
+/* THE SENTENCES THE BLOCK RESTATES. [HARNESS] HOW TO WORK (index.js taskDoctrineNote) opens with three sentences this
+   block says again, last and in more words: what the deliverable is, keep acting until done or honestly blocked, and
+   never repeat a failing call. Each entry is the HOW TO WORK sentence and the lines of this block that carry it; a
+   run that rides this block may leave those sentences out of HOW TO WORK (never out of here: the last position is
+   deliberate). test/prefix-lanes.test.js holds every entry to both texts. */
+const RESTATED = Object.freeze([
+  Object.freeze({ howToWork: 'the deliverable is a real outcome proven by real tool output — never a description, a plan, or a promise of future action. ',
+    here: Object.freeze(['The deliverable is the real result backed by tool output, not a plan, a promise, a workaround for the Commander to assemble, or a description of what you would do.']) }),
+  Object.freeze({ howToWork: 'Act with tools NOW and keep going until the task is done or genuinely blocked; if blocked, say so honestly and try a different path — NEVER invent output you did not produce. ',
+    here: Object.freeze(['Keep working until the requested result is actually complete and verified.', 'Use tools whenever they materially improve correctness or completeness.',
+      'Exhaust safe, authorized, in-scope alternatives before reporting a blocker.',
+      'If the real path remains blocked after alternatives are exhausted, state the exact blocker and what you tried. Never fabricate output or success.']) }),
+  Object.freeze({ howToWork: 'A tool error is information: read it and change strategy — never repeat the identical failing call. ',
+    here: Object.freeze(['If a tool returns empty, partial, stale, or failed output, inspect the exact failure and try a different query, arguments, strategy, or tool before giving up. Never repeat an identical failing call blindly.']) })
+]);
+
+module.exports = { MARKER, block, append, rides, RESTATED };

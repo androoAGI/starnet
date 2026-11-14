@@ -4,7 +4,7 @@
 
    projectTools(agent, origin, role, facts) -> {
      station, resolved, preAuthorityTools, widgetScope, keySaveOffered, crewless, deferralOff,
-     connectorDeferral, unavailable, advertised, deferredWire, pendingFacts, sources, rows
+     connectorDeferral, unavailable, dormantFollowups, specialistTail, recipeReader, advertised, deferredWire, pendingFacts, sources, rows
    }
 
    This is the assembly runOnce used to do inline, MOVED here step for step in the same order, so the run, GET
@@ -32,7 +32,9 @@
             dynamicTools: { connector: [def], plugin: [def] }, widgetScope, internalBriefTools, deferralOff,
             keySaveOffered, directDomain, leanCrew, crewCount, connectorDefer: { bytes, tools },
             availability: { mediaRoute, voiceRoute, spotifyConnected, ptyRuntime },
-            followups: { terminal, shellBg, routines, loops, tasks } (capability/followups.js: false = proven none) } */
+            followups: { terminal, shellBg, routines, loops, tasks } (capability/followups.js: false = proven none),
+            prefixTail (true = STARNET_PREFIX_TAIL is on: the specialist tail is held like a dormant follow-up),
+            recipeReader (true = STARNET_PREFIX_RECIPES is on: a run with no skill.view on its wire is offered recipe.read) } */
 'use strict';
 
 const { composeOffice, stationWithObject, stationWithConnectors } = require('./office.js');
@@ -45,6 +47,7 @@ const { isRoutineTrigger } = require('../routine-identity.js');
 const { dangerKey } = require('../permissions.js');
 const CrewDiet = require('../crew-diet.js');
 const Followups = require('./followups.js');
+const { NAME: RECIPE_READER } = require('../tools/builtin/recipe-read.js');
 const { planConnectorDeferral } = require('../tools/builtin/toolsearch.js');
 const { note: failNote } = require('../failopen.js');
 
@@ -262,19 +265,41 @@ function projectTools(agent, origin, role, facts) {
      in [HARNESS], found by tool.search, and revealed by its starter's result; an unknown fact keeps it advertised. Decided
      after every other deferral, so a control already held for another reason keeps that reason. */
   let dormantFollowups = [];
+  /* THE SPECIALIST TAIL (cost audit W3.9a, facts.prefixTail = STARNET_PREFIX_TAIL): the same hold, from the same module and
+     over the same wire, for the Resolve, widget and skill.write tools. Off (the default), it holds nothing and this block
+     is the follow-ups' alone. */
+  let specialistTail = [];
   {
     const held = new Set(resolved.deferred || []);
-    dormantFollowups = Followups.dormantFollowups({ isTask, deferralOff, granted: resolved.tools,
-      wire: resolved.tools.filter(n => !held.has(n) && !ddw(n)), facts: facts.followups });
-    if (dormantFollowups.length) resolved.deferred = (resolved.deferred || []).concat(dormantFollowups);
+    const wire = resolved.tools.filter(n => !held.has(n) && !ddw(n));
+    dormantFollowups = Followups.dormantFollowups({ isTask, deferralOff, granted: resolved.tools, wire, facts: facts.followups });
+    specialistTail = Followups.specialistTail({ on: facts.prefixTail === true, isTask, deferralOff, granted: resolved.tools, wire, widgetScope });
+    const heldNow = dormantFollowups.concat(specialistTail);
+    if (heldNow.length) resolved.deferred = (resolved.deferred || []).concat(heldNow);
   }
   // CORE vs DEFERRED on the wire: both granted; only the core list rides every request (task runs only).
   const deferredNames = new Set((deferralOff ? [] : (resolved.deferred || [])).filter(n => !ddw(n)));
+  /* THE RECIPE READER (cost audit W3.9c, facts.recipeReader = STARNET_PREFIX_RECIPES). A task run whose wire has no
+     skill.view gets every enabled recipe body inline, because its index could name no tool the run can call. With the
+     switch on, that run is offered recipe.read instead (tools/builtin/recipe-read.js: the recipes this run was offered,
+     and nothing else), so its prompt can carry the index. A host offer like the Task Brief controls, not a room prop:
+     it rides only where skill.view does not, decided here on the final wire so the run, GET /api/toolsets and a
+     channel's /tools agree; no SERVER CART power comes with it. Off (the default), no run holds it. */
+  let recipeReader = false;
+  if (isTask && facts.recipeReader === true && registry && typeof registry.get === 'function' && registry.get(RECIPE_READER)
+    && !(resolved.tools.indexOf('skill.view') >= 0 && !deferredNames.has('skill.view') && !ddw('skill.view'))) {
+    if (resolved.tools.indexOf(RECIPE_READER) < 0) resolved.tools.push(RECIPE_READER);
+    if (!resolved.grants.some(g => g && g.tool === RECIPE_READER)) resolved.grants.push({ capId: 'recipes', tool: RECIPE_READER, scope: 'read', requiresConsent: false, network: false });
+    resolved.approvalRules[RECIPE_READER] = { requiresConsent: false, scope: 'read', network: false };
+    resolved.networkCaps[RECIPE_READER] = false;
+    injected[RECIPE_READER] = injected[RECIPE_READER] || 'recipe-reader';
+    recipeReader = true;
+  }
   const coreNames = resolved.tools.filter(n => !deferredNames.has(n) && !ddw(n));
   const advertised = isTask ? coreNames : [];
   const deferredWire = isTask ? Array.from(deferredNames) : [];
   const projection = { station, resolved, preAuthorityTools, widgetScope, keySaveOffered, crewless, deferralOff,
-    connectorDeferral, unavailable, dormantFollowups, advertised, coreNames, deferredNames, deferredWire, pendingFacts, sources, injected };
+    connectorDeferral, unavailable, dormantFollowups, specialistTail, recipeReader, advertised, coreNames, deferredNames, deferredWire, pendingFacts, sources, injected };
   projection.rows = rowsOf(projection, { agentId, registry, authority: facts.authority, surface, enabledToolsets, directDomain: facts.directDomain, groupTurn: Array.isArray(origin.groupTools) });
   return projection;
 }
@@ -310,7 +335,7 @@ function rowsOf(p, ctx) {
     if (state === 'withheld') row.reason = limitOf(name, tool, impact, p, ctx);
     if (state === 'deferred') row.reason = p.resolved.unavailable && p.resolved.unavailable[name] ? 'unavailable:' + p.resolved.unavailable[name].signal
       : p.connectorDeferral.deferred.indexOf(name) >= 0 ? 'connector-index' : (p.crewless && CrewDiet.CREW_KIT_DEFERRED.indexOf(name) >= 0) ? 'crewless-lead'
-      : (p.dormantFollowups || []).indexOf(name) >= 0 ? 'dormant-followup' : 'catalog-deferred';
+      : (p.dormantFollowups || []).indexOf(name) >= 0 ? 'dormant-followup' : (p.specialistTail || []).indexOf(name) >= 0 ? 'specialist-tail' : 'catalog-deferred';
     if (Object.prototype.hasOwnProperty.call(withheldExplained, name)) row.why = withheldExplained[name].why;
     rows[name] = row;
   }

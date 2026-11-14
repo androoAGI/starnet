@@ -155,7 +155,7 @@ const ProjectTools = require('./capability/project-tools.js');   // ONE projecti
 const ToolCatalog = require('./tools/catalog.js');   // the declared host tool catalogue a readout projects over (never dispatched)
 const { summarizeCapabilities } = require('./capability/capsummary.js');   // truthful "what you can/can't do" so the agent stops over-promising
 const { scopeForRun, makeSavedFloor } = require('./capability/cap-scope.js');   // ...and WHICH room a room-scoped agent's missing gear must go in
-const { starnetManual, starnetManualIndex, starnetManualPointer, starnetManualTerminal } = require('./manual.js');   // truthful "how StarNet works" so the agent can guide a stuck Commander (interactive only); the index form keeps rules inline + a TOC served by manual.read
+const { starnetManual, starnetManualIndex, starnetManualPointer, starnetManualTerminal, leanManualBlock, ON_DEMAND_RULE_SECTIONS } = require('./manual.js');   // truthful "how StarNet works" so the agent can guide a stuck Commander (interactive only); the index form keeps rules inline + a TOC served by manual.read
 const FinishLine = require('./finish-line.js');     // immutable "crawl to the finish line" task doctrine at the final prompt seam
 const { makeHarnessSnapshot } = require('./harness-snapshot.js');   // bounded secret-free build/scheduler/connectors/diagnostics truth for station.inspect
 const { makeOpenRouterProvider } = require('./providers/openrouter.js');
@@ -284,6 +284,7 @@ const { runtimeIdentityBlock } = require('./runtimeinfo.js');
 const { makeDiagnostics, proxyHostOnly } = require('./diagnostics.js');   // T3.9: pure paste-ready bug-report assembler (redacted, truthful)
 const LiveDoctor = require('./live-doctor.js');                           // opt-in bounded live proof + secret-free receipt
 const { makeStationInspectTool } = require('./tools/builtin/station-inspect.js');
+const { makeRecipeReadTool, NAME: RECIPE_READER } = require('./tools/builtin/recipe-read.js');   // recipe.read — an INSTALLED SKILL recipe's body for a run with no skill.view on its wire (STARNET_PREFIX_RECIPES)
 const { makeManualReadTool } = require('./tools/builtin/manual-read.js');   // manual.read — the operator manual's reference sections, on demand
 const { makeStationShowTool } = require('./tools/builtin/station-show.js');   // station.show — the agent opens a StarNet window/tab for the Commander (frontend/app/places.js)
 const memcore = require('./memcore.js');
@@ -4406,6 +4407,18 @@ function batchHintOn() { return BatchHint.on(ENV('BATCH_HINT')); }
    TaskBriefPolicy.looksOnly, and nothing but that gate (briefHoldFor) reads it. Off by default: unset, blank or '0' is the
    gate as it was. */
 function briefReadOnlyShell() { return /^(1|true|yes|on)$/i.test(String(ENV('BRIEF_READONLY_SHELL') || '').trim()); }
+/* prefixLaneOn — the PREFIX cost lanes' switches (cost audit W3.9 and W2.5), each read here and nowhere else, through ENV(),
+   at each use:
+     STARNET_PREFIX_TAIL      the specialist tail leaves the wire (capability/followups.js)
+     STARNET_PREFIX_DOCTRINE  CONNECTING A PLATFORM rides as its rules with the walk-through behind manual.read, and HOW TO
+                              WORK drops the three sentences FINISH THE JOB restates (manual.js, finish-line.js)
+     STARNET_PREFIX_RECIPES   a run with no skill.view on its wire reads a recipe with recipe.read and carries the recipe
+                              index, no longer every enabled body (tools/builtin/recipe-read.js)
+     STARNET_LIVE_NAMES       [HARNESS] points at the tool list a request carries instead of repeating every name in it
+   '1' (or true / yes / on) is on; '0', blank or unset is off. Every one is OFF by default: each changes what a model is
+   shown on its first request, so it ships dark until an A/B on real models passes, and with it off every request is the
+   one this build sent before it. */
+function prefixLaneOn(suffix) { return /^(1|true|yes|on)$/i.test(String(ENV(suffix) || '').trim()); }
 /* crewEffort — LEANER CREW DEFAULTS, the effort half (W3.3: CrewDefaults.effortRule decides, this host applies it). A CREW
    run (a worker, a clone, a line stage: CrewDefaults.surfaceOf) whose effort is its class's applied default above medium
    asks for medium per request; the run after a failed verify (o.crewRetry: a review gate sent the work back, a structured
@@ -18569,7 +18582,9 @@ async function toolsetsPreview(agentId, extraObjects, placement) {
     internalBriefTools: ['brief.ask', 'brief.update', 'brief.proceed'].filter(n => registry.get(n)), deferralOff,
     keySaveOffered: false, directDomain: false, leanCrew: ENV('LEAN_CREW'), crewCount: crewCountFor(agentId), connectorDefer: CONNECTOR_DEFER,
     availability: deferralOff ? {} : { mediaRoute: !!(studioRoute && studioRoute.ok), voiceRoute, ptyRuntime: terminalSessions.available() },
-    followups: deferralOff ? undefined : followupFactsFor(agentId)   // the same live handles and records the run reads
+    followups: deferralOff ? undefined : followupFactsFor(agentId),   // the same live handles and records the run reads
+    prefixTail: prefixLaneOn('PREFIX_TAIL'),                           // ...and the same switches (the specialist tail,
+    recipeReader: prefixLaneOn('PREFIX_RECIPES')                       // the recipe reader of a run without skill.view)
   };
   const projectedStation = ProjectTools.projectStation({ id: agentId }, origin, role, facts).station;
   facts.dynamicTools = await registerRoomTools(registry, projectedStation, agentId, providerId);
@@ -25644,6 +25659,9 @@ async function runOnceCore(o) {
       return recipe ? { name: recipe.name, content: skillsCatalog.viewText(recipe) } : null;
     }
   }).register(registry);   // H4: skill.write/list/view/manage — the agent's reusable procedure library (memory capability)
+  // recipe.read (cost audit W3.9c): the same per-run recipe list, for a run whose wire has no skill.view. Registered like
+  // every tool; only the projection offers it, and only while STARNET_PREFIX_RECIPES is on.
+  makeRecipeReadTool({ find: name => skillsCatalog.find(runRecipes, name), view: skillsCatalog.viewText }).register(registry);
   Todo.makeTodoTool({ store: notebookStore }).register(registry);   // in-session task plan — shares the notebook's per-agent kv store ('todo:'+agentId)
   DeliverableTool.makeDeliverableTool({ notes: deliverableNotes }).register(registry);   // deliverable_note — the agent's OWN name for what it made; drained by runOnce at run end
   makeToolSearchTool({ registry }).register(registry);   // tool.search — finds a GRANTED but unadvertised tool (CAP_REGISTRY `deferred: true`) and reveals it for the rest of the run; rides the computer object so no surface is stranded
@@ -26107,7 +26125,12 @@ async function runOnceCore(o) {
     keySaveOffered: !!(isTask && keyTexts && KeyTools.hasKeyCandidate(keyTexts)), directDomain: !!hostScope,
     leanCrew: ENV('LEAN_CREW'), crewCount: crewCountFor(agentId), connectorDefer: CONNECTOR_DEFER, availability,
     // DORMANT FOLLOW-UP CONTROLS (cost audit W1.3): live handles and records, read only where a deferral can apply
-    followups: (isTask && !deferralOff) ? followupFactsFor(agentId) : undefined
+    followups: (isTask && !deferralOff) ? followupFactsFor(agentId) : undefined,
+    // THE SPECIALIST TAIL (cost audit W3.9a): held like a dormant follow-up only while STARNET_PREFIX_TAIL is on
+    prefixTail: prefixLaneOn('PREFIX_TAIL'),
+    // THE RECIPE READER (cost audit W3.9c): a run with no skill.view on its wire is offered recipe.read only while
+    // STARNET_PREFIX_RECIPES is on
+    recipeReader: prefixLaneOn('PREFIX_RECIPES')
   };
   // Host-created group-turn closures scope these tools to this exact live group turn; registering them is this run's effect.
   if (Array.isArray(o.groupTools)) for (const def of o.groupTools) registry.register(def);
@@ -27393,9 +27416,17 @@ async function runOnceCore(o) {
   // TASK DOCTRINE (2026-07-08, ref-parity): the general operating loop every goliath harness prompt ships and
   // ours didn't — deliverable = proven outcome, quietest-path tool ladder, act→verify→iterate, honest escalation.
   // This block is what stops "open the app on the user's screen and type into it" when a quiet path exists.
+  /* FINISH THE JOB RESTATES THREE OF THESE SENTENCES (cost audit W3.9b, STARNET_PREFIX_DOCTRINE, off by default). The block
+     FinishLine.append closes every task prompt with says again, last and in more words, what the deliverable is, to keep
+     acting until done or honestly blocked, and never to repeat a failing call (finish-line.js RESTATED). With the switch on,
+     a run that block closes leaves those three out of HOW TO WORK. The block itself is never trimmed (its last position
+     is deliberate), and the append below is told the sentences are gone, so it cannot be skipped. Only on the cache-stable
+     prompt (stablePrefix: not a recovery continuation, not STARNET_STABLE_PREFIX=0, whose old single prompt stays whole). */
+  const stablePrefix = !internal && !o.recovery && String(ENV('STABLE_PREFIX') || '').trim() !== '0';   // CACHE-STABLE PREFIX, further down, says what it is
+  const howToWorkLean = stablePrefix && FinishLine.rides({ isTask, internal }) && prefixLaneOn('PREFIX_DOCTRINE');
   const taskDoctrineNote = ''
-    + 'HOW TO WORK: the deliverable is a real outcome proven by real tool output — never a description, a plan, or a promise of future action. '
-    + 'Act with tools NOW and keep going until the task is done or genuinely blocked; if blocked, say so honestly and try a different path — NEVER invent output you did not produce. '
+    + 'HOW TO WORK: ' + (howToWorkLean ? '' : 'the deliverable is a real outcome proven by real tool output — never a description, a plan, or a promise of future action. '
+    + 'Act with tools NOW and keep going until the task is done or genuinely blocked; if blocked, say so honestly and try a different path — NEVER invent output you did not produce. ')
     + 'Always take the QUIETEST path that achieves the goal: (1) a DEDICATED tool for the target service'
     + (hasJukebox ? ' (e.g. spotify_play for Spotify)' : '') + ' — try it FIRST even if you are unsure it is connected; '
     + '(2) HEADLESS work' + (hasShellExec ? ' — shell_exec can drive installed apps invisibly (app URI schemes, app CLIs' + (shellIsCmd ? ', PowerShell' : '') + ')' : '')
@@ -27406,7 +27437,8 @@ async function runOnceCore(o) {
       : '')
     + 'If a dedicated tool answers "not connected", immediately continue down this ladder with the next safe, already-authorized route. Do not ask merely because the fallback is louder. Ask only when that next route itself needs Commander authentication, exact consent, or a genuinely material choice. Mention connection setup only if it remains the final blocker after the alternatives are exhausted. '
     + 'After any action that changes the world, VERIFY it took effect with a read-back tool (e.g. now-playing after play, a listing after a write, a probe after a start) before reporting done. '
-    + 'A tool error is information: read it and change strategy — never repeat the identical failing call. Escalate automatically through safe authorized routes, and disclose a more visible or consequential route when its own consent boundary requires it. '
+    + (howToWorkLean ? '' : 'A tool error is information: read it and change strategy — never repeat the identical failing call. ')
+    + 'Escalate automatically through safe authorized routes, and disclose a more visible or consequential route when its own consent boundary requires it. '
     + 'Blocked sites, dead links and throttled engines are ordinary web weather: route around them, and mention an obstacle in your reply only if it changed the outcome — never narrate routine obstacles as failures, and never apologize for them. '
     // THE BATCHING SENTENCE (cost audit W2.3): '' unless STARNET_BATCH_HINT=1, so the doctrine is byte-identical with the
     // switch off. On: independent calls together in one reply, a call whose arguments need an unseen result in the next.
@@ -27431,9 +27463,17 @@ async function runOnceCore(o) {
     + (hasBrowserTools ? 'For public browser changes, use browser_navigate plus browser_console/browser_snapshot/browser_vision. ' : '')
     + (hasBrowserTestTools ? 'For LOCAL browser, UI, canvas, or game verification, start the dev server with shell_exec background:true, confirm its bg id/port with shell_bg_status, then MUST use browser_test_navigate(serverId) + browser_test_snapshot/browser_test_state/browser_test_input. They run headless CDP and emulate pointer/keyboard lock without touching physical devices. NEVER launch Chrome, Edge, Firefox, Puppeteer, Playwright, Selenium, or a browser smoke through shell_exec/verify_run for an input-capturing app; those paths are refused. ' : '')
     + ((hasShellExec || hasWriteTools || hasBrowserTools) ? 'Final reports must name changed files, verification commands/results, and any running server URL/background id or remaining limitation. ' : '');
+  /* THE LIVE NAME LIST (cost audit W2.5, STARNET_LIVE_NAMES, off by default). The joined list below repeats, name for name,
+     the tools this same request carries: the tools array on an API route, and on claude-cli the "# Tools ... Available
+     tools:" text of the same system prompt (providers/claude-cli.js toolsPromptOf renders every advertised tool as
+     "- name: description", so the list is redundant there too). With the switch on, a run whose tools ride that wire
+     points at the list instead of repeating it. Every sentence that leans on it is untouched: "the listed tools", "This
+     list is PARTIAL", and the names of the granted tools that are not loaded yet. A request that carries no tools
+     (outputOnly: the loop is handed none) would keep the list; its verbatim system never shows this note at all. */
+  const liveNamesLean = prefixLaneOn('LIVE_NAMES') && toolDefs.length > 0 && !o.outputOnly;
   const toolNote = (isTask && wireNames.length)
     ? '\n\n[HARNESS] You are running in a REAL agent harness on the Commander\'s machine, at a workstation with '
-      + 'these LIVE tools: ' + wireNames.join(', ') + '. '
+      + (liveNamesLean ? 'the LIVE tools in your tool list. ' : 'these LIVE tools: ' + wireNames.join(', ') + '. ')
       + 'Actually use the listed tools when relevant; never claim a listed tool is unavailable. '
       /* THE LIST IS PARTIAL, AND THE MODEL HAS TO BE TOLD SO HERE. tool_search's own description says it, but a
          model plans from the tool LIST, not from the descriptions of tools it has not decided to call — so
@@ -27644,6 +27684,9 @@ async function runOnceCore(o) {
         ? skillsCatalog.composeIndex(skillLibrary(), recipeOpts)
         : skillsCatalog.compose(skillLibrary(), recipeOpts))
       : '';
+    // THE RECIPE READER (cost audit W3.9c, STARNET_PREFIX_RECIPES): a run the projection offered recipe.read (it has no
+    // skill.view) carries the same index, naming the reader it can call, and no longer the bodies.
+    if (isTask && coreNames.indexOf(RECIPE_READER) >= 0) skillBlock = skillsCatalog.composeIndex(skillLibrary(), Object.assign({ reader: RECIPE_READER }, recipeOpts));
   } catch (_) { /* a skill-injection hiccup must never break a run */ }
   // STARNET OPERATOR MANUAL: how the station works, so the agent can guide a stuck Commander. Interactive
   // only (same gate as capsummary — a Commander is present to help and the build UI exists). Sits right
@@ -27658,7 +27701,13 @@ async function runOnceCore(o) {
   const manualBlock = (isTask && ownerTrusted && coreNames.indexOf('manual.read') >= 0) ? starnetManualPointer()
     : (isTask && surface === 'interactive') ? (coreNames.indexOf('manual.read') >= 0 ? starnetManualIndex() : starnetManual()) : '';
   // A terminal (CLI) task turn gets the terminal pointer instead: the desktop manual's "open X / place Y" has no meaning there.
-  const operatorManual = (isTask && o.viewer === 'terminal') ? starnetManualTerminal() : manualBlock;
+  const operatorManualWhole = (isTask && o.viewer === 'terminal') ? starnetManualTerminal() : manualBlock;
+  /* CONNECTING ON DEMAND (cost audit W3.9b, STARNET_PREFIX_DOCTRINE, off by default): the index carries CONNECTING A
+     PLATFORM as its rules alone and manual.read serves the walk-through (manual.js CONNECTING_CORE). Only the index form
+     has a lean form, so it rides only where the index did, with manual.read on the wire; manual.read is told which
+     sections that puts on demand, so it never lists one as already in the prompt. */
+  const operatorManual = prefixLaneOn('PREFIX_DOCTRINE') ? leanManualBlock(operatorManualWhole) : operatorManualWhole;
+  if (operatorManual !== operatorManualWhole) capCtx.manualOnDemand = ON_DEMAND_RULE_SECTIONS.slice();
   // a run never waits for the build id (VD-HANDOVER-01: a diagnostic never holds a run). [RUNTIME] reads the version as
   // it stands: while a checkout's git has not answered it says the build is still resolving (sidecar/version-source.js)
   const runtimeVersion = computeVersionSurface();
@@ -27819,7 +27868,7 @@ async function runOnceCore(o) {
   // Commander suppresses that domain. It grants no tools or authority; it is a bounded planning prior.
   // The cache-stable system prompt (stablePrefix, see CACHE-STABLE PREFIX below) carries the TIER-ONLY form: a count changes
   // with every verified outcome and would re-write the cached prefix mid-conversation. The kill switch keeps the counted one.
-  const stablePrefix = !internal && !o.recovery && String(ENV('STABLE_PREFIX') || '').trim() !== '0';
+  // (`stablePrefix` is declared above the [HARNESS] note, where HOW TO WORK asks it first.)
   let journeyBlock = '';
   if (!internal) { try { const jb = journeyStore.adaptationBlock(agentId, { counts: !stablePrefix }); if (jb) journeyBlock = '\n\n' + jb; } catch (_) { journeyBlock = ''; } }
   /* DELIVERABLE NAMING — asked for at THE one final prompt seam, so every real-work surface gets it identically:
@@ -27901,7 +27950,7 @@ async function runOnceCore(o) {
   // the crew call is NOT a run-context block: it trails the Commander's words as its own <crew_call> note (below)
   const perRunBlocks = LearnedTail.tail(persona.learned) + delegatedBlock + runtimeSkillBlock + preloadedSkillBlock + taskBriefContext + stationEvidenceBlock + awayBriefingNote + directDomainBlock + runtimeBlock;
   const taskSystem = stablePrefix
-    ? FinishLine.append(cacheSystemPrefix + serviceKeysBlock + taskDoctrine + journeyBlock + deliverableNote, { isTask, internal, tools: resolved.tools })
+    ? FinishLine.append(cacheSystemPrefix + serviceKeysBlock + taskDoctrine + journeyBlock + deliverableNote, { isTask, internal, tools: resolved.tools, restated: howToWorkLean })
     : FinishLine.append(cacheSystemPrefix + PromptScrub.scrubStored(delegatedBlock + stationEvidenceBlock + runtimeSkillBlock
       + preloadedSkillBlock + serviceKeysBlock + taskIntentNote + awayBriefingNote + directDomainBlock + journeyBlock
       + deliverableNote + crewCallNote + runtimeBlock), { isTask, internal, tools: resolved.tools });   // STABLE_PREFIX=0: the per-run blocks get the run_context belt

@@ -13,6 +13,8 @@
      comms-task           the call a Commander's first COMMS task sends on a fresh station: the page's composed lead persona,
                           a COMMS stream, the starter floor. It also pins prefixBytes, the system + tool-schema bytes.
      claude-cli           that same call on the claude-cli route: the bytes of the --system-prompt-file (tools ride it as text).
+     comms-task + switch  that call and its claude-cli twin from a station booted with ONE prefix-lane switch on (LANE_BUDGET):
+                          the ON state of a lane that ships off, so it cannot regrow unseen before its A/B.
 
    A budget failure is a REVIEW prompt, not a bug report: if the growth is intended, raise the budget in the same
    commit and say why. Also re-asserts the chat-diet law: a non-task turn carries NO tools on the wire. */
@@ -155,6 +157,32 @@ const BUDGET = {
 };
 // the comms-task call on the claude-cli route, where the tool schemas are text inside the system prompt file (bytes)
 const CLI_BUDGET = { systemBytes: 85194 };
+/* THE PREFIX LANES, EACH ON ALONE (cost audit W3.9; every switch is OFF by default, so the rows above are what ships).
+   One more hermetic station per switch sends the comms-task call again (from the starter floor less the props a row's
+   `without` names), on the model wire and on claude-cli, and each row is that call's own ratchet: the measurement plus the comms-task row's headroom (tool bytes +223, fixed prefix +160,
+   claude-cli +20; system chars as the comms-task row unless the lane moves them). A row comes in with its lane and is
+   only ever tightened. */
+const LANE_BUDGET = {
+  // W3.9a, the specialist tail off the wire (3 Resolve tools, 2 widget tools, skill.write): 70 -> 64 tools, 58,004 -> 51,283
+  // tool bytes, 87,962 -> 81,241 prefix bytes (the six names move from the live list to the not-loaded list: system
+  // unchanged); claude-cli 85,174 -> 78,777
+  STARNET_PREFIX_TAIL: { systemChars: 32296, tools: 64, toolBytes: 51506, prefixBytes: 81401, cliBytes: 78797 },
+  // W3.9b, two doctrine blocks said once (CONNECTING A PLATFORM as its rules with the walk-through behind manual.read; HOW
+  // TO WORK without the three sentences FINISH THE JOB restates): 32,206 -> 30,414 system chars (+90 headroom, as the
+  // comms-task row), 87,962 -> 86,130 prefix bytes; tools untouched; claude-cli 85,174 -> 83,342. (First measured at
+  // 30,243 / 85,959 / 83,171 with a core that told every run to call connectors.list; the core now asks it only of a run
+  // that has the tool and keeps the section's own LOOK IT UP and BEFORE DECLINING lines: +171 chars, set the same day.)
+  STARNET_PREFIX_DOCTRINE: { systemChars: 30504, tools: 70, toolBytes: 58227, prefixBytes: 86290, cliBytes: 83362 },
+  // W3.9c, recipes read without the SERVER CART. The comms-task call itself is untouched (it has skill.view), so this row
+  // is the call the lane is for: the same task from the starter floor WITHOUT its notebook (`without`). Off, that call
+  // inlines every enabled recipe body (88,324 prefix bytes: 40,294 of system text, 60 tools); on, it carries the recipe
+  // index and one more tool, recipe_read: 31,057 system chars, 61 tools, 48,486 tool bytes, 77,775 prefix bytes;
+  // claude-cli 75,475
+  STARNET_PREFIX_RECIPES: { without: ['notebook'], systemChars: 31147, tools: 61, toolBytes: 48709, prefixBytes: 77935, cliBytes: 75495 },
+  // W2.5, the joined live tool-name list out of [HARNESS] (the request carries every name already): 32,206 -> 31,229
+  // system chars, 87,962 -> 86,985 prefix bytes; tools untouched; claude-cli 85,174 -> 84,197
+  STARNET_LIVE_NAMES: { systemChars: 31319, tools: 70, toolBytes: 58227, prefixBytes: 87145, cliBytes: 84217 }
+};
 
 /* THE COMMS PERSONA: the `system` the station page sends for its lead (frontend/app/app.js composeSystemPrompt), composed
    from the page's own functions over the real personas.js and specialties.js, so the comms-task rows measure the prompt a
@@ -296,10 +324,11 @@ function shape(b) {
     fs.mkdirSync(home);
     // SidecarFixture leaves USERPROFILE real on Windows; this boot reads no real sign-in or home directory. An OpenRouter key
     // is set (a fake one, on the mock) because a station that runs COMMS tasks has a provider: the cost audit measured that way.
-    comms = SidecarFixture.create({ prefix: 'starnet-payload-comms-', timeoutMs: 20000, env: Object.assign({}, env, {
+    const commsEnv = Object.assign({}, env, {
       HOME: home, USERPROFILE: home, STARNET_CLAUDE_BIN: shim, FAKE_CLAUDE_LOG: cliLogFile, STARNET_CLAUDE_CLI_PERSIST: '0',
       SKYNET_OPENROUTER_BASE: 'http://' + HOST + ':' + llm.address().port + '/api/v1', SKYNET_OPENROUTER_KEY: 'sk-or-v1-local-proof', SKYNET_DEFAULT_MODEL: 'test/model',
-      STARNET_CREDITS_URL: '', SKYNET_CREDITS_URL: '', SKYNET_QUEST_REFRESH: '0' }) });
+      STARNET_CREDITS_URL: '', SKYNET_CREDITS_URL: '', SKYNET_QUEST_REFRESH: '0' });
+    comms = SidecarFixture.create({ prefix: 'starnet-payload-comms-', timeoutMs: 20000, env: commsEnv });
     await comms.start();
     const persona = commsPersona();
     A.ok(persona.length > 3000 && persona.indexOf('NOVA') >= 0, 'comms persona: the composed lead persona (' + persona.length + ' chars)');
@@ -335,6 +364,36 @@ function shape(b) {
     A.ok(cliSystem.indexOf(persona) === 0, 'claude-cli: the system prompt file opens with the composed COMMS persona');
     const cliBytes = Buffer.byteLength(cliSystem);
 
+    /* THE PREFIX LANES, EACH ON ALONE: the same two calls from a station booted with that one switch on (one station at a
+       time: the comms station above is done). */
+    await comms.dispose(); comms = null;
+    const laneMeasured = {};
+    for (const lane of Object.keys(LANE_BUDGET)) {
+      const floorObjects = starter.filter(t => (LANE_BUDGET[lane].without || []).indexOf(t) < 0).map(objectType => ({ objectType }));
+      comms = SidecarFixture.create({ prefix: 'starnet-payload-lane-', timeoutMs: 20000, env: Object.assign({}, commsEnv, { [lane]: '1' }) });
+      await comms.start();
+      A.eq((await comms.json('POST', '/api/roster', { updatedAt: Date.now(), agents: [{ agentId: 'agent', system: persona, name: 'NOVA', provider: 'custom', model: 'fixture-model',
+        role: 'orchestrator', approvalMode: 'ask', executionProfile: 'station-gear', workshop: false, skills: [], reasoningEffort: null }] })).status, 200, lane + ': the lead alone on the roster');
+      const laneRun = async extra => {
+        const r = await comms.request('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(Object.assign({
+          agentId: 'agent', isTask: true, placed: floorObjects, stationPlaced: floorObjects, system: persona, messages: [{ role: 'user', content: COMMS_TASK }] }, extra)) });
+        await r.text();
+        A.eq(r.status, 200, lane + ': comms run accepted (' + extra.provider + ')');
+      };
+      all.length = 0;
+      await laneRun({ provider: 'custom', baseUrl: 'http://' + HOST + ':' + llm.address().port + '/v1', key: 'fixture-key', model: 'fixture-model', streamId: 'payload-lane-' + lane + '-1' });
+      const laneMains = all.filter(b => Array.isArray(b.tools) && b.tools.length);
+      A.eq(laneMains.length, 1, lane + ': exactly one foreground model call carries the tools');
+      const laneSt = await comms.json('GET', '/api/auth/claude-cli/status');
+      A.eq([laneSt.status, laneSt.body && laneSt.body.installed, laneSt.body && laneSt.body.loggedIn], [200, true, true], lane + ': the fake CLI is installed and signed in');
+      const laneBefore = cliLog().length;
+      await laneRun({ provider: 'claude-cli', model: 'claude-sonnet-5-5', streamId: 'payload-lane-' + lane + '-2' });
+      const laneCli = cliLog().slice(laneBefore).filter(c => String(c.system).indexOf('\n\n# Tools\n') >= 0);
+      A.eq(laneCli.length, 1, lane + ': exactly one foreground CLI call carries the tools block');
+      laneMeasured[lane] = Object.assign(shape(laneMains[0] || { messages: [] }), { cliBytes: Buffer.byteLength(laneCli.length ? String(laneCli[0].system) : '') });
+      await comms.dispose(); comms = null;
+    }
+
     for (const id of Object.keys(BUDGET)) {
       const m = measured[id], b = BUDGET[id];
       console.log('[payload] ' + id + ': system ' + m.systemChars + ' chars (budget ' + b.systemChars + '; of which user-side notes ' + m.noteChars + ') | ' + m.tools + ' tools (budget ' + b.tools + ') | '
@@ -348,6 +407,17 @@ function shape(b) {
     console.log('[payload] claude-cli: system prompt file ' + cliBytes + ' bytes (budget ' + CLI_BUDGET.systemBytes + ')');
     A.ok(cliBytes <= CLI_BUDGET.systemBytes, 'claude-cli: system prompt file ' + cliBytes + ' bytes within budget ' + CLI_BUDGET.systemBytes);
     A.ok(cliBytes > 20000, 'claude-cli: the measurement saw a real task prompt (persona, harness and tools block)');
+    for (const lane of Object.keys(LANE_BUDGET)) {
+      const m = laneMeasured[lane], b = LANE_BUDGET[lane];
+      console.log('[payload] comms-task + ' + lane + '=1: system ' + m.systemChars + ' chars (budget ' + b.systemChars + ') | ' + m.tools + ' tools (budget ' + b.tools + ') | '
+        + m.toolBytes + ' tool bytes (budget ' + b.toolBytes + ') | fixed prefix ' + m.prefixBytes + ' bytes (budget ' + b.prefixBytes + ') | claude-cli ' + m.cliBytes + ' bytes (budget ' + b.cliBytes + ')');
+      A.ok(m.systemChars <= b.systemChars, lane + ' on: system prompt ' + m.systemChars + ' chars within budget ' + b.systemChars);
+      A.ok(m.tools <= b.tools, lane + ' on: ' + m.tools + ' advertised tools within budget ' + b.tools);
+      A.ok(m.toolBytes <= b.toolBytes, lane + ' on: ' + m.toolBytes + ' tool-schema bytes within budget ' + b.toolBytes);
+      A.ok(m.prefixBytes <= b.prefixBytes, lane + ' on: fixed prefix ' + m.prefixBytes + ' bytes (system + tool schemas) within budget ' + b.prefixBytes);
+      A.ok(m.cliBytes <= b.cliBytes, lane + ' on: claude-cli system prompt file ' + m.cliBytes + ' bytes within budget ' + b.cliBytes);
+      A.ok(m.tools > 10 && m.systemChars > 5000 && m.cliBytes > 20000, lane + ' on: the measurement saw a real task payload (not an empty request)');
+    }
   } finally {
     await fixture.dispose();
     if (comms) await comms.dispose();

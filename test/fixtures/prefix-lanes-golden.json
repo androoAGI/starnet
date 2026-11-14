@@ -1,0 +1,48 @@
+{
+ "about": "sha256 of the five calls test/prefix-lanes.e2e.test.js captures with every prefix-lane switch OFF (whole request, system text, tools array; claude-cli: system prompt file, argv, stdin), per platform (the prompt names the host shell). Re-record (--update) only on the base, or when a default byte changes on purpose for a reason outside these lanes, and say so in that commit.",
+ "platforms": {
+  "win32": {
+   "recordedAt": "57c741da7",
+   "calls": {
+    "comms": {
+     "request": "91bf68067397421d684ac5173e08389e68794127d2a7d952cf15bc616e846afb",
+     "system": "29358da27210d2fc70d4377542a26d3ace1743bc8ed16fbf3d98c659621e71c4",
+     "tools": "059e20892fabfc70030c2496de7843958d1b68ea534ff0d79d45bffa660df81b",
+     "systemBytes": 29958,
+     "tools_": 70,
+     "toolBytes": 58004
+    },
+    "cartless": {
+     "request": "a8fe17ba42f670684b58ae3fa856ae10f0d7ae14fb2d92e0b4a60ad727218c0e",
+     "system": "dd57c2397efc4176f43e43776b28a4bde56e962226df1c107ce7a12101a07b78",
+     "tools": "a219091a27453dedb27f40034e8469e8ee7c2125788e6545137f29abc0511a25",
+     "systemBytes": 40294,
+     "tools_": 60,
+     "toolBytes": 48030
+    },
+    "lead": {
+     "request": "fca8bb9b43d4c7e5073bec09aefc205525f93fbabfff85eabdbd5c5b3263ffe9",
+     "system": "ec612c1f849ab390670543516ceadd565e3d22d747277f1aef3f4d4bf1a369fe",
+     "tools": "70fed6a5d2e598f9b92eb5f2d7c3163b1c87942c328a0206a4f145cf6d0a3e7e",
+     "systemBytes": 33210,
+     "tools_": 75,
+     "toolBytes": 63047
+    },
+    "worker": {
+     "request": "a5b12f268066c96d8895b9047574e4034bb9ff21f234a7467888503a423fc04a",
+     "system": "e6bc66568fa46fc87f331b93cf69c836d3fe2d89afc3610516c847cd1acaaf65",
+     "tools": "be00b2d67850cef2a80c74b273016c1d3bc36edc9a8fabb8c4789ec485395f5d",
+     "systemBytes": 11329,
+     "tools_": 45,
+     "toolBytes": 37287
+    },
+    "cli": {
+     "system": "4a5f8acfb4047af64489c23815f88bd71d9b09692bf98fcbbaee0e90c4b6baf9",
+     "argv": "b74623aca53de677ba136f3fd6e264fcb92385012dff623aa1fb6b21046b1cd2",
+     "stdin": "1af0aa51db1365d932cc61cd41c8127b0d0068a047eb294223afc0cc63dabb17",
+     "systemBytes": 85174
+    }
+   }
+  }
+ }
+}

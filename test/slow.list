@@ -377,3 +377,7 @@ test/learning-cooldown.race.e2e.test.js
 test/prompt-scrub.invariant.http.test.js
 # skillreview-useful.e2e: one real sidecar and a restart, ten tool runs against a mock (clean, error, correction, new procedure, a thumbs-down, a thumbs-up, two under the bar, the carried count, a chat run whose Task Brief holds a write), each settled until its learning passes land - 49-54 s at about 93% CPU and 79 s at 100% CPU with nine runs (2026-11-09/10), 111 s at 100% CPU with ten (2026-11-10, other sessions' gates and a headless browser running); listed by the >= 40 s rule.
 test/skillreview-useful.e2e.test.js
+# prefix-lanes.e2e: six real sidecar boots, one per switch state (every switch unset, every switch 0, then each of the four prefix lanes on alone), each sending six calls (COMMS, a cart-less floor, claude-cli through a fake CLI twice, a crew lead and its dispatched worker) plus the lane's own runs against a recording mock - 26 s standalone on a quiet box; 119 s for two of the boots at 100% CPU with other lanes' gates running (2026-11-14).
+test/prefix-lanes.e2e.test.js
+# payload.budget: six real sidecar boots since the prefix lanes' on-state rows (the probe station, the COMMS station, then one station per switch, two calls each) - 21 s standalone on a quiet box, 38 s with four boots while other lanes' gates ran (2026-11-14); listed because a boot alone passed 30 s at 100% CPU that day.
+test/payload.budget.test.js
