@@ -109,6 +109,38 @@ ok(/return !isOAuthProvider\(provider\) && provider !== 'ollama' && provider !==
   ok(/The selected provider, OPENROUTER, has no key yet\./.test(or) && /data-act="to-prov-card" data-provider="openrouter">▸ ADD IT ON THE OPENROUTER CARD</.test(or), 'a key provider keeps "has no key yet" + ADD IT, landing on its card');
 }
 ok(/body\.querySelectorAll\('\[data-act="to-prov-card"\]\[data-provider\]'\)\.forEach\(b => b\.addEventListener\('click', \(\) => \{ sfx\('click'\); focusProvider\(b\.dataset\.provider\); \}\)\);/.test(station), 'that door lands on the provider\'s card through focusProvider');
+// THE ONES YOU USE STAY OPEN (2026-11-11, Andrew: "the one you use stays open and the others fold to a one-line strip showing
+// their status"). Organization only: every card is still drawn, a station with nothing set up shows every card open, and the
+// strip never claims more than the station can prove ("NOT SET UP" is the cards' own data-configured="0").
+{
+  const css = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'css', 'settings.css'), 'utf8');
+  const appCss = fs.readFileSync(path.join(__dirname, '..', 'frontend', 'css', 'app.css'), 'utf8');
+  const at = station.indexOf('  const provFoldOpen = new Map();');
+  const fn = station.slice(at, station.indexOf('    function providerCardHtml(p, pi) {', at));
+  ok(at > 0 && fn.length > 400 && fn.length < 2600, 'sliced providersHtml\'s grouping (' + fn.length + ' chars)');
+  ok(/const html = cards\.map\(\(p, pi\) => providerCardHtml\(p, pi\)\);/.test(fn), 'every provider card is drawn, folded or not');
+  ok(/if \(!cards\.some\(p => setUp\[p\.id\]\)\) return cards\.map\(\(p, pi\) => providerGroupHead\(cards, pi\) \+ html\[pi\]\)\.join\(''\);/.test(fn),
+    'a station with nothing set up draws every card open under its heading, with no strip');
+  ok(/const rest = mine\.filter\(pi => !setUp\[cards\[pi\]\.id\] && !unsure\[cards\[pi\]\.id\] && cards\[pi\]\.id !== active\);/.test(fn),
+    'only a card with nothing saved, a confirmed status and no selection goes behind the strip');
+  ok(/const fold = rest\.length > 1 \? rest : \[\];/.test(fn), 'a single leftover card is simply drawn: no strip for one card');
+  ok(/'<details class="prov-fold" data-group="' \+ esc\(g\.id\) \+ '"' \+ \(provFoldOpen\.get\(g\.id\) \? ' open' : ''\) \+ '>'/.test(fn), 'the strip is a fold, drawn open when the Commander left it open');
+  ok(/<span class="prov-fold-names">' \+ fold\.map\(pi => esc\(cards\[pi\]\.name\)\)\.join\('\\u00a0· '\)/.test(fn) && /<span class="prov-fold-stat">○ ' \+ fold\.length \+ ' NOT SET UP<\/span>/.test(fn),
+    'the strip names every card it holds and counts them as NOT SET UP');
+  ok(!/CONNECTED|READY|VERIFIED/.test(fn.replace(/\/\*[\s\S]*?\*\//g, '')), 'the strip claims no connection state of its own');
+  ok(/'<div class="prov-fold-body">' \+ fold\.map\(pi => html\[pi\]\)\.join\(''\) \+ '<\/div><\/details>'/.test(fn), 'the folded cards are the same cards, inside the fold');
+  ok(/setUp\[p\.id\] = !!\(credentialSaved \|\| configured \|\| codexDead \|\| cardFlow \|\| claudeBox\);/.test(station)
+    && /unsure\[p\.id\] = readiness\.credential\.status === 'unknown' \|\| readiness\.credential\.status === 'unavailable';/.test(station)
+    && /if \(p\.credits\) \{ setUp\[p\.id\] = creditsProv\.state === 'linked' \|\| creditsProv\.state === 'saved';/.test(station),
+    'set up = something saved, ready, expired or under way; an unconfirmed status keeps its card in view');
+  ok(/body\.querySelectorAll\('details\.prov-fold'\)\.forEach\(d => d\.addEventListener\('toggle', \(\) => \{ if \(d\.isConnected && !d\.dataset\.searchOpened\) provFoldOpen\.set\(d\.dataset\.group, d\.open\); \}\)\);/.test(station),
+    'a strip the Commander toggles is remembered across repaints; one the search opened is not');
+  ok((appCss.match(/details\.prov-fold\)/g) || []).length === 4, 'the strip draws the station\'s one chevron (app.css ONE FOLD), never the browser\'s marker');
+  ok(/\.con-searching \.prov-fold > summary \{ display: none !important; \}/.test(css) && /\.con-searching \.prov-fold:not\(:has\(\.con-hit\)\) \{ display: none; \}/.test(css),
+    'while a search filters the cards the strips step aside with the headings');
+  ok(/\.settings-console \.prov-fold-txt \{[^}]*flex-wrap: wrap;[^}]*\}/.test(css) && /\.settings-console \.prov-fold-names \{ flex: 1 1 16em; min-width: 0;/.test(css) && !/\.prov-fold-(names|stat) \{[^}]*(nowrap|ellipsis|overflow: hidden)/.test(css),
+    'the names wrap and the count drops under them in a narrow window: nothing on the strip is cut');
+}
 // (org P03 wiring) a BACKGROUND repaint (a probe / status check landing) keeps the reader's place: the console rebuild made a
 // fresh .con-pane at scrollTop 0, throwing a Commander — or an error door's landed card — back to the top of AI & MODELS
 {
@@ -158,15 +190,18 @@ ok(/if \(card\.dataset\.configured === '0' && p !== activeProv\(\)\) \{[\s\S]{0,
   const vm = require('vm');
   const iFp = station.indexOf('  let provLanding = null;'), jFp = station.indexOf('  // Following work should uncover the destination');
   ok(iFp > 0 && jFp > iFp && jFp - iFp < 8000, 'sliced focusProvider with its one-landing slot (' + (jFp - iFp) + ' chars)');
-  const mkWorld = () => {
+  // folded: the cards that sit behind their group's strip (providersHtml draws the strip open when provFoldOpen says so)
+  const mkWorld = (folded = []) => {
     let clock = 1000, timers = [];
     const listeners = {};
     const pane = { scrollTop: 0, offsetTop: 0, clientHeight: 400 };
     const ORDER = { openrouter: 300, codex: 900, anthropic: 1500 };
-    let cards = {}, painted = true;
+    const provFoldOpen = new Map();
+    let cards = {}, painted = true, fold = null;
     const mkCard = pid => {
       const cls = new Set();
-      return { pid, isConnected: true, offsetTop: ORDER[pid], closest: () => pane, querySelector: () => null,
+      return { pid, isConnected: true, offsetTop: ORDER[pid], querySelector: () => null,
+        closest: sel => sel === 'details.prov-fold' ? (folded.includes(pid) ? fold : null) : pane,
         classList: { add: c => cls.add(c), remove: c => cls.delete(c), contains: c => cls.has(c) } };
     };
     const settings = {
@@ -175,10 +210,10 @@ ok(/if \(card\.dataset\.configured === '0' && p !== activeProv\(\)\) \{[\s\S]{0,
       querySelector: sel => { const m = /data-provider="([^"]+)"/.exec(sel); return painted && m ? cards[m[1]] || null : null; }
     };
     // a repaint replaces every card (the old nodes disconnect), exactly what openTerm('settings', section) does on an open window
-    const repaint = () => { Object.values(cards).forEach(c => { c.isConnected = false; }); cards = {}; Object.keys(ORDER).forEach(p => { cards[p] = mkCard(p); }); };
+    const repaint = () => { Object.values(cards).forEach(c => { c.isConnected = false; }); cards = {}; fold = { open: !!provFoldOpen.get('subscription'), dataset: { group: 'subscription' } }; Object.keys(ORDER).forEach(p => { cards[p] = mkCard(p); }); };
     repaint();
     const ctx = vm.createContext({
-      open: { settings }, Math, String,
+      open: { settings }, Math, String, provFoldOpen,
       Date: { now: () => clock },
       setTimeout: (fn, ms) => { timers.push({ at: clock + ms, fn }); return timers.length; },
       openTerm: () => repaint(),
@@ -197,8 +232,23 @@ ok(/if \(card\.dataset\.configured === '0' && p !== activeProv\(\)\) \{[\s\S]{0,
     };
     const fire = t => (listeners[t] || []).slice().forEach(fn => fn({ type: t }));
     const markedNow = () => Object.keys(cards).filter(p => cards[p].classList.contains('prov-landed'));
-    return { ctx, pane, advance, fire, repaint, markedNow, setPainted: v => { painted = v; }, landedOn: pid => pane.scrollTop === Math.max(0, ORDER[pid] - 100) };
+    return { ctx, pane, advance, fire, repaint, markedNow, setPainted: v => { painted = v; }, landedOn: pid => pane.scrollTop === Math.max(0, ORDER[pid] - 100),
+      stripOpen: () => fold.open, cardFold: pid => cards[pid].closest('details.prov-fold') };
   };
+
+  // THE ONES YOU USE STAY OPEN (2026-11-11): a door to a card behind its group's closed strip opens the strip first, and the
+  // strip stays open through the repaints that follow the door (a credential check landing redraws every card)
+  {
+    const W = mkWorld(['codex']);
+    ok(W.stripOpen() === false && W.cardFold('openrouter') === null, 'the strip starts closed; a card in use is not behind it');
+    W.ctx.focusProvider('codex');
+    ok(W.stripOpen() === true && W.landedOn('codex') && W.markedNow().join() === 'codex', 'a door to a card behind a closed strip opens the strip, then lands on the card');
+    W.repaint(); W.advance(400);
+    ok(W.stripOpen() === true && W.landedOn('codex'), 'the strip the door opened is drawn open again by the next repaint');
+    const V = mkWorld(['codex']);
+    V.ctx.focusProvider('openrouter');
+    ok(V.stripOpen() === false && V.landedOn('openrouter'), 'a door to a card in view leaves the strip shut');
+  }
 
   // the review's repro: door A, then door B within 20s, nothing touched in Settings
   {

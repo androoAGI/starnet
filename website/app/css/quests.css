@@ -212,8 +212,13 @@
 
 .quests-win .bp-claimbar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin: 0 0 10px; padding: 8px 12px; border: 1px solid rgba(var(--gold-rgb),.55); border-radius: 8px; color: var(--gold); background: rgba(var(--gold-rgb),.07); animation: bp-pulse 2s steps(9, jump-none) infinite; }
 @keyframes bp-pulse { 0%,100% { box-shadow: 0 0 0 rgba(var(--gold-rgb),0); } 50% { box-shadow: 0 0 14px rgba(var(--gold-rgb),.35); } }
-.quests-win .bp-track { position: relative; min-width: 0; max-width: 100%; display: flex; align-items: flex-start; gap: 0; list-style: none; margin: 0; padding: 4px 2px 12px; overflow-x: auto; scrollbar-width: thin; }
-.quests-win .bp-node { flex: 0 0 auto; display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 96px; text-align: center; }
+/* EVERY TIER IN VIEW (2026-11-11): the track used to be a sideways scroller, so the last tiers sat off the edge of a
+   full-width window and the only way to them was a scrollbar. The tiers now share the line (each takes an equal part of
+   it, never under 80px) and in a narrow window the track WRAPS to a second row. Nothing scrolls sideways. */
+.quests-win .bp-track { position: relative; min-width: 0; max-width: 100%; display: flex; flex-wrap: wrap; align-items: flex-start; gap: 14px 0; list-style: none; margin: 0; padding: 4px 2px 12px; }
+.quests-win .bp-node { flex: 1 1 80px; display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: 80px; text-align: center; }
+/* a tier's one-line labels stay one line: a label a few px wider than its tier is centred over the link beside it */
+.quests-win .bp-node :is(.bp-here, .bp-node-frame, .bp-need, .bp-got, .bp-claim) { white-space: nowrap; }
 .quests-win .bp-box { color: rgba(var(--ph-rgb),.45); font-size: 17px; }
 .quests-win .bp-node-title { font-size: 13px; letter-spacing: 1px; color: var(--ph-dim); }
 .quests-win .bp-node-frame { font-size: 11px; color: rgba(var(--gold-rgb),.75); }

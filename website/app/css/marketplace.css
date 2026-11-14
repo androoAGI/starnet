@@ -1018,7 +1018,10 @@ button.mkt-archive-head:focus-visible { outline: 2px solid var(--gold); outline-
 .mkt-recipes .mkt-block .bh { font-size: 11px; letter-spacing: 1.2px; }
 .mkt-recipes .mkt-starters { color: var(--text); }
 .mkt-recipes .mkt-brief { padding: 12px 0; }
-.mkt-recipes .mkt-rec-rail:not(.mkt-rail-deep) { grid-template-columns: repeat(3,minmax(0,1fr)); }
+/* The suggestion cards follow the room their OWN rail has, not a fixed three across: the rail sits in the list column,
+   and three cards in 394px left each name one word per line. A card is never under 240px, so a narrow list shows them
+   as rows (seal + name on one line) and a wide one still shows two or three across. */
+.mkt-recipes .mkt-rec-rail:not(.mkt-rail-deep) { grid-template-columns: repeat(auto-fill, minmax(min(100%, 240px), 1fr)); }
 .mkt-recipes .mkt-rec { padding: 10px; }
 .mkt-recipes .mkt-rec .mkt-coin { --coin: 34px; }
 .mkt-recipes .mkt-rec-name { font-size: 14px; }
@@ -1040,7 +1043,8 @@ button.mkt-archive-head:focus-visible { outline: 2px solid var(--gold); outline-
   .mkt-recipes .mkt-dos-scroll { padding-inline: 14px; }
 }
 
-.mkt-recipes .mkt-foryou { min-height: 66px; padding: 10px 7px; }
+.mkt-recipes .mkt-foryou { min-height: 48px; padding: 10px 7px; }
+.mkt-recipes .mkt-foryou .mkt-rec-why { margin-top: 0; }
 .mkt-recipes .mkt-foryou .mkt-rec-top { flex-direction: row; text-align: left; align-items: center; gap: 8px; }
 .mkt-recipes .mkt-foryou .mkt-rec-name { font-size: 13px; line-height: 1.2; }
 .mkt-recipes .mkt-foryou .mkt-coin { --coin: 28px; }
@@ -1065,9 +1069,10 @@ button.mkt-archive-head:focus-visible { outline: 2px solid var(--gold); outline-
 .mkt-stage.form .mkt-in { border-color: var(--ui-edge); box-shadow: var(--ui-well); }
 .mkt-stage.form .mkt-save-acts { border-color: var(--ui-edge); }
 
-/* Recipe library: crew-like glass selection and a single, inline launch. */
+/* Recipe library: crew-like glass selection and a single, inline launch. A row is its seal and its name (the sentence
+   is the row's hover tip and the first line of the pane beside it), so the seal and the padding are sized for one line. */
 .mkt-recipes .mkt-rows .mkt-card {
-  grid-template-columns: 42px minmax(0, 1fr); gap: 12px; padding: 14px 12px;
+  grid-template-columns: 34px minmax(0, 1fr); gap: 12px; padding: 8px 12px; min-height: 0;
   border: 1px solid transparent; border-radius: 8px;
   background: linear-gradient(135deg, rgba(var(--ph-rgb), .06), rgba(var(--ph-rgb), .015));
   box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb), .04);
@@ -1079,9 +1084,8 @@ button.mkt-archive-head:focus-visible { outline: 2px solid var(--gold); outline-
   box-shadow: inset 0 1px 0 rgba(var(--ph-bright-rgb), .2), inset 0 -1px 0 rgba(var(--ph-rgb), .08), 0 5px 18px rgba(0,0,0,.12);
   backdrop-filter: blur(12px);
 }
-.mkt-recipes .mkt-rows .mkt-card .mkt-coin { --coin: 42px; }
+.mkt-recipes .mkt-rows .mkt-card .mkt-coin { --coin: 34px; }
 .mkt-recipes .mkt-card-side { display: none; }
-.mkt-recipes .mkt-rows .mkt-card .mkt-tag { line-height: 1.4; }
 .mkt-recipes .mkt-recipe-simple { padding-top: 24px; }
 .mkt-recipes .mkt-recipe-simple .mkt-dos-hero { border: 0; padding-bottom: 8px; }
 .mkt-recipes .mkt-recipe-simple .mkt-dos-tag { margin-top: 12px; font-size: 16px; line-height: 1.5; color: var(--text); }

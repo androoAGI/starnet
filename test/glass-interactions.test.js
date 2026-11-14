@@ -139,7 +139,7 @@ for(const [search,expected] of [['',true],['?glass=1',true],['?glass=0',false],[
 const html=fs.readFileSync('frontend/index.html','utf8');
 assert(html.indexOf('css/glass-demo.css') < html.indexOf('</head>'));
 assert(html.indexOf('css/glass-comms.css') < html.indexOf('</head>'));
-assert(html.includes('<body class="theme-amber glass-demo">'),'default glass precedes first paint');
+assert(html.includes('<body class="theme-amber glass-demo vx">'),'default glass (and the VECTOR identity) precede first paint');
 assert(html.indexOf('app/glass-boot.js') > html.indexOf('app/bootguard.js'),'boot diagnostics are installed before any other script');
 assert(html.indexOf('app/glass-boot.js') < html.indexOf('app/app.js'),'fallback resolves before the station initializes');
 assert(!src.includes('document.head.append(css)'),'material sheets cannot arrive after interface initialization');

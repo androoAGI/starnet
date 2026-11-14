@@ -57,27 +57,54 @@
     const labels = { routines: 'Scheduled jobs', 'routines-create': 'New schedule', loops: 'Goal loops', 'loops-start': 'New goal loop', away: 'Away work' };
     const hints = { routines: 'Next runs and recent results', 'routines-create': 'Repeat a task at a chosen time', loops: 'Progress and work to review', 'loops-start': 'Work toward a defined stopping point', away: 'Queued work between messages' };
     sections.forEach(sec => { sec.label = labels[sec.id] || sec.label; });
+    StationUI.h.mountConsole(body, 'automation', sections, { search: false });
+    /* ONE SCREEN PER TAB (2026-11-11, Andrew: "All three"). AUTOMATE's own tabs (SCHEDULES / GOAL LOOPS / AWAY WORK)
+       already pick the area and every page here fits one screen, so the second side rail (one or two entries per area)
+       is not drawn any more. A list page carries a NEW key at the end of its heading that opens the form in the same
+       screen, the form carries the way back, and ON ITS OWN is a strip over the screen. Nothing is removed: the page
+       ids, the CHANGE door and the console's tab buttons are the same ones. The tab buttons stay in the page unseen
+       (utility-menus.css), because routines.js, loops.js, the chat doors and the QA journey move between pages by
+       clicking them. */
     // ONE AUTOMATION DOOR: the agents' initiative lives in SETTINGS › AUTONOMY, but whoever opens AUTOMATION sees it
     // here (read from the confirmed posture, never assumed) with a CHANGE door — no hunting through two windows. The rung
     // name comes from the dial's one INITIATIVE_RUNGS table (StationUI.initiativeLabel), so AUTOMATE reads SMALL JOBS
     // exactly where SETTINGS › AUTONOMY does.
-    const railTop = top => {
-      const sum = (typeof AutonomyStore !== 'undefined' && AutonomyStore.summary) ? AutonomyStore.summary() : null;
-      top.classList.add('auto-init-head');
-      top.innerHTML = '<div class="set-sub"><span class="set-sub-k">ON ITS OWN</span><span class="set-sub-d">'
-        + (sum ? H.esc(StationUI.initiativeLabel(sum.initiative)) : 'not loaded yet') + '</span></div>'
-        + '<button type="button" class="bb sm" id="auto-init-change" data-tip="Whether agents start work nobody asked for. It does not change the schedules here.">CHANGE</button>';
-      top.querySelector('#auto-init-change').addEventListener('click', () => H.openTerm('settings', 'autonomy'));
+    const pane = body.querySelector('.con-pane');
+    const col = document.createElement('div'); col.className = 'con-col';
+    const own = document.createElement('div'); own.className = 'auto-init-head auto-own';
+    const sum = (typeof AutonomyStore !== 'undefined' && AutonomyStore.summary) ? AutonomyStore.summary() : null;
+    own.innerHTML = '<div class="set-sub"><span class="set-sub-k">ON ITS OWN</span><span class="set-sub-d">'
+      + (sum ? H.esc(StationUI.initiativeLabel(sum.initiative)) : 'not loaded yet') + '</span></div>'
+      + '<button type="button" class="bb sm" id="auto-init-change" data-tip="Whether agents start work nobody asked for. It does not change the schedules here.">CHANGE</button>';
+    own.querySelector('#auto-init-change').addEventListener('click', () => H.openTerm('settings', 'autonomy'));
+    body.insertBefore(col, pane); col.appendChild(own); col.appendChild(pane);
+    const secOf = id => body.querySelector('.con-sec[data-section="' + id + '"]');
+    // where the keyboard lands on a page: a form's first control, or a list page's own NEW key
+    const land = (id, form) => {
+      const sec = secOf(id); if (!sec) return;
+      const first = form ? Array.from(sec.querySelectorAll('.con-sec-body :is(input, textarea, select, button)')).find(e => !e.disabled && e.getClientRects().length) : null;
+      const to = first || sec.querySelector('.auto-page-key');
+      try { if (to) to.focus(); } catch (_) {}
     };
-    StationUI.h.mountConsole(body, 'automation', sections, { search: false, railTop });
-    // ONE MENU: AUTOMATE's tabs (SCHEDULES / GOAL LOOPS / AWAY WORK) pick the area, so the rail lists only that
-    // area's own pages (e.g. Scheduled jobs + New schedule) instead of repeating the tabs beside them.
-    const area = id => String(id || '').startsWith('routines') ? 'routines' : String(id || '').startsWith('loops') ? 'loops' : String(id || '');
-    const cur = area(H.consoleSection.automation || (sections[0] && sections[0].id));
-    body.querySelectorAll('.con-rail-item').forEach(item => { item.hidden = area(item.dataset.section) !== cur; });
-    body.querySelectorAll('.con-rail-item').forEach(item => {
-      const hint = document.createElement('span'); hint.className = 'sn-menu-nav-note';
-      hint.textContent = hints[item.dataset.section] || ''; item.appendChild(hint);
+    // The console focuses its tab button after a click, and that button is not drawn here. So whoever changed the page
+    // (a page key, an empty-state key in routines.js or loops.js), a keyboard left on nothing lands on the page it opened.
+    body.querySelectorAll('.con-rail-item').forEach(tab => tab.addEventListener('click', () => {
+      const at = document.activeElement, id = tab.dataset.section;
+      if (!at || at === document.body || !at.getClientRects().length) land(id, id === 'routines-create' || id === 'loops-start');
+    }));
+    [['routines', 'routines-create'], ['loops', 'loops-start']].forEach(([list, form]) => {
+      [[list, form, '+ '], [form, list, '← ']].forEach(([from, to, mark]) => {
+        const head = secOf(from) && secOf(from).querySelector('.con-sec-head');
+        if (!head || !secOf(to)) return;
+        const key = document.createElement('button'); key.type = 'button'; key.className = 'bb sm auto-page-key';
+        key.dataset.autoGo = to; key.dataset.tip = hints[to] || '';
+        key.textContent = mark + String(labels[to] || to).toUpperCase();
+        key.addEventListener('click', () => {
+          const tab = body.querySelector('#con-tab-automation-' + to); if (!tab) return;
+          tab.click(); land(to, to === form);
+        });
+        head.appendChild(key);
+      });
     });
     body.querySelectorAll('[data-auto-tab]').forEach(button => button.addEventListener('click', () => {
       body.querySelectorAll('[data-auto-tab]').forEach(b => b.setAttribute('aria-pressed', String(b === button)));

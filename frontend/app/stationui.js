@@ -419,6 +419,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
         document.body.style.setProperty(tok, c.length > 3 ? 'rgba(' + rgb.join(', ') + ', ' + c[3] + ')' : rgbHex(rgb));
       }
     }
+    // VECTOR reads the same knob (Andrew 11-08: "should also be settings to make it darker"): its chrome, glass and LCDs are
+    // drawn in vector.css rather than from the three ground tokens, so the darkening amount rides one var. 0 = untouched.
+    document.body.style.setProperty('--vx-dim', dim.toFixed(3));
     // WHERE THE STATION IS. One saved value spans two layers that work opposite ways: a SKY is
     // screen-space and must not zoom, a GROUND is world-space and must. Both modules resolve the
     // id themselves — Terrain turns OFF for anything that is not a known ground, SpaceBG falls
@@ -6093,15 +6096,36 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
   }
   // what the card says under its name: the subscription for a sign-in provider ("ChatGPT subscription"), else the blurb
   const providerNeed = p => /^OAuth · /.test(p.endpoint) ? p.endpoint.slice('OAuth · '.length) : p.blurb;
+  /* THE ONES YOU USE STAY OPEN (2026-11-11, Andrew: "All three"). The page said "you only need one" over eighteen open
+     cards, six and a half screens of them. Every card is still drawn (the visibleProviders law) and nothing about a card
+     changes; once ONE way in is set up, the cards with nothing saved in each group sit behind one strip that names them
+     and says how many are not set up, and it opens in place. A card stays in view when it has a key, a sign-in, a link,
+     an expired sign-in to repair, a sign-in under way, the station's selected provider, or a status the station has not
+     confirmed yet. A station with nothing set up draws every card open, exactly as before: a newcomer sees every choice.
+     provFoldOpen remembers a strip the Commander opened across repaints (the cfOpen pattern). */
+  const provFoldOpen = new Map();
   function providersHtml() {
     const active = activeProv();
     const cards = groupedProviders();
-    return cards.map((p, pi) => providerGroupHead(cards, pi) + providerCardHtml(p, pi)).join('');
+    const setUp = {}, unsure = {};
+    const html = cards.map((p, pi) => providerCardHtml(p, pi));
+    if (!cards.some(p => setUp[p.id])) return cards.map((p, pi) => providerGroupHead(cards, pi) + html[pi]).join('');
+    return PROVIDER_GROUPS.map(g => {
+      const mine = cards.map((p, pi) => pi).filter(pi => providerGroupOf(cards[pi].id) === g);
+      if (!mine.length) return '';
+      const rest = mine.filter(pi => !setUp[cards[pi].id] && !unsure[cards[pi].id] && cards[pi].id !== active);
+      const fold = rest.length > 1 ? rest : [];   // one leftover card is simply drawn: a strip for one card saves nothing
+      return providerGroupHead(cards, mine[0]) + mine.filter(pi => fold.indexOf(pi) < 0).map(pi => html[pi]).join('') +
+        (fold.length ? '<details class="prov-fold" data-group="' + esc(g.id) + '"' + (provFoldOpen.get(g.id) ? ' open' : '') + '>' +
+          '<summary><span class="prov-fold-txt"><span class="prov-fold-names">' + fold.map(pi => esc(cards[pi].name)).join('\u00a0· ') + '</span>' +
+          '<span class="prov-fold-stat">○ ' + fold.length + ' NOT SET UP</span></span></summary>' +
+          '<div class="prov-fold-body">' + fold.map(pi => html[pi]).join('') + '</div></details>' : '');
+    }).join('');
     function providerCardHtml(p, pi) {
       // The credits provider has its own card: no key to paste, no sign-in, and a status line that
       // states the BALANCE, because a paid provider reading "connected" at $0.00 would be a lie of
       // exactly the kind this panel exists to avoid.
-      if (p.credits) return creditsProviderCard(p, pi, active);
+      if (p.credits) { setUp[p.id] = creditsProv.state === 'linked' || creditsProv.state === 'saved'; return creditsProviderCard(p, pi, active); }
       const ks = keysFor(p.id);
       // a keyless device-code sign-in (codex/grok/kimi) can be KNOWN-dead (sidecar recorded a consumed/invalid
       // refresh token) — that must never render as SIGNED IN. The row still exists (ks has the expired entry) so
@@ -6164,6 +6188,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const wantsClaudeInstall = p.id === 'claude-cli' && !!(claudeCliSt && !claudeCliSt.installed);
       const claudeFlowing = wantsClaudeSignin && !claudeCard.account && typeof ClaudeCliSignIn !== 'undefined' && ClaudeCliSignIn.active();
       const claudeBox = wantsClaudeSignin && (claudeFlowing || (claudeCard.failed && !!claudeCard.msg));
+      // what keeps this card out of its group's strip (providersHtml): something saved, ready, expired or under way
+      setUp[p.id] = !!(credentialSaved || configured || codexDead || cardFlow || claudeBox);
+      unsure[p.id] = readiness.credential.status === 'unknown' || readiness.credential.status === 'unavailable';
       return '<div class="prov-card ' + cls + '" data-provider="' + esc(p.id) + '" data-configured="' + (configured ? '1' : '0') + '" role="group" aria-label="' + esc(p.name) + ' provider" style="--ci:' + pi + '">' +
         '<button class="prov-select" data-act="prov-select" aria-label="Select ' + esc(p.name) + ' provider">' +
           providerLogoHtml(p.id) +
@@ -6604,6 +6631,8 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
     if (toServiceKeys) toServiceKeys.addEventListener('click', () => { sfx('click'); openTerm('connectors', 'keys'); });
     // org P04 (g4 final round): API KEYS' no-key line lands ON the selected provider's card — the error doors' own landing
     body.querySelectorAll('[data-act="to-prov-card"][data-provider]').forEach(b => b.addEventListener('click', () => { sfx('click'); focusProvider(b.dataset.provider); }));
+    // a strip the Commander opened stays open through the page's repaints; one the search opened is the search's to close
+    body.querySelectorAll('details.prov-fold').forEach(d => d.addEventListener('toggle', () => { if (d.isConnected && !d.dataset.searchOpened) provFoldOpen.set(d.dataset.group, d.open); }));
     body.querySelectorAll('.prov-card[data-provider]').forEach(card => {
       const activate = () => {
         const h = H();
@@ -11561,8 +11590,16 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const svg = b.querySelector('svg');
       return svg ? svg.outerHTML : esc(b.textContent || '◇');
     };
-    return '<div class="q-systems q-constellation" id="q-systems"><div class="gx-sec"><span class="gx-title">STATION SYSTEMS</span><span class="gx-tag">'
-      + s.online + ' OF ' + s.total + ' ONLINE</span></div>'
+    /* ONE STRIP (2026-11-11, Andrew: "finish those small things"). This block is a map of the dock's own keys, and it
+       used to fill the first screen of PROGRESS before any progress. It is now one of the page's folds, with the same
+       recipe as Outcome metrics / Agent mastery below it, and its count stays on the strip. Nothing is removed: every
+       tile, the bar and SHOW EVERYTHING are inside. It opens itself while it has something to say (a system not in the
+       dock yet, or one that just came online, which is where the NEW SYSTEM ONLINE door lands); once every system is
+       online it rests closed. A fold the Commander opened or closed by hand stays that way across repaints. */
+    const fresh = s.list.some(x => x.fresh);
+    const openNow = fresh || (sysFoldUser != null ? sysFoldUser : s.online < s.total);
+    return '<details class="q-systems q-progress-section" id="q-systems"' + (openNow ? ' open' : '') + '><summary><span>Station systems</span><span class="q-section-note">'
+      + s.online + ' OF ' + s.total + ' ONLINE</span></summary><div class="q-section-body">'
       + (staged ? '<div class="arc-bar q-bar"><div class="q-bar-fill" style="width:' + pct + '%"></div></div>' : '')
       + '<div class="q-star-map q-sys-map">' + s.list.map(x =>
         '<button type="button" class="q-star q-sys' + (x.online ? ' q-star-reached' : ' q-sys-off') + (x.fresh ? ' q-sys-fresh' : '') + '" data-sys="' + esc(x.id) + '" data-tip="'
@@ -11572,10 +11609,14 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       + '</div>'
       + (staged ? '<p class="sub dim">Your dock grows as you use the station. Every system already works: open any of them here.</p>'
         + '<div class="q-journey-actions"><button type="button" class="bb sm q-sys-all">SHOW EVERYTHING</button></div>' : '')
-      + '</div>';
+      + '</div></details>';
   }
+  let sysFoldUser = null;   // null = the fold decides for itself; true / false = the Commander's own last choice
   function wireSystems(root) {
     if (!root) return;
+    // a click (or Enter / Space) on the strip lands BEFORE the fold turns, so the choice is the opposite of what it reads now
+    const strip = root.querySelector(':scope > summary');
+    if (strip) strip.addEventListener('click', ev => { if (!ev.defaultPrevented) sysFoldUser = !root.open; });
     root.querySelectorAll('.q-sys').forEach(b => b.addEventListener('click', () => { sfx('click'); Systems.openSystem(b.dataset.sys); }));
     const all = root.querySelector('.q-sys-all');
     if (all) all.addEventListener('click', () => { sfx('click'); Systems.showEverything(); notify('Every station system is in your dock now. SETTINGS › LOOK & SOUND › STATION DOCK switches it back.', '', undefined, { transient: true }); });
@@ -12760,6 +12801,9 @@ const StationUI = typeof document === 'undefined' ? {} : (() => {
       const card = w && w.querySelector('.prov-card[data-provider="' + id + '"]');
       if (!card) { if (++tries < 12) setTimeout(land, 250); return; }
       watch(w);
+      // a card that sits behind its group's strip is brought out first: a door never lands on a closed fold
+      const fold = card.closest('details.prov-fold');
+      if (fold && !fold.open) { fold.open = true; provFoldOpen.set(fold.dataset.group, true); }
       const pane = card.closest('.con-pane');
       // a quarter-pane lift, not flush to the top: the cards above stay in view, so the landing reads as a place in
       // AI & MODELS rather than a lone card with no context

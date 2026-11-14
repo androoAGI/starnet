@@ -151,11 +151,16 @@
 }
 @media(max-height: 720px) { :is(.notifs-win,.manual-win) .term-body { padding: 16px 20px; } .utility-head { margin-bottom: 14px; } }
 
-/* Compact rail and quiet headings, including inherited chrome inside details. */
-.automation-win .con-rail-item { padding: 10px 12px; border-radius: 9px; gap: 4px 8px; box-shadow: none; }
-.automation-win .con-rail-item[aria-selected="true"] { border: 1px solid rgba(var(--ph-rgb),.3); background: var(--menu-glass); }
-.automation-win .con-rail-label { font-size: 15px; letter-spacing: .2px; }
-.automation-win .sn-menu-nav-note { font-size: 12px; line-height: 1.3; }
+/* ONE SCREEN PER TAB (2026-11-11). AUTOMATE's own tabs pick the area and each page fits one screen, so the console's
+   second rail is not drawn here. Its tab buttons stay in the page: the empty-state keys, the chat doors and the QA
+   journey move between pages by clicking them. automation.js puts the NEW key and the way back on each page's
+   heading, and ON ITS OWN in a strip over the screen. */
+.automation-win .con-rail { display: none; }
+.automation-win .auto-own { flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 8px 16px; border-bottom: 1px solid rgba(var(--ph-rgb),.22); }
+.automation-win .auto-own .set-sub { flex-direction: row; align-items: baseline; gap: 10px; margin: 0; }
+.automation-win .con-sec-head { flex-wrap: wrap; gap: 6px 12px; }
+.automation-win .con-sec-head .auto-page-key { margin-left: auto; flex: 0 0 auto; }
+/* Quiet headings, including inherited chrome inside details. */
 .automation-win .lp-step-h { margin: 0; padding: 6px 0; }
 .automation-win #lp-form .mc-detail { color: var(--ph-dim); }
 .automation-win .lp-adv .lp-cycle { margin-bottom: 10px; }
