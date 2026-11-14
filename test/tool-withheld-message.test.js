@@ -127,7 +127,8 @@ A.ok(perms.indexOf('terminalAutonomy(call, tool)) return { allow: true') <
 // the grant must never be derivable from anything the model can influence
 A.ok(/terminalGrant: \(call, tool\) => !execution\.taintedBy\(\) && unattendedGrants\.indexOf\('workbench'\) >= 0,/.test(src),
   'terminal standing grants apply only before untrusted content, and an owner DM is not one (final review #1)');
-A.ok(/bypass: \(\) => unrestrictedHostNow\(\), unrestrictedHost: unrestrictedHostNow,/.test(src),
+// since the reach fence, what the desk bound is Full Power's APPROVAL half (fullPowerNow); unrestrictedHostNow is its reach half
+A.ok(/bypass: \(\) => fullPowerNow\(\), unrestrictedHost: unrestrictedHostNow,/.test(src),
   'the consent broker is bypassed only by what the desk bound (Full Access / FULL BYPASS), never by an owner DM alone (final review #1)');
 A.ok(/\(surface === 'interactive' \|\| authoritySeal\.held\) \? \[\] : Array\.from\(normalizeUnattendedGrants\(o\.unattendedGrants\)\)/.test(src),
   'the grant is ignored on the watched surface, where floor placement governs (and while the seal is held, review 4c)');

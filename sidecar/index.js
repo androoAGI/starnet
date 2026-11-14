@@ -7059,7 +7059,7 @@ function routineSkillRootFor(job) {
     const plan = lineId ? admit.getPlan() : null;
     const line = plan && (plan.lines || []).find(l => l.lineId === lineId);
     const crews = !!line && ((line.agents || []).includes(agentId) || admit.docksOf(agentId).some(d => admit.lineOfDock(d) === lineId));
-    if (crews && line.projectRoot) { try { return cronCanonicalWorkdir(line.projectRoot) || ''; } catch (_) { /* the run refuses a lapsed folder itself */ } }
+    if (crews && line.projectRoot) { try { return cronCanonicalWorkdir(line.projectRoot) || ''; } catch (e) { failNote('cron.line-workdir', e); /* the run refuses a lapsed folder itself */ } }
   }
   if (job && job.workdir) { try { return cronCanonicalWorkdir(job.workdir) || ''; } catch (_) { return ''; } }
   return '';
