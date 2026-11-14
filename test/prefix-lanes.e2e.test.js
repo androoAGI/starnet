@@ -26,6 +26,10 @@
         gains one tool, recipe_read, and its system text carries the recipe index (naming recipe.read) where every enabled
         recipe body was inline; no memory tool comes with it; recipe_read library:plan returns the recipe, and a name that
         was not offered returns nothing.
+   STARNET_LIVE_NAMES (W2.5): the system text is the base with the joined live tool-name list replaced by a pointer to
+        the tool list, and nothing else: the sentence after it and the not-loaded sentence with every deferred name are
+        byte-identical, and the tools array is untouched. On claude-cli every name is still in the system prompt file,
+        as its own line of the # Tools text.
 
    Record the golden only on the base (or when a default byte changes on purpose, saying so in that commit):
      node test/prefix-lanes.e2e.test.js --update */
@@ -281,10 +285,47 @@ function checkRecipes(off, on) {
   A.ok(((on.preview || {}).advertised || []).indexOf('recipe.read') < 0, lane + ': ...and the starter floor (it has the cart) without it');
 }
 
+/* ---------------------------------------------------------------- STARNET_LIVE_NAMES */
+const LIVE_POINTER = 'the LIVE tools in your tool list. ';
+const KEPT_SENTENCE = 'Actually use the listed tools when relevant; never claim a listed tool is unavailable. ';
+
+function checkLiveNames(off, on) {
+  const lane = 'STARNET_LIVE_NAMES';
+  const floors = { comms: 900, cartless: 780, lead: 980, worker: 580 };
+  for (const id of CALLS) {
+    const a = off[id], b = on[id];
+    A.ok(a && b, lane + ' ' + id + ': the call was captured off and on');
+    if (!a || !b) continue;
+    A.eq(liveNames(a.system), a.names, lane + ' ' + id + ': the base [HARNESS] list is the tools array, name for name (a repeat)');
+    A.ok(JSON.stringify(b.tools) === JSON.stringify(a.tools), lane + ' ' + id + ': the tools array is byte-identical (every name still rides the wire as a definition)');
+    A.ok(b.system === a.system.replace(LIVE_RE, () => LIVE_POINTER), lane + ' ' + id + ': the system text is the base with the joined list replaced by a pointer to it, and nothing else');
+    A.ok(b.system.indexOf('these LIVE tools:') < 0 && b.system.indexOf('at a workstation with ' + LIVE_POINTER + KEPT_SENTENCE) > 0, lane + ' ' + id + ': "never claim a listed tool is unavailable" follows, untouched');
+    A.ok(PARTIAL_RE.test(a.system) && (PARTIAL_RE.exec(b.system) || [''])[0] === PARTIAL_RE.exec(a.system)[0], lane + ' ' + id + ': the not-loaded sentence (This list is PARTIAL, the count, every name) is byte-identical');
+    A.ok(b.system.indexOf(PARTIAL_RE.exec(a.system)[0]) > b.system.indexOf(LIVE_POINTER), lane + ' ' + id + ': ...and still follows the list it calls partial');
+    A.ok(restOf(b, on.known) === restOf(a, off.known), lane + ' ' + id + ': the rest of the request is identical');
+    const s = saving(lane, id, a, b);
+    A.eq(s.system, R.bytes('these LIVE tools: ' + a.names.join(', ') + '. ') - R.bytes(LIVE_POINTER), lane + ' ' + id + ': the saving is the list itself');
+    A.ok(s.tools === 0 && s.prefix >= floors[id], lane + ' ' + id + ': saves ' + s.prefix + ' B of fixed prefix (at least ' + floors[id] + ')');
+  }
+  // claude-cli: the tools are text in the same system prompt file, each by name, so the list was a repeat there too
+  A.ok(off.cli && on.cli, lane + ' claude-cli: the call was captured off and on');
+  if (off.cli && on.cli) {
+    A.ok(on.cli.system === off.cli.system.replace(LIVE_RE, () => LIVE_POINTER), lane + ' claude-cli: the system prompt file is the base with the joined list replaced by the pointer, and nothing else');
+    const names = liveNames(off.cli.system);
+    A.ok(names.length >= 60 && names.every(n => on.cli.system.indexOf('\n- ' + n + ': ') >= 0), lane + ' claude-cli: every one of the ' + names.length + ' names is still in the file, as its own line of the # Tools text');
+    A.ok(on.cli.system.indexOf('\n\n# Tools\n') > on.cli.system.indexOf(LIVE_POINTER), lane + ' claude-cli: the # Tools text is the tool list the pointer names');
+    A.eq(JSON.stringify(on.cli.args.slice(0, -1)), JSON.stringify(off.cli.args.slice(0, -1)), lane + ' claude-cli: the argv is the same (but for the temp name of the prompt file)');
+    A.ok(R.normalize(on.cli.stdin, on.known) === R.normalize(off.cli.stdin, off.known), lane + ' claude-cli: the stdin is identical');
+    const saved = cliSaving(lane, off, on);
+    A.ok(saved >= 900, lane + ' claude-cli: saves ' + saved + ' B of system prompt file (at least 900)');
+  }
+}
+
 const LANES = [
   { env: 'STARNET_PREFIX_TAIL', scenarios: tailScenarios, check: checkTail },
   { env: 'STARNET_PREFIX_DOCTRINE', scenarios: doctrineScenarios, check: checkDoctrine },
-  { env: 'STARNET_PREFIX_RECIPES', scenarios: recipeScenarios, check: checkRecipes }
+  { env: 'STARNET_PREFIX_RECIPES', scenarios: recipeScenarios, check: checkRecipes },
+  { env: 'STARNET_LIVE_NAMES', check: checkLiveNames }
 ];
 
 (async () => {

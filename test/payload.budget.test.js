@@ -176,7 +176,10 @@ const LANE_BUDGET = {
   // inlines every enabled recipe body (88,324 prefix bytes: 40,294 of system text, 60 tools); on, it carries the recipe
   // index and one more tool, recipe_read: 31,057 system chars, 61 tools, 48,486 tool bytes, 77,775 prefix bytes;
   // claude-cli 75,475
-  STARNET_PREFIX_RECIPES: { without: ['notebook'], systemChars: 31147, tools: 61, toolBytes: 48709, prefixBytes: 77935, cliBytes: 75495 }
+  STARNET_PREFIX_RECIPES: { without: ['notebook'], systemChars: 31147, tools: 61, toolBytes: 48709, prefixBytes: 77935, cliBytes: 75495 },
+  // W2.5, the joined live tool-name list out of [HARNESS] (the request carries every name already): 32,206 -> 31,229
+  // system chars, 87,962 -> 86,985 prefix bytes; tools untouched; claude-cli 85,174 -> 84,197
+  STARNET_LIVE_NAMES: { systemChars: 31319, tools: 70, toolBytes: 58227, prefixBytes: 87145, cliBytes: 84217 }
 };
 
 /* THE COMMS PERSONA: the `system` the station page sends for its lead (frontend/app/app.js composeSystemPrompt), composed

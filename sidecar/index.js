@@ -4370,13 +4370,14 @@ function effortAsRun(provider, model, sent, req) {
    one), parsed by the pure CrewDefaults.mode. Read at each use, like ENV('LEAN_CREW') and ENV('AUX_EFFORT'). Off by
    default; not STARNET_LEAN_CREW, the zero-crew diet (crew-diet.js), which is on by default. */
 function crewDefaultsMode() { return CrewDefaults.mode(ENV('CREW_DEFAULTS')); }
-/* prefixLaneOn — the PREFIX cost lanes' switches (cost audit W3.9), each read here and nowhere else, through ENV(), at each
-   use:
+/* prefixLaneOn — the PREFIX cost lanes' switches (cost audit W3.9 and W2.5), each read here and nowhere else, through ENV(),
+   at each use:
      STARNET_PREFIX_TAIL      the specialist tail leaves the wire (capability/followups.js)
      STARNET_PREFIX_DOCTRINE  CONNECTING A PLATFORM rides as its rules with the walk-through behind manual.read, and HOW TO
                               WORK drops the three sentences FINISH THE JOB restates (manual.js, finish-line.js)
      STARNET_PREFIX_RECIPES   a run with no skill.view on its wire reads a recipe with recipe.read and carries the recipe
                               index, no longer every enabled body (tools/builtin/recipe-read.js)
+     STARNET_LIVE_NAMES       [HARNESS] points at the tool list a request carries instead of repeating every name in it
    '1' (or true / yes / on) is on; '0', blank or unset is off. Every one is OFF by default: each changes what a model is
    shown on its first request, so it ships dark until an A/B on real models passes, and with it off every request is the
    one this build sent before it. */
@@ -27412,9 +27413,17 @@ async function runOnceCore(o) {
     + (hasBrowserTools ? 'For public browser changes, use browser_navigate plus browser_console/browser_snapshot/browser_vision. ' : '')
     + (hasBrowserTestTools ? 'For LOCAL browser, UI, canvas, or game verification, start the dev server with shell_exec background:true, confirm its bg id/port with shell_bg_status, then MUST use browser_test_navigate(serverId) + browser_test_snapshot/browser_test_state/browser_test_input. They run headless CDP and emulate pointer/keyboard lock without touching physical devices. NEVER launch Chrome, Edge, Firefox, Puppeteer, Playwright, Selenium, or a browser smoke through shell_exec/verify_run for an input-capturing app; those paths are refused. ' : '')
     + ((hasShellExec || hasWriteTools || hasBrowserTools) ? 'Final reports must name changed files, verification commands/results, and any running server URL/background id or remaining limitation. ' : '');
+  /* THE LIVE NAME LIST (cost audit W2.5, STARNET_LIVE_NAMES, off by default). The joined list below repeats, name for name,
+     the tools this same request carries: the tools array on an API route, and on claude-cli the "# Tools ... Available
+     tools:" text of the same system prompt (providers/claude-cli.js toolsPromptOf renders every advertised tool as
+     "- name: description", so the list is redundant there too). With the switch on, a run whose tools ride that wire
+     points at the list instead of repeating it. Every sentence that leans on it is untouched: "the listed tools", "This
+     list is PARTIAL", and the names of the granted tools that are not loaded yet. A request that carries no tools
+     (outputOnly: the loop is handed none) would keep the list; its verbatim system never shows this note at all. */
+  const liveNamesLean = prefixLaneOn('LIVE_NAMES') && toolDefs.length > 0 && !o.outputOnly;
   const toolNote = (isTask && wireNames.length)
     ? '\n\n[HARNESS] You are running in a REAL agent harness on the Commander\'s machine, at a workstation with '
-      + 'these LIVE tools: ' + wireNames.join(', ') + '. '
+      + (liveNamesLean ? 'the LIVE tools in your tool list. ' : 'these LIVE tools: ' + wireNames.join(', ') + '. ')
       + 'Actually use the listed tools when relevant; never claim a listed tool is unavailable. '
       /* THE LIST IS PARTIAL, AND THE MODEL HAS TO BE TOLD SO HERE. tool_search's own description says it, but a
          model plans from the tool LIST, not from the descriptions of tools it has not decided to call — so

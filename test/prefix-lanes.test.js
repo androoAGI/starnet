@@ -34,6 +34,12 @@
          matrix as committed; runOnceCore's own projection block agrees cell for cell;
      R3. the reader is a station self-knowledge read (never deferred, never a toggleable family, no CAP_REGISTRY row).
 
+   STARNET_LIVE_NAMES — the joined live tool-name list (W2.5, sidecar/index.js toolNote):
+     L.  one gate swaps the list for a pointer to it, only where the request carries the tools; the sentences that lean
+         on the list (never claim a listed tool is unavailable; This list is PARTIAL and the names of the tools that are
+         not loaded yet) are untouched; and claude-cli names every advertised tool in the # Tools text of the same
+         system prompt, so the list is a repeat there too.
+
    The switch itself (S): prefixLaneOn is on for 1 / true / yes / on only, and the run and the TOOLSETS preview read the
    same one. The request bytes (OFF identical to the base, the ON saving) are test/prefix-lanes.e2e.test.js. */
 'use strict';
@@ -380,6 +386,29 @@ const withFacts = (sc, more) => Object.assign({}, sc, { facts: Object.assign({},
     const kept = enforceEnabledToolsets({ tools: [RECIPE_READER], deferred: [], grants: [], approvalRules: {}, networkCaps: {} }, reg2, ['web']);
     A.eq(kept.tools, [RECIPE_READER], 'a routine restricted to other toolsets keeps it, like manual.read (a freebie, never a toggleable family)');
     A.ok(reg.get(RECIPE_READER) && reg.get(RECIPE_READER).impact === 'none', 'the declared catalogue holds it');
+  }
+
+  /* ---------- L. the live name list ---------- */
+  {
+    A.ok(/const liveNamesLean = prefixLaneOn\('LIVE_NAMES'\) && toolDefs\.length > 0 && !o\.outputOnly;/.test(index), 'the list is dropped only under the switch, and only where the request carries tools');
+    A.ok(index.indexOf("+ (liveNamesLean ? 'the LIVE tools in your tool list. ' : 'these LIVE tools: ' + wireNames.join(', ') + '. ')\n      + 'Actually use the listed tools when relevant; never claim a listed tool is unavailable. '") >= 0,
+      'one gate swaps the joined list for a pointer to it; the sentence after it is untouched');
+    A.eq(index.split('liveNamesLean').length - 1, 2, 'liveNamesLean is declared once and used once');
+    // the sentences that lean on the list are the ones the base shipped
+    for (const piece of ["? 'This list is PARTIAL. You have ' + listedDeferred.length + ' more granted tools that are not loaded yet. '", "+ 'These exist and you CAN use them: ' + listedDeferred.join(', ') + '. '",
+      "+ 'To use one, call tool_search with the capability you want (\"take a screenshot\", \"read network responses\") '", "+ 'never report an action as done when you had no tool to perform it. '"])
+      A.eq(index.split(piece).length - 1, 1, 'the not-loaded sentence is untouched: ' + piece.slice(0, 50));
+    A.ok(/const wireNames = toolDefs\.map\(d => d\.function\.name\);/.test(index), 'the list was the tools array\'s own names');
+    // the tools ride the same request wherever [HARNESS] does: the one request handed no tools is internal, and its system is verbatim
+    A.ok(/messages: msgs, provider, emit: loopEmit, cost, tools: o\.outputOnly \? \[\] : toolDefs, dispatch, capCtx,/.test(index), 'the loop is handed the advertised tools on every run but an outputOnly one');
+    A.ok(/const internal = !!o\.internal \|\| !!o\.outputOnly;/.test(index) && /const sys = internal\s*\? \(String\(system \|\| ''\) \+ evidenceBlock \+ delegatedBlock\)/.test(index), '...and an outputOnly run is internal: its system is the caller\'s own, with no [HARNESS] note');
+    // claude-cli: the same tools are text in the same system prompt, each by its name
+    const CLI = require('../sidecar/providers/claude-cli.js');
+    const defs = reg.wireFormat(reg.list(new Set(commsLead.base.advertised)));
+    for (const d of defs) d.function.name = d.function.name.replace(/\./g, '_');
+    const toolsText = CLI._internals.toolsPrompt(defs);
+    A.ok(defs.length >= 60 && /^# Tools\n/.test(toolsText) && toolsText.indexOf('\nAvailable tools:\n') > 0, 'claude-cli renders the advertised tools as the # Tools text of its system prompt (' + defs.length + ' tools)');
+    for (const d of defs) A.ok(toolsText.indexOf('\n- ' + d.function.name + ': ') >= 0, 'claude-cli names ' + d.function.name + ' in that text (the [HARNESS] list repeats it)');
   }
 
   A.report('prefix-lanes');
