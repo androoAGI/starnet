@@ -27795,6 +27795,25 @@ async function runOnceCore(o) {
   // GHSA-2hpj NEW-1: what a granted run is not given (granted-context.js INPUTS, 'withheld'); its system has no learned tail
   if (grantedRun) { questsBlock = ''; journeyBlock = ''; runtimeSkillBlock = ''; awayBriefingNote = ''; crewCallNote = ''; evidenceBlock = ''; }
   const persona = grantedRun ? { stable: system || '', learned: '' } : stablePrefix ? LearnedTail.split(system) : { stable: system || '', learned: '' };
+  /* THE SLIM NOTE (cost lane, 2026-11-14; sidecar/slim-note.js; STARNET_SLIM_NOTE=1, off by default). The per-run note (below) is
+     new on every message, so no provider ever reads it from cache, and some of its paragraphs are the same bytes on every
+     message: the first-skill line an agent with no saved skills gets, the quest how-to with its minting doctrine, and
+     the [RUNTIME] block's closing instruction. With the switch on they close cacheSystemPrefix instead (slimStable), the
+     part of the system prompt every route reads from cache from a conversation's first message. The system prompt's
+     tail would not do: on the Claude API it carries no anchor of its own, so a conversation's first two messages write
+     it again. The note keeps what changes: a saved-skill index with its own heading, the list of open quests or the line
+     saying there are none, and every identity line of [RUNTIME]. Each paragraph is moved whole; the two that point at
+     their own block (the doctrine at the quest list, the instruction at [RUNTIME]) say where it now is. Each is the
+     same text on every message: the quest guide whether or not a quest is open, the first-skill line until the agent
+     has a skill (then the prefix moves once, as it does when the floor or a recipe changes).
+     NEVER FOR A GRANTED RUN (granted-context.js INPUTS slim-note-guides): the skill and quest blocks are withheld from
+     it above, and nothing moves, its [RUNTIME] block included. Off, or with STARNET_STABLE_PREFIX=0 (no note to slim),
+     every byte is as before. */
+  let slimStable = '';
+  if (stablePrefix && !grantedRun && slimNoteOn()) {
+    const slim = SlimNote.plan({ skills: runtimeSkillBlock, quests: questsBlock, runtime: runtimeBlock });
+    runtimeSkillBlock = slim.skills; questsBlock = slim.quests; runtimeBlock = slim.runtime; slimStable = slim.stable;
+  }
   const cacheSystemPrefix = persona.stable + toolNote + teamNote + operatorManual
     // A tool deferred as CERTAINLY unavailable (resolved.unavailable: no image connection, no Spotify token, no PTY...)
     // is not a power this run has, even though it stays searchable. The ground-truth block must not claim it while the
@@ -27810,7 +27829,7 @@ async function runOnceCore(o) {
           mediaRoute: !!(studioRoute && studioRoute.ok),
           // ROOM SCOPE: lazy (called only when a floor object is missing); the room it names is stable per agent, so the cached prefix holds.
           // hasBay first: an agent crewing no dock on the router's plan (the bayless hero) never reads or validates the saved floor
-          scopeFn: () => { try { return scopeForRun({ loadStation: savedFloor, agentId, runStation: o.station, extraObjects: o.extraObjects, interactive: surface === 'interactive', floorless: !!o.floorless, hasBay: () => observe.docksOf(agentId).length > 0 }); } catch (e) { failNote('capsummary.roomscope', e); return null; } } }) + skillBlock;
+          scopeFn: () => { try { return scopeForRun({ loadStation: savedFloor, agentId, runStation: o.station, extraObjects: o.extraObjects, interactive: surface === 'interactive', floorless: !!o.floorless, hasBay: () => observe.docksOf(agentId).length > 0 }); } catch (e) { failNote('capsummary.roomscope', e); return null; } } }) + skillBlock + slimStable;
   /* CACHE-STABLE PREFIX (lean-prompt, 2026-10-12). Everything below that changes per MESSAGE — the run's skill index
      (ranked by this message), a /skill preload, the Task Brief (its id is the run's), the away briefing, a one-host
      check, the crew call, [RUNTIME] (run id, today) and the open quests — used to close the system prompt, so the
@@ -27852,26 +27871,11 @@ async function runOnceCore(o) {
      workers none (getTaskContext) and a worker carries no grants (the chain-grants law), so this gate changes no run
      that exists today: it keeps the census true if either of those ever moves. */
   const delegatedBlock = (!grantedRun && typeof o.delegatedContext === 'string' && o.delegatedContext.trim()) ? '\n\n' + PromptScrub.scrubStored(o.delegatedContext.trim()) : '';
-  /* THE SLIM NOTE (cost lane, 2026-11-14; sidecar/slim-note.js; STARNET_SLIM_NOTE=1, off by default). The note below is new on
-     every message, so no provider ever reads it from cache, and some of its paragraphs are the same bytes on every
-     message: the first-skill line an agent with no saved skills gets, the quest how-to with its minting doctrine, and
-     the [RUNTIME] block's closing instruction. With the switch on they ride the system prompt's per-conversation tail
-     instead (slimStable: after cacheSystemPrefix, which is untouched, and before FINISH THE JOB), where every route reads
-     them from cache. The note keeps what changes: a saved-skill index with its own heading, the list of open quests or
-     the line saying there are none, and every identity line of [RUNTIME]. Each paragraph is moved whole; the two that
-     point at their own block (the doctrine at the quest list, the instruction at [RUNTIME]) say where it now is.
-     NEVER FOR A GRANTED RUN (granted-context.js INPUTS slim-note-guides): the skill and quest blocks are withheld from
-     it above, and nothing moves, its [RUNTIME] block included. Off, or with STARNET_STABLE_PREFIX=0 (no note to slim),
-     every byte is as before. */
-  let slimStable = '';
-  if (stablePrefix && !grantedRun && slimNoteOn()) {
-    const slim = SlimNote.plan({ skills: runtimeSkillBlock, quests: questsBlock, runtime: runtimeBlock });
-    runtimeSkillBlock = slim.skills; questsBlock = slim.quests; runtimeBlock = slim.runtime; slimStable = slim.stable;
-  }
   // the crew call is NOT a run-context block: it trails the Commander's words as its own <crew_call> note (below)
+  // (with STARNET_SLIM_NOTE on, runtimeSkillBlock, runtimeBlock and questsBlock are here without their constant paragraphs: THE SLIM NOTE, above)
   const perRunBlocks = LearnedTail.tail(persona.learned) + delegatedBlock + runtimeSkillBlock + preloadedSkillBlock + taskBriefContext + stationEvidenceBlock + awayBriefingNote + directDomainBlock + runtimeBlock;
   const taskSystem = stablePrefix
-    ? FinishLine.append(cacheSystemPrefix + serviceKeysBlock + taskDoctrine + journeyBlock + deliverableNote + slimStable, { isTask, internal, tools: resolved.tools })
+    ? FinishLine.append(cacheSystemPrefix + serviceKeysBlock + taskDoctrine + journeyBlock + deliverableNote, { isTask, internal, tools: resolved.tools })
     : FinishLine.append(cacheSystemPrefix + PromptScrub.scrubStored(delegatedBlock + stationEvidenceBlock + runtimeSkillBlock
       + preloadedSkillBlock + serviceKeysBlock + taskIntentNote + awayBriefingNote + directDomainBlock + journeyBlock
       + deliverableNote + crewCallNote + runtimeBlock), { isTask, internal, tools: resolved.tools });   // STABLE_PREFIX=0: the per-run blocks get the run_context belt

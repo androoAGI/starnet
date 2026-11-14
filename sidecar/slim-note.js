@@ -15,7 +15,8 @@
         block's own bounds are untouched (8 lines read, 6 shown, 180 characters each).
 
      2. TEXT THAT IS THE SAME ON EVERY MESSAGE. plan() takes paragraphs out of the note and hands them back as one text
-        for the system prompt's per-conversation tail, which every route reads from cache:
+        that closes the system prompt's cached prefix (cacheSystemPrefix), which every route reads from cache from a
+        conversation's first message:
           - the first-skill line an agent with no saved skills gets (skills/runtime.js emptyGuide), whole;
           - the quest how-to and the minting doctrine (questinject.js split), leaving the list of open quests, or the
             line saying there are none, in the note;

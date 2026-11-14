@@ -21,7 +21,7 @@
       ("answer from this block" -> "answer from the [RUNTIME] block of this run's context note"); every identity line
       stays in the note.
    E. THE HOST'S WIRING. runOnceCore plans only for a run that has a note, never a granted run, only with the switch on;
-      the moved text closes the system prompt's per-conversation tail and never enters cacheSystemPrefix.
+      the moved text closes the cached prefix (cacheSystemPrefix), and the system prompt's tail is composed as before.
 
    RED on the base (57c741da7): sidecar/slim-note.js does not exist and nothing reads the switch. */
 'use strict';
@@ -34,7 +34,6 @@ const ContextPack = require('../sidecar/contextpack.js');
 const CommanderContext = require('../sidecar/commander-context.js');
 const RuntimeSkills = require('../sidecar/skills/runtime.js');
 const QuestInject = require('../sidecar/questinject.js');
-const FinishLine = require('../sidecar/finish-line.js');
 const RuntimeInfo = require('../sidecar/runtimeinfo.js');
 const Provider = require('../sidecar/providers/provider.js');
 const { readSidecarIndex, sidecarSourceFiles } = require('./helpers/source.js');
@@ -203,7 +202,7 @@ const quest = (n, extra) => Object.assign({ id: 'q:' + n, title: 'Quest number '
   // both together: one stable text, the first-skill line first (the order the note had them in)
   const p = SlimNote.plan({ skills: GUIDE, quests: none });
   A.eq(p, { skills: '', quests: a.list, runtime: '', stable: GUIDE + '\n\n' + a.guide }, 'D: the first-skill line and the quest guide make one stable text, in the note\'s order');
-  A.eq(FinishLine.append('PREFIX' + p.stable, { isTask: true, internal: false, tools: [] }).indexOf('PREFIX' + p.stable + '\n\n' + FinishLine.MARKER), 0, 'D: it sits before FINISH THE JOB, which still closes the system prompt');
+  A.ok(p.stable.indexOf('\n\n## SAVED AGENT SKILLS\n') === 0 && !/\s$/.test(p.stable), 'D: it opens with a blank line, like every block of the system prompt, and ends on its last word');
   const bytes = s => Buffer.byteLength(s);
   console.log('[slim-note] the note without the moved paragraphs: no saved skills and no open quests ' + (bytes(GUIDE) + 2 + bytes(none)) + ' -> ' + bytes(a.list) + ' bytes; an index and two quests '
     + bytes(some) + ' -> ' + bytes(b.list) + ' bytes (the quest block alone)');
@@ -244,11 +243,11 @@ const quest = (n, extra) => Object.assign({ id: 'q:' + n, title: 'Quest number '
   const planAt = CORE.indexOf("if (stablePrefix && !grantedRun && slimNoteOn()) {\n    const slim = SlimNote.plan({ skills: runtimeSkillBlock, quests: questsBlock");
   A.ok(planAt > 0, 'E: the plan is made only for a run with a note (stablePrefix), never a granted run, and only with the switch on');
   A.ok(CORE.indexOf("if (grantedRun) { questsBlock = '';") < planAt && CORE.indexOf('runtimeSkillBlock = PromptScrub.scrubStored(rs.text') < planAt, 'E: after the blocks are composed and a granted run\'s are blanked');
-  A.ok(planAt < CORE.indexOf('  const perRunBlocks = ') && planAt < CORE.indexOf('  const taskSystem = '), 'E: before the note and the system prompt are assembled');
+  A.ok(planAt < CORE.indexOf('  const cacheSystemPrefix = ') && planAt < CORE.indexOf('  const perRunBlocks = ') && planAt < CORE.indexOf('  const taskSystem = '), 'E: before the cached prefix, the note and the system prompt are assembled');
   const cachePrefix = CORE.slice(CORE.indexOf('  const cacheSystemPrefix = '), CORE.indexOf('  /* CACHE-STABLE PREFIX (lean-prompt'));
-  A.ok(cachePrefix.length > 500 && cachePrefix.indexOf('slimStable') < 0, 'E: the cached prefix (cacheSystemPrefix) never takes the moved text');
-  A.ok(CORE.indexOf('? FinishLine.append(cacheSystemPrefix + serviceKeysBlock + taskDoctrine + journeyBlock + deliverableNote + slimStable, { isTask, internal, tools: resolved.tools })') > 0,
-    'E: it closes the system prompt\'s per-conversation tail, before FINISH THE JOB');
+  A.ok(cachePrefix.length > 500 && /\) \+ skillBlock \+ slimStable;\n$/.test(cachePrefix), 'E: THE MOVED TEXT CLOSES THE CACHED PREFIX (cacheSystemPrefix), after the installed-skill index');
+  A.ok(CORE.indexOf('? FinishLine.append(cacheSystemPrefix + serviceKeysBlock + taskDoctrine + journeyBlock + deliverableNote, { isTask, internal, tools: resolved.tools })') > 0,
+    'E: the system prompt\'s tail is composed as before (the tail has no cache anchor of its own on the Claude API: a conversation\'s first messages would write the moved text again)');
   A.eq(CORE.split('slimStable').length - 1, 4, 'E: and is used nowhere else (declared, set, placed; named once in the comment)');
   A.ok(CORE.indexOf(': FinishLine.append(cacheSystemPrefix + PromptScrub.scrubStored(delegatedBlock + stationEvidenceBlock + runtimeSkillBlock\n      + preloadedSkillBlock + serviceKeysBlock + taskIntentNote + awayBriefingNote + directDomainBlock + journeyBlock\n      + deliverableNote + crewCallNote + runtimeBlock), { isTask, internal, tools: resolved.tools });') > 0,
     'E: STARNET_STABLE_PREFIX=0 keeps its one system prompt as it was');
