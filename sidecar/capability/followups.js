@@ -104,4 +104,40 @@ function specialistTail({ on, isTask, deferralOff, granted, wire, widgetScope } 
   return out;
 }
 
-module.exports = { FAMILIES, ALL_CONTROLS, revealFor, dormantFollowups, SPECIALIST_TAIL, TAIL_TOOLS, specialistTail };
+/* THE WORDS A HELD TAIL TOOL ANSWERS TO (tool.search, behind the same switch). Nothing reveals a tail tool but a search,
+   so a search that asks for one in a person's words has to return it, and the score alone does not: tool.search weighs a
+   name's LEAF, a widget tool says "widget" only in its namespace, no Resolve tool says "video" in its name or its
+   description, and a verb that is another tool's whole name ("create", "update", "publish", "edit") clears the relevance
+   floor by itself. Measured on a COMMS lead's real shelf with the tail held: "create a dashboard widget" returned
+   app.create alone, "update my widget" and "edit a video" nothing (test/toolsearch.specialist-tail.test.js).
+   So a held tail tool answers to its FAMILY word, the first word of its name (widget, skill, resolve), and to the plain
+   words below: what a person calls the thing its family works on, where a name does not say it. tool.search returns a
+   held tool whose word the query says, after its scored hits (toolsearch.js ANSWERS TO); it rescores nothing.
+   By family, not by tool: the three Resolve tools are one edit bay, and each description sends the model to another.
+   Kept short on purpose: any search that says a word here brings its family (three schemas for Resolve), so a word
+   with another common meaning stays out ("dashboard" is an app here, "render" is what a page does). Each word has an
+   ask in that test that misses without it. */
+const TAIL_WORDS = Object.freeze({
+  resolve: Object.freeze(['davinci', 'video', 'footage', 'film', 'movie', 'timeline', 'clip']),
+  widget: Object.freeze(['tile']),
+  skill: Object.freeze(['recipe'])
+});
+// 'widget.set' -> 'widget', 'resolve_status' -> 'resolve': the first word of a name, dotted or flat
+function familyOf(name) { return String(name == null ? '' : name).toLowerCase().split(/[._]/)[0]; }
+
+/* tailWords — what runOnce hands tool.search (ctx.answersTo): for each tail tool this run HOLDS, the words it answers to.
+   `held` is specialistTail()'s own list, so with the switch off, or where no tail tool is held, this is null and the
+   search is the one it was. A name outside the table gets nothing: the search never forces another tool. */
+function tailWords(held) {
+  const out = {};
+  let any = false;
+  for (const name of (Array.isArray(held) ? held : [])) {
+    if (TAIL_TOOLS.indexOf(name) < 0) continue;
+    const family = familyOf(name);
+    out[name] = [family].concat(TAIL_WORDS[family] || []);
+    any = true;
+  }
+  return any ? out : null;
+}
+
+module.exports = { FAMILIES, ALL_CONTROLS, revealFor, dormantFollowups, SPECIALIST_TAIL, TAIL_TOOLS, specialistTail, TAIL_WORDS, familyOf, tailWords };

@@ -275,6 +275,38 @@
     };
   }
 
+  /* ANSWERS TO (the specialist tail, STARNET_PREFIX_TAIL). ctx.answersTo (name -> [words]) is the host's list of hidden
+     tools that nothing but this search reveals, each with the words it answers to: its family word, the first word of
+     its name, and the plain words a person uses for what the family works on (capability/followups.js TAIL_WORDS).
+     The score above does not return such a tool to a plain ask. A namespace scores near zero by design, so a widget
+     tool barely hears "widget"; no Resolve tool carries "video" at all; and a verb that is another tool's whole name
+     ("create", "update", "publish", "edit") outscores what is left by more than the relevance floor allows. Measured on
+     the real shelf of a COMMS lead with the tail held: "create a dashboard widget" returned app.create alone, "update
+     my widget" and "edit a video" nothing (test/toolsearch.specialist-tail.test.js).
+     So a hidden tool whose word the query SAYS, as a whole word or its plural, is returned after the scored hits,
+     whatever the floor, the listed tools or the hit cap decided: at most the tail a run holds, six tools. Nothing is
+     rescored. Scoring the word was measured and rejected: at a leaf-substring's weight the first ask above still lost
+     to app.create (three times its score, 318, stayed under app.create's 384), and at an exact name's weight "delegate
+     this task to a worker" lost team.dispatch to task.manage. This way every other line of the answer is the one this
+     search gave before, and a query that says none of the words is answered byte for byte as it was.
+     Absent ctx.answersTo (the switch off, or a run that holds no tail tool): no change at all. */
+  function answering(q, ctx, pool, ranked) {
+    const map = (ctx && ctx.answersTo && typeof ctx.answersTo === 'object' && !Array.isArray(ctx.answersTo)) ? ctx.answersTo : null;
+    if (!map) return [];
+    const said = new Set();
+    for (const w of String(q).toLowerCase().split(/[^a-z0-9]+/)) {
+      if (!w) continue;
+      said.add(w);
+      if (w.length > 3 && w.charAt(w.length - 1) === 's') said.add(w.slice(0, -1));   // "widgets", "videos", "clips"
+    }
+    const have = new Set(ranked.map(h => h.t.name)), out = [];
+    for (const t of pool) {
+      const words = Object.prototype.hasOwnProperty.call(map, t.name) && Array.isArray(map[t.name]) ? map[t.name] : null;
+      if (words && !have.has(t.name) && words.some(w => said.has(String(w).toLowerCase()))) out.push({ t, s: 0 });
+    }
+    return out;
+  }
+
   function makeToolSearchTool(deps) {
     const registry = (deps || {}).registry;
 
@@ -317,7 +349,9 @@
         // sibling's description otherwise drags the family along, quietly re-advertising on the first search
         // the very set the deferral exists to withhold.
         const best = scored.length ? scored[0].s : 0;
-        const hits = withEarlierSteps(scored.filter(h => h.s * 3 >= best && (!match.keep || match.keep(h.t))).slice(0, MAX_HITS), pool);
+        const ranked = withEarlierSteps(scored.filter(h => h.s * 3 >= best && (!match.keep || match.keep(h.t))).slice(0, MAX_HITS), pool);
+        // ...and a held tool whose word the query says follows them, whatever cut it above (ANSWERS TO; none without the fact)
+        const hits = ranked.concat(answering(q, ctx, pool, ranked));
 
         if (!hits.length && (blocked || listed)) return { content: [blocked, listed].filter(Boolean).join('\n'), summary: blocked ? 'withheld' : 'already listed' };
         if (!hits.length) {

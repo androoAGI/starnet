@@ -18,7 +18,10 @@
    STARNET_PREFIX_TAIL (W3.9a): the Resolve and widget tools and skill.write leave the tools array; the system text is
         the same but for the [HARNESS] not-loaded sentence, which now names them; GET /api/toolsets says 'specialist-tail';
         a widget's own update run still carries widget_get and widget_set from its first call; and a model that searches
-        for widget_set gets it on its next call and publishes a reading with it.
+        for widget_set gets it on its next call and publishes a reading with it. So does a model that asks in a person's
+        words, "publish a reading to a dashboard widget": app.publish outscores the widget tools there and the relevance
+        floor cut them, and tool_search returns them all the same (toolsearch.js ANSWERS TO; the tables are
+        test/toolsearch.specialist-tail.test.js).
    STARNET_PREFIX_DOCTRINE (W3.9b): the system text is the base's with exactly two edits and nothing else: where the manual
         index rides, CONNECTING A PLATFORM is its rules (manual.js CONNECTING_CORE), and HOW TO WORK is without the three
         sentences FINISH THE JOB restates. FINISH THE JOB is byte-identical and still last; the tools array is untouched;
@@ -90,6 +93,14 @@ async function tailScenarios(ctx) {
     { name: 'widget_set', args: { id: 'rig-load', label: 'RIG LOAD', value: '7' } }]);
   out.loadRun = await ctx.task('prefix-rig-load', ctx.starter, words);
   out.load = ctx.bodiesFrom(from).filter(b => Array.isArray(b.tools) && b.tools.length);
+  // the same on a fresh stream, asked in a person's words: the search never says widget_set, and app.publish outscores it
+  from = ctx.mark();
+  const plain = R.scripted([
+    { name: 'brief_proceed', args: { objective: 'Publish one reading to a dashboard widget', deliverable: 'The widget shows 9' } },
+    { name: 'tool_search', args: { query: 'publish a reading to a dashboard widget' } },
+    { name: 'widget_set', args: { id: 'rig-plain', label: 'RIG PLAIN', value: '9' } }]);
+  out.plainRun = await ctx.task('prefix-rig-plain', ctx.starter, plain);
+  out.plain = ctx.bodiesFrom(from).filter(b => Array.isArray(b.tools) && b.tools.length);
   out.widgets = ((await ctx.fixture.json('GET', '/api/widgets')).body || {}).widgets || [];
   return out;
 }
@@ -156,6 +167,21 @@ function checkTail(off, on) {
   A.ok(results.length >= 3 && !/SCRIPT MISSING/.test(JSON.stringify(last.messages || [])), lane + ': every scripted call was on the wire when the model made it');
   const pinned = (x.widgets || []).find(w => w && w.id === 'rig-load');
   A.ok(pinned && String(pinned.value) === '7', lane + ': the loaded widget_set really published the reading (' + JSON.stringify(pinned && { id: pinned.id, value: pinned.value }) + ')');
+  // searched in a person's words, loaded, used
+  const plain = x.plain || [];
+  A.eq(x.plainRun && x.plainRun.end && x.plainRun.end.reason, 'done', lane + ': the plain-words run completes');
+  const plainBefore = plain.find(b => R.toolNames(b).indexOf('widget_set') < 0), plainAfter = plain.find(b => R.toolNames(b).indexOf('widget_set') >= 0);
+  A.ok(plainBefore && plainAfter, lane + ': asked for "a dashboard widget", widget_set is off the first call and on a later one');
+  if (plainBefore && plainAfter) {
+    const answer = (plainAfter.messages || []).filter(m => m.role === 'tool').map(m => R.text(m.content)).join('\n');
+    A.ok(/Now available[^]*\u00b7 app\.publish [^]*\u00b7 widget\.get [^]*\u00b7 widget\.set /.test(answer), lane + ': tool_search answered with app.publish (the scored hit) and then the widget tools (' + answer.slice(-400).replace(/\n/g, ' ').slice(0, 160) + ')');
+    A.eq(R.toolNames(plainAfter).slice(0, R.toolNames(plainBefore).length), R.toolNames(plainBefore), lane + ': that reveal only appends too');
+    A.eq(R.toolNames(plainAfter).slice(R.toolNames(plainBefore).length), ['app_publish', 'widget_get', 'widget_set'], lane + ': the next call carries exactly what the search named');
+  }
+  const plainLast = plain[plain.length - 1] || {};
+  A.ok((plainLast.messages || []).filter(m => m.role === 'tool').length >= 3 && !/SCRIPT MISSING/.test(JSON.stringify(plainLast.messages || [])), lane + ': widget_set was on the wire when the model called it');
+  const plainPinned = (x.widgets || []).find(w => w && w.id === 'rig-plain');
+  A.ok(plainPinned && String(plainPinned.value) === '9', lane + ': the widget found in plain words really published its reading (' + JSON.stringify(plainPinned && { id: plainPinned.id, value: plainPinned.value }) + ')');
 }
 
 /* ---------------------------------------------------------------- STARNET_PREFIX_DOCTRINE */

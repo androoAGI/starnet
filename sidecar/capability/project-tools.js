@@ -4,7 +4,7 @@
 
    projectTools(agent, origin, role, facts) -> {
      station, resolved, preAuthorityTools, widgetScope, keySaveOffered, crewless, deferralOff,
-     connectorDeferral, unavailable, dormantFollowups, specialistTail, recipeReader, advertised, deferredWire, pendingFacts, sources, rows
+     connectorDeferral, unavailable, dormantFollowups, specialistTail, tailWords, recipeReader, advertised, deferredWire, pendingFacts, sources, rows
    }
 
    This is the assembly runOnce used to do inline, MOVED here step for step in the same order, so the run, GET
@@ -277,6 +277,8 @@ function projectTools(agent, origin, role, facts) {
     const heldNow = dormantFollowups.concat(specialistTail);
     if (heldNow.length) resolved.deferred = (resolved.deferred || []).concat(heldNow);
   }
+  // ...and the words each held tail tool answers to in tool.search (followups.js TAIL_WORDS): null when none is held
+  const tailWords = Followups.tailWords(specialistTail);
   // CORE vs DEFERRED on the wire: both granted; only the core list rides every request (task runs only).
   const deferredNames = new Set((deferralOff ? [] : (resolved.deferred || [])).filter(n => !ddw(n)));
   /* THE RECIPE READER (cost audit W3.9c, facts.recipeReader = STARNET_PREFIX_RECIPES). A task run whose wire has no
@@ -299,7 +301,7 @@ function projectTools(agent, origin, role, facts) {
   const advertised = isTask ? coreNames : [];
   const deferredWire = isTask ? Array.from(deferredNames) : [];
   const projection = { station, resolved, preAuthorityTools, widgetScope, keySaveOffered, crewless, deferralOff,
-    connectorDeferral, unavailable, dormantFollowups, specialistTail, recipeReader, advertised, coreNames, deferredNames, deferredWire, pendingFacts, sources, injected };
+    connectorDeferral, unavailable, dormantFollowups, specialistTail, tailWords, recipeReader, advertised, coreNames, deferredNames, deferredWire, pendingFacts, sources, injected };
   projection.rows = rowsOf(projection, { agentId, registry, authority: facts.authority, surface, enabledToolsets, directDomain: facts.directDomain, groupTurn: Array.isArray(origin.groupTools) });
   return projection;
 }
