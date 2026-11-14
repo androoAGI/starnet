@@ -1300,6 +1300,16 @@
       const n = d && d.function && d.function.name;
       if (n) deferredDefs.set(wireKey(n), d);
     }
+    /* NATIVE DEFERRAL (W2.4; o.nativeDefer is the host's STARNET_NATIVE_DEFER, off unless set). A route whose adapter can
+       declare a deferred tool up front and load it by reference (provider.deferredToolsKey: the native Anthropic API,
+       per model, providers/anthropic.js NATIVE DEFERRAL) does not need its tools array to change at a reveal. This is
+       what the loop tells it: every definition the run holds deferred, as given, and which tool result revealed which
+       of them. The reveal below still appends to `tools` exactly as before: every other route sends that list, and the
+       ruler and the loop's own checks read it. A name the run already advertises is never listed as deferred. */
+    const nativeDefer = (o.nativeDefer === true && deferredDefs.size) ? (() => {
+      const listed = new Set(tools.map(t => wireKey(t && t.function && t.function.name)));
+      return { deferred: Array.from(deferredDefs.values()).filter(d => !listed.has(wireKey(d.function.name))), reveals: [] };
+    })() : null;
     const limits = o.limits || {};
     // Missing/zero means the Commander did not opt into a turn ceiling. Operational
     // protections (tool timeout, repeat guard, cancellation) still apply independently.
@@ -1577,6 +1587,14 @@
     const bindsThinking = () => {
       if (!provider || typeof provider.bindsThinking !== 'function') return false;
       try { return provider.bindsThinking(model) === true; } catch (e) { failNote('loop.bindsThinking', e); return false; }
+    };
+    /* NATIVE DEFERRAL: asked of the CURRENT provider before each request (a fallback can change it, and an adapter stops
+       for a model the API refused). null = this request sends `tools` as before: the switch is off, nothing is deferred,
+       the route declares no such capability, or its adapter says not this model. Otherwise the adapter's own account of
+       the tools array the request will carry (see the request view below). An adapter that throws is the old path. */
+    const nativeDeferKey = (outgoing) => {
+      if (!nativeDefer || !nativeDefer.deferred.length || !provider || typeof provider.deferredToolsKey !== 'function') return null;
+      try { return provider.deferredToolsKey({ model, tools, messages: outgoing, nativeDefer }) || null; } catch (e) { failNote('loop.nativeDefer', e); return null; }
     };
     // What the provider is sent, and what the context meter measures: `messages` with stale screen captures replaced by
     // placeholders and aged bodies by their stubs (views — never an edit). Asked of the CURRENT provider each time (a
@@ -2808,13 +2826,18 @@
         const argsStream = new Map();           // tool index -> { name, chars, startedAt, noted } while its arguments stream
         let runaway = null, adapterWait = null;
         try {
+          // NATIVE DEFERRAL: non-null when this request declares the run's deferred tools up front. It then stands for
+          // the tools array in the view below: a reveal leaves that array as it was, so it is not an edit.
+          const outgoing = wireMessages();
+          const deferKey = nativeDeferKey(outgoing);
           // stale screen captures -> placeholders; then the thinking any history edit invalidated is stripped (binding models)
-          const view = requestView ? requestView.messages(wireMessages(), { tools, binds: bindsThinking() }) : null;
+          const view = requestView ? requestView.messages(outgoing, { tools: deferKey || tools, binds: bindsThinking() }) : null;
           // a strip is recorded where the API's own drops were (providers.anthropic.thinking_dropped): a strip on every turn shows
           if (view && view.stripped > 0) failNote('loop.historyEdit.thinkingStripped', view.unproven
             ? 'the run\'s first request on ' + String(model) + ' replays the thinking of ' + view.stripped + ' turn(s) it never saw produced (a recovered history: its tools, system prompt or turns may differ from when that thinking was made); those blocks were removed before the request'
             : 'a history edit at message ' + view.editAt + ' unbound the thinking of ' + view.stripped + ' earlier turn(s) on ' + String(model) + '; those blocks were removed before the request');
-          const req = { model, messages: view ? view.messages : wireMessages(), tools, signal: attempt.signal, stream: true };
+          const req = { model, messages: view ? view.messages : outgoing, tools, signal: attempt.signal, stream: true };
+          if (deferKey) req.nativeDefer = nativeDefer;
           if (typeof o.isTask === 'boolean') req.isTask = o.isTask;
           if (o.runId) req.runId = o.runId;   // run attribution: only a profile that names a runIdHeader sends it (starnet)
           if (o.cacheSystemPrefix) req.cacheSystemPrefix = o.cacheSystemPrefix;
@@ -3699,13 +3722,17 @@
       for (const r of results) {
         const reveal = r.control && r.control.revealTools;
         if (!Array.isArray(reveal)) continue;
+        const names = [];
         for (const name of reveal) {
           const key = wireKey(name);
           const def = deferredDefs.get(key);
           if (!def) continue;
           deferredDefs.delete(key);
           tools.push(def);
+          names.push(def.function.name);
         }
+        // NATIVE DEFERRAL: which tool result revealed them (the adapter puts the reference on that result)
+        if (nativeDefer && names.length) nativeDefer.reveals.push({ id: r.callId, names });
       }
 
       /* TERMINAL TOOL EVIDENCE. A tool may prove that the exact requested subject cannot be reached (the
@@ -3716,6 +3743,7 @@
       if (stopTools) {
         tools.splice(0, tools.length);
         deferredDefs.clear();
+        if (nativeDefer) nativeDefer.deferred = [];   // nothing is declared up front either: the turn is tool-free
         messages.push({ role: 'system', content: stopTools.prompt ? hostFenced(stopTools.prompt, 'terminal_evidence') : '<terminal_evidence>The requested subject is unavailable. Use the tool result above and answer now without more tools.</terminal_evidence>' });
       }
 

@@ -28441,6 +28441,10 @@ async function runOnceCore(o) {
       // W3.7 the Claude Code replay ledger: the conversation this run continues ('' = off: STARNET_CLI_REPLAY_LEDGER, cliReplayStream)
       cliReplayStream: cliReplayStream({ streamId, agentId, stablePrefix, internal, recovery: o.recovery, groupTools: o.groupTools, granted: grantedRun, delegatedBy: o.delegatedBy }),
       cliReplayEpoch,
+      // W2.4 native deferral: on the native Anthropic API a reveal loads a tool the request declared up front (defer_loading)
+      // by reference, so the tools array and the cached prompt stay as they were (providers/anthropic.js NATIVE DEFERRAL).
+      // OFF until one real request confirms the API takes these fields from this adapter (on: STARNET_NATIVE_DEFER=1)
+      nativeDefer: /^(1|true|yes|on)$/i.test(String(ENV('NATIVE_DEFER') || '').trim()),
       // P0.2 credential rotation: the live key + a hook the loop calls as it rotates away from a failed one,
       // so a rate-limit/auth/billing key gets a cooldown (credPool) and isn't tried first next run.
       // activePrimaryKey, NOT runKey: when the run's own key was still cooling we STARTED on a warm pool key,
