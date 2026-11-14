@@ -3634,3 +3634,178 @@ html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .prov-
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .settings-pane .key-list > .key-row { flex-wrap: wrap; }
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .settings-pane .key-list > .key-row > .key-main { flex: 1 1 200px; }
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .settings-pane .key-list > .key-row > .key-acts { flex-direction: row; justify-content: flex-end; margin-left: auto; }
+
+/* ====================================================================================================================
+   11-14 · AFTER THE FIRST TEST OF THE BUILD (Andrew: hovering an agent "will not visually react like it did before, it
+   seems to only constantly highlight the overseer" · "the needs you clearly wasnt updated to the new style" · "the search
+   bars in the menus like settings and others ... needs a newer style" · "hovering over settings buttons needs to more of
+   that glossy style" · "when you drag the comms all the way to the left, the little edge tabs dont align properly" ·
+   "the dashboard changes added a bit of lag")
+   ==================================================================================================================== */
+
+/* ---- the roster answers the pointer. The roster's flat-screen rule (every row transparent, !important) had also
+   flattened the three states a row has besides chosen: under the pointer, the agent the rail is narrowed to (a click),
+   and a wait. Hover is a faint glass band; the narrowed agent is the lit band with a lead bar, and the chosen row rests
+   while it is (the older look's rule: one lit row); a wait keeps its gold ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew > .crew-row.crew-row.crew-row:not(.selected):not(.filtering):not(.asking):is(:hover, :focus-visible) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .09) 0, rgba(255, 255, 255, 0) 50%),
+    linear-gradient(90deg, rgba(var(--ph-rgb), .2), rgba(var(--ph-rgb), .06)) !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), inset 0 -1px 0 rgba(0, 0, 0, .4) !important;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew > .crew-row.crew-row.crew-row.filtering:not(.asking) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .12) 0, rgba(255, 255, 255, 0) 50%),
+    linear-gradient(90deg, rgba(var(--ph-rgb), .3), rgba(var(--ph-rgb), .09)) !important;
+  box-shadow: inset 3px 0 0 var(--vx-node), inset 0 1px 0 rgba(255, 255, 255, .25), inset 0 -1px 0 rgba(0, 0, 0, .45) !important;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew:has(> .crew-row.filtering) > .crew-row.crew-row.crew-row.selected:not(.filtering):not(.asking):not(:hover):not(:focus-visible) {
+  background: transparent !important; box-shadow: none !important;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew > .crew-row.crew-row.crew-row.asking {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .1) 0, rgba(255, 255, 255, 0) 50%),
+    linear-gradient(90deg, rgba(var(--gold-rgb), .26), rgba(var(--gold-rgb), .07)) !important;
+  box-shadow: inset 3px 0 0 var(--gold), inset 0 1px 0 rgba(255, 255, 255, .16), inset 0 -1px 0 rgba(0, 0, 0, .45) !important;
+}
+
+/* ---- NEEDS YOU is a screen on the rail, like the roster above it and the playlist under it: the same LCD in the same
+   chrome ring on the same gutter. Each kind's strip is a lit band in the kind's own colour (a wait keeps its gold, a
+   failure its red), the portrait sits in a small well, and every key is a glossy cap: Deny keeps its red legend ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs:not([hidden]) {
+  margin: 4px 15px 8px; padding: 2px 0 4px; border-radius: 12px; corner-shape: round;
+  background: var(--vx-lcd); box-shadow: var(--vx-lcd-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-head { padding: 9px 14px 7px; padding-right: max(0px, 14px - var(--ny-gutter, 0px)); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-lamp { box-shadow: 0 0 0 1px #000, 0 0 5px var(--gold), 0 0 10px rgba(var(--gold-rgb), .5); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-title { color: color-mix(in srgb, var(--vx-core) 80%, #fff); text-shadow: 0 0 6px rgba(var(--ph-rgb), .45); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-count { color: var(--gold); text-shadow: 0 0 6px rgba(var(--gold-rgb), .5); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-panel {
+  margin: 0; border: 0 !important; border-radius: 0; background: none;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-grp {
+  padding: 5px 14px 4px; border: 0 !important; letter-spacing: 2px; text-shadow: 0 0 6px rgba(var(--ny-k), .5);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .08) 0, rgba(255, 255, 255, 0) 55%),
+    linear-gradient(90deg, rgba(var(--ny-k), .26), rgba(var(--ny-k), .06));
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .12), inset 0 -1px 0 rgba(0, 0, 0, .55);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-item { padding: 7px 12px 7px 14px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-item + .ny-item { border-top-color: var(--vx-hair); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-item:is(:hover, :focus-within) {
+  background: linear-gradient(90deg, rgba(var(--ny-k), .16), rgba(var(--ny-k), .04));
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-face {
+  border: 0; border-radius: 7px; background: var(--vx-lcd);
+  box-shadow: inset 0 2px 5px rgba(0, 0, 0, .95), 0 0 0 1px #07090c, 0 0 0 2px #8d96a1, 0 1px 0 2px #eef2f6, 0 0 0 3px #20252b;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-go { border-color: var(--vx-node); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs :is(.ny-key, .ny-more) {
+  border: 0 !important; border-radius: 7px !important; background: var(--vx-cap) border-box !important; box-shadow: var(--vx-cap-shadow) !important;
+  color: var(--vx-core); text-shadow: 0 0 6px rgba(var(--ph-rgb), .75);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs :is(.ny-key, .ny-more):is(:hover, :focus-visible):not(:disabled) {
+  background: var(--vx-cap-hot) border-box !important; color: var(--vx-core);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-key.deny { color: var(--bad); text-shadow: 0 0 6px rgba(var(--bad-rgb), .6); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-key.primary:not(:disabled) {
+  background: var(--vx-cap-on) border-box !important; box-shadow: var(--vx-cap-on-shadow) !important; color: #020604; text-shadow: none;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-more {
+  width: calc(100% - 28px + min(14px, var(--ny-gutter, 0px))); margin: 6px 14px 5px; margin-right: max(0px, 14px - var(--ny-gutter, 0px));
+}
+
+/* ---- COMMS dragged all the way to the crew rail shuts the stage (chatresize.js says so on the grid: stage-shut, with
+   the sliver's width in --stage-now). The two gutters then stand side by side and their clamps sat half a clamp apart,
+   one over the other. Shut, the pair is ONE seam: twin conduits under a single row of clamps centred across both (the
+   crew seam draws it: that seam stacks over this one, so its clamp is the one that is never cut) ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game.stage-shut #stage-wrap { visibility: hidden; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game.stage-shut .col-resizer::before { content: none; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game.stage-shut .crew-resizer::before {
+  left: calc(10px + var(--stage-now, 2px) / 2); width: 36px; margin-left: -18px; background-size: 36px 18px;
+}
+
+/* ---- a window's search is the rail's finder: an LCD pill in a chrome bezel, the lit lens at its lead, a quiet prompt.
+   Three fields carry it: every menu's own search (SETTINGS, an agent's dossier, CONNECT), RECRUIT's class finder and
+   MY WORK's search ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.con-search .con-search-in, .mkt-search, #dl-query) {
+  box-sizing: border-box; height: 36px; min-height: 0; border: 0 !important; border-radius: 999px !important; corner-shape: round;
+  background: var(--vx-lcd) !important;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, .95), inset 0 0 0 1px rgba(var(--ph-rgb), .3), inset 0 0 16px rgba(var(--ph-rgb), .1),
+    0 0 0 2px #07090c, 0 0 0 3px #6b747f, 0 1px 0 3px #c9d0d8, 0 0 0 4px #20252b !important;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.con-search .con-search-in:focus, .mkt-search:focus-within, #dl-query:focus) {
+  outline: none;
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, .95), inset 0 0 0 1px rgba(var(--ph-rgb), .7), inset 0 0 16px rgba(var(--ph-rgb), .18),
+    0 0 0 2px #07090c, 0 0 0 3px color-mix(in srgb, var(--ph) 55%, #8d96a1), 0 1px 0 3px #eef2f6, 0 0 0 4px #20252b, 0 0 12px 4px rgba(var(--ph-rgb), .3) !important;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.con-search .con-search-in, #dl-query) { padding: 0 14px 0 38px !important; letter-spacing: 1px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.con-search-in, #mkt-q, #dl-query)::placeholder { color: rgba(var(--ph-rgb), .5); opacity: 1; }
+/* the menu search: room for the bezel's ring in its slot, and its glyph becomes the lens */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .con-search { padding: 12px 14px 12px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .con-search .con-search-i,
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .mkt-search::before {
+  content: ''; position: absolute; left: 27px; top: 50%; width: 16px; height: 16px; margin-top: -8px; transform: none; z-index: 1; pointer-events: none;
+  font-size: 0; text-shadow: none;
+  background: color-mix(in srgb, var(--vx-core) 60%, #fff);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18'%3E%3Ccircle cx='7.5' cy='7.5' r='5' fill='none' stroke='%23fff' stroke-width='2.2'/%3E%3Cpath d='M11.3 11.3 L16 16' stroke='%23fff' stroke-width='2.8' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat; mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18'%3E%3Ccircle cx='7.5' cy='7.5' r='5' fill='none' stroke='%23fff' stroke-width='2.2'/%3E%3Cpath d='M11.3 11.3 L16 16' stroke='%23fff' stroke-width='2.8' stroke-linecap='round'/%3E%3C/svg%3E") center / contain no-repeat;
+  filter: drop-shadow(0 0 4px rgba(var(--ph-rgb), .9));
+}
+/* RECRUIT's finder: the slot is the pill, its text glyph is retired for the lens, the field inside is bare type */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .mkt-search {
+  position: relative; width: 230px; padding: 0 14px 0 38px !important; gap: 0; font-size: 0; align-items: center;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .mkt-search::before { left: 13px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .mkt-search > #mkt-q {
+  height: 100%; font-size: 16px; line-height: 1; letter-spacing: 1px; color: var(--vx-core);
+  background: none !important; box-shadow: none !important; border: 0 !important; border-radius: 0 !important; padding: 0 !important;
+}
+/* MY WORK's search has no slot of its own to hang a lens on: the same lens is drawn on the field */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) #dl-query {
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 18 18'%3E%3Ccircle cx='7.5' cy='7.5' r='5' fill='none' stroke='%23e9f3ec' stroke-width='2.2'/%3E%3Cpath d='M11.3 11.3 L16 16' stroke='%23e9f3ec' stroke-width='2.8' stroke-linecap='round'/%3E%3C/svg%3E") 13px 50% / 16px 16px no-repeat, var(--vx-lcd) !important;
+}
+
+/* ---- a menu's rail keys answer the pointer in gloss: the dark cap with its sheen and a lit legend (the chosen key's
+   quiet twin), never a flat outline ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term.sn-menu .con-rail-item:not(.con-toptab):is(:hover, :focus-visible):not(.active):not([aria-selected="true"]) {
+  border-color: transparent; background: var(--vx-cap-hot) border-box; box-shadow: var(--vx-cap-shadow);
+  color: var(--vx-core); text-shadow: 0 0 6px rgba(var(--ph-rgb), .75);
+}
+
+/* ---- the desktop app draws its own title bar on Windows (titlebar.js: the strip with MIN / MAX / CLOSE over every
+   screen). It was still the old flat black strip with a green hairline over a silver device. It is the device's top
+   rail now: the same brushed silver with a lit lip and a dark seam where the housing begins, its mark a small lit
+   lamp, its three controls the chrome domes every window head carries (close goes hazard red under the pointer) ---- */
+html body.vx:not(.hud-mode):not(.vx-b).sn-chrome #sn-titlebar {
+  border-bottom: 0;
+  background:
+    var(--vx-veilg),
+    linear-gradient(180deg, rgba(255, 255, 255, .6) 0, rgba(255, 255, 255, 0) 2px),
+    var(--vx-grain),
+    linear-gradient(180deg, #a7b0bb 0%, #6d7682 24%, #3a414a 60%, #1f2429 100%);
+  box-shadow: inset 0 -1px 0 #050608, 0 1px 0 rgba(255, 255, 255, .16), 0 2px 6px rgba(0, 0, 0, .65);
+}
+html body.vx:not(.hud-mode):not(.vx-b).sn-chrome #sn-titlebar .sn-tb-mark {
+  padding: 0 12px 0 14px; font-size: 0; letter-spacing: 0; text-shadow: none;
+}
+html body.vx:not(.hud-mode):not(.vx-b).sn-chrome #sn-titlebar .sn-tb-mark::before {
+  content: ''; width: 9px; height: 9px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle at 35% 30%, #fff 0, var(--vx-core) 30%, var(--ph) 70%);
+  box-shadow: 0 0 0 1px #050608, 0 0 0 2px rgba(255, 255, 255, .28), 0 0 6px rgba(var(--ph-rgb), .9);
+}
+html body.vx:not(.hud-mode):not(.vx-b).sn-chrome #sn-titlebar .sn-tb-controls { align-items: center; gap: 6px; padding: 0 8px 0 0; }
+html body.vx:not(.hud-mode):not(.vx-b).sn-chrome #sn-titlebar .sn-tb-btn {
+  width: 34px; height: 22px; border-radius: 999px; color: #14181c;
+  background: var(--vx-keyg), radial-gradient(ellipse at 38% 22%, #f4f7fa 0, #a9b2bd 30%, #4a525c 68%, #1c2126 88%, #6d7682 100%);
+  box-shadow: 0 0 0 1px #050608, 0 1px 0 1px rgba(255, 255, 255, .22), 0 2px 3px rgba(0, 0, 0, .6);
+}
+html body.vx:not(.hud-mode):not(.vx-b).sn-chrome #sn-titlebar .sn-tb-btn:hover {
+  color: #020604;
+  background: var(--vx-keyg), radial-gradient(ellipse at 38% 22%, #fff 0, color-mix(in srgb, var(--vx-core) 60%, #a9b2bd) 34%, color-mix(in srgb, var(--ph) 60%, #1c2126) 76%, #6d7682 100%);
+  box-shadow: 0 0 0 1px #050608, 0 1px 0 1px rgba(255, 255, 255, .22), 0 0 10px rgba(var(--ph-rgb), .55);
+}
+html body.vx:not(.hud-mode):not(.vx-b).sn-chrome #sn-titlebar .sn-tb-x:hover {
+  color: #fff;
+  background: radial-gradient(ellipse at 38% 22%, #ffd9d4 0, #ff6a5c 34%, #c2241a 76%, #7a1009 100%);
+  box-shadow: 0 0 0 1px #050608, 0 1px 0 1px rgba(255, 255, 255, .22), 0 0 10px rgba(255, 65, 54, .6);
+}
