@@ -390,3 +390,5 @@ test/cross-run-replay.invariant.test.js
 test/granted-context.approval-flip.http.test.js
 test/granted-drop-notice.http.test.js
 test/granted-line-skill.http.test.js
+test/browser-signin-survives.e2e.test.js
+test/browser-signin-survives.run.e2e.test.js
