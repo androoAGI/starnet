@@ -78,7 +78,8 @@ const sha = text => crypto.createHash('sha256').update(text).digest('hex');
   A.eq(count(index, "ENV('FOLD_FROM_PREFIX')"), 1, 'index.js reads the switch once, through ENV()');
   const reader = index.match(/foldFromPrefix: (\/\^\(1\|true\|yes\|on\)\$\/i\.test\(String\(ENV\('FOLD_FROM_PREFIX'\) \|\| ''\)\.trim\(\)\)),/);
   A.ok(reader, 'and hands it to the loop as foldFromPrefix');
-  A.ok(/\n\s+batchedAgeing: [^\n]+\n(?:\s+\/\/[^\n]*\n)+\s+foldFromPrefix: /.test(index), 'in the loop\'s own options, beside the batched-ageing switch');
+  // the other cost lanes' options sit between the two in the stacked tree (sign-in ageing, the replay ledger, native deferral)
+  A.ok(/\n\s+batchedAgeing: [^\n]+\n(?:\s+[^\n]*\n){1,24}?\s+foldFromPrefix: /.test(index), 'in the loop\'s own options, with the batched-ageing switch');
   if (reader) {
     const read = value => new Function('ENV', 'return ' + reader[1])(() => value);
     A.eq(['1', 'true', 'on', 'YES', ' 1 '].map(read), [true, true, true, true, true], 'the words that turn the cost switches on turn it on');
