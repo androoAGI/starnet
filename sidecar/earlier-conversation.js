@@ -107,6 +107,25 @@ function align(rows, window, redact) {
 }
 function windowCut(rows, window, redact) { return align(rows, window, redact).cut; }
 
+/* THE NOTE'S OLDEST END MOVES IN STEPS TOO (cost lane W2.6; only with the window step on, index.js). The host reads the
+   stream's newest `limit` rows. In a longer stream that list's front moves one exchange per send, so the dropped part lost
+   its oldest rows on every send and the note (its counts, its budget shares) was different bytes each time: on a Claude
+   route the note is part of the leading system block, in front of the whole history. frontMark names the row to render
+   from in a list that is at its limit: the first one whose durable id is at or past the next multiple of FRONT_STEP. That
+   is the same row until the list's front passes it, so between two steps the note is rendered from the same rows. The
+   rows before it are the ones the row limit drops a little later anyway: still in the transcript, found by the
+   conversation search the note names. Returns 0 (render from the front, as before) for a list under its limit or one
+   that holds no id to step on. */
+const FRONT_STEP = 512;
+function frontMark(rows, limit) {
+  const list = Array.isArray(rows) ? rows : [];
+  const id = row => (row && Number.isSafeInteger(row.rowId) && row.rowId > 0 ? row.rowId : 0);
+  if (!(limit > 0) || list.length < limit || !id(list[0])) return 0;
+  const mark = Math.ceil(id(list[0]) / FRONT_STEP) * FRONT_STEP;
+  const at = list.findIndex(row => id(row) >= mark);
+  return at < 0 ? 0 : at;
+}
+
 function toolNames(row) {
   if (!row || !row.toolCalls) return [];
   let tc = row.toolCalls;
@@ -223,4 +242,4 @@ function taintOf(rows) {
   return null;
 }
 
-module.exports = { windowCut, align, render, taintOf, keyOf, userText, exchanges, _internals: { replyLine, toolNames, KEY_CHARS, REPLY_HEAD_CHARS } };
+module.exports = { windowCut, align, render, taintOf, keyOf, userText, exchanges, frontMark, FRONT_STEP, _internals: { replyLine, toolNames, KEY_CHARS, REPLY_HEAD_CHARS } };
