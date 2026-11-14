@@ -16,7 +16,10 @@
    unreadable save) keeps the family on the wire. Never a headline capability: every starter stays advertised, and
    shell.bg.status stays beside shell.exec (the dev-server verification rule names it); it joins its family only when
    shell.exec itself is off the wire. Applies only to a task run with tool search on, where a deferred name can be found
-   again. Pure: no I/O, no clock. */
+   again. Pure: no I/O, no clock.
+
+   The SPECIALIST TAIL at the end of this file (cost audit W3.9a) is held the same way, behind a switch that is off by
+   default. */
 'use strict';
 
 /* id = the key of facts.followups. starter = the tool that brings the thing into being (its result reveals the
@@ -59,4 +62,46 @@ function dormantFollowups({ isTask, deferralOff, granted, wire, facts } = {}) {
 // every name this file can hold off the wire (the census invariant: nothing else may move)
 const ALL_CONTROLS = Object.freeze(FAMILIES.reduce((all, f) => all.concat(f.controls, f.lister ? [f.lister] : []), []));
 
-module.exports = { FAMILIES, ALL_CONTROLS, revealFor, dormantFollowups };
+/* THE SPECIALIST TAIL (cost audit W3.9a, 2026-11-14; behind STARNET_PREFIX_TAIL, off by default). The same hold for the
+   tools of a specialist job no ordinary task starts with: the DaVinci Resolve edit bay (resolve_timeline_file,
+   resolve_status, resolve_control), the rail widgets (widget.get, widget.set) and skill.write. Six schemas, 6,721 B on
+   every call of a fresh COMMS task, of a crew lead and of a worker (5,932 B without skill.write); none of the first
+   five was called in 657 recorded tool runs. Each stays GRANTED, dispatchable, NAMED in the [HARNESS] list of granted
+   tools that are not loaded yet, and found by tool_search, exactly like a dormant follow-up control; what differs is why
+   it is held: no fact, only the switch. Nothing reveals one but a search (it has no starter).
+   Two rows carry a condition, so the hold never takes the wire's only way to do something:
+     - widget.get / widget.set stay advertised on a widget's own update run (widgetScope): that run exists to call them.
+     - skill.write leaves only while skill.manage is on the wire: skill.manage creates and edits a saved skill too
+       (tools/builtin/skills.js), and the saved-skill prompt lines name skill.manage whenever it is granted.
+   Not a headline capability: image, voice and vision stay beside the STUDIO, and memory keeps notebook.*, skill.view,
+   skill.list and skill.manage. Deferral is model-dependent (the 2026-07-26 probe: two weak models skipped or faked a
+   deferred tool), which is why this ships off until an A/B on real models. */
+const SPECIALIST_TAIL = Object.freeze([
+  Object.freeze({ tool: 'resolve_timeline_file' }),
+  Object.freeze({ tool: 'resolve_status' }),
+  Object.freeze({ tool: 'resolve_control' }),
+  Object.freeze({ tool: 'widget.get', keptFor: 'widgetScope' }),
+  Object.freeze({ tool: 'widget.set', keptFor: 'widgetScope' }),
+  Object.freeze({ tool: 'skill.write', needsOnWire: 'skill.manage' })
+]);
+const TAIL_TOOLS = Object.freeze(SPECIALIST_TAIL.map(r => r.tool));
+
+/* specialistTail — the specialist tools this run holds off the wire, in SPECIALIST_TAIL order. `on` is the switch (true
+   only); isTask, deferralOff, granted and wire are dormantFollowups' own; widgetScope is the widget this run updates
+   ('' on every other run). The same guard as the follow-ups: a task run with tool search on and granted, where a held
+   name can be found again. */
+function specialistTail({ on, isTask, deferralOff, granted, wire, widgetScope } = {}) {
+  const held = new Set(Array.isArray(granted) ? granted : []);
+  if (on !== true || !isTask || deferralOff || !held.has('tool.search')) return [];
+  const onWire = new Set(Array.isArray(wire) ? wire : []);
+  const out = [];
+  for (const row of SPECIALIST_TAIL) {
+    if (!held.has(row.tool) || !onWire.has(row.tool)) continue;
+    if (row.keptFor === 'widgetScope' && String(widgetScope || '')) continue;
+    if (row.needsOnWire && !onWire.has(row.needsOnWire)) continue;
+    out.push(row.tool);
+  }
+  return out;
+}
+
+module.exports = { FAMILIES, ALL_CONTROLS, revealFor, dormantFollowups, SPECIALIST_TAIL, TAIL_TOOLS, specialistTail };

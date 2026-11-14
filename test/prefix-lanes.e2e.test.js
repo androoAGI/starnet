@@ -1,0 +1,191 @@
+/* node test/prefix-lanes.e2e.test.js — THE PREFIX COST LANES (cost audit W3.9) through the REAL request assembly of a
+   hermetic sidecar. Each lane is one switch, OFF by default (sidecar/index.js prefixLaneOn).
+
+   The fixed prompt a task call re-sends (its system text and tool schemas) is the largest open cause of "StarNet uses my
+   plan faster than other harnesses". A lane that trims it changes what a model is shown, so it ships dark, and this test
+   holds both halves of that promise from the bytes the sidecar actually sent (test/helpers/prefix-rig.js: a recording
+   mock model and a fake claude CLI, no inference):
+
+   OFF. With every switch unset, five calls are BYTE-IDENTICAL to the base commit: a Commander's first COMMS task (comms),
+        the same from a floor without the SERVER CART (cartless), the crew lead call (lead), a dispatched worker's first
+        call (worker), and the comms call on claude-cli (its system prompt file, argv and stdin). The sha256 of each call
+        (whole request, system text, tools array) was recorded on the base, 57c741da7, in
+        test/fixtures/prefix-lanes-golden.json; the run id, the Task Brief id, the date and the temp paths are the only
+        things normalized. Red on any commit that moves a default byte.
+
+   ON, one lane at a time: what left, that nothing else moved, and the saving in bytes on each call.
+   STARNET_PREFIX_TAIL (W3.9a): the Resolve and widget tools and skill.write leave the tools array; the system text is
+        the same but for the [HARNESS] not-loaded sentence, which now names them; GET /api/toolsets says 'specialist-tail';
+        a widget's own update run still carries widget_get and widget_set from its first call; and a model that searches
+        for widget_set gets it on its next call and publishes a reading with it.
+
+   Record the golden only on the base (or when a default byte changes on purpose, saying so in that commit):
+     node test/prefix-lanes.e2e.test.js --update */
+'use strict';
+const A = require('./_assert.js');
+const fs = require('node:fs');
+const path = require('node:path');
+const { execFileSync } = require('node:child_process');
+const R = require('./helpers/prefix-rig.js');
+
+const GOLDEN = path.join(__dirname, 'fixtures', 'prefix-lanes-golden.json');
+const CALLS = ['comms', 'cartless', 'lead', 'worker'];
+const TAIL_WIRE = ['resolve_timeline_file', 'resolve_status', 'resolve_control', 'widget_get', 'widget_set', 'skill_write'];
+const PARTIAL_RE = /This list is PARTIAL\. You have \d+ more granted tools that are not loaded yet\. These exist and you CAN use them: [^.]*\./;
+// the joined list of the tools on the wire, as [HARNESS] opens with it
+const LIVE_RE = /these LIVE tools: ([^.]*)\. /;
+const liveNames = sys => { const m = LIVE_RE.exec(String(sys)); return m ? m[1].split(', ') : []; };
+// the system text with its two tool-name lists blanked: what a deferral must leave byte-identical
+const withoutNameLists = sys => String(sys).replace(LIVE_RE, '<LIVE>').replace(PARTIAL_RE, '<PARTIAL>');
+
+const toolBytes = x => R.bytes(JSON.stringify(x.tools));
+// the request without its system text and tools array, normalized: the user turn, its host notes and every other field
+const restOf = (x, known) => R.normalize(JSON.stringify(Object.assign({}, x.body, { tools: undefined, messages: (x.body.messages || []).filter(m => m && m.role !== 'system') })), known);
+const readGolden = () => { try { return JSON.parse(fs.readFileSync(GOLDEN, 'utf8')); } catch (_) { return null; } };
+
+// the saving of one lane on one call, printed and returned: system text, tool schemas, and their sum (the fixed prefix)
+function saving(lane, id, off, on) {
+  const s = { system: R.bytes(off.system) - R.bytes(on.system), tools: toolBytes(off) - toolBytes(on) };
+  s.prefix = s.system + s.tools;
+  console.log('[prefix-lanes] ' + lane + ' ' + id + ': system ' + R.bytes(off.system) + ' -> ' + R.bytes(on.system) + ' B | tools ' + off.tools.length + ' -> ' + on.tools.length
+    + ', ' + toolBytes(off) + ' -> ' + toolBytes(on) + ' B | fixed prefix ' + (R.bytes(off.system) + toolBytes(off)) + ' -> ' + (R.bytes(on.system) + toolBytes(on)) + ' B (saves ' + s.prefix + ')');
+  return s;
+}
+function cliSaving(lane, off, on) {
+  const saved = R.bytes(off.cli.system) - R.bytes(on.cli.system);
+  console.log('[prefix-lanes] ' + lane + ' claude-cli: system prompt file ' + R.bytes(off.cli.system) + ' -> ' + R.bytes(on.cli.system) + ' B (saves ' + saved + ')');
+  return saved;
+}
+
+/* ---------------------------------------------------------------- STARNET_PREFIX_TAIL */
+async function tailScenarios(ctx) {
+  const out = {};
+  // a widget the Commander configured: its own conversation ('widget-' + id) is its update run
+  const made = await ctx.fixture.json('POST', '/api/widgets/configure', { id: 'rig-own', label: 'RIG OWN', request: 'Show the number 42.', display: 'metric', source: { kind: 'agent', id: 'starnet' } });
+  out.configured = made.status === 200 && !(made.body && made.body.error);
+  let from = ctx.mark();
+  await ctx.task('widget-rig-own', ctx.starter, 'Refresh my saved widget "RIG OWN".');
+  out.own = ctx.call(ctx.mainOf(from, 'Refresh my saved widget'));
+  // an ordinary COMMS task whose model looks the held tool up by the name the [HARNESS] list shows, then uses it
+  from = ctx.mark();
+  const words = R.scripted([
+    { name: 'brief_proceed', args: { objective: 'Publish one reading to a station widget', deliverable: 'The widget shows 7' } },
+    { name: 'tool_search', args: { query: 'widget_set' } },
+    { name: 'widget_set', args: { id: 'rig-load', label: 'RIG LOAD', value: '7' } }]);
+  out.loadRun = await ctx.task('prefix-rig-load', ctx.starter, words);
+  out.load = ctx.bodiesFrom(from).filter(b => Array.isArray(b.tools) && b.tools.length);
+  out.widgets = ((await ctx.fixture.json('GET', '/api/widgets')).body || {}).widgets || [];
+  return out;
+}
+
+function checkTail(off, on) {
+  const lane = 'STARNET_PREFIX_TAIL';
+  const floors = { comms: 6500, cartless: 3300, lead: 6500, worker: 6500 };
+  for (const id of CALLS) {
+    const a = off[id], b = on[id];
+    A.ok(a && b, lane + ' ' + id + ': the call was captured off and on');
+    if (!a || !b) continue;
+    const moved = a.names.filter(n => TAIL_WIRE.indexOf(n) >= 0);
+    A.ok(moved.length >= 3, lane + ' ' + id + ': the base call carries tail tools (' + moved.join(', ') + ')');
+    A.eq(b.names, a.names.filter(n => moved.indexOf(n) < 0), lane + ' ' + id + ': exactly the tail tools leave the tools array; every other tool keeps its place');
+    A.ok(JSON.stringify(b.tools) === JSON.stringify(a.tools.filter(t => moved.indexOf(t.function.name) < 0)), lane + ' ' + id + ': every remaining tool schema is byte-identical');
+    A.eq(R.namedDeferred(b.system).slice().sort(), R.namedDeferred(a.system).concat(moved).sort(), lane + ' ' + id + ': each one is NAMED in the [HARNESS] list of granted tools that are not loaded yet');
+    A.ok(PARTIAL_RE.test(a.system) && PARTIAL_RE.test(b.system) && LIVE_RE.test(a.system) && LIVE_RE.test(b.system), lane + ' ' + id + ': the live list and the not-loaded sentence are there off and on');
+    A.eq(liveNames(b.system), b.names, lane + ' ' + id + ': the [HARNESS] live list is the tools array, name for name');
+    A.ok(withoutNameLists(b.system) === withoutNameLists(a.system), lane + ' ' + id + ': the system text is otherwise byte-identical (the names moved from the live list to the not-loaded list)');
+    A.ok(new RegExp('You have ' + (R.namedDeferred(a.system).length + moved.length) + ' more granted tools').test(b.system), lane + ' ' + id + ': the count of not-loaded tools counts them');
+    A.ok(restOf(b, on.known) === restOf(a, off.known), lane + ' ' + id + ': the rest of the request (the user turn, its host notes, every other field) is identical');
+    const s = saving(lane, id, a, b);
+    A.ok(s.tools > 0 && Math.abs(s.system) <= 16 && s.prefix >= floors[id], lane + ' ' + id + ': saves ' + s.prefix + ' B of fixed prefix, all of it tool schemas (at least ' + floors[id] + ')');
+  }
+  A.ok(off.comms.names.filter(n => TAIL_WIRE.indexOf(n) >= 0).length === 6, lane + ': all six tail tools ride the base COMMS call');
+  for (const n of ['image_generate', 'image_analyze', 'voice_generate', 'skill_manage', 'skill_view', 'skill_list', 'notebook_write', 'notebook_read', 'tool_search'])
+    A.ok(on.comms.names.indexOf(n) >= 0, lane + ': ' + n + ' stays advertised (the studio\'s and the memory\'s headline tools, and the finder)');
+  // claude-cli: the same tools are text in the system prompt file
+  A.ok(off.cli && on.cli, lane + ' claude-cli: the call was captured off and on');
+  if (off.cli && on.cli) {
+    for (const n of TAIL_WIRE) {
+      A.ok(off.cli.system.indexOf('\n- ' + n + ': ') >= 0 && on.cli.system.indexOf('\n- ' + n + ': ') < 0, lane + ' claude-cli: ' + n + ' leaves the # Tools text');
+      A.ok(R.namedDeferred(on.cli.system).indexOf(n) >= 0, lane + ' claude-cli: ' + n + ' is named in [HARNESS]');
+    }
+    A.eq(JSON.stringify(on.cli.args.slice(0, -1)), JSON.stringify(off.cli.args.slice(0, -1)), lane + ' claude-cli: the argv is the same (but for the prompt file\'s temp name)');
+    A.ok(R.normalize(on.cli.stdin, on.known) === R.normalize(off.cli.stdin, off.known), lane + ' claude-cli: the stdin is identical');
+    const saved = cliSaving(lane, off, on);
+    A.ok(saved >= 6000, lane + ' claude-cli: saves ' + saved + ' B of system prompt file (at least 6000)');
+  }
+  // GET /api/toolsets says the same, with the reason
+  const view = on.preview || {};
+  for (const n of ['resolve_timeline_file', 'resolve_status', 'resolve_control', 'widget.get', 'widget.set', 'skill.write']) {
+    A.ok((view.deferred || []).indexOf(n) >= 0 && view.rows && view.rows[n] && view.rows[n].reason === 'specialist-tail', lane + ': GET /api/toolsets previews ' + n + ' deferred as specialist-tail');
+    A.ok(((off.preview || {}).advertised || []).indexOf(n) >= 0, lane + ': ...and advertised with the switch off');
+  }
+  // a widget's own update run keeps its two tools from the first call
+  const x = on.extra || {};
+  A.ok(x.configured, lane + ': a widget was configured');
+  A.ok(x.own && x.own.names.indexOf('widget_set') >= 0 && x.own.names.indexOf('widget_get') >= 0, lane + ': a widget\'s own update run carries widget_get and widget_set on its first call');
+  A.ok(x.own && R.namedDeferred(x.own.system).indexOf('widget_set') < 0 && R.namedDeferred(x.own.system).indexOf('resolve_status') >= 0, lane + ': ...and only the rest of the tail is held there');
+  // searched by its listed name, loaded, used
+  const load = x.load || [];
+  A.eq(x.loadRun && x.loadRun.end && x.loadRun.end.reason, 'done', lane + ': the search-and-use run completes');
+  A.ok(load.length >= 4, lane + ': the model was called after the brief, after tool_search and after widget_set (' + load.length + ' calls)');
+  const before = load.find(b => R.toolNames(b).indexOf('widget_set') < 0), after = load.find(b => R.toolNames(b).indexOf('widget_set') >= 0);
+  A.ok(before && after, lane + ': widget_set is off the first call and on a later one');
+  if (before && after) {
+    A.eq(R.toolNames(after).slice(0, R.toolNames(before).length), R.toolNames(before), lane + ': the reveal only appends (every advertised tool keeps its place)');
+    const searched = (after.messages || []).filter(m => m.role === 'tool').map(m => R.text(m.content)).join('\n');
+    A.ok(/widget[._]set/.test(searched), lane + ': tool_search answered with widget.set (' + searched.slice(0, 120).replace(/\n/g, ' ') + ')');
+  }
+  const last = load[load.length - 1] || {};
+  const results = (last.messages || []).filter(m => m.role === 'tool').map(m => R.text(m.content));
+  A.ok(results.length >= 3 && !/SCRIPT MISSING/.test(JSON.stringify(last.messages || [])), lane + ': every scripted call was on the wire when the model made it');
+  const pinned = (x.widgets || []).find(w => w && w.id === 'rig-load');
+  A.ok(pinned && String(pinned.value) === '7', lane + ': the loaded widget_set really published the reading (' + JSON.stringify(pinned && { id: pinned.id, value: pinned.value }) + ')');
+}
+
+const LANES = [
+  { env: 'STARNET_PREFIX_TAIL', scenarios: tailScenarios, check: checkTail }
+];
+
+(async () => {
+  if (process.argv.includes('--update')) {
+    const c = await R.capture({});
+    let d; try { d = R.digests(c); } finally { await c.close(); }
+    let at = 'unknown';
+    try { at = execFileSync('git', ['rev-parse', '--short=9', 'HEAD'], { cwd: path.join(__dirname, '..'), encoding: 'utf8' }).trim(); } catch (_) { /* not a git tree */ }
+    const golden = readGolden() || { about: '', platforms: {} };
+    golden.about = 'sha256 of the five calls test/prefix-lanes.e2e.test.js captures with every prefix-lane switch OFF (whole request, system text, tools array; claude-cli: system prompt file, argv, stdin), per platform (the prompt names the host shell). Re-record (--update) only on the base, or when a default byte changes on purpose for a reason outside these lanes, and say so in that commit.';
+    golden.platforms[process.platform] = { recordedAt: at, calls: d };
+    fs.writeFileSync(GOLDEN, JSON.stringify(golden, null, 1) + '\n');
+    console.log('prefix-lanes golden recorded for ' + process.platform + ' at ' + at);
+    process.exit(0);
+  }
+
+  // ================= every switch OFF: byte-identical to the base =================
+  const off = await R.capture({});
+  await off.close();
+  for (const id of CALLS) A.ok(off[id] && off[id].tools.length > 10 && R.bytes(off[id].system) > 5000, 'off ' + id + ': a real task call was captured (' + (off[id] ? off[id].tools.length + ' tools, ' + R.bytes(off[id].system) + ' B of system text' : 'missing') + ')');
+  A.ok(off.cli && off.cli.calls === 1 && R.bytes(off.cli.system) > 20000, 'off claude-cli: one CLI call carries the system prompt file with the # Tools text');
+  A.ok(off.leadRun && off.leadRun.prompts.length === 1 && /team[._]dispatch/.test(String(off.leadRun.prompts[0].tool || '')), 'off lead: team.dispatch asked once and was approved once (ASK approval, as a default station)');
+  A.ok(off.worker && off.worker.names.indexOf('shell_exec') < 0 && off.worker.names.indexOf('team_dispatch') < 0, 'off worker: an ASK-mode worker (no shell, no re-delegation)');
+  A.ok(off.cartless.names.indexOf('skill_view') < 0 && off.comms.names.indexOf('skill_view') >= 0, 'off cartless: the floor without the SERVER CART has no skill_view');
+  const golden = readGolden();
+  const base = golden && golden.platforms && golden.platforms[process.platform];
+  const now = R.digests(off);
+  if (!base) {
+    console.log('[prefix-lanes] no golden for ' + process.platform + ' (recorded on: ' + Object.keys((golden && golden.platforms) || {}).join(', ') + '): the base comparison is skipped on this platform');
+  } else {
+    for (const id of CALLS.concat(['cli'])) {
+      A.eq(now[id], base.calls[id], 'off ' + id + ': every switch unset is BYTE-IDENTICAL to the base ' + base.recordedAt + ' (request, system text, tools' + (id === 'cli' ? ': system prompt file, argv, stdin' : '') + ')');
+    }
+  }
+  A.ok(!!base || process.platform !== 'win32', 'the golden holds the platform the gate runs on (win32)');
+
+  // ================= one lane ON at a time =================
+  for (const lane of LANES) {
+    const on = await R.capture({ [lane.env]: '1' }, { scenarios: lane.scenarios });
+    await on.close();
+    lane.check(off, on);
+  }
+
+  A.report('prefix-lanes.e2e');
+})().catch(e => { console.error(e && e.stack || e); process.exit(1); });

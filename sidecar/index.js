@@ -4369,6 +4369,11 @@ function effortAsRun(provider, model, sent, req) {
    one), parsed by the pure CrewDefaults.mode. Read at each use, like ENV('LEAN_CREW') and ENV('AUX_EFFORT'). Off by
    default; not STARNET_LEAN_CREW, the zero-crew diet (crew-diet.js), which is on by default. */
 function crewDefaultsMode() { return CrewDefaults.mode(ENV('CREW_DEFAULTS')); }
+/* prefixLaneOn — the PREFIX cost lanes' switches (cost audit W3.9), each read here and nowhere else, through ENV(), at each
+   use: STARNET_PREFIX_TAIL (the specialist tail leaves the wire: capability/followups.js). '1' (or true / yes / on) is on;
+   '0', blank or unset is off. Every one is OFF by default: each changes what a model is shown on its first request, so it
+   ships dark until an A/B on real models passes, and with it off every request is the one this build sent before it. */
+function prefixLaneOn(suffix) { return /^(1|true|yes|on)$/i.test(String(ENV(suffix) || '').trim()); }
 /* crewEffort — LEANER CREW DEFAULTS, the effort half (W3.3: CrewDefaults.effortRule decides, this host applies it). A CREW
    run (a worker, a clone, a line stage: CrewDefaults.surfaceOf) whose effort is its class's applied default above medium
    asks for medium per request; the run after a failed verify (o.crewRetry: a review gate sent the work back, a structured
@@ -18531,7 +18536,8 @@ async function toolsetsPreview(agentId, extraObjects, placement) {
     internalBriefTools: ['brief.ask', 'brief.update', 'brief.proceed'].filter(n => registry.get(n)), deferralOff,
     keySaveOffered: false, directDomain: false, leanCrew: ENV('LEAN_CREW'), crewCount: crewCountFor(agentId), connectorDefer: CONNECTOR_DEFER,
     availability: deferralOff ? {} : { mediaRoute: !!(studioRoute && studioRoute.ok), voiceRoute, ptyRuntime: terminalSessions.available() },
-    followups: deferralOff ? undefined : followupFactsFor(agentId)   // the same live handles and records the run reads
+    followups: deferralOff ? undefined : followupFactsFor(agentId),   // the same live handles and records the run reads
+    prefixTail: prefixLaneOn('PREFIX_TAIL')                            // ...and the same switch (the specialist tail)
   };
   const projectedStation = ProjectTools.projectStation({ id: agentId }, origin, role, facts).station;
   facts.dynamicTools = await registerRoomTools(registry, projectedStation, agentId, providerId);
@@ -26069,7 +26075,9 @@ async function runOnceCore(o) {
     keySaveOffered: !!(isTask && keyTexts && KeyTools.hasKeyCandidate(keyTexts)), directDomain: !!hostScope,
     leanCrew: ENV('LEAN_CREW'), crewCount: crewCountFor(agentId), connectorDefer: CONNECTOR_DEFER, availability,
     // DORMANT FOLLOW-UP CONTROLS (cost audit W1.3): live handles and records, read only where a deferral can apply
-    followups: (isTask && !deferralOff) ? followupFactsFor(agentId) : undefined
+    followups: (isTask && !deferralOff) ? followupFactsFor(agentId) : undefined,
+    // THE SPECIALIST TAIL (cost audit W3.9a): held like a dormant follow-up only while STARNET_PREFIX_TAIL is on
+    prefixTail: prefixLaneOn('PREFIX_TAIL')
   };
   // Host-created group-turn closures scope these tools to this exact live group turn; registering them is this run's effect.
   if (Array.isArray(o.groupTools)) for (const def of o.groupTools) registry.register(def);

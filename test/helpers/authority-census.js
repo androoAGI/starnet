@@ -195,7 +195,10 @@ function hostFacts(scenario) {
     // live terminal / background-process handles and routine / loop / task records (capability/followups.js). No census
     // scenario sets it: undefined is "unknown", which keeps every follow-up control where the matrix pins it. The dormant
     // rule is held to the whole matrix by test/dormant-followups.test.js instead.
-    followups: f.followups
+    followups: f.followups,
+    // the PREFIX cost lanes' switches (index.js prefixLaneOn), by their env suffix. No census scenario sets one: off is the
+    // matrix. test/prefix-lanes.test.js holds each lane to the whole matrix.
+    prefix: f.prefix || {}
   };
 }
 
@@ -352,6 +355,7 @@ async function runOnceMatrix(root, scenario, opts) {
     unavailableTools: req(root, 'sidecar/capability/effective-toolsets.js').unavailableTools,
     terminalSessions: { available: () => h.pty },
     followupFactsFor: () => h.followups,
+    prefixLaneOn: suffix => h.prefix[suffix] === true,
     lastToolFootprintLog: '',
     ProjectTools: projectToolsMod
   };
@@ -517,6 +521,7 @@ function cellsFromRunOnce(capture, rowsRoot) {
     keySaveOffered: out.keySaveOffered, crewless: out.crewless,
     // the dormant follow-up controls the projection held (a capture from before capability/followups.js has none)
     dormantFollowups: (out.projection && out.projection.dormantFollowups) || [],
+    specialistTail: (out.projection && out.projection.specialistTail) || [],
     connectorDeferral: out.connectorDeferral || { deferred: [] }, sources: (out.projection && out.projection.sources) || sources,
     injected: (out.projection && out.projection.injected) || injectedOf(h, o, out, registry) };
   const { rowsOf } = req(rowsRoot, 'sidecar/capability/project-tools.js');
@@ -558,7 +563,8 @@ async function projectMatrix(root, scenario, overrides) {
     connectorDefer: { bytes: 8192, tools: 12 },
     availability: { mediaRoute: h.mediaRoute, voiceRoute: h.voiceRoute, ptyRuntime: h.pty },
     // runOnce reads the follow-up facts only where a deferral can apply (a task run, tool search on)
-    followups: (o.isTask && !h.deferralOff) ? h.followups : undefined
+    followups: (o.isTask && !h.deferralOff) ? h.followups : undefined,
+    prefixTail: h.prefix.PREFIX_TAIL === true
   };
   if (Array.isArray(o.groupTools)) for (const def of o.groupTools) registry.register(def);
   const { station } = PT.projectStation({ id: AGENT }, origin, role, facts);

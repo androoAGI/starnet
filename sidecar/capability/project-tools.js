@@ -4,7 +4,7 @@
 
    projectTools(agent, origin, role, facts) -> {
      station, resolved, preAuthorityTools, widgetScope, keySaveOffered, crewless, deferralOff,
-     connectorDeferral, unavailable, advertised, deferredWire, pendingFacts, sources, rows
+     connectorDeferral, unavailable, dormantFollowups, specialistTail, advertised, deferredWire, pendingFacts, sources, rows
    }
 
    This is the assembly runOnce used to do inline, MOVED here step for step in the same order, so the run, GET
@@ -32,7 +32,8 @@
             dynamicTools: { connector: [def], plugin: [def] }, widgetScope, internalBriefTools, deferralOff,
             keySaveOffered, directDomain, leanCrew, crewCount, connectorDefer: { bytes, tools },
             availability: { mediaRoute, voiceRoute, spotifyConnected, ptyRuntime },
-            followups: { terminal, shellBg, routines, loops, tasks } (capability/followups.js: false = proven none) } */
+            followups: { terminal, shellBg, routines, loops, tasks } (capability/followups.js: false = proven none),
+            prefixTail (true = STARNET_PREFIX_TAIL is on: the specialist tail is held like a dormant follow-up) } */
 'use strict';
 
 const { composeOffice, stationWithObject, stationWithConnectors } = require('./office.js');
@@ -262,11 +263,17 @@ function projectTools(agent, origin, role, facts) {
      in [HARNESS], found by tool.search, and revealed by its starter's result; an unknown fact keeps it advertised. Decided
      after every other deferral, so a control already held for another reason keeps that reason. */
   let dormantFollowups = [];
+  /* THE SPECIALIST TAIL (cost audit W3.9a, facts.prefixTail = STARNET_PREFIX_TAIL): the same hold, from the same module and
+     over the same wire, for the Resolve, widget and skill.write tools. Off (the default), it holds nothing and this block
+     is the follow-ups' alone. */
+  let specialistTail = [];
   {
     const held = new Set(resolved.deferred || []);
-    dormantFollowups = Followups.dormantFollowups({ isTask, deferralOff, granted: resolved.tools,
-      wire: resolved.tools.filter(n => !held.has(n) && !ddw(n)), facts: facts.followups });
-    if (dormantFollowups.length) resolved.deferred = (resolved.deferred || []).concat(dormantFollowups);
+    const wire = resolved.tools.filter(n => !held.has(n) && !ddw(n));
+    dormantFollowups = Followups.dormantFollowups({ isTask, deferralOff, granted: resolved.tools, wire, facts: facts.followups });
+    specialistTail = Followups.specialistTail({ on: facts.prefixTail === true, isTask, deferralOff, granted: resolved.tools, wire, widgetScope });
+    const heldNow = dormantFollowups.concat(specialistTail);
+    if (heldNow.length) resolved.deferred = (resolved.deferred || []).concat(heldNow);
   }
   // CORE vs DEFERRED on the wire: both granted; only the core list rides every request (task runs only).
   const deferredNames = new Set((deferralOff ? [] : (resolved.deferred || [])).filter(n => !ddw(n)));
@@ -274,7 +281,7 @@ function projectTools(agent, origin, role, facts) {
   const advertised = isTask ? coreNames : [];
   const deferredWire = isTask ? Array.from(deferredNames) : [];
   const projection = { station, resolved, preAuthorityTools, widgetScope, keySaveOffered, crewless, deferralOff,
-    connectorDeferral, unavailable, dormantFollowups, advertised, coreNames, deferredNames, deferredWire, pendingFacts, sources, injected };
+    connectorDeferral, unavailable, dormantFollowups, specialistTail, advertised, coreNames, deferredNames, deferredWire, pendingFacts, sources, injected };
   projection.rows = rowsOf(projection, { agentId, registry, authority: facts.authority, surface, enabledToolsets, directDomain: facts.directDomain, groupTurn: Array.isArray(origin.groupTools) });
   return projection;
 }
@@ -310,7 +317,7 @@ function rowsOf(p, ctx) {
     if (state === 'withheld') row.reason = limitOf(name, tool, impact, p, ctx);
     if (state === 'deferred') row.reason = p.resolved.unavailable && p.resolved.unavailable[name] ? 'unavailable:' + p.resolved.unavailable[name].signal
       : p.connectorDeferral.deferred.indexOf(name) >= 0 ? 'connector-index' : (p.crewless && CrewDiet.CREW_KIT_DEFERRED.indexOf(name) >= 0) ? 'crewless-lead'
-      : (p.dormantFollowups || []).indexOf(name) >= 0 ? 'dormant-followup' : 'catalog-deferred';
+      : (p.dormantFollowups || []).indexOf(name) >= 0 ? 'dormant-followup' : (p.specialistTail || []).indexOf(name) >= 0 ? 'specialist-tail' : 'catalog-deferred';
     if (Object.prototype.hasOwnProperty.call(withheldExplained, name)) row.why = withheldExplained[name].why;
     rows[name] = row;
   }
