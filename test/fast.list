@@ -717,6 +717,7 @@ test/taskintent.test.js
 test/taskbrief.clarify.test.js
 test/taskbrief.answer-hold.test.js
 test/taskbrief.settle-first.test.js
+test/taskbrief.readonly-shell.test.js
 test/understandingstore.test.js
 test/study.test.js
 test/goals.test.js

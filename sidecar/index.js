@@ -4400,6 +4400,12 @@ function cliReplayEpoch() { return String(sessionTombstones.latestAt()) + ':' + 
    parsed by the pure BatchHint.on ('1' is on; unset, blank, '0' and anything else are off). Read at each use. Off by default:
    the sentence changes what a model is told about tool calls, so it waits for an A/B on real models (batch-hint.js). */
 function batchHintOn() { return BatchHint.on(ENV('BATCH_HINT')); }
+/* briefReadOnlyShell — the READ-ONLY SHELL OUTSIDE THE TASK BRIEF GATE switch (cost audit W3.12), read here and nowhere
+   else: STARNET_BRIEF_READONLY_SHELL through ENV(). On ('1'), a shell.exec call that sidecar/readonly-shell.js can show
+   only looks (ls, rg, git status: an allowlist) is not held by an unsettled Task Brief; the rule is
+   TaskBriefPolicy.looksOnly, and nothing but that gate (briefHoldFor) reads it. Off by default: unset, blank or '0' is the
+   gate as it was. */
+function briefReadOnlyShell() { return /^(1|true|yes|on)$/i.test(String(ENV('BRIEF_READONLY_SHELL') || '').trim()); }
 /* crewEffort — LEANER CREW DEFAULTS, the effort half (W3.3: CrewDefaults.effortRule decides, this host applies it). A CREW
    run (a worker, a clone, a line stage: CrewDefaults.surfaceOf) whose effort is its class's applied default above medium
    asks for medium per request; the run after a failed verify (o.crewRetry: a review gate sent the work back, a structured
@@ -26841,9 +26847,18 @@ async function runOnceCore(o) {
      dispatch always ran, in the same order (the tool budget, then the brief), shared by both places that ask them. */
   const toolBudgetStopFor = (c) => (internalBriefTools.indexOf(c.name) < 0 && Number(o.maxToolCalls) > 0 && !execution.consumeToolCall(o.maxToolCalls))
     ? { ok: false, isError: true, summary: 'tool-budget', content: 'This worker is a bounded read (requested by lead) and has used its ' + Number(o.maxToolCalls) + ' tool calls. Finish now with the evidence already collected, and say what is left so your lead can re-dispatch it without bounded.' } : null;
+  // W3.12, read once per run so a run never changes its gate midway. Off (the default): nothing below reads it but one `&&`.
+  const briefLooksPass = briefReadOnlyShell();
   const briefHoldFor = (c, liveTool) => {
     if (!taskBriefState || internalBriefTools.indexOf(c.name) >= 0) return null;
     const gate = TaskBriefPolicy.canMutate(taskBriefState.brief, liveTool, c);
+    /* A LOOK WITH THE SHELL IS NOT THE WORK (cost audit W3.12; STARNET_BRIEF_READONLY_SHELL). With the switch on, a shell.exec
+       call the gate holds that certainly only looks (TaskBriefPolicy.looksOnly: an allowlist, sidecar/readonly-shell.js) is not
+       held. It settles nothing: the brief stays open and the first write still waits for brief_proceed. Returning null here
+       lifts ONLY this hold: both callers go on to exactly the checks they make for any call the brief does not hold (the
+       post-taint card, the tool budget, the progress and loop guards, the workspace lease, the checkpoint, then the registry's
+       authority, consent and hook gates and the tool's own fences). */
+    if (!gate.ok && briefLooksPass && TaskBriefPolicy.looksOnly(taskBriefState.brief, liveTool, c)) return null;
     // NOT RUN, NOT FAILED (rc walk 2026-10-14): the summary is the shared held-call stamp (fork.js TaskIntent.GATE_HELD) the
     // chat draws as a neutral not-run chip, and the model is told this is a routine step (it narrated "Ah, I need to settle
     // the brief first" over a red ✗ team.dispatch chip).

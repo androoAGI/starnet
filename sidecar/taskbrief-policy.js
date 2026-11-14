@@ -3,6 +3,7 @@
 'use strict';
 const TaskIntent = require('../frontend/app/fork.js').TaskIntent;   // the shared decision-protocol module (index.js already speaks it)
 const Context = require('./taskbrief-context.js');
+const ReadOnlyShell = require('./readonly-shell.js');   // which shell.exec calls only look (W3.12: looksOnly, behind its switch)
 
 const DIMENSIONS = new Set(['objective', 'audience', 'deliverable', 'scope', 'constraints', 'sources', 'acceptance', 'safety']);
 const VAGUE = /\b(what does good look like|tell me more|can you elaborate|any preferences|what do you want|how should i proceed)\b/i;
@@ -190,6 +191,21 @@ function canMutate(brief, tool, call) {
     : { ok: false, reason: 'settle the Task Brief with brief_proceed, or ask the one material question with brief_ask, before consequential work' };
 }
 
+/* A LOOK WITH THE SHELL IS NOT THE WORK (cost audit W3.12, 2026-11-14; STARNET_BRIEF_READONLY_SHELL, off by default).
+   shell.exec is scope 'execute', so canMutate holds `ls`, `rg x` and `git status` like a write: a model that looks around
+   with the shell first paid a whole request for the held call, and settled its brief before it had looked (the doctrine
+   says research first). This is the one rule for the exception, asked by the host only for a call canMutate holds and only
+   with the switch on (index.js briefHoldFor): a shell.exec call that readonly-shell.js can show only looks is not held
+   while the brief is open ('ready'), the way a read tool is not. It settles nothing: the brief stays 'ready', so the
+   first write, and any shell call that is not certainly a look, is held exactly as before; while a question is open
+   ('clarifying') or the brief is closed, shell stays held. Only the Task Brief gate reads this. The call still goes
+   through every other check dispatch and the tool make (approval, the outside-content lock, the workspace fence, the
+   hardline rules). Anything unreadable, and a classifier that throws, is held. */
+function looksOnly(brief, tool, call) {
+  if (!brief || !tool || brief.status !== 'ready' || tool.name !== 'shell.exec') return false;
+  try { return ReadOnlyShell.readOnlyCall(call && call.args) === true; } catch (_) { return false; /* fail closed: held */ }
+}
+
 /* THE SETTLE RUNS FIRST (cost audit W1.2, 2026-11-08). canMutate reads the brief at the moment each call runs, and a
    sequential batch ran in the order the model happened to list it. So [fs_write, brief_proceed] in ONE response held the
    write, settled the brief, and cost the run a whole extra full-context request to make the same write again, while
@@ -210,4 +226,4 @@ function settleFirst(calls, nameOf) {
   return first.every((c, i) => calls[i] === c) ? calls : first.concat(rest);
 }
 
-module.exports = { DIMENSIONS, routeReply, validateQuestion, validateQuestions, askCallsOf, validateProceed, canMutate, settleFirst, clean, matchOption, tasteFiller, trimAssumptions, maxOptionsFor: TaskIntent.maxOptionsFor };
+module.exports = { DIMENSIONS, routeReply, validateQuestion, validateQuestions, askCallsOf, validateProceed, canMutate, looksOnly, settleFirst, clean, matchOption, tasteFiller, trimAssumptions, maxOptionsFor: TaskIntent.maxOptionsFor };
