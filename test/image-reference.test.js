@@ -4,7 +4,10 @@
    text; the ChatGPT plan as an input_image part; the OpenAI Images API through /images/edits (multipart, the reference as
    the `image` file). Where a connection cannot carry it (DALL-E, a base URL with no edits endpoint, a GIF on the Images API)
    the image is rendered from the prompt alone and the result SAYS so; a refusal still fails like any render. A missing /
-   URL / escaping / non-image reference fails BEFORE anything is spent. Without a reference every wire is byte-identical. */
+   URL / escaping / non-image reference fails BEFORE anything is spent. Without a reference every wire is byte-identical.
+   The PRODUCT photo (2026-11-09, a seller's marketer redrew the product instead of using it) is the item to KEEP: it rides
+   every route with a keep-it-exact instruction (first, before any style reference), and where a route cannot carry it the
+   call is REFUSED, never rendered from the prompt alone as a lookalike. */
 'use strict';
 const A = require('./_assert.js');
 const fsp = require('node:fs/promises');
@@ -150,6 +153,92 @@ const rejects = async (p, re, msg) => { let m = ''; try { await p; } catch (e) {
       const k = stubFetch(() => oaImage());
       const o = await makeImageTools({ openrouter: { apiKey: 'oa-key', provider: 'openai', protocol: 'openai-images' }, fsp, pathMod: path, root: ROOT, fetchImpl: k }).generateTool.run(args, ctx);
       A.ok(k.calls.length === 1 && /\/images\/generations$/.test(k.calls[0].url) && re.test(o.content), why + ': rendered from the prompt, reported plainly');
+    }
+  }
+
+  // ---- PRODUCT PHOTO (2026-11-09: a seller's marketer redrew the product instead of using it): the real item to KEEP ----
+  {
+    const prodBytes = Buffer.concat([refBytes, Buffer.from('the real mug')]);   // distinct bytes, so order is provable
+    await fsp.writeFile(path.join(ROOT, 'hero', 'images', 'product.png'), prodBytes);
+    await fsp.writeFile(path.join(ROOT, 'hero', 'images', 'product.gif'), Buffer.from('GIF89a\x01\x00\x01\x00', 'latin1'));
+    const prodUrl = 'data:image/png;base64,' + prodBytes.toString('base64');
+    const KEEP = 'Keep that product exactly as it is: the same shape, proportions, colours, materials, printed design, text and logos. Do not redesign, redraw, restyle or replace it; change only the scene around it (setting, people, props, lighting). ';
+    const SOLO = 'Feature the exact product shown in the attached photo. ' + KEEP;
+    const BOTH = 'The FIRST attached image is the exact product to feature. ' + KEEP + 'The SECOND attached image is a style reference for the scene only: match its art style, colour palette, lighting and overall concept, but never change the product to match it. ';
+    const SENT = /\nProduct: images\/product\.png was sent to the model as the product to keep unchanged\. The station cannot prove every detail survived: check the render \(image_analyze\) before presenting it as the real product\./;
+
+    // schema + description
+    const S = makeImageTools({ openrouter: { apiKey: 'k' }, fsp, pathMod: path, root: ROOT, fetchImpl: async () => orImage() });
+    A.eq(S.generateTool.schema.properties.product, { type: 'string' }, 'product is one optional string');
+    A.ok(S.generateTool.schema.required.indexOf('product') < 0, 'and never required');
+    A.ok(/"product": a photo file of a REAL product/.test(S.generateTool.description) && /as a "reference" it comes back redrawn/.test(S.generateTool.description), 'the description steers a product photo to "product", not "reference"');
+
+    // OpenRouter, product alone: the keep instruction + the photo
+    const f = stubFetch(() => orImage());
+    const out = await makeImageTools({ openrouter: { apiKey: 'sk' }, fsp, pathMod: path, root: ROOT, fetchImpl: f }).generateTool.run({ prompt: 'a woman holding it in a sunny cafe', product: 'images/product.png' }, ctx);
+    A.eq(f.calls[0].body.messages[0].content, [{ type: 'text', text: SOLO + 'a woman holding it in a sunny cafe' }, { type: 'image_url', image_url: { url: prodUrl } }], 'OpenRouter: the keep-it-exact instruction, then the product photo');
+    A.ok(SENT.test(out.content), 'the result says the product photo was SENT, and that the render still needs a look: ' + out.content);
+    A.ok(!/\nReference/.test(out.content), 'no style-reference line for a product-only render');
+    const rows = [{ role: 'assistant', tool_calls: [{ id: 'p1', type: 'function', function: { name: 'image_generate', arguments: JSON.stringify({ prompt: 'x', product: 'images/product.png' }) } }] }, { role: 'tool', tool_call_id: 'p1', content: out.content }];
+    A.eq(TasteRef.imageCalls(rows)[0].reference, '', 'the design anchor never records a product photo as a style it matched');
+
+    // OpenRouter, product + style reference: product FIRST, then the style
+    const b = stubFetch(() => orImage());
+    const both = await makeImageTools({ openrouter: { apiKey: 'sk' }, fsp, pathMod: path, root: ROOT, fetchImpl: b }).generateTool.run({ prompt: 'flat lay', product: 'images/product.png', reference: 'images/approved.png' }, ctx);
+    A.eq(b.calls[0].body.messages[0].content, [{ type: 'text', text: BOTH + 'flat lay' }, { type: 'image_url', image_url: { url: prodUrl } }, { type: 'image_url', image_url: { url: refUrl } }], 'OpenRouter: product photo first, style reference second, each named in the text');
+    A.ok(SENT.test(both.content) && /\nReference: images\/approved\.png was sent to the model as the style to match\./.test(both.content), 'both receipts');
+
+    // the ChatGPT plan: both as input_image parts, product first
+    const jwt = 'h.' + Buffer.from(JSON.stringify({ 'https://api.openai.com/auth': { chatgpt_account_id: 'acct-1' } })).toString('base64url') + '.sig';
+    const events = [{ type: 'response.output_item.done', item: { type: 'image_generation_call', result: PNG_B64 } }, { type: 'response.completed', response: { output: [] } }];
+    const c = stubFetch(() => ({ status: 200, text: async () => events.map(e => 'data: ' + JSON.stringify(e) + '\n\n').join('') }));
+    const cOut = await makeImageTools({ openrouter: { provider: 'codex', protocol: 'codex-responses', getToken: async () => jwt }, fsp, pathMod: path, root: ROOT, fetchImpl: c }).generateTool.run({ prompt: 'on a shelf', product: 'images/product.png', reference: 'images/approved.png' }, ctx);
+    A.eq(c.calls[0].body.input[0].content, [{ type: 'input_text', text: BOTH + 'on a shelf' }, { type: 'input_image', image_url: prodUrl }, { type: 'input_image', image_url: refUrl }], 'the plan route: product then style as input_image parts');
+    A.ok(SENT.test(cOut.content), 'reported as sent');
+
+    // the OpenAI Images API: /images/edits, the product photo as the `image` file
+    const oa = (extra) => makeImageTools(Object.assign({ openrouter: { apiKey: 'oa-key', provider: 'openai', protocol: 'openai-images', baseUrl: 'https://api.openai.com/v1/' }, fsp, pathMod: path, root: ROOT }, extra));
+    const e1 = stubFetch(url => url.endsWith('/images/edits') ? oaImage() : jsonResp({}, 500));
+    const eOut = await oa({ fetchImpl: e1 }).generateTool.run({ prompt: 'on a model', product: 'images/product.png' }, ctx);
+    const form = e1.calls[0].init.body;
+    A.ok(e1.calls.length === 1 && e1.calls[0].url.endsWith('/images/edits'), 'a product render goes to /images/edits');
+    A.eq(form.get('prompt'), SOLO + 'on a model', 'with the keep instruction');
+    A.ok(form.get('image') && form.get('image').name === 'product.png' && form.get('image').size === prodBytes.length && form.getAll('image[]').length === 0, 'one input = the `image` file, the product photo');
+    A.ok(SENT.test(eOut.content), 'reported as sent');
+    // product + style reference: two `image[]` files, product first
+    const e2 = stubFetch(url => url.endsWith('/images/edits') ? oaImage() : jsonResp({}, 500));
+    await oa({ fetchImpl: e2 }).generateTool.run({ prompt: 'flat lay', product: 'images/product.png', reference: 'images/approved.png' }, ctx);
+    const two = e2.calls[0].init.body.getAll('image[]');
+    A.eq(two.map(x => [x.name, x.size]), [['product.png', prodBytes.length], ['reference.png', refBytes.length]], 'two inputs = two `image[]` files, product first');
+    A.eq(e2.calls[0].init.body.get('prompt'), BOTH + 'flat lay', 'with both named in the prompt');
+    // a GIF style reference the Images API cannot take: the product still goes, the reference is said NOT used
+    const e3 = stubFetch(url => url.endsWith('/images/edits') ? oaImage() : jsonResp({}, 500));
+    const gOut = await oa({ fetchImpl: e3 }).generateTool.run({ prompt: 'x', product: 'images/product.png', reference: 'images/anim.gif' }, ctx);
+    A.ok(e3.calls.length === 1 && e3.calls[0].init.body.get('image').name === 'product.png' && e3.calls[0].init.body.get('prompt') === SOLO + 'x', 'the product alone rides /images/edits, with the product-only instruction');
+    A.ok(SENT.test(gOut.content) && /Reference NOT used: the OpenAI Images API takes a PNG, JPEG or WEBP reference, not image\/gif/.test(gOut.content), 'product sent, reference plainly not used');
+
+    // NEVER a lookalike: where the photo cannot ride, nothing is drawn
+    const e4 = stubFetch(url => url.endsWith('/images/edits') ? jsonResp({ error: { message: 'Not found' } }, 404) : oaImage());
+    await rejects(oa({ fetchImpl: e4 }).generateTool.run({ prompt: 'x', product: 'images/product.png' }, ctx), /no image-edit endpoint \(http 404\), so it cannot place the real product photo images\/product\.png and will not draw a lookalike\. No image was produced\./, 'no edits endpoint: refused, not re-rendered from the prompt');
+    A.eq(e4.calls.map(x => x.url.replace(/^.*\/images\//, '')), ['edits'], 'and no plain generation followed');
+    for (const [args, re, why] of [
+      [{ prompt: 'x', model: 'dall-e-3', product: 'images/product.png' }, /dall-e-3 cannot take a product photo, so it could only draw a lookalike of images\/product\.png/, 'DALL-E'],
+      [{ prompt: 'x', product: 'images/product.gif' }, /takes a PNG, JPEG or WEBP product photo, not image\/gif/, 'a GIF product photo']
+    ]) {
+      const k = stubFetch(() => oaImage());
+      await rejects(oa({ fetchImpl: k }).generateTool.run(args, ctx), re, why + ' on the Images API is refused');
+      A.eq(k.calls.length, 0, why + ': refused before anything was spent');
+    }
+
+    // bad product paths fail BEFORE anything is spent, and say what to do
+    for (const [product, re, why] of [
+      ['https://i.etsystatic.com/x/il_794xN.jpg', /product must be a photo file in your workspace or project .*not a URL: save the real product photo into your workspace first, or ask the Commander to attach it/, 'a listing URL'],
+      ['images/missing.jpg', /product photo not found: images\/missing\.jpg/, 'a missing file'],
+      ['notes.txt', /product must be a PNG, JPEG, WEBP or GIF image/, 'a non-image']
+    ]) {
+      const k = stubFetch(() => orImage());
+      await rejects(makeImageTools({ openrouter: { apiKey: 'sk' }, fsp, pathMod: path, root: ROOT, fetchImpl: k }).generateTool.run({ prompt: 'x', product }, ctx), re, why + ' is refused');
+      A.eq(k.calls.length, 0, why + ': no provider call, nothing spent');
     }
   }
 
