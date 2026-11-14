@@ -1861,6 +1861,7 @@ test/cross-run-replay.test.js
 test/batched-ageing.test.js
 test/batched-ageing.invariant.test.js
 test/batch-hint.test.js
+test/delegation-hint.test.js
 test/loop.tool-args-local-endpoint.test.js
 test/granted-context.approval-line.test.js
 test/browser-signin-survives.test.js

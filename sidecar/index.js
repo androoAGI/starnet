@@ -469,6 +469,7 @@ const WorkflowTakeover = require('./workflow-takeover.js');
 const TaskBriefPolicy = require('./taskbrief-policy.js');       // host validation + mutation boundary
 const { registerTaskBriefTools } = require('./taskbrief-tools.js'); // structured ask/proceed controls
 const CrewCall = require('./crew-call.js');   // names a crew member the Commander asked for at the END of the lead prompt
+const DelegationHint = require('./delegation-hint.js');   // W2.9: the WHAT A WORKER COSTS line of the team note and its switch's parser (delegationHintOn reads STARNET_DELEGATION_HINT through ENV())
 const TaskIntent = require('../frontend/app/fork.js').TaskIntent;    // shared TASK_QUESTION protocol + prompt doctrine
 const ForkMarkers = require('../frontend/app/fork.js');               // the one choice-marker grammar (parse / stripMarkers)
 const CommanderContext = require('./commander-context.js');    // bounded provenance-labelled task context
@@ -4365,6 +4366,11 @@ function effortAsRun(provider, model, sent, req) {
   if (!provider || typeof provider.effortAsSent !== 'function') return null;
   try { return provider.effortAsSent(model, sent || undefined, req) || null; } catch (e) { failNote('aux.effort', e); return null; }
 }
+/* delegationHintOn — the WHAT A WORKER COSTS switch (cost audit W2.9), read here and nowhere else: STARNET_DELEGATION_HINT
+   through ENV(), parsed by the pure DelegationHint.on ('1' is on; unset, blank, '0' and anything else are off). Read at each
+   use. Off by default: the line changes what a lead is told about delegating, so it waits for an A/B on real team tasks
+   (delegation-hint.js). */
+function delegationHintOn() { return DelegationHint.on(ENV('DELEGATION_HINT')); }
 /* crewDefaultsMode — the LEANER CREW DEFAULTS switch ('lean' | 'off'), read here and nowhere else: STARNET_CREW_DEFAULTS
    through ENV(), the sidecar's one env reader (a STARNET_ value that is set wins even when blank, else the legacy SKYNET_
    one), parsed by the pure CrewDefaults.mode. Read at each use, like ENV('LEAN_CREW') and ENV('AUX_EFFORT'). Off by
@@ -27535,7 +27541,10 @@ async function runOnceCore(o) {
       + (anyTrack ? '\n  A [bracketed] note is that specialist\'s REAL track record on this station — earned from work the '
         + 'Commander rated and runs the harness watched finish. Use it to pick the right worker; it is evidence, not a '
         + 'permission level, and an agent without one is simply new, not worse.' : '');
-    teamNote += seatLine + spawnLine;
+    // WHAT A WORKER COSTS (cost audit W2.9): '' unless STARNET_DELEGATION_HINT=1, so the note is byte-identical with the switch
+    // off. One line for both variants of this note (the Overseer coordinating the crew, and every other run that holds
+    // team.dispatch), right after the two bullets that offer workers.
+    teamNote += seatLine + spawnLine + DelegationHint.line(delegationHintOn());
     // Class Loadouts S1: the class list here is composed from the SHARED catalog (id + tagline), never hardcoded,
     // so the summon prose can't drift from the Recruitment Bay's actual classes as new ones are added.
     const classListLine = SPECIALIST_CLASSES.map(c => c.id + (c.tagline ? ' — ' + c.tagline : '')).join('; ');
