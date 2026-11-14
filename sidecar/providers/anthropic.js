@@ -69,7 +69,7 @@
      party and a thinking parameter they never implemented is a hard 400, not a degrade (provider-compat law). */
   /* THE LADDER AND THE CLAMP live in effort-clamp.js (cost audit W3.8): the Claude sign-in route (claude-cli.js) asks the same
      resolver which levels a model takes, so the two routes to one model cannot disagree. Imported, not copied. */
-  const { LEGACY_CLAUDE, hasAny, isClaude, normalizeEffort, effortsFor, clampEffort } = effortClamp;
+  const { LEGACY_CLAUDE, modelKey, hasAny, isClaude, normalizeEffort, effortsFor, clampEffort } = effortClamp;
   // Legacy manual-thinking budgets. Each must land BELOW max_tokens (the wire rejects budget >= max_tokens)
   // and at or above Anthropic's 1024 floor; applyThinking clamps both ends against the resolved ceiling.
   const LEGACY_BUDGET = { minimal: 1024, low: 4000, medium: 8000, high: 16000, xhigh: 32000, max: 32000 };
