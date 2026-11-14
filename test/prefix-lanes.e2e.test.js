@@ -11,7 +11,8 @@
         call (worker), and the comms call on claude-cli (its system prompt file, argv and stdin). The sha256 of each call
         (whole request, system text, tools array) was recorded on the base, 57c741da7, in
         test/fixtures/prefix-lanes-golden.json; the run id, the Task Brief id, the date and the temp paths are the only
-        things normalized. Red on any commit that moves a default byte.
+        things normalized. Red on any commit that moves a default byte. Every switch set to 0 sends the same bytes
+        as every switch unset.
 
    ON, one lane at a time: what left, that nothing else moved, and the saving in bytes on each call.
    STARNET_PREFIX_TAIL (W3.9a): the Resolve and widget tools and skill.write leave the tools array; the system text is
@@ -361,9 +362,16 @@ const LANES = [
     }
   }
   A.ok(!!base || process.platform !== 'win32', 'the golden holds the platform the gate runs on (win32)');
+  const only = (process.argv.find(a => a.indexOf('--lane=') === 0) || '').slice('--lane='.length);
+  // ...and every switch set to 0 is the same build as every switch unset (skipped with --lane, a single lane's quick run)
+  if (!only) {
+    const zero = await R.capture(R.SWITCHES.reduce((env, k) => Object.assign(env, { [k]: '0' }), {}));
+    await zero.close();
+    const zeroNow = R.digests(zero);
+    for (const id of CALLS.concat(['cli'])) A.eq(zeroNow[id], now[id], 'off ' + id + ': every switch set to 0 is BYTE-IDENTICAL to every switch unset');
+  }
 
   // ================= one lane ON at a time (--lane=<switch> runs that one alone, for work on a single lane) =================
-  const only = (process.argv.find(a => a.indexOf('--lane=') === 0) || '').slice('--lane='.length);
   for (const lane of LANES.filter(l => !only || l.env === only)) {
     const on = await R.capture({ [lane.env]: '1' }, { scenarios: lane.scenarios });
     await on.close();
