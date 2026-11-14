@@ -176,7 +176,7 @@ async function doctrineScenarios(ctx) {
 function checkDoctrine(off, on) {
   const lane = 'STARNET_PREFIX_DOCTRINE';
   const section = M.manualSection('connecting');
-  const floors = { comms: 1900, cartless: 1900, lead: 1900, worker: 400 };
+  const floors = { comms: 1750, cartless: 1750, lead: 1750, worker: 400 };
   for (const id of CALLS) {
     const a = off[id], b = on[id];
     A.ok(a && b, lane + ' ' + id + ': the call was captured off and on');
@@ -204,7 +204,7 @@ function checkDoctrine(off, on) {
     A.eq(JSON.stringify(on.cli.args.slice(0, -1)), JSON.stringify(off.cli.args.slice(0, -1)), lane + ' claude-cli: the argv is the same (but for the temp name of the prompt file)');
     A.ok(R.normalize(on.cli.stdin, on.known) === R.normalize(off.cli.stdin, off.known), lane + ' claude-cli: the stdin is identical');
     const saved = cliSaving(lane, off, on);
-    A.ok(saved >= 1900, lane + ' claude-cli: saves ' + saved + ' B of system prompt file (at least 1900)');
+    A.ok(saved >= 1750, lane + ' claude-cli: saves ' + saved + ' B of system prompt file (at least 1750)');
   }
   // one manual.read away: the whole section, and manual.read knows it is not in the prompt
   const x = on.extra || {};

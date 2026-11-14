@@ -302,24 +302,27 @@ const MANUAL_INDEX = OPEN + ABOUT + LIVE_STATE + '\n' + TOC + '\n' + CONNECTORS 
    PLATFORM is 2,930 B of the index on every interactive task call, and under half of it is the rule: the rest is the
    walk through the three routes, the platforms reached through another connector and the Google sign-in notes, which a
    run needs only when the Commander is actually connecting something. With the switch on the index carries
-   CONNECTING_CORE in the section's place: every rule the agent must obey unprompted (look it up with connectors.list and
-   its `goal` before answering or declining; never assert catalog membership; never invent a menu path; the search box;
-   the API KEYS + web_request fallback that works for any platform; "not connected YET" is never "cannot"), in the
-   section's own words wherever a sentence was kept, plus the instruction to read the section before walking anyone
-   through it. Nothing is removed: manual.read section "connecting" (and "all") serves the whole section verbatim, as it
-   always has, and the full manual and the off-switch index are untouched. Constant, so it rides the cached prefix. */
+   CONNECTING_CORE in the section's place: every rule the agent must obey unprompted (look it up with connectors.list,
+   where the run has it, before answering, and with its `goal` before declining; never assert catalog membership; never
+   invent a menu path; the search box; the API KEYS + web_request fallback that works for any platform; "not connected
+   YET" is never "cannot"), under the section's own headings and in its own words wherever a sentence was kept, plus the
+   instruction to read the section before walking anyone through it. What leaves the prompt is the walk-through and the
+   explanations the connectors.list description already gives. Nothing is removed: manual.read section "connecting" (and
+   "all") serves the whole section verbatim, as it always has, and the full manual and the off-switch index are
+   untouched. Constant, so it rides the cached prefix. */
 const CONNECTING_CORE =
-  'CONNECTING A PLATFORM — the single most common request, and the one you must not improvise. Before you say whether ' +
-  'a platform can be reached, and before declining a task for lack of email, website, calendar, docs or any service ' +
-  'access, CALL connectors.list with `goal` set to the Commander\'s task in their words; decline only after that call ' +
-  'comes back with nothing.\n' +
+  'CONNECTING A PLATFORM — the single most common request, and the one you must not improvise.\n' +
+  'LOOK IT UP BEFORE YOU ANSWER. If you have the connectors.list tool, CALL IT before you say whether a platform can ' +
+  'be reached; never answer that question from memory while the tool is available to you.\n' +
+  'BEFORE DECLINING a task for lack of email, website, calendar, docs or any service access, call connectors.list ' +
+  'with `goal` set to the Commander\'s task in their words. Decline only after that call comes back with nothing.\n' +
   'HONESTY RULE — this is the rule that matters most here: WITHOUT that tool you do NOT have a reliable ' +
   'list of which platforms are in the catalog, so NEVER assert that a specific platform is or is not there, ' +
   'and NEVER invent a StarNet menu path, settings screen, or button name. Tell the Commander to open ' +
   'CONNECT › ABILITIES and type the platform name into its search box, and offer the guaranteed fallback, which works ' +
   'for ANY platform, listed or not: they paste its API key in CONNECTED › API KEYS and you call its REST API yourself ' +
-  'with web_request, referencing the key by its environment-variable NAME. And never say StarNet “cannot” reach a ' +
-  'service when what you mean is that it is not connected YET.\n' +
+  'with web_request (or curl in your shell), referencing the key by its environment-variable NAME. And never say ' +
+  'StarNet “cannot” reach a service when what you mean is that it is not connected YET.\n' +
   'Before you walk the Commander through connecting, and whenever a route you suggested did not work, call manual.read ' +
   'section connecting (the three routes step by step, the platforms reached through another connector, Google sign-in) ' +
   'and follow it.\n';

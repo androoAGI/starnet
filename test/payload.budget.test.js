@@ -168,9 +168,11 @@ const LANE_BUDGET = {
   // unchanged); claude-cli 85,174 -> 78,777
   STARNET_PREFIX_TAIL: { systemChars: 32296, tools: 64, toolBytes: 51506, prefixBytes: 81401, cliBytes: 78797 },
   // W3.9b, two doctrine blocks said once (CONNECTING A PLATFORM as its rules with the walk-through behind manual.read; HOW
-  // TO WORK without the three sentences FINISH THE JOB restates): 32,206 -> 30,243 system chars (+90 headroom, as the
-  // comms-task row), 87,962 -> 85,959 prefix bytes; tools untouched; claude-cli 85,174 -> 83,171
-  STARNET_PREFIX_DOCTRINE: { systemChars: 30333, tools: 70, toolBytes: 58227, prefixBytes: 86119, cliBytes: 83191 },
+  // TO WORK without the three sentences FINISH THE JOB restates): 32,206 -> 30,414 system chars (+90 headroom, as the
+  // comms-task row), 87,962 -> 86,130 prefix bytes; tools untouched; claude-cli 85,174 -> 83,342. (First measured at
+  // 30,243 / 85,959 / 83,171 with a core that told every run to call connectors.list; the core now asks it only of a run
+  // that has the tool and keeps the section's own LOOK IT UP and BEFORE DECLINING lines: +171 chars, set the same day.)
+  STARNET_PREFIX_DOCTRINE: { systemChars: 30504, tools: 70, toolBytes: 58227, prefixBytes: 86290, cliBytes: 83362 },
   // W3.9c, recipes read without the SERVER CART. The comms-task call itself is untouched (it has skill.view), so this row
   // is the call the lane is for: the same task from the starter floor WITHOUT its notebook (`without`). Off, that call
   // inlines every enabled recipe body (88,324 prefix bytes: 40,294 of system text, 60 tools); on, it carries the recipe

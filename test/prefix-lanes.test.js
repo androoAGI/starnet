@@ -216,13 +216,16 @@ const withFacts = (sc, more) => Object.assign({}, sc, { facts: Object.assign({},
     A.eq(M.ON_DEMAND_RULE_SECTIONS.slice(), ['connecting'], 'one rule section is on demand under the switch');
     // the honesty core, inline
     A.ok(/CONNECTING A PLATFORM — the single most common request, and the one you must not improvise\./.test(core), 'core: never improvise it');
-    A.ok(/Before you say whether a platform can be reached, and before declining a task for lack of email, website, calendar, docs or any service access, CALL connectors\.list with `goal` set to the Commander's task in their words/.test(core),
-      'core: connectors.list with the goal before saying a service cannot be reached, or declining');
-    A.ok(/decline only after that call comes back with nothing/.test(core), 'core: decline only after the lookup');
+    A.ok(/LOOK IT UP BEFORE YOU ANSWER\. If you have the connectors\.list tool, CALL IT before you say whether a platform can be reached; never answer that question from memory while the tool is available to you\./.test(core),
+      'core: look it up with connectors.list before saying whether a service can be reached (asked only of a run that has the tool)');
+    A.ok(/BEFORE DECLINING a task for lack of email, website, calendar, docs or any service access, call connectors\.list with `goal` set to the Commander's task in their words\. Decline only after that call comes back with nothing\./.test(core),
+      'core: connectors.list with the goal before declining, and decline only after it');
+    for (const head of ['CONNECTING A PLATFORM — ', 'LOOK IT UP BEFORE YOU ANSWER. ', 'BEFORE DECLINING ', 'HONESTY RULE — this is the rule that matters most here: '])
+      A.ok(core.indexOf(head) >= 0 && section.indexOf(head) >= 0, 'core: keeps the section\'s own heading "' + head.trim() + '"');
     A.ok(/NEVER assert that a specific platform is or is not there/.test(core), 'core: never assert catalog membership');
     A.ok(/NEVER invent a StarNet menu path, settings screen, or button name/.test(core), 'core: never invent a menu path');
     A.ok(/open CONNECT › ABILITIES and type the platform name into its search box/.test(core), 'core: the one place to send them');
-    A.ok(/guaranteed fallback, which works for ANY platform, listed or not: they paste its API key in CONNECTED › API KEYS and you call its REST API yourself with web_request, referencing the key by its environment-variable NAME/.test(core),
+    A.ok(/guaranteed fallback, which works for ANY platform, listed or not: they paste its API key in CONNECTED › API KEYS and you call its REST API yourself with web_request \(or curl in your shell\), referencing the key by its environment-variable NAME/.test(core),
       'core: the API KEYS + web_request fallback');
     A.ok(/never say StarNet “cannot” reach a service when what you mean is that it is not connected YET/.test(core), 'core: not connected YET is never "cannot"');
     A.ok(/call manual\.read section connecting/.test(core) && /Before you walk the Commander through connecting/.test(core) && /whenever a route you suggested did not work/.test(core),
@@ -258,7 +261,7 @@ const withFacts = (sc, more) => Object.assign({}, sc, { facts: Object.assign({},
       'manual.read on a lean-index run lists connecting as a section to read');
     A.ok(tool.run({ section: 'connecting' }, { manualOnDemand: ['connecting'] }).content === section, '...and serves it the same');
     console.log('[prefix-lanes] CONNECTING: section ' + B(section) + ' B -> core ' + B(core) + ' B; index ' + B(idx) + ' -> ' + B(lean) + ' B (saves ' + (B(idx) - B(lean)) + ')');
-    A.ok(B(idx) - B(lean) >= 1500, 'the lean index is at least 1,500 B smaller (' + (B(idx) - B(lean)) + ')');
+    A.ok(B(idx) - B(lean) >= 1400, 'the lean index is at least 1,400 B smaller (' + (B(idx) - B(lean)) + ')');
     // the wiring
     A.ok(/const operatorManual = prefixLaneOn\('PREFIX_DOCTRINE'\) \? leanManualBlock\(operatorManualWhole\) : operatorManualWhole;/.test(index), 'index.js swaps the manual block only under the switch');
     A.ok(/if \(operatorManual !== operatorManualWhole\) capCtx\.manualOnDemand = ON_DEMAND_RULE_SECTIONS\.slice\(\);/.test(index), '...and tells manual.read only when the lean index really rides');
