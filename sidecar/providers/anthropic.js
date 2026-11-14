@@ -113,6 +113,42 @@
     'claude-haiku-5-5', 'claude-haiku-5.5'
   ];
   const BINDING_BETA = 'thinking-binding-controls-2026-08-01';
+  /* NATIVE DEFERRAL (W2.4; the loop sends req.nativeDefer only while the host's STARNET_NATIVE_DEFER is on, which is not
+     the default). On the old path a reveal pushes the revealed definition into `tools`. Tools render before system, so
+     that one push re-writes the prompt so far (about +29k tokens at a 25k prompt) and unbinds every earlier thinking
+     block. The API has its own form for a tool that is granted but not loaded. As documented (read 2026-11-14):
+       · tool-search-tool, "Custom tool search implementation": every deferred definition is sent in `tools` with
+         defer_loading: true ("You still send every tool's full definition ... on every request"; it is declared, not in
+         the model's context), and a client tool loads one by returning "a standard tool_result with tool_reference
+         blocks in the content array" ({ type:'tool_reference', tool_name }). No beta header. At least one tool must stay
+         undeferred; "A tool with defer_loading: true can't also carry cache_control: the API returns a 400".
+       · api/messages/create: tool_result.content is an array of text | image | search_result | document |
+         tool_reference blocks, so a reference rides beside the result's own text.
+       · tool-use-with-prompt-caching: "Deferred tools are not included in the system-prompt prefix ... the definition is
+         appended inline as a tool_reference block in the conversation history. The prefix is untouched."
+     So, for a model on the list below, on the Anthropic API itself: `tools` is the run's core tools and then EVERY tool
+     the run holds deferred, flagged, byte-identical on every request; the cache anchor stays on the last core tool; and
+     a reveal is a reference on the tool result that made it (every reveal comes from one: loop.js control.revealTools).
+     A revealed tool whose result has left the request (a fold) is declared without the flag, as the old path declares
+     it. Everything else is the old path: any other model, any other host, a request with no deferred tool, and any
+     model whose request this process has seen answered 400 in these fields' name (deferRefused; wireStream re-sends
+     once the old way). One resolver decides it for buildBody and for the loop: deferPlan.
+     THE LIST is the tool search page's Model compatibility table ("Claude Opus 4.1 and earlier models don't support the
+     tool search tool"), in both spellings like the lists above; a family the table lists whole (Fable, Mythos, Opus 5.x,
+     Sonnet 5.x) is matched by its family name. An allowlist on purpose: a model missing from it costs only the old
+     path, and a model outside these families is never sent a field its endpoint may not take. */
+  const NATIVE_DEFER_CLAUDE = [
+    'claude-fable', 'claude-mythos', 'claude-opus-5', 'claude-sonnet-5', 'claude-haiku-5-5', 'claude-haiku-5.5',
+    'claude-opus-4-8', 'claude-opus-4.8', 'claude-opus-4-7', 'claude-opus-4.7', 'claude-opus-4-6', 'claude-opus-4.6',
+    'claude-opus-4-5', 'claude-opus-4.5', 'claude-sonnet-4-6', 'claude-sonnet-4.6', 'claude-sonnet-4-5', 'claude-sonnet-4.5',
+    'claude-haiku-4-5', 'claude-haiku-4.5'
+  ];
+  const ANTHROPIC_API = /^https:\/\/api\.anthropic\.com(\/|$)/i;
+  // endpoint + model of every request this process saw refused for these fields: never tried again until a restart
+  const deferRefused = new Set();
+  // The mark buildBody puts on a COPY of a revealing tool message (withToolRefs): the names that result loads. A symbol,
+  // so it can never come from a stored transcript, and never reaches a wire or the journal (JSON skips it).
+  const TOOL_REFS = Symbol('toolRefs');
 
   const modelKey = (id) => String(id == null ? '' : id).toLowerCase();
   function hasAny(id, list) { const k = modelKey(id); for (const s of list) if (k.indexOf(s) >= 0) return true; return false; }
@@ -341,18 +377,24 @@
     return blocks ? { blocks, first: (blind || !at) ? '' : at.key } : null;
   }
   // opts.skipReasoning(arr) -> true drops that turn's thinking blocks (stripped by a rescue, see wireStream).
+  // opts.placed (a Set; NATIVE DEFERRAL only): a tool message carrying the TOOL_REFS mark (withToolRefs) sends its text and
+  // then one tool_reference per name, and each name sent is added to the set. Absent = the result is its text, as before.
   function messagesToAnthropic(messages, opts) {
     const skip = (opts && typeof opts.skipReasoning === 'function') ? opts.skipReasoning : null;
+    const placed = (opts && opts.placed instanceof Set) ? opts.placed : null;
     const picked = extractLeadingSystem(messages || []);
     const out = [];
     for (const msg of picked.rest) {
       if (!msg || typeof msg !== 'object') continue;
       const role = msg.role;
       if (role === 'tool') {
+        const text = textFromContent(msg.content);
+        const refs = (placed && Array.isArray(msg[TOOL_REFS])) ? msg[TOOL_REFS] : null;
+        if (refs) for (const n of refs) placed.add(n);
         appendMessage(out, 'user', [{
           type: 'tool_result',
           tool_use_id: String(msg.tool_call_id || msg.call_id || ''),
-          content: textFromContent(msg.content)
+          content: (refs && refs.length) ? (text ? [{ type: 'text', text }] : []).concat(refs.map(n => ({ type: 'tool_reference', tool_name: n }))) : text
         }]);
         continue;
       }
@@ -604,6 +646,83 @@
       if (bindsThinking(model) && !(wire && wire.noBinding)) body.thinking.block_binding = { prefix_mismatch_behavior: 'drop_block' };
       body.output_config = Object.assign({}, body.output_config, { effort });
     }
+    /* NATIVE DEFERRAL: THE ONE SUPPORT CHECK (the note at NATIVE_DEFER_CLAUDE). This model, on the Anthropic API itself,
+       and not once a request for it was refused for these fields in this process. */
+    const refusalKey = model => baseUrl + '|' + modelKey(model);
+    function nativeDefer(model) {
+      return ANTHROPIC_API.test(baseUrl) && isClaude(model) && hasAny(model, NATIVE_DEFER_CLAUDE) && !deferRefused.has(refusalKey(model));
+    }
+    const toolNameOf = def => String((def && def.function && def.function.name) || '').trim();
+    /* deferPlan(req) -> null (the old path: the tools array is req.tools), or how this request declares its tools:
+         core      the request's tools the run never held deferred (req.tools without the deferred names: the loop still
+                   appends a revealed definition to req.tools, for every other route and for its own checks)
+         deferred  every definition the run holds deferred, in the order the loop was given them (req.nativeDefer.deferred)
+         refs      tool_call_id -> the names that tool result revealed (req.nativeDefer.reveals; a name's first reveal)
+         loaded    the revealed names whose tool result is not in req.messages: declared without the flag
+       buildBody renders it; deferredToolsKey names it for the loop's request view. */
+    function deferPlan(req) {
+      const nd = req && req.nativeDefer;
+      if (!nd || !Array.isArray(nd.deferred) || !nd.deferred.length || !nativeDefer(req.model)) return null;
+      const names = new Set();
+      for (const d of nd.deferred) { const n = toolNameOf(d); if (n) names.add(n); }
+      const core = (req.tools || []).filter(t => { const n = toolNameOf(t); return n && !names.has(n); });
+      if (!names.size || !core.length) return null;   // "At least one tool must have defer_loading=false"
+      const refs = new Map(), revealed = new Set();
+      for (const r of (Array.isArray(nd.reveals) ? nd.reveals : [])) {
+        const id = (r && r.id != null) ? String(r.id) : '';
+        for (const raw of ((r && Array.isArray(r.names)) ? r.names : [])) {
+          const n = String(raw).trim();
+          if (!names.has(n) || revealed.has(n)) continue;
+          revealed.add(n);
+          if (id) { if (!refs.has(id)) refs.set(id, []); refs.get(id).push(n); }
+        }
+      }
+      const loaded = new Set(revealed);
+      if (refs.size) for (const m of (req.messages || [])) {
+        if (!m || m.role !== 'tool') continue;
+        const list = refs.get(String(m.tool_call_id || m.call_id || ''));
+        if (list) for (const n of list) loaded.delete(n);
+      }
+      return { core, deferred: nd.deferred, refs, revealed, loaded };
+    }
+    /* deferredToolsKey(req) -> null when this request takes the old path, else what its tools array is made of. The
+       loop's request view compares this in place of req.tools (history-edit.js makeRequestView): a reveal that rides its
+       tool result leaves it unchanged, so no thinking is stripped for it; a revealed tool that lost its result changes
+       it, as it changes the array. */
+    function deferredToolsKey(req) {
+      const plan = deferPlan(req);
+      return plan ? { nativeDefer: true, core: plan.core, deferred: plan.deferred.map(toolNameOf), loaded: Array.from(plan.loaded).sort() } : null;
+    }
+    // the request's messages with each revealing tool result marked: copies, the loop's own messages are never touched
+    function withToolRefs(messages, plan) {
+      if (!plan.refs.size) return messages;
+      const seen = new Set();
+      return messages.map(m => {
+        if (!m || m.role !== 'tool') return m;
+        const id = String(m.tool_call_id || m.call_id || '');
+        const list = plan.refs.get(id);
+        if (!list || seen.has(id)) return m;
+        seen.add(id);
+        return Object.assign({}, m, { [TOOL_REFS]: list });
+      });
+    }
+    // The tools array of a plan: the core tools, then every deferred one. A revealed tool no result carried a reference
+    // for (placed) is loaded like any other; every other deferred tool is declared, not loaded. The deferred list is the
+    // same array for a run's life (the loop's), so its wire form is converted once and never mutated (stamps copy).
+    const deferredWire = (typeof WeakMap === 'function') ? new WeakMap() : null;
+    function deferredTools(plan, placed) {
+      const core = toAnthropicTools(plan.core) || [];
+      let rest = deferredWire ? deferredWire.get(plan.deferred) : null;
+      if (!rest) { rest = toAnthropicTools(plan.deferred) || []; if (deferredWire) deferredWire.set(plan.deferred, rest); }
+      return core.concat(rest.map(t => ((plan.revealed.has(t.name) && !placed.has(t.name)) ? t : Object.assign({}, t, { defer_loading: true }))));
+    }
+    // a 400 whose words name the deferral fields, on a body that carried them
+    function deferRefusal(e, body) {
+      if (!e || Number(e.status) !== 400 || !body || !Array.isArray(body.tools) || !body.tools.some(t => t && t.defer_loading)) return false;
+      const b = e.body && e.body.error;
+      const msg = String(e.message || '') + ' ' + String((b && (b.message || b.type)) || '');
+      return /defer_loading|tool_reference|tool reference|deferred/i.test(msg);
+    }
     // wire: { noBinding, skipReasoning } — set only by the rescue in wireStream; absent = the normal request.
     function buildBody(req, wire) {
       // ONE pre-send normalization (provider.js prepareWireMessages): every tool_use gets its tool_result in the
@@ -611,7 +730,11 @@
       // (Kimi's functions.read_file:0) are rewritten into this wire's ^[a-zA-Z0-9_-]+$ grammar, call and result alike.
       // Then the ONE role projection (provider.js projectRoles 'native'): the loop's later system messages are user
       // turns, which messagesToAnthropic merges with their neighbours exactly as it merged them before.
-      const converted = messagesToAnthropic(provider.projectRoles(provider.prepareWireMessages(req.messages || [], 'anthropic'), 'native'), { skipReasoning: wire && wire.skipReasoning });
+      // NATIVE DEFERRAL: a revealing result is marked BEFORE that normalization (it can rewrite an id), and `placed`
+      // collects the references that reached the wire.
+      const plan = deferPlan(req);
+      const placed = plan ? new Set() : null;
+      const converted = messagesToAnthropic(provider.projectRoles(provider.prepareWireMessages(plan ? withToolRefs(req.messages || [], plan) : (req.messages || []), 'anthropic'), 'native'), { skipReasoning: wire && wire.skipReasoning, placed });
       const body = {
         model: req.model,
         max_tokens: resolveMaxTokens(req),
@@ -619,7 +742,7 @@
         stream: true
       };
       applyThinking(body, req, wire);   // must run BEFORE the breakpoints: it can add top-level keys, never blocks
-      const tools = toAnthropicTools(req.tools);
+      const tools = plan ? deferredTools(plan, placed) : toAnthropicTools(req.tools);
       if (tools) body.tools = tools;
       // A disposable, toolless extraction is never read again. Avoid a cache-write premium without
       // changing any model input or generation setting. Tool loops always retain their reusable cache.
@@ -629,6 +752,14 @@
       const ttl = cacheTtl.mode();
       const stamp = stamping ? blocks => breakpoint(blocks, cacheTtl.control('stable', ttl)) : blocks => blocks;
       const stampTail = stamping ? blocks => breakpoint(blocks, cacheTtl.control('tail', ttl)) : blocks => blocks;
+      // THE TOOLS ANCHOR sits on the last tool that is loaded: a deferred definition cannot carry cache_control (a 400),
+      // and it is outside the cached prefix anyway. With nothing deferred that is the last tool, as before.
+      const stampTools = list => {
+        let i = list.length - 1;
+        while (i >= 0 && list[i] && list[i].defer_loading) i--;
+        if (stamping && i >= 0) breakpointAt(list, i, cacheTtl.control('stable', ttl));
+        return list;
+      };
       // One breakpoint for the whole static prefix. System is the preferred anchor because it sits AFTER the
       // tools and so caches both; with no system prompt the last tool is the only anchor that covers them.
       let systemAnchors = 1;
@@ -649,14 +780,14 @@
              a new conversation can reuse. Only a SPLIT system (a task run's cacheSystemPrefix + its per-conversation
              tail) takes this layout: an unsplit system has no stable block to keep, so it keeps the old one system
              anchor over the tools + 3 sliding tail anchors. */
-          stamp(tools);
+          stampTools(tools);
           body.system = texts.map((text, i) => (i === 0 ? stamp([{ type: 'text', text }])[0] : { type: 'text', text }));
           systemAnchors = 2;
         } else {
           systemAnchors = texts.length;
           body.system = texts.map(text => stamp([{ type: 'text', text }])[0]);
         }
-      } else if (tools) stamp(tools);
+      } else if (tools) stampTools(tools);
       /* SLIDING TAIL ANCHORS: up to THREE messages (TWO with a split system) each carry a
          breakpoint — with the static-prefix anchor above, exactly the API's 4-breakpoint maximum.
          One trailing anchor was fragile for a mechanical reason: a breakpoint only looks BACK 20 content
@@ -712,10 +843,28 @@
       maybeRewarmCatalog();
       const normalWire = { noBinding: bindingRefused, skipReasoning: isStripped };
       let body = buildBody(req, normalWire);
-      let res;
+      let res, failed = null;
       try { res = await requestWithRetry(body, req.signal, provider.runtime.preStreamRetries(req, RETRY_DELAYS.length)); }
-      catch (e) {
-        if (isAbort(e, req.signal)) return;
+      catch (e) { if (isAbort(e, req.signal)) return; failed = e; }
+      /* NATIVE DEFERRAL FALLBACK (W2.4) — ONE resend on the old path, and this model is not asked again in this process
+         (deferPlan is null for it from here on, so the rebuilt body carries its revealed tools in `tools` and no
+         reference). Like the rescue below, the 400 came before generation: it bills nothing and no event went out.
+         A reveal already made was a reference on its tool result; the old path carries it in `tools`, which is the change
+         the loop's request view strips thinking for at a reveal (history-edit.js). So on a model that binds its thinking
+         a re-send after a reveal strips it too, and remembers it stripped, the way the rescue below does. */
+      if (failed && deferRefusal(failed, body)) {
+        deferRefused.add(refusalKey(body.model));
+        const revealed = !!(req.nativeDefer && Array.isArray(req.nativeDefer.reveals) && req.nativeDefer.reveals.length);
+        if (revealed && bindsThinking(body.model)) markStripped(req.messages);
+        failNote('providers.anthropic.native_defer', 'http 400 on ' + String(body.model || '') + ' named the deferred-tool fields (' + String(failed.message || '').slice(0, 200)
+          + '): resending once with revealed tools appended to the tools array, and not declaring deferred tools up front for this model again until a restart');
+        body = buildBody(req, normalWire);
+        failed = null;
+        try { res = await requestWithRetry(body, req.signal, provider.runtime.preStreamRetries(req, RETRY_DELAYS.length)); }
+        catch (e) { if (isAbort(e, req.signal)) return; failed = e; }
+      }
+      if (failed) {
+        const e = failed;
         /* THINKING RESCUE (#73) — ONE resend, never a loop. A 400 is refused before generation, so it bills nothing
            and no event has been yielded yet: the loop sees a single attempt and books a single usage. Two shapes:
              'bound' — a replayed thinking block no longer matches its conversation prefix (a model outside
@@ -1069,8 +1218,10 @@
     /* PRESERVED THINKING IS THE LOOP'S TO KEEP CONSISTENT (W1.7): on these models a history edit unbinds every block at or
        after it, so the loop's request view (history-edit.js makeRequestView) strips exactly those, once, instead of
        replaying them into a drop cascade. Asked per model; the rescue below still covers anything this list misses. */
-    return { stream, listModels, verifyCredential, warmCatalog, catalogHttpStatus, catalogFetchError, contextLimit, outputLimit, priceOf, supportsTools, reasoningEfforts, bindsThinking, effortAsSent, cacheAnchors };
+    /* NATIVE DEFERRAL (W2.4): nativeDefer(model) is the support check; deferredToolsKey(req) is what the loop asks before
+       each request (null = the old path). Only this adapter declares them: every other route keeps the append. */
+    return { stream, listModels, verifyCredential, warmCatalog, catalogHttpStatus, catalogFetchError, contextLimit, outputLimit, priceOf, supportsTools, reasoningEfforts, bindsThinking, effortAsSent, cacheAnchors, nativeDefer, deferredToolsKey };
   }
 
-  return { makeAnthropicProvider, _internals: { messagesToAnthropic, toAnthropicTools, normalizeUsage, normalizeModel, cleanBaseUrl, headerBag, firstUnbound } };
+  return { makeAnthropicProvider, _internals: { messagesToAnthropic, toAnthropicTools, normalizeUsage, normalizeModel, cleanBaseUrl, headerBag, firstUnbound, deferRefused } };
 });
