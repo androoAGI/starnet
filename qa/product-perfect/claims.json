@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "48c93567663346f6cfdca2cf5cab29bf0be60add",
+    "sourceCommit": "667c441dc90dbaea8e4c80ca4aef4d05f6d9d45b",
     "pathSetSha256": "967af97ff9c6cbb9e744a70595665e2d29d64aa71efb2efaba623913bea16068",
     "files": [
       {
@@ -1924,7 +1924,7 @@
       {
         "path": "frontend/index.html",
         "bytes": 102042,
-        "sha256": "80d47217bfc8aa5cfd983cce0b5bbbc3327d77d807d51fb2e5b529723d9e723e"
+        "sha256": "f10cc9b2ae872870a38b4ad3e95ee5fa527fb3f9b81e12aad035c781f4d4e3dd"
       },
       {
         "path": "frontend/js/arcade.js",
