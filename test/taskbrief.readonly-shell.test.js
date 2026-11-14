@@ -283,7 +283,7 @@ A.eq([Policy.looksOnly(ready, shellExec), Policy.looksOnly(ready, shellExec, {})
 
 /* ---- D. THE SWITCH AND THE ONE PLACE THAT READS IT ------------------------------------------------------------------ */
 {
-  const idx = fs.readFileSync(path.join(__dirname, '..', 'sidecar', 'index.js'), 'utf8');
+  const idx = require('./helpers/source.js').readSidecarSource();   // the sidecar's source through the helper (source-helper H5)
   const envLine = (idx.match(/^function ENV\(suffix\) \{.*\}$/m) || [''])[0];
   const readLine = (idx.match(/^function briefReadOnlyShell\(\) \{.*\}$/m) || [''])[0];
   A.ok(!!envLine && !!readLine, 'D: index.js has ENV() and briefReadOnlyShell()');

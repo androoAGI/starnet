@@ -93,7 +93,7 @@ A.eq(JSON.stringify(stepped.shadow), JSON.stringify(stepped.id), 'shadow and ID 
 /* ---------- C. one reader ---------- */
 {
   const root = path.join(__dirname, '..');
-  const index = fs.readFileSync(path.join(root, 'sidecar', 'index.js'), 'utf8');
+  const index = require('./helpers/source.js').readSidecarSource();   // the sidecar's source through the helper (source-helper H5)
   const count = (text, needle) => text.split(needle).length - 1;
   A.eq(count(index, "ENV('WINDOW_STEP')"), 1, 'index.js reads the switch once, through ENV()');
   const reader = index.match(/const windowStepOn = \(\) => (\/\^\(1\|true\|yes\|on\)\$\/i\.test\(String\(ENV\('WINDOW_STEP'\) \|\| ''\)\.trim\(\)\));/);

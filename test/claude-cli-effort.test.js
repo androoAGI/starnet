@@ -269,7 +269,7 @@ const asSent = t => t.effort || 'cli-default';
 
   // ---- H. THE HOST: one switch reader, one pick rule, the run sites ---------------------------------------------------------
   {
-    const idx = read('sidecar/index.js');
+    const idx = require('./helpers/source.js').readSidecarSource();   // the sidecar's source through the helper (source-helper H5)
     A.eq((idx.match(/ENV\('CLI_EFFORT'\)/g) || []).length, 1, 'the switch is read in one place (cliEffortMode, through ENV)');
     A.ok(/function cliEffortMode\(\) \{ return EffortClamp\.cliMode\(ENV\('CLI_EFFORT'\)\); \}/.test(idx) && /attachClaudeCli\(\{ compactTools: cliCompactTools, effortMode: cliEffortMode \}\);/.test(idx), '...and handed to the factory once');
     A.ok(!/CLI_EFFORT/.test(read('sidecar/providers/claude-cli.js').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '')) && !/process\.env/.test(read('sidecar/providers/effort-clamp.js')), 'neither the adapter nor the resolver reads the environment for it');

@@ -73,7 +73,7 @@ const sha = text => crypto.createHash('sha256').update(text).digest('hex');
 
   /* ---------- C. one reader ---------- */
   const root = path.join(__dirname, '..');
-  const index = fs.readFileSync(path.join(root, 'sidecar', 'index.js'), 'utf8'), loop = fs.readFileSync(path.join(root, 'sidecar', 'loop.js'), 'utf8');
+  const index = require('./helpers/source.js').readSidecarSource(), loop = fs.readFileSync(path.join(root, 'sidecar', 'loop.js'), 'utf8');   // the sidecar's source through the helper (source-helper H5)
   const count = (text, needle) => text.split(needle).length - 1;
   A.eq(count(index, "ENV('FOLD_FROM_PREFIX')"), 1, 'index.js reads the switch once, through ENV()');
   const reader = index.match(/foldFromPrefix: (\/\^\(1\|true\|yes\|on\)\$\/i\.test\(String\(ENV\('FOLD_FROM_PREFIX'\) \|\| ''\)\.trim\(\)\)),/);
