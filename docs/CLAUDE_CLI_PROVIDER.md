@@ -144,6 +144,13 @@ escapes the job object, when its CLI dies on its own or the sidecar is hard-kill
 - `STARNET_CLAUDE_CLI_PERSIST=0` runs every turn one-shot, exactly as before the persistent child.
 - `STARNET_CLAUDE_CLI_PERSIST_LOG=1` prints one line per decision (reuse, fresh + why, closed + why) and one per
   turn's usage (prompt tokens, cache read, cache written, output), on either path.
+- `STARNET_CLI_COMPACT_TOOLS=1` (off by default, cost audit W2.2) lists each tool's parameters in the system prompt
+  file as a signature, `{path: string, limit?: integer}`, instead of its JSON Schema. The signature reads back as the
+  same schema (`sidecar/providers/tool-signature.js`: every field, type, enum value, required flag, default, limit and
+  description); a schema it cannot say exactly (`anyOf`, `$ref`, `additionalProperties`, ...) keeps its JSON, tool by
+  tool, and the tools section gains a short legend. Off, the file is byte-identical to before. Measured through the
+  fake CLI on a fresh station: the default task call's file 77,617 -> 69,785 bytes, a crew lead's 85,621 -> 77,178.
+  Not yet run against the real CLI: turn it on only after an A/B that counts tool-argument errors.
 
 Live, 2026-10-13, through the hermetic sidecar fixture, Haiku, the same 4-turn `tool_search` task. Each cell is cache
 read / cache written. Wall time per turn includes the tool run (under 0.2 s) and, on turn 1, the CLI start-up.

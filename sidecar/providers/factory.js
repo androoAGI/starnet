@@ -97,6 +97,18 @@
     return usageReceipts.wrap(provider, { provider: registry.normalizeProviderId(opts.provider, registry.DEFAULT_PROVIDER_ID), account: opts.usageAccount || '' });
   }
 
+  /* CLAUDE-CLI SWITCHES. The host's cost switches for the Claude sign-in route are read by the host (index.js, through its
+     one env reader) and asked here each time a claude-cli adapter is built, so every adapter this factory builds (runs,
+     extra accounts, aux one-shots, probes) follows the same switch and none reads the environment itself.
+       compactTools() -> true: tools ride as signatures instead of JSON Schemas (claude-cli.js COMPACT TOOL TEXT)
+     Attached once at boot; absent, or a reader that is not a function = every adapter is built exactly as before. */
+  let claudeCliSwitches = null;
+  function attachClaudeCli(readers) { claudeCliSwitches = (readers && typeof readers === 'object') ? readers : null; return claudeCliSwitches; }
+  function claudeCliSwitch(name) {
+    const read = claudeCliSwitches && claudeCliSwitches[name];
+    return typeof read === 'function' ? read() : undefined;
+  }
+
   function selectProvider(opts) {
     opts = opts || {};
     // Configured OAuth fallbacks need metadata at admission, but authentication only if used.
@@ -283,7 +295,8 @@
       // A local child process, not HTTP: no fetch/key/baseUrl — the CLI's own sign-in is the credential.
       // configDir = an extra connected account (subscription stacking); absent = the CLI's default sign-in.
       return claudeCli.makeClaudeCliProvider({ clock: opts.clock, configDir: opts.configDir || undefined,
-        onRateLimit: subUsage ? info => subUsage.observeClaude(opts.usageAccount || '', info) : undefined });
+        onRateLimit: subUsage ? info => subUsage.observeClaude(opts.usageAccount || '', info) : undefined,
+        compactTools: claudeCliSwitch('compactTools') === true });
     }
     throw new Error('provider adapter is not wired: ' + profile.adapter);
   }
@@ -303,6 +316,7 @@
     attachSubUsage: attachSubUsage,
     attachCatalogCache: attachCatalogCache,
     attachRequestScrub: attachRequestScrub,
-    attachUsageReceipts: attachUsageReceipts
+    attachUsageReceipts: attachUsageReceipts,
+    attachClaudeCli: attachClaudeCli
   };
 });

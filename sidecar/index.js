@@ -176,7 +176,8 @@ const {
   attachSubUsage,
   attachCatalogCache,
   attachRequestScrub,
-  attachUsageReceipts
+  attachUsageReceipts,
+  attachClaudeCli
 } = require('./providers/factory.js');
 const { makeCatalogCache, runWindow: catalogRunWindow } = require('./providers/catalog-cache.js');
 const { promptTierCeiling } = require('./providers/prices.js');
@@ -4369,6 +4370,14 @@ function effortAsRun(provider, model, sent, req) {
    one), parsed by the pure CrewDefaults.mode. Read at each use, like ENV('LEAN_CREW') and ENV('AUX_EFFORT'). Off by
    default; not STARNET_LEAN_CREW, the zero-crew diet (crew-diet.js), which is on by default. */
 function crewDefaultsMode() { return CrewDefaults.mode(ENV('CREW_DEFAULTS')); }
+/* cliCompactTools — COMPACT CLAUDE-CLI TOOL TEXT (cost audit W2.2), the switch, read here and nowhere else:
+   STARNET_CLI_COMPACT_TOOLS through ENV(). '1' = on: on the Claude sign-in route each tool's parameters ride as a signature
+   instead of its JSON Schema (providers/claude-cli.js COMPACT TOOL TEXT; a schema the notation cannot say exactly keeps its
+   JSON). '0', unset, blank or anything else = off, the default until an A/B on the real CLI passes: every system prompt
+   file is byte-identical to before. The factory asks each time it builds a claude-cli adapter (attachClaudeCli), so a run
+   never changes form midway. Locked by test/claude-cli-compact-tools.test.js and test/claude-cli-compact-tools.e2e.test.js. */
+function cliCompactTools() { return String(ENV('CLI_COMPACT_TOOLS') || '').trim() === '1'; }
+attachClaudeCli({ compactTools: cliCompactTools });
 /* crewEffort — LEANER CREW DEFAULTS, the effort half (W3.3: CrewDefaults.effortRule decides, this host applies it). A CREW
    run (a worker, a clone, a line stage: CrewDefaults.surfaceOf) whose effort is its class's applied default above medium
    asks for medium per request; the run after a failed verify (o.crewRetry: a review gate sent the work back, a structured

@@ -28,14 +28,15 @@
    thrown as a 429 `usage_limit_reached`, which errorClass files as quota_exhausted: the loop rotates to the next
    account instead of retrying this one.
 
-   makeClaudeCliProvider({ spawn?, bin?, env?, configDir?, platform?, fs?, os?, idleMs?, statusTtlMs?, persist?, persistIdleMs?, persistEndGraceMs?, onRateLimit? })
+   makeClaudeCliProvider({ spawn?, bin?, env?, configDir?, platform?, fs?, os?, idleMs?, statusTtlMs?, persist?, persistIdleMs?, persistEndGraceMs?, onRateLimit?, compactTools? })
      onRateLimit(info): each run's `rate_limit_event` (its rate_limit_info: this sign-in's usage windows) — sub-usage.js
+     compactTools: true = each tool's parameters ride as a signature instead of its JSON Schema (COMPACT TOOL TEXT at toolLines)
      -> { stream, listModels, release, persistStats, contextLimit, priceOf, supportsTools, reasoningEfforts, effortAsSent } */
 'use strict';
 (function (root, factory) {
-  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./provider.js'), require('./cache-ttl.js'));
-  else { root.SK = root.SK || {}; (root.SK.providers = root.SK.providers || {}).claudeCli = factory(root.SK.providers.provider, root.SK.providers.cacheTtl); }
-})(typeof globalThis !== 'undefined' ? globalThis : this, function (provider, cacheTtl) {
+  if (typeof module !== 'undefined' && module.exports) module.exports = factory(require('./provider.js'), require('./cache-ttl.js'), require('./tool-signature.js'));
+  else { root.SK = root.SK || {}; (root.SK.providers = root.SK.providers || {}).claudeCli = factory(root.SK.providers.provider, root.SK.providers.cacheTtl, root.SK.providers.toolSignature); }
+})(typeof globalThis !== 'undefined' ? globalThis : this, function (provider, cacheTtl, toolSignature) {
   'use strict';
 
   const timeouts = provider.timeouts;
@@ -124,21 +125,46 @@
     return parts.join('\n');
   }
 
+  /* COMPACT TOOL TEXT (cost audit W2.2; the host's STARNET_CLI_COMPACT_TOOLS, off by default). On this route every tool
+     rides as text in the system prompt, and its parameters were its whole JSON Schema: most of those bytes are JSON
+     punctuation and the words "type", "properties" and "required". With `compact` on, the parameters are a signature
+     ({path: string, limit?: integer}; tool-signature.js) that reads back as exactly the schema today's line carries:
+     every field, type, enum value, required flag, default, limit and description. A schema the notation cannot say
+     exactly (anyOf, oneOf, allOf, $ref, const, patternProperties, additionalProperties, a keyword it does not know: an
+     MCP connector's or a plugin's may) keeps its JSON, tool by tool, and the prompt's legend says how to read both
+     (toolsPromptOf). The name, the description and the call format do not change, and neither does what the adapter
+     does with a call: paramValue reads the real schema from req.tools, never this text. Off: every line is the one it
+     always was. toolLines is the one place a tool becomes text; the run-start list, a reveal note and the child's
+     sync check all read it, so a run never mixes the two forms. */
+  const SIGNATURES = new Map();   // a schema's JSON -> its signature, or null (it keeps its JSON); bounded, by value
+  function signatureOf(json) {
+    if (typeof json !== 'string') return null;
+    if (SIGNATURES.has(json)) return SIGNATURES.get(json);
+    let sig = null;
+    // rendered from the JSON itself, so the signature says what that JSON said, never more
+    try { sig = toolSignature.render(JSON.parse(json)); } catch (e) { failNote('claudecli.toolsignature', e); sig = null; }
+    if (SIGNATURES.size >= 4000) SIGNATURES.delete(SIGNATURES.keys().next().value);
+    SIGNATURES.set(json, sig);
+    return sig;
+  }
   // Each tool as the prompt lists it: { name, line }.
-  function toolLines(tools) {
+  function toolLines(tools, compact) {
     const list = [];
     for (const item of (Array.isArray(tools) ? tools : [])) {
       const fn = (item && item.function) || {};
       const name = String(fn.name || '').trim();
       if (!name) continue;
+      const json = JSON.stringify(fn.parameters || { type: 'object', properties: {} });
+      const sig = compact ? signatureOf(json) : null;
       list.push({ name, line: '- ' + name + (fn.description ? ': ' + String(fn.description).trim() : '') +
-        '\n  parameters: ' + JSON.stringify(fn.parameters || { type: 'object', properties: {} }) });
+        '\n  parameters: ' + (sig == null ? json : sig) });
     }
     return list;
   }
-  function toolsPrompt(tools) { return toolsPromptOf(toolLines(tools).map(t => t.line)); }
+  function toolsPrompt(tools, compact) { return toolsPromptOf(toolLines(tools, compact).map(t => t.line), compact); }
   // The # Tools section from the tool lines themselves (a replacement child renders the run-start lines: RUN-START TOOLS).
-  function toolsPromptOf(list) {
+  // compact: the lines carry signatures (COMPACT TOOL TEXT), so the section says how to read one.
+  function toolsPromptOf(list, compact) {
     // A turn with NO tools still says so: a Claude Code model told about station powers in the system prompt otherwise
     // improvises its own native tool-call markup as TEXT (live 09-28: '<invoke name="Bash">…' leaked into a chat reply).
     if (!list.length) return '# Tools\nNo tools are available in this turn. Answer in plain prose only: never write tool-call markup (<tool_call>, <invoke>, <function_calls>) and never claim to have run anything.';
@@ -160,10 +186,11 @@
       '- Several <invoke> blocks inside one <function_calls> block run together. After </function_calls>, STOP and write nothing more: the results arrive in the next message as <tool_result> blocks, and anything written after the block is discarded.',
       '- Use only the tools listed below. Never write <tool_result> blocks yourself and never invent a result.',
       '- When no tool is needed, answer normally without any tool block.',
-      '',
+      ''
+    ].concat(compact ? [toolSignature.LEGEND, ''] : [], [
       'Available tools:',
       list.join('\n')
-    ].join('\n');
+    ]).join('\n');
   }
   // Tools a live persistent child was not started with, announced in the turn that revealed them (see TOOL REVEALS).
   function toolsNote(added) {
@@ -209,7 +236,7 @@
      place in the whole conversation, so a new image never renumbers an old one.
      A persistent child (PERSISTENT CHILD) gets the same blocks: the whole transcript when it starts, then only the
      entries that are new since its reply, as its next user message. */
-  function splitPrompt(messages, tools, cachePrefix, transcriptNote) {
+  function splitPrompt(messages, tools, cachePrefix, transcriptNote, compact) {
     // host-fence tags (<run_context>, <recalled-memory>, <conversation_summary>) in user/tool text and inside a note's
     // body are written inert (provider.js INERT HOST FENCES): this transcript is ONE text, so a forged close would read as host text
     messages = provider.repairToolPairs(provider.inertHostFences(Array.isArray(messages) ? messages : []));
@@ -231,7 +258,7 @@
     const compose = tp => (note ? [prefix].concat(tp ? [tp] : [], [tn, DYNAMIC_BOUNDARY + '\n' + note]) : system.concat(tp ? [tp] : [], [tn])).join('\n\n');
     // base: the same prompt with the tool list left out — what a persistent child must still match after a tool reveal;
     // withTools(lines): the same prompt listing exactly these tool lines (a replacement child's run-start list)
-    return { system: compose(toolsPrompt(tools)), base: compose(TOOLS_SLOT), withTools: lines => compose(toolsPromptOf(lines)),
+    return { system: compose(toolsPrompt(tools, compact)), base: compose(TOOLS_SLOT), withTools: lines => compose(toolsPromptOf(lines, compact)),
       rest: messages.slice(i).filter(m => m && typeof m === 'object') };
   }
   const TOOLS_SLOT = '\u0000tools\u0000';
@@ -305,8 +332,8 @@
     const images = [];
     return withBlocks(system, transcriptEntries(rest, images).concat(noteEntries(notes, rest.length)), images);
   }
-  function buildPrompt(messages, tools, cachePrefix) {
-    const sp = splitPrompt(messages, tools, cachePrefix);
+  function buildPrompt(messages, tools, cachePrefix, compact) {
+    const sp = splitPrompt(messages, tools, cachePrefix, undefined, compact);
     return renderTranscript(sp.system, sp.rest);
   }
   /* What a live persistent child has not seen yet: the entries of every message after its own reply (rest[n]), as ONE
@@ -781,6 +808,7 @@
     // Injected wall clock (determinism law). Without one, a proven sign-in is kept for this instance's life
     // and a failed probe is never cached — the factory builds a fresh adapter per request anyway.
     const clock = (opts.clock && typeof opts.clock.now === 'function') ? opts.clock : null;
+    const compactTools = opts.compactTools === true;   // COMPACT TOOL TEXT: the host's switch, fixed for this adapter's life
     // the CLI's own word on this sign-in's usage windows (a rate_limit_event line, every run): handed to the host as is
     const rateLimitSeen = info => { if (typeof opts.onRateLimit === 'function' && info) { try { opts.onRateLimit(info); } catch (e) { failNote('claudecli.ratelimit.reader', e); } } };   // a reader never breaks a run
     let status = null, statusAt = 0, statusPromise = null;
@@ -1008,7 +1036,7 @@
     const ONE_SHOT_EXIT_GRACE_MS = Number(opts.oneShotExitGraceMs) > 0 ? Number(opts.oneShotExitGraceMs) : 3000;   // after its result line a child normally exits by itself in ~2 s
     async function* oneShotStream(req, cmd, box) {
       const signal = req.signal;
-      const prompt = buildPrompt(req.messages, req.tools, req.cacheSystemPrefix);
+      const prompt = buildPrompt(req.messages, req.tools, req.cacheSystemPrefix, compactTools);
       const turn = ++seq;
       const sysFile = path.join(os.tmpdir(), 'starnet-claude-cli-' + process.pid + '-' + turn + '-' + require('crypto').randomBytes(6).toString('hex') + '.txt');
       const args = cliArgs(cmd, req, '');
@@ -1144,7 +1172,7 @@
     const bump = (o, k) => { o[k] = (o[k] || 0) + 1; };
     const sha1 = s => require('crypto').createHash('sha1').update(s).digest('hex');
     const sessionKey = (req, system) => sha1(JSON.stringify([String(req.model || ''), effortOf(req), system]));
-    const toolMap = tools => new Map(toolLines(tools).map(t => [t.name, t.line]));
+    const toolMap = tools => new Map(toolLines(tools, compactTools).map(t => [t.name, t.line]));
     /* RUN-START TOOLS (cost audit W1.9, 2026-11-08). A reveal (tool_search, a starter's result bringing back its dormant
        controls) grows the request's tool list mid-run, and the live child is told in that turn's message (TOOL REVEALS).
        A child that REPLACES it (a warm child after a reply ran past its block, a fresh one after a history or reply
@@ -1159,7 +1187,7 @@
     const runTools = new Map();   // runId -> the tool lines its first child was started with, in order
     function childStart(sp, req, runId) {
       if (!runId) return { system: sp.system, notes: [], added: [] };   // no run to remember a list for
-      const want = toolLines(req.tools);
+      const want = toolLines(req.tools, compactTools);
       const start = runTools.get(runId);
       if (start) {
         const cur = new Map(want.map(t => [t.name, t.line]));
@@ -1317,7 +1345,7 @@
          the system prompt the child was started with. Every tool the child knows must still be offered unchanged; one
          that is new is announced at the end of this turn's message instead of restarting the child. */
       const added = [];
-      const want = toolLines(req.tools);
+      const want = toolLines(req.tools, compactTools);
       for (const t of want) {
         if (!s.tools.has(t.name)) added.push(t);
         else if (s.tools.get(t.name) !== t.line) return { why: 'tools' };
@@ -1335,7 +1363,7 @@
 
     async function* persistentStream(req, cmd, box) {
       const signal = req.signal;
-      const sp = splitPrompt(req.messages, req.tools, req.cacheSystemPrefix, PERSIST_TRANSCRIPT_NOTE);
+      const sp = splitPrompt(req.messages, req.tools, req.cacheSystemPrefix, PERSIST_TRANSCRIPT_NOTE, compactTools);
       const key = sessionKey(req, sp.base);
       const runId = req.runId == null ? '' : String(req.runId);
       let s = session, prompt = null, start = null;
@@ -1551,5 +1579,5 @@
     };
   }
 
-  return { makeClaudeCliProvider, makeCliHost, effortAsSent, CLI_DEFAULT_EFFORT, _internals: { buildPrompt, makeCallSplitter, parseCall, invokeCall, estimateUsd, toolsPrompt, MODELS } };
+  return { makeClaudeCliProvider, makeCliHost, effortAsSent, CLI_DEFAULT_EFFORT, _internals: { buildPrompt, makeCallSplitter, parseCall, invokeCall, estimateUsd, toolsPrompt, toolLines, MODELS } };
 });

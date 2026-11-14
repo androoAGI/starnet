@@ -286,6 +286,7 @@ test/procledger.windows-orphan.test.js
 test/toolsearch.connectors-deferred.test.js
 test/effective-toolsets.availability.test.js
 test/payload.budget.test.js
+test/claude-cli-compact-tools.e2e.test.js
 test/prompt-on-demand.e2e.test.js
 test/byok-linked-credit.e2e.test.js
 test/managed-run-cap.e2e.test.js
