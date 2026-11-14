@@ -82,9 +82,11 @@ function reply(res, call) {
   } });
   fixtureRef = fixture;
   const project = path.join(fixture.profile, 'project');
-  const run = async (agentId, tag) => {
+  // stream: a fresh conversation per run. The cost stack replays a stream's earlier tool results into its next run, so a
+  // second run on one stream would hand this scripted model the first run's finished steps (and a dead background id).
+  const run = async (agentId, tag, stream) => {
     const response = await fixture.request('/api/run', { method: 'POST', headers: { 'Content-Type': 'application/json' }, signal: AbortSignal.timeout(120000), body: JSON.stringify({
-      key: 'sk-or-v1-signin-fixture', provider: 'openrouter', model: MODEL, agentId, streamId: 'signin-' + tag, isTask: true, projectRoot: project,
+      key: 'sk-or-v1-signin-fixture', provider: 'openrouter', model: MODEL, agentId, streamId: 'signin-' + (stream || tag), isTask: true, projectRoot: project,
       messages: [{ role: 'user', content: 'AGENT-' + tag + ': open the local shop and read what it saw.' }]
     }) });
     A.eq(response.status, 200, tag + ': the run starts');
@@ -100,7 +102,12 @@ function reply(res, call) {
     fs.writeFileSync(path.join(fixture.workspace, 'projects.json'), JSON.stringify({ version: 1, projects: [{ root: path.resolve(project), displayPath: project, grantedAt: 1, lastTouchedAt: 1, isGitRepo: false }] }));
     await fixture.start();
     const agent = id => ({ agentId: id, name: id, system: 'Use the requested native tools and report only their receipts.', provider: 'openrouter', model: MODEL, approvalMode: 'full', executionProfile: 'trusted-project' });
-    A.eq((await fixture.json('POST', '/api/roster', { updatedAt: Date.now(), agents: [agent('agent-one'), agent('agent-two'), agent('agent-later')] })).status, 200, 'the sidecar accepts the fixture agents');
+    // the cost stack's desk: a roster push names the Full Access and reach it asks for, and the desk confirms them
+    // (a plain push is clamped to ask-first and the run waits on a card nobody answers)
+    const ids = ['agent-one', 'agent-two', 'agent-later'];
+    const saved = await fixture.deskJson('POST', '/api/roster', { updatedAt: Date.now(), raise: ids, raiseProfile: ids, agents: ids.map(agent) });
+    A.eq(saved.status, 200, 'the sidecar accepts the fixture agents');
+    A.ok(!(saved.body && (saved.body.clamped || saved.body.profileClamped)), 'the desk confirmed their Full Access and reach (nothing clamped): ' + JSON.stringify(saved.body));
 
     await Promise.all([run('agent-one', 'ONE'), run('agent-two', 'TWO')]);
     A.eq(faults, [], 'the mock provider completed the intended tool sequence');
@@ -111,7 +118,7 @@ function reply(res, call) {
     // the desktop's Quit, seconds after the sign-in: the sidecar closes its browser, which writes the cookies out
     const quitting = fixture.child;
     const gone = new Promise(resolve => { if (quitting.exitCode !== null) resolve(); else quitting.once('exit', resolve); });
-    A.eq((await fixture.json('POST', '/api/lifecycle/quit', {})).status, 202, 'the sidecar accepts a Quit');
+    A.eq((await fixture.deskJson('POST', '/api/lifecycle/quit')).status, 202, 'the sidecar accepts a Quit');   // a Quit is a desk action on the cost stack
     await gone;
     await fixture.stop();
     await fixture.start();
@@ -122,7 +129,7 @@ function reply(res, call) {
     // a crash: the sidecar is killed, Chrome dies with it, and the session cookie already on disk must outlive that too
     delete saw.LATER;
     await fixture.restart();
-    await run('agent-later', 'LATER');
+    await run('agent-later', 'LATER', 'LATER-after-crash');
     A.eq(faults, [], 'the mock provider completed the tool sequence after the crash');
     A.ok((saw.LATER || '').includes('shop saw ' + SIGNED_IN), 'after a hard kill an agent is still signed in: ' + saw.LATER);
   } finally {
