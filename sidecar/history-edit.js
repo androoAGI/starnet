@@ -307,6 +307,18 @@
          family's 0.10 read, which over-reports them (measured in review: weighed at 0.10, batches on those two models
          cost more than ageing off). F and T by the loop's own ruler. An unpriced route (a sign-in, a local model) has
          nothing to weigh and never ages; a priced one that publishes no cache rates is weighed at AGE_ASSUMED_RATES.
+         A SIGN-IN WEIGHED BY PROXY (cost lane 2026-11-14; only when the host turns it on, STARNET_AGEING_SIGNIN): a plan
+         publishes no weights, so rates() may hand the model's LIST cache rates marked proxy: true (the cost engine's
+         signInCacheRates; prices.js signInCacheRatesOf says which sign-ins, and why not the others). Each term then
+         errs toward NOT ageing wherever a list rate can bound it. r, the list read: a plan that counts a cached token
+         at more than that saves more per aged token than it was weighed at. w, never under 1.25x though the list names
+         no write charge: a plan that counts a written token above a fresh one makes the re-write no dearer than
+         weighed. T, from the first aged message, where an automatic-prefix cache's read stops (readFloor, 6.): the
+         backend's read can stop short of it by under one cache increment at most, and when the cache would have missed
+         anyway (an idle gap) the re-write the batch is charged was not its doing. R, at most AGE_HORIZON, as on every
+         route. What no list rate bounds is a plan that counts a cached token at LESS than the list read: it would be
+         credited too much. So the batch's diagnostics line says the rates were a proxy (batch.proxy), and the switch
+         stays off until a real run on the sign-in has been read.
      WHAT AGES: a tool result, through elideToolResult (2.: the micro tier's stub, wording and handle); and the long
      string arguments of a write that SUCCEEDED (WRITE_ARGS), as an ARG_ELIDED stub naming a saved copy of the exact
      argument. Only a body a handle covers ages, and only when its stub at least halves it: words quoted from another
@@ -356,14 +368,15 @@
        body this run did not produce, which never ages).
      plan(list, ctx) -> Promise<batch | null>   before a request: ages a batch when one is due and pays (see above).
        list: what the request would carry before ageing (screen captures already aged out: the loop's own messages);
-       ctx: { requests (made so far), maxIters, rates() -> { read, write, published } | null (the cost engine's
-       cacheRates), measure(message) -> its size by the loop's ruler, park (the host parker), standIn (a parker that
+       ctx: { requests (made so far), maxIters, rates() -> { read, write, published, proxy? } | null (the cost engine's
+       cacheRates; proxy: true = a sign-in weighed at its model's list rates, the engine's signInCacheRates),
+       measure(message) -> its size by the loop's ruler, park (the host parker), standIn (a parker that
        writes nothing and names a path as long as the host's: the micro tier's), and where the next read lands
        (readFloor): holdsHistory, anchors (provider.cacheAnchors(model)), isHistoryEnd (the run-context note), stable
        (the run's cacheSystemPrefix) }.
        batch: { editAt (the first aged message), from (the first message the next request re-writes), results, args,
-       freedChars, requests, remaining (the requests the payback credited), read, write, assumed, freed, suffix, saving,
-       rewrite } — the payback's numbers, for the diagnostics line.
+       freedChars, requests, remaining (the requests the payback credited), read, write, assumed, proxy (the rates
+       were a sign-in's proxy), freed, suffix, saving, rewrite } — the payback's numbers, for the diagnostics line.
      view(list) -> list with each aged message swapped for its copy; the list itself while nothing has aged.
      agedOf(original) -> its aged copy, or null (the micro tier folds an aged result into the same stub, no second park).
      originalOf(copy) -> the original an aged copy stands in for, or null (the request view's ownerOf). */
@@ -471,6 +484,7 @@
       try { rates = typeof ctx.rates === 'function' ? ctx.rates() : null; } catch (_) { rates = null; }
       if (!rates || typeof rates !== 'object') return null;
       const assumed = rates.published === false;
+      const proxy = rates.proxy === true;   // a sign-in's stand-in rates (never a price): the batch carries the word
       const r = assumed ? AGE_ASSUMED_RATES.read : Number(rates.read);
       const w = assumed ? AGE_ASSUMED_RATES.write : Number(rates.write);
       if (!(r >= 0) || !(w >= 0)) return null;
@@ -523,7 +537,7 @@
         freedChars += charsOf(s.it.msg) - charsOf(s.copy);
         if (editAt < 0) editAt = s.it.at;
       }
-      return { editAt, from, results, args, freedChars, requests: n, remaining, read: r, write: w, assumed, freed, suffix, saving, rewrite };
+      return { editAt, from, results, args, freedChars, requests: n, remaining, read: r, write: w, assumed, proxy, freed, suffix, saving, rewrite };
     }
     // copies saved for a batch that did not stand (it no longer paid, or a park threw): a later batch takes them unparked
     function keep(staged) { for (const s of staged) ready.set(s.it.msg, { copy: s.copy, results: s.results, args: s.args }); }

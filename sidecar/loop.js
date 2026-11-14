@@ -1569,6 +1569,18 @@
        to a run without it until the first batch. */
     const ageing = (o.batchedAgeing === true && HistoryEdit && typeof HistoryEdit.makeAgeing === 'function')
       ? HistoryEdit.makeAgeing({ originOf: m => (toolOrigin ? toolOrigin.get(m) || null : null) }) : null;
+    /* THE RATES A BATCH IS WEIGHED WITH: the CURRENT route's, asked of its cost engine each time (a provider fallback
+       swaps `cost`). A priced route answers its cache rates (cost.cacheRates). An unpriced one has none and never ages,
+       with ONE exception the host turns on (o.ageingSignIn: STARNET_AGEING_SIGNIN, off by default): a sign-in whose
+       model the price table documents is weighed at that model's list rates as a proxy (cost.signInCacheRates: the list
+       read, a write never under 1.25x), and its batch's note says so. A Claude sign-in, every other sign-in and a local
+       model answer null there too. With it off this is cacheRates alone, as before. */
+    const ageingRates = () => {
+      if (!cost) return null;
+      const priced = typeof cost.cacheRates === 'function' ? cost.cacheRates(model) : null;
+      if (priced || o.ageingSignIn !== true || typeof cost.signInCacheRates !== 'function') return priced;
+      return cost.signInCacheRates(model);
+    };
     /* THE REQUEST VIEW (history-edit makeRequestView): on a provider that binds thinking to its prefix, the blocks an
        edit invalidated are deleted from their turns (once, in place; from an aged copy's original too), and so is every
        block the run's first request would replay (a recovered history: the view never saw the prefix it was made on);
@@ -2739,13 +2751,14 @@
           const batch = await ageing.plan(screensView(messages), {
             requests: turns, maxIters, holdsHistory: holdsHistory(), park: ageingParker, measure: ageingRuler, standIn: standInPark,
             anchors: cacheAnchors(), isHistoryEnd: isRunContextNote, stable: typeof o.cacheSystemPrefix === 'string' ? o.cacheSystemPrefix : '',
-            rates: () => ((cost && typeof cost.cacheRates === 'function') ? cost.cacheRates(model) : null)
+            rates: ageingRates
           });
           if (batch) failNote('loop.historyEdit.aged', 'batched ageing from message ' + batch.editAt + ': ' + batch.results + ' tool result(s) and '
             + batch.args + ' write argument(s) left the request view (' + batch.freedChars + ' characters; the run keeps every full body); payback '
             + Math.round(batch.saving) + ' > ' + Math.round(batch.rewrite) + ' = ' + batch.remaining + ' requests credited x ' + Math.round(batch.freed)
             + ' freed x read ' + batch.read + (batch.assumed ? ' (assumed)' : '') + ' against ' + Math.round(batch.suffix) + ' re-written from message '
-            + batch.from + ' x (write ' + batch.write + ' - read) on ' + String(model));
+            + batch.from + ' x (write ' + batch.write + ' - read) on ' + String(model)
+            + (batch.proxy ? '; SIGN-IN PROXY: this route is a sign-in plan that publishes no cache weights, so the batch was weighed at the model\'s list cache rates (the list read, a write of at least 1.25x), not at what the plan counts' : ''));
         } catch (e) { failNote('loop.historyEdit.ageing', e); }
       }
       const turnStart = turns;

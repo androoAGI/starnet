@@ -3,6 +3,9 @@
    reconcile(usage, model) -> { usd, tokensIn, tokensOut, reasoningTokens, cachedTokens, cacheWriteTokens }  (authoritative)
    cacheRates(model)       -> { read, write, published } | null    (the route's cache prices, fresh-input units: the
                                                                    model's documented ones where prices.js has them)
+   signInCacheRates(model) -> { read, write, published, proxy: true } | null   (an UNPRICED sign-in's model weighed at
+                                                                   its list cache rates: a proxy for batched ageing's
+                                                                   payback alone, never a price)
    resolveUsage(usage)     -> { uncachedIn, cacheRead, cacheWrite, cacheWrite5m?, cacheWrite1h?, out, reasoning } | null
                                                                                          (the ONE count resolver)
    writeSplit(cc, write)   -> { ephemeral_5m_input_tokens, ephemeral_1h_input_tokens } | null   (a reported tier split)
@@ -90,10 +93,26 @@
     try { d = cacheRatesOf(model); } catch (_) { return null; }
     return (d && Number(d.read) >= 0 && Number(d.write) >= 0) ? { read: Number(d.read), write: Number(d.write) } : null;
   }
+  /* The list cache rates a sign-in route's model stands in with (prices.js signInCacheRatesOf: which routes, which
+     models, and why those rates), for signInCacheRates alone. Loaded on first use, like documentedCache. */
+  let signInCacheRatesOf;
+  function signInProxy(route, model) {
+    if (signInCacheRatesOf === undefined) {
+      signInCacheRatesOf = null;
+      try { const p = typeof require === 'function' ? require('./providers/prices.js') : null; if (p && typeof p.signInCacheRatesOf === 'function') signInCacheRatesOf = p.signInCacheRatesOf; } catch (_) { signInCacheRatesOf = null; }
+    }
+    if (!signInCacheRatesOf) return null;
+    let d = null;
+    try { d = signInCacheRatesOf(route, model); } catch (_) { return null; }
+    return (d && Number(d.read) >= 0 && Number(d.write) >= 0) ? { read: Number(d.read), write: Number(d.write) } : null;
+  }
 
   function makeCostEngine(opts) {
     opts = opts || {};
     const priceOf = opts.priceOf;
+    // the route this engine was built for (the host's provider id; '' = not said). Only signInCacheRates reads it: no
+    // dollar figure, count or label depends on it.
+    const route = typeof opts.route === 'string' ? opts.route.trim().toLowerCase() : '';
 
     // Provider-reported real billed cost, normalized to USD. `usage.cost` is already dollars
     // (OpenRouter). xAI reports `usage.cost_in_usd_ticks` where 1 USD = 10^10 ticks
@@ -187,6 +206,22 @@
         const doc = documentedCache(model);
         if (doc) return { read: doc.read, write: doc.write, published: true };
         return { read: p.cache.read, write: p.cache.write, published: p.cache !== NO_CACHE };
+      },
+      /* THE SIGN-IN PROXY (cost lane 2026-11-14): THE ONE PLACE AN UNPRICED ROUTE GETS RATES TO WEIGH A BATCH WITH. A
+         sign-in plan bills nothing per call, so cacheRates above is null there and batched ageing never fired on the
+         routes whose users run out of plan first. For a sign-in route whose model the price table documents (prices.js
+         signInCacheRatesOf: today the ChatGPT sign-in's gpt-5.x), this answers the model's LIST cache rates from the
+         side that makes a batch harder to pass: the list read, and a write never under 1.25x. proxy: true says what they
+         are: the plan's own weights are not published, and a batch weighed with them says so in its note.
+         NOT A PRICE. Nothing that books, estimates, caps or labels a spend asks here: reconcile still answers
+         costSource 'unpriced' and $0 for the same call. Only the ageing planner asks, only when the route has no rates
+         of its own, and only when the host turned the proxy on (loop.js ageingRates: STARNET_AGEING_SIGNIN).
+         null: the host named no route, the route is priced (cacheRates is its answer), it is not a sign-in the table
+         knows (a Claude sign-in, Grok, Kimi, a local model: none ages), or the model is not one documented for it. */
+      signInCacheRates(model) {
+        if (!route || catalogPrice(model)) return null;
+        const d = signInProxy(route, model);
+        return d ? { read: d.read, write: d.write, published: true, proxy: true } : null;
       }
     };
   }
