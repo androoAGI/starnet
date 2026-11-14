@@ -11,7 +11,9 @@
          tools move, and only advertised -> deferred ('specialist-tail'); grants, withheld lists and every other row are
          identical; with it off (and with it on where no deferral can apply) the matrix is exactly the committed one;
          runOnceCore's own projection block (the census cut of index.js) reads the switch and agrees cell for cell;
-     T4. tool_search finds every tail tool by its name, by its wire name and by a plain-language ask.
+     T4. tool_search finds every tail tool by its name, by its wire name and by a plain-language ask, searching as a run
+         does (the listed tools beside the shelf, and the words the held tail answers to; the full tables are
+         test/toolsearch.specialist-tail.test.js).
 
    STARNET_PREFIX_DOCTRINE — two doctrine blocks said once (W3.9b, sidecar/manual.js and sidecar/finish-line.js):
      D1. CONNECTING A PLATFORM on demand: the lean index is the index with that one section replaced by its rules
@@ -179,24 +181,30 @@ const withFacts = (sc, more) => Object.assign({}, sc, { facts: Object.assign({},
   {
     const search = makeToolSearchTool({ registry: reg }).toolSearchTool;
     const pool = commsLead.on.deferred.slice();
+    // as a run searches: the tools on its wire are ranked beside the shelf (ctx.advertised), and each held tail tool
+    // answers to its words (ctx.answersTo = the projection's tailWords)
+    const asRun = { deferred: pool, advertised: commsLead.on.advertised.slice(), answersTo: F.tailWords(commsLead.moved) };
+    A.eq(Object.keys(asRun.answersTo || {}).sort(), TAIL.slice().sort(), 'the lead\'s search is handed words for all six');
     for (const n of TAIL) {
-      const byName = await search.run({ query: n }, { deferred: pool });
+      const byName = await search.run({ query: n }, asRun);
       A.ok(byName.control && byName.control.revealTools.indexOf(n) >= 0, 'tool_search "' + n + '" reveals it');
       const wire = n.replace(/\./g, '_');
-      const byWire = await search.run({ query: wire }, { deferred: pool });
+      const byWire = await search.run({ query: wire }, asRun);
       A.ok(byWire.control && byWire.control.revealTools.indexOf(n) >= 0, 'tool_search "' + wire + '" (the name the [HARNESS] list shows) reveals it');
     }
     /* Plain asks. The scorer weighs a tool's NAME most, and a widget tool's name says "widget" only in its namespace, so an
-       ask that opens with another held tool's own verb ("create a dashboard widget" -> app.create, "publish a reading" ->
-       app.publish) lands on that tool. An ask that says what the thing is, or uses the listed name, finds it; the names
-       are in the [HARNESS] list for that reason. */
+       ask that opens with another tool's own verb ("create a dashboard widget" -> app.create, "publish a reading to a
+       dashboard widget" -> app.publish) landed on that tool alone; and "edit a video" passed here only while this block
+       left the listed tools out (fs.edit is one, and no Resolve tool says "video"). A held tail tool now answers to its
+       family word and its plain words, whatever else scored. */
     const asks = [
       ['davinci resolve', 'resolve_status'], ['is DaVinci Resolve running', 'resolve_status'], ['build a video timeline from clips', 'resolve_timeline_file'],
       ['edit a video', 'resolve_timeline_file'], ['render the resolve timeline', 'resolve_control'], ['pin a live readout on the widget rails', 'widget.set'],
       ['make a widget showing app revenue', 'widget.set'], ['widget', 'widget.set'], ['update the widget on the rail', 'widget.set'],
-      ['read the current widget definition', 'widget.get'], ['save a reusable skill procedure', 'skill.write'], ['save this as a skill', 'skill.write']];
+      ['read the current widget definition', 'widget.get'], ['save a reusable skill procedure', 'skill.write'], ['save this as a skill', 'skill.write'],
+      ['create a dashboard widget', 'widget.set'], ['publish a reading to a dashboard widget', 'widget.set']];
     for (const [q, n] of asks) {
-      const hit = await search.run({ query: q }, { deferred: pool });
+      const hit = await search.run({ query: q }, asRun);
       A.ok(hit.control && hit.control.revealTools.indexOf(n) >= 0, 'tool_search "' + q + '" finds ' + n + ' (got ' + JSON.stringify(hit.control && hit.control.revealTools) + ')');
     }
   }

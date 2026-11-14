@@ -26874,6 +26874,9 @@ async function runOnceCore(o) {
   const coreNames = projection.coreNames;
   // tool.search names a listed tool as callable instead of offering the nearest hidden one (see listedMatch)
   capCtx.advertised = isTask ? coreNames : [];
+  // ...and returns a held specialist-tail tool to a search that says one of its words (STARNET_PREFIX_TAIL: the
+  // projection's tailWords, capability/followups.js TAIL_WORDS). With the switch off there are none and nothing is set.
+  if (projection.tailWords) capCtx.answersTo = projection.tailWords;
   const toolDefs = isTask ? registry.wireFormat(registry.list(new Set(coreNames))) : [];
   const deferredToolDefs = isTask ? registry.wireFormat(registry.list(deferredNames)) : [];
   // A tool deferred because it CANNOT work this run keeps that fact on its own declaration, so a model that
