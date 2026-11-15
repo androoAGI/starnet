@@ -126,7 +126,9 @@ async function drive(fixture) {
     const cardAt = events.indexOf(shellCards[0]);
     const firstResultAt = events.findIndex(e => e.name === 'agent.tool_result' && e.payload && e.payload.callId === 'shell_1');
     A.ok(cardAt > firstResultAt && firstResultAt >= 0, 'the one card opens AFTER the held call returned, i.e. for the prepared call that runs; events=' + diag);
-    const ran = toolMessages.filter(m => /W_A1_SHELL_RAN/.test(String(m.content)));
+    // only the shell calls' own results: brief_proceed's reply names the held call WITH its args (#187),
+    // so its text carries the marker without anything having run
+    const ran = toolMessages.filter(m => /^shell_/.test(String(m.tool_call_id)) && /W_A1_SHELL_RAN/.test(String(m.content)));
     A.eq(ran.length, 1, 'the command ran exactly once');
     const end = events.find(e => e.name === 'agent.run.end');
     A.ok(end && end.payload && end.payload.reason === 'done', 'the run finishes normally; events=' + diag);
