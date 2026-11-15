@@ -4220,3 +4220,55 @@ html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-gr
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-tro.ag-next-trophy { box-shadow: var(--vx-read-shadow), 0 0 0 1px rgba(var(--ph-rgb), .8), 0 0 10px rgba(var(--ph-rgb), .25); }
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-tro.ag-next-trophy .nm { color: color-mix(in srgb, var(--vx-core) 80%, #fff); text-shadow: 0 0 6px rgba(var(--ph-rgb), .6); }
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-trohead > .gx-tag { font-size: 15px; letter-spacing: 1px; }
+
+/* ============================================================
+   35 · THE CREW LENS — Andrew 2026-11-15: "improve the agent profile pictures on the crew panel on the left side of
+   starnet, i feel it looks a bit cheap". The old well showed the whole figure squeezed to about half size in a black box
+   with a flat dot. Paint and crop only: the picture is the same one the app already painted (same sprite, same painter),
+   the lamp is the same lamp in the colours the source gives it, and the lens takes the room the well had.
+   ============================================================ */
+
+/* ---- a crew portrait is a lens, not a box with a small figure in it: a round port in a chrome ring, the agent's face
+   close up behind the glass (the same sprite, drawn at three whole screen pixels per art pixel instead of squeezed to half
+   size), a backlight in the theme's hue, a gloss over the top of the glass, and the status lamp seated on the ring as a
+   jewel in its own black pocket. The lens lights up in the run colour while that agent works and in the wait colour while
+   it asks ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-portrait {
+  --pf: calc(1.5 * var(--sn-unzoom, 1));
+  position: relative; flex: none; box-sizing: border-box; width: 55px; height: 55px; margin: 0 -2px 0 -6px; overflow: visible;
+  border: 3.4px solid transparent; border-radius: 50%;
+  background:
+    radial-gradient(circle at 50% 40%, rgba(var(--ph-rgb), .5) 0, rgba(var(--ph-rgb), .2) 42%, rgba(var(--ph-rgb), 0) 74%) padding-box,
+    linear-gradient(180deg, #030405 0, #0b0f13 62%, #171d23 100%) padding-box,
+    linear-gradient(160deg, #ffffff 0, #dfe5eb 18%, #8d96a1 42%, #3a424b 58%, #aeb6c0 80%, #f4f7fa 100%) border-box;
+  box-shadow: inset 0 0 0 1px #000, inset 0 3px 6px rgba(0, 0, 0, .9), 0 0 0 1px #050608, 0 2px 4px rgba(0, 0, 0, .75);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-portrait img {
+  position: absolute; left: 0; top: 0; width: calc(100% / var(--pf)); height: calc(100% / var(--pf)); max-width: none;
+  object-fit: none; object-position: 50% 2px; image-rendering: pixelated;
+  transform: scale(var(--pf)); transform-origin: 0 0; border-radius: 50%;
+}
+/* the glass: a soft crescent of light over the top of the port, and the port's own shade at the foot */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-portrait::after {
+  content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;
+  background:
+    radial-gradient(ellipse 78% 46% at 50% 2%, rgba(255, 255, 255, .34) 0, rgba(255, 255, 255, .1) 58%, rgba(255, 255, 255, 0) 60%),
+    radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0) 56%, rgba(0, 0, 0, .55) 100%);
+}
+/* the lamp: a jewel on the ring, lower right, in a black pocket with a chrome lip. Its colour stays the source's */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-portrait > .dot {
+  z-index: 1; left: auto; top: auto; right: -4px; bottom: -3px; width: 10px; height: 10px; border-radius: 50%;
+  background-image: radial-gradient(circle at 34% 28%, rgba(255, 255, 255, .85) 0, rgba(255, 255, 255, 0) 46%), radial-gradient(circle at 50% 50%, rgba(0, 0, 0, 0) 45%, rgba(0, 0, 0, .5) 100%);
+  box-shadow: 0 0 0 2px #050608, 0 0 0 3px #aeb6c0, 0 1px 0 3px #f4f7fa, 0 2px 3px 3px rgba(0, 0, 0, .6);
+}
+/* a working agent's lens is lit from behind in the run colour, an asking agent's in the wait colour */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-row.working .crew-portrait {
+  box-shadow: inset 0 0 0 1px #000, inset 0 3px 6px rgba(0, 0, 0, .9), 0 0 0 1px #050608, 0 0 9px 2px rgba(var(--ph-rgb), .7);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-row.asking .crew-portrait {
+  background:
+    radial-gradient(circle at 50% 40%, rgba(var(--gold-rgb), .55) 0, rgba(var(--gold-rgb), .2) 42%, rgba(var(--gold-rgb), 0) 74%) padding-box,
+    linear-gradient(180deg, #030405 0, #0b0f13 62%, #171d23 100%) padding-box,
+    linear-gradient(160deg, #ffffff 0, #dfe5eb 18%, #8d96a1 42%, #3a424b 58%, #aeb6c0 80%, #f4f7fa 100%) border-box;
+  box-shadow: inset 0 0 0 1px #000, inset 0 3px 6px rgba(0, 0, 0, .9), 0 0 0 1px #050608, 0 0 9px 2px rgba(var(--gold-rgb), .7);
+}

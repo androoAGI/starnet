@@ -217,8 +217,8 @@ A.ok(/#crew-search-close \{[^}]*border-radius: 50%/.test(css), 'the crew finder 
 const rawCss = read('frontend/css/vector.css');
 const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '');
 const cut = (title) => { const at = rawCss.indexOf(title); return at < 0 ? -1 : rawCss.lastIndexOf('/*', at); };
-const baseAt = cut('23 · THE BLACK CHASSIS'), bAt = cut('24 · VARIATION B'), pAt = cut('25 · THE PERFECTED VECTOR'), fAt = cut('26 · THE FIT'), hAt = cut('27 · THE HEADS'), nAt = cut('28 · THE PANELS'), iAt = cut('29 · THE INSIDES'), cAt = cut('30 · THE CARDS'), lAt = cut('31 · THE REST'), xAt = cut('32 · THE FORMAT'), tAt = cut('33 · THE FIRST TEST'), sAt = cut('34 · THE SECOND TEST');
-A.ok(baseAt > 0 && bAt > baseAt && pAt > bAt && fAt > pAt && hAt > fAt && nAt > hAt && iAt > nAt && cAt > iAt && lAt > cAt && xAt > lAt && tAt > xAt && sAt > tAt,
+const baseAt = cut('23 · THE BLACK CHASSIS'), bAt = cut('24 · VARIATION B'), pAt = cut('25 · THE PERFECTED VECTOR'), fAt = cut('26 · THE FIT'), hAt = cut('27 · THE HEADS'), nAt = cut('28 · THE PANELS'), iAt = cut('29 · THE INSIDES'), cAt = cut('30 · THE CARDS'), lAt = cut('31 · THE REST'), xAt = cut('32 · THE FORMAT'), tAt = cut('33 · THE FIRST TEST'), sAt = cut('34 · THE SECOND TEST'), crewAt = cut('35 · THE CREW LENS');
+A.ok(baseAt > 0 && bAt > baseAt && pAt > bAt && fAt > pAt && hAt > fAt && nAt > hAt && iAt > nAt && cAt > iAt && lAt > cAt && xAt > lAt && tAt > xAt && sAt > tAt && crewAt > sAt,
   'vector.css carries the black chassis, variation B, the perfected VECTOR, the fit pass, the heads, the panels, the insides, the cards, the rest, the format and the first test’s fixes as sections 23 to 33 in that order');
 const cssA = strip(rawCss.slice(0, baseAt));
 const cssBase = strip(rawCss.slice(baseAt, bAt));
@@ -232,7 +232,8 @@ const cssC = strip(rawCss.slice(cAt, lAt));
 const cssL = strip(rawCss.slice(lAt, xAt));
 const cssX = strip(rawCss.slice(xAt, tAt));
 const cssT = strip(rawCss.slice(tAt, sAt));
-const cssS = strip(rawCss.slice(sAt));
+const cssS = strip(rawCss.slice(sAt, crewAt));
+const cssK = strip(rawCss.slice(crewAt));
 // an at-rule's own prelude (@container ... {) is not a selector: drop it, and its closing brace leaves an empty chunk
 const selsOf = (t) => t.replace(/@[a-z-]+[^{};]*\{/g, '').split('}').map(r => r.slice(0, Math.max(0, r.indexOf('{')))).filter(x => x.trim()).flatMap(x => x.split(/,\n/)).map(x => x.trim());
 // a selector list can also run on ONE line, so the line-start check alone is not enough: every root in a section must carry its gate
@@ -1152,4 +1153,33 @@ A.ok(!/canvas|#ag-portrait/.test(cssS), 'the portrait canvas is never resized or
 A.ok(/background: var\(--vx-knob\)/.test(ruleS(SWIN + '.ag-setup-go')) && /font-size: 0/.test(ruleS(SWIN + '.ag-setup-go')), 'a SET UP AS tile ends in the knob that opens it');
 const sizesS = (cssS.match(/font-size: (\d+(?:\.\d+)?)px/g) || []).map(x => Number(x.replace(/[^\d.]/g, '')));
 A.ok(sizesS.length > 40 && Math.min(...sizesS) >= 14, 'no type in the section is under 14px (smallest ' + Math.min(...sizesS) + ')');
+// ---- section 35 · THE CREW LENS (Andrew 2026-11-15: "improve the agent profile pictures on the crew panel on the left side
+// of starnet, i feel it looks a bit cheap"). Paint and crop of the crew portrait only ----
+const KPFX = TPFX + ' #screen-game #left #crew ';
+const selsK = selsOf(cssK);
+A.ok(selsK.length >= 6, 'the crew lens is its own section (' + selsK.length + ' selectors)');
+A.eq(selsK.filter(x => !x.startsWith(KPFX)).join(' | '), '', 'every selector there opens with the VECTOR gate on the crew list: variation B and every other surface never see it');
+A.eq(selsK.filter(x => !x.includes('.crew-portrait')).join(' | '), '', 'and every one of them is about the portrait: the row, the name and the status are not touched');
+A.eq(stray(cssK, ':not(.vx-b)').join(' | '), '', 'none slips its scope inside a one-line list');
+A.ok(!/\[class/.test(cssK) && !/@/.test(cssK) && !/[;{\s]filter:\s/.test(cssK) && !/#stage-wrap/.test(cssK), 'it has no [class] selector, no at-rule and no filter, and styles nothing under #stage-wrap');
+A.ok(!/font-family|font-size|animation|transition|display: none|visibility|content: '[^']/.test(cssK), 'it changes no type, adds no motion, hides nothing and writes no word');
+const rulesK = cssK.split('}').filter(r => r.includes('{')).map(r => ({ sel: r.slice(0, r.indexOf('{')).split(KPFX).join('').replace(/\s+/g, ' ').trim(), body: r.slice(r.indexOf('{') + 1).replace(/\s+/g, ' ').trim() }));
+const ruleK = (sel) => (rulesK.find(r => r.sel === sel) || { body: '' }).body;
+A.ok(stJs.includes('<span class="crew-portrait" aria-hidden="true"><img alt="" draggable="false" hidden></span>') && /AgentPortraits\.paint\(li\.querySelector\('\.crew-portrait img'\)/.test(stJs),
+  'the picture is still the one image the app’s own painter fills: the look adds no element and no second drawing');
+const lensK = ruleK('.crew-portrait');
+A.ok(/border-radius: 50%;/.test(lensK) && /width: 55px; height: 55px; margin: 0 -2px 0 -6px;/.test(lensK), 'the portrait is a round lens that takes the room the old well had (55 wide, 8 of it given back by its margins)');
+A.ok((lensK.match(/padding-box/g) || []).length === 2 && /linear-gradient\(160deg, #ffffff 0,[^;]*#f4f7fa 100%\) border-box;/.test(lensK) && /border: 3\.4px solid transparent;/.test(lensK),
+  'its ring is chrome drawn in the border, its glass is dark with a backlight in the theme hue');
+A.ok(/rgba\(var\(--ph-rgb\), \.5\) 0/.test(lensK) && !/#[0-9a-f]{3,6}[^;]*padding-box[^;]*rgba\(var\(--gold/.test(lensK), 'the backlight is the theme’s own hue');
+const imgK = ruleK('.crew-portrait img');
+A.ok(/--pf: calc\(1\.5 \* var\(--sn-unzoom, 1\)\);/.test(lensK) && /transform: scale\(var\(--pf\)\); transform-origin: 0 0;/.test(imgK) && /width: calc\(100% \/ var\(--pf\)\); height: calc\(100% \/ var\(--pf\)\);/.test(imgK),
+  'the figure is drawn at one and a half screen pixels per sprite pixel at ANY text size (the zoom is cancelled), so each art pixel is three whole screen pixels');
+A.ok(/object-fit: none; object-position: 50% 2px; image-rendering: pixelated;/.test(imgK) && /border-radius: 50%;$/.test(imgK), 'it is cropped to the head and shoulders from the top of the sprite, never stretched, and clipped to the port');
+A.ok(/^content: ''; position: absolute; inset: 0; border-radius: 50%; pointer-events: none;/.test(ruleK('.crew-portrait::after')), 'the gloss over the glass takes no pointer');
+const lampK = ruleK('.crew-portrait > .dot');
+A.ok(/background-image: /.test(lampK) && !/background: |background-color:/.test(lampK), 'the lamp keeps the colour its source gives it (idle, working, asking): the look only cuts it as a jewel');
+A.ok(/right: -4px; bottom: -3px;/.test(lampK) && /0 0 0 2px #050608, 0 0 0 3px #aeb6c0/.test(lampK), 'and seats it on the ring in a black pocket with a chrome lip');
+A.ok(/rgba\(var\(--ph-rgb\), \.7\)/.test(ruleK('.crew-row.working .crew-portrait')) && /rgba\(var\(--gold-rgb\), \.7\)/.test(ruleK('.crew-row.asking .crew-portrait')),
+  'a working agent’s lens is lit in the run colour and an asking agent’s in the wait colour: both are states the row already proves');
 A.report('vector-identity');
