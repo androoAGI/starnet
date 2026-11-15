@@ -21,7 +21,8 @@ function heldNames(v) {
   if (!Array.isArray(v)) return [];
   const out = [];
   for (const s of v) {
-    const n = typeof s === 'string' ? bounded(s, 80) : '';
+    // the loop's key (loop.js wireKey): fs.write and fs_write are one tool, kept once
+    const n = typeof s === 'string' ? bounded(s, 80).replace(/\./g, '_') : '';
     if (n && out.indexOf(n) < 0 && out.length < HELD_NAMES_MAX) out.push(n);
   }
   return out;

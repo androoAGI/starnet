@@ -1540,16 +1540,32 @@
     const FR_MAX = (_fr === false) ? 0 : (_fr && _fr.max != null ? Math.max(0, Math.floor(_fr.max)) : 2);
     let frUsed = 0;
     let failureRecoveryPending = null;   // { names: tools that FAILED, held: tools the Task Brief gate HELD (nothing ran) }
-    // A held call is not a failure: its note says held, and it is sent at most once (the hold's own result already says
-    // what to do). The failure ladder above keeps its own budget. limits.failureRecovery === false disables both.
-    const FR_HELD_MAX = 1;
+    // A held call is not a failure: its note says held, and it is sent once per held tool (the hold's own result already
+    // says what to do): a later, DIFFERENT held call gets its own note, at most FR_HELD_MAX in a run. The failure ladder
+    // above keeps its own budget. limits.failureRecovery === false disables both.
+    const FR_HELD_MAX = 3;
     let frHeldUsed = 0;
     // THE HELD LEDGER (ops-1115 T3, #187): a held call stays undone until the SAME tool comes back not held. Another tool's ok
     // (brief_proceed's own included) used to null the whole ledger, so a model that settled the brief and said "done"
-    // ended done with nothing run. The failed names keep their own rule (this turn's failures replace them).
-    const heldPending = new Set();
+    // ended done with nothing run. The failed names keep their own rule (this turn's failures replace them). Keyed by the
+    // wire name (fs.write and fs_write are one tool); the value is the name the notes show.
+    const heldPending = new Map();
+    const heldSince = new Map();      // key -> the batch that held it (this pending spell)
+    const heldNamed = new Set();      // keys a held note has named
     let frNames = [];
-    let heldNoted = false;   // a failure_recovery note that named held calls was sent
+    let batchSeq = 0, governedOkSeq = -1;   // the last batch in which a tool the brief gate governs came back ok
+    /* THE HOST ENDS A RUN INCOMPLETE ONLY WHEN IT CAN PROVE THE HELD WORK DID NOT HAPPEN (ops-1115 T3, wave 4). The loop
+       cannot see the Task Brief: the host lends the gate's own predicate as o.briefGate = { unlocked(keys), governs(call) }
+       (index.js; TaskBriefPolicy.canMutate). unlocked: true only when the gate would no longer hold those calls. governs:
+       false only for a tool the gate never holds (a read, an exempt call, the brief tools). Absent, throwing or not
+       exactly true/false: nothing is proved and the run ends as it always did. */
+    const briefGate = (o.briefGate && typeof o.briefGate.unlocked === 'function' && typeof o.briefGate.governs === 'function') ? o.briefGate : null;
+    const gateGoverns = (c) => { if (!briefGate) return true; try { return briefGate.governs({ name: c.name, args: c.args }) !== false; } catch (e) { failNote('loop.briefGate.governs', e); return true; } };
+    const heldWorkProvedUndone = (keys) => {
+      if (!briefGate || !keys.length) return false;
+      for (const k of keys) if (!heldNamed.has(k) || !(heldSince.get(k) > governedOkSeq)) return false;   // (a) named, (d) nothing governed ran since
+      try { return briefGate.unlocked(keys.slice()) === true; } catch (e) { failNote('loop.briefGate.unlocked', e); return false; }   // (c)
+    };
     // every turn-buying host note, counted by its tag (NUDGE_TAGS): returned as `nudges`, kept on the run row
     const nudgeCounts = Object.create(null);
     const nudged = (tag) => { nudgeCounts[tag] = (nudgeCounts[tag] || 0) + 1; };
@@ -3492,21 +3508,25 @@
         // authorized path. Reject that premature stop at the engine seam, not just in prompt prose. A later
         // successful call clears the pending failure; a model that still cannot recover gets two chances and
         // may then report the exact blocker honestly. A call the Task Brief gate HELD did not fail and did not run
-        // (LOOP TRUTH, W1.11): when only held calls are pending the note says exactly that, once (FR_HELD_MAX).
+        // (LOOP TRUTH, W1.11): when only held calls are pending the note says exactly that, once per held tool (FR_HELD_MAX).
         const frHeldOnly = !!failureRecoveryPending && !failureRecoveryPending.names.length;
-        if (!empty && !graceUsed && failureRecoveryPending && (frHeldOnly ? (FR_MAX > 0 && frHeldUsed < FR_HELD_MAX) : frUsed < FR_MAX)
+        const heldUnnamed = Array.from(heldPending.keys()).some(k => !heldNamed.has(k));
+        if (!empty && !graceUsed && failureRecoveryPending && (frHeldOnly ? (FR_MAX > 0 && frHeldUsed < FR_HELD_MAX && heldUnnamed) : frUsed < FR_MAX)
             && tools.length > 0 && !endsOnChoiceMarker(text)) {
           if (frHeldOnly) frHeldUsed++; else frUsed++;
           const hasSearch = tools.some(t => wireKey(t && t.function && t.function.name) === 'tool_search');
           const recovery = nudgePremise('failure_recovery', { failed: failureRecoveryPending.names, held: failureRecoveryPending.held, search: hasSearch });
           messages.push({ role: 'system', content: '<failure_recovery>' + recovery + HOST_CHECK + '</failure_recovery>' }); nudged('failure_recovery');
-          if (failureRecoveryPending.held.length) heldNoted = true;
+          if (frHeldOnly) for (const k of heldPending.keys()) heldNamed.add(k);   // a mixed note names only the failure
           continue;
         }
-        // HELD WORK NEVER RAN (ops-1115 T3, #187): the held note was sent, the failed ladder is spent or idle, and the model
-        // ends again with the held calls still unmade. That is not a delivery: end as the continuation guard does.
-        if (!empty && !graceUsed && heldNoted && failureRecoveryPending && failureRecoveryPending.held.length
-            && (!failureRecoveryPending.names.length || frUsed >= FR_MAX) && tools.length > 0 && !endsOnChoiceMarker(text)) {
+        // HELD WORK NEVER RAN (ops-1115 T3, #187): a held note named the calls, the failed ladder is spent or idle, and the
+        // model ends again with them still unmade, the gate would let them run now, and no tool the gate governs came back
+        // ok since they were held. Only then is it provably not a delivery: end as the continuation guard does. Anything
+        // short of that proof (a question while the brief is open, work done by another tool) ends exactly as before.
+        if (!empty && !graceUsed && failureRecoveryPending && failureRecoveryPending.held.length
+            && (!failureRecoveryPending.names.length || frUsed >= FR_MAX) && tools.length > 0 && !endsOnChoiceMarker(text)
+            && heldWorkProvedUndone(Array.from(heldPending.keys()))) {
           const held = failureRecoveryPending.held;
           const explanation = 'Work is incomplete: ' + held.join(', ') + ' ' + (held.length > 1 ? 'were' : 'was') + ' held by the Task Brief gate and never ran.';
           assistant.content = text + '\n\n' + explanation;
@@ -3840,18 +3860,22 @@
       // A call the Task Brief gate HELD is pending too (the work is still undone), but as held, never as failed: it stays
       // in heldPending until the same tool comes back not held, whatever other tools do in between.
       const recoverableFailures = [], heldCalls = [];
+      batchSeq++;
       for (const c of calls) {
         const r = results.find(x => x.callId === c.id);
-        const name = String(c.name || 'tool');
+        const name = String(c.name || 'tool'), k = wireKey(name);
         // The same tool coming back NOT held settles it: it ran (an ok; a failure the failed ladder below owns) or the
         // Commander declined it. Another tool's ok never does.
-        if (r && isGateHeld(r)) heldPending.add(name);
-        else if (r) heldPending.delete(name);
+        if (r && isGateHeld(r)) { if (!heldPending.has(k)) { heldPending.set(k, name); heldSince.set(k, batchSeq); } }
+        else if (r) { heldPending.delete(k); heldSince.delete(k); }
         if (r && r.isError && !terminalHumanDecision(r)) (isGateHeld(r) ? heldCalls : recoverableFailures).push(name);
       }
+      // a tool the gate governs came back ok while held work is pending: it may have done that work (fs_edit for a held
+      // fs_write), so from here the host cannot prove the held calls changed nothing
+      if (heldPending.size && calls.some(c => { const r = results.find(x => x.callId === c.id); return r && r.ok && !r.isError && !isGateHeld(r) && gateGoverns(c); })) governedOkSeq = batchSeq;
       if (recoverableFailures.length || heldCalls.length) frNames = Array.from(new Set(recoverableFailures));
       else if (results.some(r => r && r.ok && !r.isError)) frNames = [];
-      failureRecoveryPending = (frNames.length || heldPending.size) ? { names: frNames, held: Array.from(heldPending) } : null;
+      failureRecoveryPending = (frNames.length || heldPending.size) ? { names: frNames, held: Array.from(heldPending.values()) } : null;
 
       // (8) LOOP GUARD — break out of a run that keeps making the SAME failing tool call. Warn once, then stop.
       const lgWarnedNow = new Set();   // wire names nudged this turn (the breaker's same-tool nudge stays quiet for them)

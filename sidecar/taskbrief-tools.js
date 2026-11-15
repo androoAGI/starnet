@@ -23,14 +23,16 @@ function noteHeldCall(state, call) {
   const list = Array.isArray(state.held) ? state.held : (state.held = []);
   if (list.indexOf(row) < 0 && list.length < HELD_MAX) list.push(row);
 }
-// the wire tool name of each held row (its first token): what survives a question on the brief (ops-1115 T3)
-const heldNamesOf = (state) => (state && Array.isArray(state.held) ? state.held : []).map(h => String(h).split(' ')[0]).filter(Boolean);
+// the wire tool name of each held row (its first token), once each: what survives a question on the brief (ops-1115 T3).
+// The same key the loop's held ledger uses (loop.js wireKey: dots read as underscores).
+const heldKey = (n) => String(n == null ? '' : n).replace(/\./g, '_');
+const heldNamesOf = (state) => Array.from(new Set((state && Array.isArray(state.held) ? state.held : []).map(h => heldKey(String(h).split(' ')[0])).filter(Boolean)));
 // `kept`: the names an earlier run's question kept on the brief (store.noteHeld), named back without args unless this run
 // already holds the same tool with its args.
 function heldAgainNote(state, kept) {
   const inRun = heldNamesOf(state);
   const held = state && Array.isArray(state.held) ? state.held.splice(0) : [];
-  for (const n of Array.isArray(kept) ? kept : []) if (inRun.indexOf(n) < 0 && held.indexOf(n) < 0) held.push(n);
+  for (const k of Array.isArray(kept) ? kept : []) { const n = heldKey(k); if (n && inRun.indexOf(n) < 0 && held.indexOf(n) < 0) held.push(n); }
   if (!held.length) return '';
   return '\nNothing has run yet: the call' + (held.length > 1 ? 's' : '') + ' the brief held must be made again now, in this same turn, before you report any result:\n'
     + held.map(h => '- ' + h).join('\n');
