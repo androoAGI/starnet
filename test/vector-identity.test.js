@@ -217,8 +217,8 @@ A.ok(/#crew-search-close \{[^}]*border-radius: 50%/.test(css), 'the crew finder 
 const rawCss = read('frontend/css/vector.css');
 const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '');
 const cut = (title) => { const at = rawCss.indexOf(title); return at < 0 ? -1 : rawCss.lastIndexOf('/*', at); };
-const baseAt = cut('23 · THE BLACK CHASSIS'), bAt = cut('24 · VARIATION B'), pAt = cut('25 · THE PERFECTED VECTOR'), fAt = cut('26 · THE FIT'), hAt = cut('27 · THE HEADS'), nAt = cut('28 · THE PANELS'), iAt = cut('29 · THE INSIDES'), cAt = cut('30 · THE CARDS'), lAt = cut('31 · THE REST'), xAt = cut('32 · THE FORMAT'), tAt = cut('33 · THE FIRST TEST');
-A.ok(baseAt > 0 && bAt > baseAt && pAt > bAt && fAt > pAt && hAt > fAt && nAt > hAt && iAt > nAt && cAt > iAt && lAt > cAt && xAt > lAt && tAt > xAt,
+const baseAt = cut('23 · THE BLACK CHASSIS'), bAt = cut('24 · VARIATION B'), pAt = cut('25 · THE PERFECTED VECTOR'), fAt = cut('26 · THE FIT'), hAt = cut('27 · THE HEADS'), nAt = cut('28 · THE PANELS'), iAt = cut('29 · THE INSIDES'), cAt = cut('30 · THE CARDS'), lAt = cut('31 · THE REST'), xAt = cut('32 · THE FORMAT'), tAt = cut('33 · THE FIRST TEST'), sAt = cut('34 · THE SECOND TEST');
+A.ok(baseAt > 0 && bAt > baseAt && pAt > bAt && fAt > pAt && hAt > fAt && nAt > hAt && iAt > nAt && cAt > iAt && lAt > cAt && xAt > lAt && tAt > xAt && sAt > tAt,
   'vector.css carries the black chassis, variation B, the perfected VECTOR, the fit pass, the heads, the panels, the insides, the cards, the rest, the format and the first test’s fixes as sections 23 to 33 in that order');
 const cssA = strip(rawCss.slice(0, baseAt));
 const cssBase = strip(rawCss.slice(baseAt, bAt));
@@ -231,7 +231,8 @@ const cssI = strip(rawCss.slice(iAt, cAt));
 const cssC = strip(rawCss.slice(cAt, lAt));
 const cssL = strip(rawCss.slice(lAt, xAt));
 const cssX = strip(rawCss.slice(xAt, tAt));
-const cssT = strip(rawCss.slice(tAt));
+const cssT = strip(rawCss.slice(tAt, sAt));
+const cssS = strip(rawCss.slice(sAt));
 // an at-rule's own prelude (@container ... {) is not a selector: drop it, and its closing brace leaves an empty chunk
 const selsOf = (t) => t.replace(/@[a-z-]+[^{};]*\{/g, '').split('}').map(r => r.slice(0, Math.max(0, r.indexOf('{')))).filter(x => x.trim()).flatMap(x => x.split(/,\n/)).map(x => x.trim());
 // a selector list can also run on ONE line, so the line-start check alone is not enough: every root in a section must carry its gate
@@ -1102,4 +1103,53 @@ A.eq(undimOf('.term:not(.pw)::after'), 'filter: ' + chained(/\.term:not\(\.pw\):
 A.eq(undimOf('#screen-game :is(.crew-resizer, .col-resizer)'), 'filter: ' + chained(/#screen-game :is\(\.crew-resizer, \.col-resizer\) \{[^}]*brightness[^}]*\}/g) + ';', 'the seams keep their glow');
 A.eq(undimOf('#screen-game :is(.crew-resizer, .col-resizer)::before'), 'filter: ' + chained(/#screen-game :is\(\.crew-resizer, \.col-resizer\)::before \{[^}]*brightness[^}]*\}/g) + ';', 'and the clamps their shadow');
 A.ok(!/vx-dimmed/.test(cssA + cssBase + cssB + cssP + cssF + cssH + cssN + cssI + cssC + cssL + cssX), 'nothing before section 33 knows the class: with it set, the darkening rules apply exactly as they were written');
+// ---- section 34 · THE SECOND TEST (Andrew 2026-11-14, after the next build: NEEDS YOU "does not match our new vibe", "the
+// panel that pops up ... doesnt match that well", "deliverables needs to be updated", the dossier's "growth section needs some
+// love ... same as the brief"). Dress and layout of four surfaces from parts the device already has ----
+const SPFX = TPFX + ' #screen-game ';
+const selsS = selsOf(cssS);
+A.ok(selsS.length >= 140, 'the second test’s four surfaces are their own section (' + selsS.length + ' selectors)');
+A.eq(selsS.filter(x => !x.startsWith(SPFX)).join(' | '), '', 'every selector there opens with the VECTOR gate on the game screen: variation B never sees it');
+A.eq(stray(cssS, ':not(.vx-b)').join(' | '), '', 'and none slips its scope inside a one-line list');
+A.ok(!/\[class/.test(cssS) && !/@/.test(cssS) && !/[;{\s]filter:\s/.test(cssS) && !/#stage-wrap/.test(cssS), 'it has no [class] selector, no at-rule and no filter, and styles nothing under #stage-wrap');
+A.ok(!/font-family|z-index|animation|transition|display: none|visibility|content: '[^']/.test(cssS), 'it changes no face, adds no motion or stacking, hides nothing and writes no word');
+A.eq(selsS.map(x => x.slice(SPFX.length)).filter(x => !/^(#left \.ws-needs[ :]|#terms \.term:not\(\.pw\) )/.test(x)).join(' | '), '', 'it reaches NEEDS YOU on the rail and the inside of a station window, nothing else');
+const rulesS = cssS.split('}').filter(r => r.includes('{')).map(r => ({ sel: r.slice(0, r.indexOf('{')).split(SPFX).join('').replace(/\s+/g, ' ').trim(), body: r.slice(r.indexOf('{') + 1).replace(/\s+/g, ' ').trim() }));
+const ruleS = (sel) => (rulesS.find(r => r.sel === sel) || { body: '' }).body;
+const SWIN = '#terms .term:not(.pw) ';
+// every class the section dresses is one its source really draws (a rule for a class nobody emits is a dead promise)
+const namedS = (re) => [...new Set(cssS.match(re) || [])].map(c => c.slice(1));
+A.eq(namedS(/\.ny-[a-z-]+/g).filter(c => !nyJs.includes(c)).join(' '), '', 'every .ny- class it names is drawn by needsyou.js');
+A.eq(namedS(/\.dlv-[a-z-]+/g).filter(c => !dlJs.includes(c)).join(' '), '', 'every .dlv- class it names is drawn by deliverables.js');
+A.eq(namedS(/\.(?:ag|gx|stat)-[a-z0-9-]+/g).filter(c => !stJs.includes(c)).join(' '), '', 'every dossier class it names is drawn by stationui.js');
+// NEEDS YOU: the roster head's twin
+const BAYLIP = '0 0 0 1px #000, 0 0 0 2px #c4ccd5, 0 1px 0 2px #eef2f6, 0 0 0 3px #2a3037';
+const KEYDOME = 'linear-gradient(180deg, #f4f7fa 0, #e9edf1 26%, #c3cad2 50%, #8f98a3 74%, #6b747f 100%)';
+A.ok(ruleS('#left .ws-needs .ny-head').includes(BAYLIP) && cssH.includes(BAYLIP), 'the NEEDS YOU head is the CREW head’s bay: the same black well in the same chrome lip');
+A.ok(ruleS('#left .ws-needs .ny-title').includes(KEYDOME) && cssH.includes(KEYDOME), 'its name sits on the same silver key as CREW and COMMS');
+A.ok(/^margin-left: auto;|; margin-left: auto;/.test(ruleS('#left .ws-needs .ny-count')) && /color: var\(--gold\)/.test(ruleS('#left .ws-needs .ny-count')), 'the count is lit type at the far end of the bay, in the wait colour');
+A.ok(/^content: none;/.test(ruleS('#left .ws-needs .ny-head::after')), 'the old hairline between the name and the count is gone (the bay parts them)');
+A.ok((ruleS('#left .ws-needs .ny-grp').match(/gradient\(/g) || []).length === 3 && /rgba\(var\(--ny-k\), \.55\)/.test(ruleS('#left .ws-needs .ny-grp')) && /#050607 48%/.test(ruleS('#left .ws-needs .ny-grp')),
+  'a kind’s strip is a dark glossy cap lit from below in the kind’s colour, never a flat wash of it');
+A.ok(/background: var\(--vx-knob\)/.test(ruleS('#left .ws-needs .ny-go')) && /transform: none/.test(ruleS('#left .ws-needs .ny-go')) && /rotate\(45deg\)/.test(ruleS('#left .ws-needs .ny-go::before')),
+  'a row that only opens ends in a chrome knob with the caret drawn on it');
+A.ok(/background: none; box-shadow: none/.test(ruleS('#left .ws-needs:not([hidden])')), 'the module itself is no box: the head bay and the one screen under it are the two parts');
+// DELIVERABLES
+A.ok(/background: var\(--vx-knob\)/.test(ruleS(SWIN + '.dlv-caret')) && /font-size: 0/.test(ruleS(SWIN + '.dlv-caret')) && /rotate\(135deg\)/.test(ruleS(SWIN + '.dlv-head.on > .dlv-caret::before')),
+  'a deliverable opens on a chrome knob whose caret turns down when its drawer is open');
+A.ok(!/(^|; )color:/.test(ruleS(SWIN + '.dlv-pill')) && /currentColor/.test(ruleS(SWIN + '.dlv-pill::before')), 'a status jewel is lit in the colour the source gave that status: the look sets none of its own');
+A.ok(/background: var\(--vx-cap-on\) border-box/.test(ruleS(SWIN + '.dlv-chip.on')) && /background: var\(--vx-cap\) border-box/.test(ruleS(SWIN + '.dlv-chip')), 'a kind is a console key, the chosen one lit');
+A.ok(/background: var\(--vx-pane\); box-shadow: var\(--vx-pane-shadow\)/.test(ruleS(SWIN + '.dlv-card')) && /background: var\(--vx-well\); box-shadow: var\(--vx-read-shadow\)/.test(ruleS(SWIN + ':is(.dlv-quote, .dlv-said)')),
+  'a piece of work is a pane of the window’s glass; the ask and the answer sit in recessed screens');
+A.ok(/var\(--gold-rgb\)/.test(ruleS(SWIN + '.dlv-needs')) && /#050607 46%/.test(ruleS(SWIN + '.dlv-needs')), 'the route to what needs a decision is a cap lit in the wait colour');
+// the dossier
+A.ok(/grid-template-columns: repeat\(auto-fit, minmax\(min\(100%, 250px\), 1fr\)\)/.test(ruleS(SWIN + '.ag-growth .gx-2')) && /^grid-column: 1 \/ -1;/.test(ruleS(SWIN + '.ag-growth .gx-2 > #gx-practice')),
+  'the two measured scores stand side by side at full width and PRACTICE runs under both (they were four 150px columns, two of them empty)');
+A.ok(/grid-template-columns: repeat\(auto-fill, minmax\(min\(100%, 188px\), 1fr\)\)/.test(ruleS(SWIN + '.ag-growth .gx-tros')) && /white-space: nowrap; overflow: hidden; text-overflow: ellipsis/.test(ruleS(SWIN + '.ag-growth .gx-tro .nm')),
+  'a trophy is wide enough to keep its name on one line (96px tiles broke FIRST LIGHT in two and cut DEPENDABLE)');
+A.ok(/font-size: 16px !important/.test(ruleS(SWIN + '.ag-growth .ag-xp-panel .gx-row')), 'the XP lines read at 16px (agent-dossier.css pinned them to 13px)');
+A.ok(!/canvas|#ag-portrait/.test(cssS), 'the portrait canvas is never resized or restyled: the figure is the floor’s own drawing');
+A.ok(/background: var\(--vx-knob\)/.test(ruleS(SWIN + '.ag-setup-go')) && /font-size: 0/.test(ruleS(SWIN + '.ag-setup-go')), 'a SET UP AS tile ends in the knob that opens it');
+const sizesS = (cssS.match(/font-size: (\d+(?:\.\d+)?)px/g) || []).map(x => Number(x.replace(/[^\d.]/g, '')));
+A.ok(sizesS.length > 40 && Math.min(...sizesS) >= 14, 'no type in the section is under 14px (smallest ' + Math.min(...sizesS) + ')');
 A.report('vector-identity');

@@ -3826,3 +3826,397 @@ html body.vx:not(.hud-mode):not(.vx-b):not(.vx-dimmed) #screen-game :is(#left, #
 html body.vx:not(.hud-mode):not(.vx-b):not(.vx-dimmed) .term:not(.pw)::after { filter: drop-shadow(0 3px 4px rgba(0, 0, 0, .75)); }
 html body.vx:not(.hud-mode):not(.vx-b):not(.vx-dimmed) #screen-game :is(.crew-resizer, .col-resizer) { filter: drop-shadow(0 0 4px rgba(var(--ph-rgb), .35)); }
 html body.vx:not(.hud-mode):not(.vx-b):not(.vx-dimmed) #screen-game :is(.crew-resizer, .col-resizer)::before { filter: drop-shadow(0 2px 2px rgba(0, 0, 0, .75)); }
+
+/* ============================================================
+   34 · THE SECOND TEST — four surfaces Andrew named after the next build (2026-11-14): "this needs you menu does not
+   match our new vibe", "the panel that pops up, it doesnt match that well", "deliverables needs to be updated it doesnt
+   look proper", and in the agent dossier the "growth section needs some love ... same as the brief". Each is rebuilt from
+   the parts the device already has (the head bay and its silver name key, the glossy cap, the chrome knob, the jewel in
+   its pocket, the recessed screen in a chrome ring). Dress and layout only: no control, no word and no window is added
+   or removed, and every figure shown is the one the source already drew.
+   ============================================================ */
+
+/* ---- NEEDS YOU is the roster's twin: a head bay (the CREW head's black well and chrome lip) with a silver name key and
+   a gold jewel, the count lit on the black, and under it ONE screen in a chrome ring. A kind's strip is a dark glossy
+   cap with its legend lit in the kind's colour (never a flat wash), a row that only opens ends in a chrome knob ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs:not([hidden]) {
+  margin: 4px 9px 8px; padding: 4px 4px 5px; border-radius: 0 !important; background: none; box-shadow: none;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-head {
+  gap: 0; height: 34px; margin: 0 0 8px; padding: 0 17px 0 4px; border-radius: 17px;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, .9) 0, rgba(0, 0, 0, 0) 5px),
+    linear-gradient(180deg, #05070a 0, #0d1116 60%, #161b21 100%);
+  box-shadow: var(--vx-lip2), 0 0 0 1px #000, 0 0 0 2px #c4ccd5, 0 1px 0 2px #eef2f6, 0 0 0 3px #2a3037;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-head::after { content: none; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-lamp {
+  position: relative; order: 0; width: 9px; height: 9px; margin: 0 -20px 0 11px;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--gold) 55%, #fff) 0, var(--gold) 48%, color-mix(in srgb, var(--gold) 45%, #000) 100%);
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px rgba(0, 0, 0, .35), 0 1px 0 2px rgba(255, 255, 255, .55), 0 0 7px 1px rgba(var(--gold-rgb), .8);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-title {
+  order: 1; flex: none; height: 26px; padding: 0 11px 0 30px; border-radius: 13px 7px 7px 13px;
+  font-size: 17px; line-height: 26px; letter-spacing: 3px; color: var(--vx-ink); text-shadow: 0 1px 0 var(--vx-ink-hi);
+  background:
+    var(--vx-keyg),
+    radial-gradient(ellipse 30% 40% at 22% 22%, #fff 0, rgba(255, 255, 255, 0) 100%),
+    linear-gradient(180deg, #f4f7fa 0, #e9edf1 26%, #c3cad2 50%, #8f98a3 74%, #6b747f 100%);
+  box-shadow:
+    inset 0 -1px 0 rgba(255, 255, 255, .5), inset 0 1px 0 #fff,
+    inset 0 -8px 7px -4px rgba(5, 8, 10, .85), inset -6px 0 6px -5px rgba(5, 8, 10, .6), inset 5px 0 6px -5px rgba(5, 8, 10, .3),
+    0 0 0 1px #050608, 0 2px 3px rgba(0, 0, 0, .7);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-count {
+  order: 2; margin-left: auto; padding-left: 10px; font-size: 20px; letter-spacing: 1px; color: var(--gold); text-shadow: 0 0 7px rgba(var(--gold-rgb), .8);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-panel {
+  margin: 0 1px; border: 0 !important; border-radius: 11px; overflow: hidden;
+  background: var(--vx-lcd);
+  box-shadow: var(--vx-lip3), 0 0 0 1px #07090c, 0 0 0 2px #59626d, 0 1px 0 2px #dfe5eb, 0 0 0 3px #20252b;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-grp {
+  padding: 6px 13px 5px; border: 0 !important; font-size: 16px; letter-spacing: 2.4px;
+  color: color-mix(in srgb, rgb(var(--ny-k)) 78%, #fff); text-shadow: 0 0 7px rgba(var(--ny-k), .8);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .22) 0, rgba(255, 255, 255, .07) 46%, transparent 47%),
+    radial-gradient(ellipse 85% 95% at 50% 135%, rgba(var(--ny-k), .55), transparent 70%),
+    linear-gradient(180deg, #363e47 0, #191e23 46%, #050607 48%, #0b0e11 82%, #1b2127 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .32), inset 0 -1px 0 rgba(var(--ny-k), .5), 0 1px 0 #000, 0 -1px 0 #000;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-grp-n {
+  padding: 0 7px; border-radius: 999px !important; letter-spacing: 1px; color: rgb(var(--ny-k)); text-shadow: 0 0 6px rgba(var(--ny-k), .8);
+  background: #010203; box-shadow: inset 0 1px 3px #000, inset 0 0 0 1px rgba(var(--ny-k), .45), 0 1px 0 rgba(255, 255, 255, .18);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-item { padding: 8px 11px 8px 12px; column-gap: 11px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-item + .ny-item { border-top-color: rgba(var(--ph-rgb), .2); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-item:is(:hover, :focus-within) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .08) 0, rgba(255, 255, 255, 0) 50%),
+    linear-gradient(90deg, rgba(var(--ny-k), .24), rgba(var(--ny-k), .06));
+  box-shadow: inset 3px 0 0 rgb(var(--ny-k)), inset 0 1px 0 rgba(255, 255, 255, .12), inset 0 -1px 0 rgba(0, 0, 0, .5);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-age { color: color-mix(in srgb, var(--vx-core) 70%, #fff); text-shadow: 0 0 6px rgba(var(--ph-rgb), .5); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-go {
+  position: relative; width: 24px; height: 24px; margin-right: 1px; border: 0; border-radius: 50% !important; transform: none;
+  background: var(--vx-knob); box-shadow: 0 0 0 1px #050608, 0 2px 4px rgba(0, 0, 0, .7);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-go::before {
+  content: ''; position: absolute; left: 7px; top: 8px; width: 6px; height: 6px;
+  border-top: 2px solid var(--vx-ink); border-right: 2px solid var(--vx-ink); transform: rotate(45deg);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-item:is(:hover, :focus-within) > .ny-go { background: var(--vx-knob-hot); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-item:has(> .ny-go) .ny-age { padding-right: 10px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left .ws-needs .ny-more {
+  width: calc(100% - 2px); margin: 8px 1px 1px;
+}
+
+/* ---- DELIVERABLES is the library on the device: the count line is a lit readout, a kind is a console key (the chosen one
+   lit), a project is a rail key, a piece of work is a pane of glass that opens on a chrome knob, its status a jewel in a
+   dark pocket, the crew that made it name plates, and inside the drawer the ask and the answer sit in recessed screens ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-head-strip {
+  margin: 2px 3px 12px; padding: 10px 14px; border: 0; border-radius: 11px;
+  background: var(--vx-lcd);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, .95), inset 0 0 0 1px rgba(var(--ph-rgb), .3), inset 0 0 18px rgba(var(--ph-rgb), .07), 0 0 0 1px #07090c, 0 0 0 2px #59626d, 0 1px 0 2px #dfe5eb, 0 0 0 3px #20252b;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-sumline { font-size: 17px; letter-spacing: .8px; opacity: 1; color: rgba(var(--ph-rgb), .85); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-sumline b {
+  font-size: 20px; font-weight: normal; color: color-mix(in srgb, var(--vx-core) 80%, #fff); text-shadow: 0 0 7px rgba(var(--ph-rgb), .75);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-needs {
+  min-height: 30px; padding: 4px 14px; border: 0; border-radius: 7px; letter-spacing: 1px;
+  color: color-mix(in srgb, var(--gold) 80%, #fff); text-shadow: 0 0 7px rgba(var(--gold-rgb), .8);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .3) 0, rgba(255, 255, 255, .12) 44%, transparent 45%),
+    radial-gradient(ellipse 90% 80% at 50% 120%, rgba(var(--gold-rgb), .6), transparent 70%),
+    linear-gradient(180deg, #3a434d 0, #1a1f25 44%, #050607 46%, #0b0e11 80%, #1d242b 100%);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .28), inset 0 -1px 0 rgba(var(--gold-rgb), .5), inset 0 0 0 1px rgba(0, 0, 0, .6), 0 0 0 1px #040506;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-needs:is(:hover, :focus-visible) {
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .38) 0, rgba(255, 255, 255, .14) 44%, transparent 45%),
+    radial-gradient(ellipse 100% 90% at 50% 115%, rgba(var(--gold-rgb), .95), transparent 75%),
+    linear-gradient(180deg, #3a434d 0, #1a1f25 44%, #050607 46%, #0b0e11 80%, #1d242b 100%);
+}
+/* the kinds: one row of console keys */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-kinds { gap: 7px; margin: 12px 1px 12px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-chip {
+  min-height: 30px; padding: 4px 12px; gap: 8px; border: 0; border-radius: 7px; letter-spacing: 1.2px;
+  color: var(--vx-core); text-shadow: 0 0 6px rgba(var(--ph-rgb), .75);
+  background: var(--vx-cap) border-box; box-shadow: var(--vx-cap-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-chip:is(:hover, :focus-visible):not(.on) { background: var(--vx-cap-hot) border-box; color: var(--vx-core); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-chip.on {
+  background: var(--vx-cap-on) border-box; box-shadow: var(--vx-cap-on-shadow); color: var(--vx-ink-hot); text-shadow: none;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-chip span { font-size: 16px; opacity: .8; }
+/* the projects: rail keys, the count a small lit readout */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-rail { gap: 7px; padding: 1px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-proj {
+  align-items: center; min-height: 36px; padding: 6px 9px 6px 12px; border: 0; border-radius: 8px; letter-spacing: 1px;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-proj:not(.on) { background: var(--vx-tile); box-shadow: var(--vx-tile-shadow); color: rgba(var(--ph-rgb), .9); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-proj:not(.on):is(:hover, :focus-visible) { background: var(--vx-tile-hot); color: var(--vx-core); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-proj.on { color: color-mix(in srgb, var(--vx-core) 80%, #fff); text-shadow: 0 0 6px rgba(var(--ph-rgb), .6); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-proj-c {
+  min-width: 14px; padding: 1px 7px; border-radius: 999px !important; font-size: 16px; text-align: center;
+  color: var(--vx-core); text-shadow: 0 0 6px rgba(var(--ph-rgb), .7);
+  background: #010203; box-shadow: inset 0 1px 3px #000, inset 0 0 0 1px rgba(var(--ph-rgb), .35), 0 1px 0 rgba(255, 255, 255, .16);
+}
+/* a time heading: the label lit on the sheet, its rule a lit hairline, its CLEAR a small key */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-main { gap: 18px; padding: 1px 3px 4px 1px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-bucket { gap: 10px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-bucket h4 {
+  gap: 12px; font-size: 16px; letter-spacing: 3px; color: color-mix(in srgb, var(--vx-core) 80%, #fff); text-shadow: 0 0 7px rgba(var(--ph-rgb), .6);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-bucket h4::after {
+  height: 2px; background: linear-gradient(90deg, rgba(var(--ph-rgb), .55), rgba(var(--ph-rgb), .08)); box-shadow: 0 1px 0 rgba(0, 0, 0, .8);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-bclear {
+  min-height: 26px; padding: 2px 11px; border: 0; border-radius: 6px; font-size: 15px; letter-spacing: 1.4px;
+  color: var(--vx-core); text-shadow: 0 0 6px rgba(var(--ph-rgb), .75);
+  background: var(--vx-cap) border-box; box-shadow: var(--vx-cap-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-bclear:is(:hover, :focus-visible) { background: var(--vx-cap-hot) border-box; }
+/* a piece of work */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-card {
+  border: 0; border-radius: 10px; overflow: hidden; background: var(--vx-pane); box-shadow: var(--vx-pane-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-card:has(> .dlv-head.on) {
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .14), 0 0 0 1px rgba(var(--ph-rgb), .8), 0 0 14px rgba(var(--ph-rgb), .22), 0 3px 9px rgba(0, 0, 0, .42);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-head { align-items: center; gap: 14px; padding: 13px 16px 13px 14px; border-radius: 0 !important; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-head:is(:hover, :focus-visible) { background: var(--vx-tile-hot); box-shadow: none; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-head.on {
+  background: linear-gradient(180deg, rgba(255, 255, 255, .07), transparent 40%), linear-gradient(180deg, rgba(var(--ph-rgb), .2), rgba(var(--ph-rgb), .07));
+  box-shadow: inset 0 -1px 0 rgba(var(--ph-rgb), .35);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-caret {
+  position: relative; width: 26px; height: 26px; border-radius: 50% !important; font-size: 0; line-height: 0; transform: none;
+  background: var(--vx-knob); box-shadow: 0 0 0 1px #050608, 0 2px 4px rgba(0, 0, 0, .7);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-caret::before {
+  content: ''; position: absolute; left: 8px; top: 9px; width: 6px; height: 6px;
+  border-top: 2px solid var(--vx-ink); border-right: 2px solid var(--vx-ink); transform: rotate(45deg);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-head.on > .dlv-caret { transform: none; background: var(--vx-knob-hot); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-head.on > .dlv-caret::before { left: 9px; top: 7px; transform: rotate(135deg); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-head:is(:hover, :focus-visible) > .dlv-caret { background: var(--vx-knob-hot); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-headmain { gap: 9px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-say { gap: 4px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-title {
+  font-size: 21px; font-weight: normal; letter-spacing: 1px; line-height: 1.1;
+  color: color-mix(in srgb, var(--vx-core) 78%, #fff); text-shadow: 0 0 8px rgba(var(--ph-rgb), .6);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-title.plain { font-size: 19px; opacity: 1; color: rgba(var(--ph-rgb), .95); text-shadow: none; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-sum { font-size: 17px; line-height: 1.3; opacity: 1; color: rgba(var(--ph-rgb), .82); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-facts { gap: 7px 9px; }
+/* the status: a jewel in a dark pocket, lit in the colour of the status */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-pill {
+  position: relative; padding: 2px 10px 2px 24px; border: 0; border-radius: 999px !important; font-size: 15px; letter-spacing: 1.6px;
+  text-shadow: 0 0 6px currentColor;
+  background: #010203; box-shadow: inset 0 1px 3px #000, inset 0 0 0 1px color-mix(in srgb, currentColor 55%, transparent), 0 1px 0 rgba(255, 255, 255, .18);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-pill::before {
+  content: ''; position: absolute; left: 8px; top: 50%; width: 8px; height: 8px; margin-top: -4px; border-radius: 50% !important;
+  background: radial-gradient(circle at 35% 30%, #fff 0, currentColor 45%, color-mix(in srgb, currentColor 45%, #000) 100%);
+  box-shadow: 0 0 0 1px #000, 0 0 6px currentColor;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-pill.off { color: rgba(var(--ph-rgb), .7); }
+/* who made it: the lead on a lit plate, a worker on a dark one */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-crew { gap: 6px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-who {
+  padding: 2px 9px; border: 0; border-radius: 5px; font-size: 15px; letter-spacing: 1.2px;
+  color: rgba(var(--ph-rgb), .9); background: var(--vx-cap) border-box; box-shadow: var(--vx-cap-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-who.lead {
+  font-weight: normal; color: var(--vx-ink-hot); background: var(--vx-cap-on) border-box;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), inset 0 0 0 1px rgba(0, 0, 0, .45), 0 0 0 1px #040506, 0 0 8px rgba(var(--ph-rgb), .4);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-meta { font-size: 16px; letter-spacing: .8px; color: rgba(var(--ph-rgb), .72); }
+/* the drawer */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-more { gap: 16px; padding: 16px 18px 18px; border: 0; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-sec { gap: 8px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-sec h5 {
+  display: flex; align-items: center; gap: 9px; font-size: 15px; font-weight: normal; letter-spacing: 2.6px;
+  color: color-mix(in srgb, var(--vx-core) 75%, #fff); text-shadow: 0 0 6px rgba(var(--ph-rgb), .5);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-sec h5::before {
+  content: ''; flex: none; width: 7px; height: 7px; border-radius: 50% !important;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--vx-core) 60%, #fff) 0, var(--ph) 48%, color-mix(in srgb, var(--ph) 45%, #000) 100%);
+  box-shadow: 0 0 0 1px #000, 0 0 6px rgba(var(--ph-rgb), .7);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) :is(.dlv-quote, .dlv-said) {
+  padding: 11px 14px; border: 0; border-radius: 8px; font-size: 17px; line-height: 1.4; opacity: 1; color: rgba(var(--ph-rgb), .92);
+  background: var(--vx-well); box-shadow: var(--vx-read-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-quote { box-shadow: var(--vx-read-shadow), inset 3px 0 0 rgba(var(--ph-rgb), .7); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-files { gap: 0; border-radius: 8px; overflow: hidden; background: var(--vx-well); box-shadow: var(--vx-read-shadow); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-files li { gap: 12px; padding: 7px 12px 7px 8px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-files li + li { box-shadow: inset 0 1px 0 rgba(var(--ph-rgb), .16); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-fname { font-size: 17px; color: rgba(var(--ph-rgb), .95); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-fsize { font-size: 15px; color: rgba(var(--ph-rgb), .7); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-fmain { font-size: 14px; letter-spacing: 1.4px; text-shadow: 0 0 6px rgba(var(--gold-rgb), .6); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-acts { gap: 8px; margin-top: 2px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-lead { margin: 4px 4px 12px; color: rgba(var(--ph-rgb), .78); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .dlv-split { gap: 16px; }
+
+/* ---- the dossier, BRIEF: the agent stands in a chrome-ringed screen, its name is the lit title of the sheet, its level
+   a lit plate, its three counts are meters with big lit digits, and each SET UP AS tile ends in the knob that opens it ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-hero { align-items: center; gap: 24px; padding: 22px 24px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-portrait-well {
+  padding: 9px 12px 5px; border: 0; border-radius: 12px !important;
+  background:
+    radial-gradient(ellipse 70% 28% at 50% 96%, rgba(var(--ph-rgb), .5), transparent 70%),
+    radial-gradient(ellipse 150% 60% at 15% -20%, rgba(255, 255, 255, .09) 0, rgba(255, 255, 255, .02) 50%, transparent 50.5%),
+    linear-gradient(180deg, color-mix(in srgb, var(--ph) 5%, #030507), color-mix(in srgb, var(--ph) 12%, #010203));
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, .95), inset 0 0 0 1px rgba(var(--ph-rgb), .35), 0 0 0 2px #07090c, 0 0 0 4px #8d96a1, 0 1px 0 4px #eef2f6, 0 0 0 5px #20252b, 0 4px 9px 3px rgba(0, 0, 0, .5);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-info { display: flex; flex-direction: column; gap: 9px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-info > .ag-name {
+  margin: 0; font-size: 34px; line-height: 1; letter-spacing: 3px; text-shadow: 0 0 9px currentColor;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-info .ag-lv {
+  position: relative; top: -5px; margin-left: 12px; padding: 2px 9px; border: 0; border-radius: 5px; font-size: 16px; letter-spacing: 1.6px;
+  color: var(--vx-ink-hot); text-shadow: none; background: var(--vx-cap-on) border-box;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), inset 0 0 0 1px rgba(0, 0, 0, .45), 0 0 0 1px #040506, 0 0 8px rgba(var(--ph-rgb), .45);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-info .ag-role-line { gap: 9px; font-size: 16px; letter-spacing: 2.4px; color: color-mix(in srgb, var(--vx-core) 75%, #fff); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-info .ag-sdot { width: 8px; height: 8px; box-shadow: 0 0 0 1px #000, 0 0 0 2px rgba(0, 0, 0, .35), 0 1px 0 2px rgba(255, 255, 255, .4), 0 0 7px 1px currentColor; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-info .ag-tags { margin: 0; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-info .ag-tags > .tag {
+  padding: 3px 10px; border: 0; border-radius: 6px; font-size: 16px; letter-spacing: 1px;
+  color: var(--vx-core); text-shadow: 0 0 6px rgba(var(--ph-rgb), .6); background: var(--vx-cap) border-box; box-shadow: var(--vx-cap-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-info .stat-grid { gap: 10px; margin-top: 5px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-info .stat-cell {
+  padding: 9px 10px 8px; border: 0; border-radius: 9px;
+  background: var(--vx-lcd);
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, .95), inset 0 0 0 1px rgba(var(--ph-rgb), .3), inset 0 0 16px rgba(var(--ph-rgb), .07), 0 0 0 1px #07090c, 0 0 0 2px #59626d, 0 1px 0 2px #dfe5eb, 0 0 0 3px #20252b;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-info .stat-val {
+  font-size: 32px; line-height: 1; letter-spacing: 2px; text-shadow: 0 0 9px currentColor;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-info .stat-val:not(.pos) { color: color-mix(in srgb, var(--vx-core) 80%, #fff); text-shadow: 0 0 9px rgba(var(--ph-rgb), .8); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-info .stat-lbl { margin-top: 5px; font-size: 14px; letter-spacing: 3px; color: rgba(var(--ph-rgb), .75); }
+/* a block label inside the sheet: lit, with a lit rule running out of it */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .sec.ag-brief-sec { gap: 12px; margin: 24px 0 12px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .sec.ag-brief-sec > .sec-l,
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth-section-title {
+  font-size: 18px; letter-spacing: 3px; text-transform: uppercase; color: color-mix(in srgb, var(--vx-core) 80%, #fff); text-shadow: 0 0 7px rgba(var(--ph-rgb), .6);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .sec.ag-brief-sec > .sec-r {
+  height: 2px; border: 0; background: linear-gradient(90deg, rgba(var(--ph-rgb), .55), rgba(var(--ph-rgb), .08)); box-shadow: 0 1px 0 rgba(0, 0, 0, .8);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth-section-title { display: flex; align-items: center; gap: 12px; margin: 26px 0 14px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth-section-title::after {
+  content: ''; flex: 1 1 auto; height: 2px; background: linear-gradient(90deg, rgba(var(--ph-rgb), .55), rgba(var(--ph-rgb), .08)); box-shadow: 0 1px 0 rgba(0, 0, 0, .8);
+}
+/* SET UP AS */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-setup { grid-template-columns: repeat(auto-fill, minmax(min(100%, 190px), 1fr)); gap: 10px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-setup-row { column-gap: 10px; row-gap: 6px; padding: 12px 12px 12px 15px; border: 0; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-setup-lbl { font-size: 14px; letter-spacing: 2.6px; color: rgba(var(--ph-rgb), .72); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-setup-val { font-size: 19px; letter-spacing: .6px; color: color-mix(in srgb, var(--vx-core) 80%, #fff); text-shadow: 0 0 6px rgba(var(--ph-rgb), .45); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-setup-val.dim { color: rgba(var(--ph-rgb), .78); text-shadow: none; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-setup-go {
+  position: relative; width: 24px; height: 24px; border-radius: 50% !important; font-size: 0;
+  background: var(--vx-knob); box-shadow: 0 0 0 1px #050608, 0 2px 4px rgba(0, 0, 0, .7);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-setup-go::before {
+  content: ''; position: absolute; left: 7px; top: 8px; width: 6px; height: 6px;
+  border-top: 2px solid var(--vx-ink); border-right: 2px solid var(--vx-ink); transform: rotate(45deg);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-setup-row:is(:hover, :focus-visible) > .ag-setup-go { background: var(--vx-knob-hot); }
+/* CAN DO: one pane, the count lit */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-effective {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 18px; padding: 14px 16px; border-radius: 10px;
+  background: var(--vx-pane); box-shadow: var(--vx-pane-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-effective > .ag-can-do { flex: 1 1 300px; margin: 0; font-size: 17px; line-height: 1.4; color: rgba(var(--ph-rgb), .85); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-effective > .ag-can-do > b { font-weight: normal; font-size: 19px; color: color-mix(in srgb, var(--vx-core) 80%, #fff); text-shadow: 0 0 7px rgba(var(--ph-rgb), .6); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-foot-row { margin-top: 14px; color: rgba(var(--ph-rgb), .65); }
+
+/* ---- the dossier, GROWTH: the level is a chrome-ringed counter, XP a lit gauge in a recessed track, the two measured
+   scores stand side by side at full width (they were four narrow columns with two of them empty), a trophy keeps its name
+   on one line beside its socket, and the next one to aim for wears a lit ring ---- */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth-hero { align-items: flex-start; gap: 26px; padding: 22px 24px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-level-badge {
+  flex: 0 0 96px; height: 96px; gap: 6px; margin: 4px 0 0 4px; border: 0; outline: 0; border-radius: 16px !important;
+  background:
+    radial-gradient(ellipse 150% 60% at 15% -20%, rgba(255, 255, 255, .1) 0, rgba(255, 255, 255, .02) 50%, transparent 50.5%),
+    radial-gradient(ellipse 80% 60% at 50% 110%, rgba(var(--ph-rgb), .3), transparent 70%),
+    linear-gradient(180deg, color-mix(in srgb, var(--ph) 5%, #030507), color-mix(in srgb, var(--ph) 10%, #010203));
+  box-shadow: inset 0 2px 6px rgba(0, 0, 0, .95), inset 0 0 0 1px rgba(var(--ph-rgb), .4), 0 0 0 2px #07090c, 0 0 0 4px #8d96a1, 0 1px 0 4px #eef2f6, 0 0 0 5px #20252b, 0 4px 9px 3px rgba(0, 0, 0, .5);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-level-badge > span { font-size: 14px; letter-spacing: 3.5px; text-indent: 3.5px; color: rgba(var(--ph-rgb), .8); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-level-badge > strong {
+  font-size: 50px; line-height: .9; letter-spacing: 2px; color: color-mix(in srgb, var(--vx-core) 78%, #fff); text-shadow: var(--vx-title-glow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth-eyebrow { font-size: 14px; letter-spacing: 3px; color: rgba(var(--ph-rgb), .72); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth-heading > h3 {
+  margin: 7px 0 6px; font-size: 34px; line-height: 1; letter-spacing: 3px; text-shadow: 0 0 9px currentColor;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth-heading > p { margin: 0; font-size: 17px; color: rgba(var(--ph-rgb), .85); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .ag-xp-panel { margin-top: 18px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .ag-xp-panel .gx-row { font-size: 16px !important; letter-spacing: 1.2px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .ag-xp-panel .gx-row.gx-dim { letter-spacing: .4px; line-height: 1.4; color: rgba(var(--ph-rgb), .7); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-lbl { font-size: 15px; letter-spacing: 2.2px; color: rgba(var(--ph-rgb), .78); }
+/* a gauge: a recessed black track under a chrome lip, the fill a lit bar with a gloss */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth :is(.gx-trk, .gx-zones) {
+  height: 14px; margin: 7px 1px; border: 0; border-radius: 999px !important; background: #010203;
+  box-shadow: inset 0 2px 4px #000, inset 0 0 0 1px rgba(var(--ph-rgb), .28), 0 0 0 1px #07090c, 0 1px 0 1px rgba(255, 255, 255, .3), 0 -1px 0 1px rgba(0, 0, 0, .7);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth :is(.gx-fill, .gx-gfill) {
+  border-radius: 999px !important; opacity: 1;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .5) 0, rgba(255, 255, 255, .1) 45%, transparent 50%), linear-gradient(90deg, color-mix(in srgb, var(--ph) 70%, #000), var(--vx-core));
+  box-shadow: 0 0 9px rgba(var(--ph-rgb), .7);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-zones > i { border-radius: 0 !important; background: linear-gradient(180deg, rgba(255, 255, 255, .35) 0, transparent 50%), var(--ph); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-zlabels { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 10px; margin-top: 2px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-zlabels > span { font-size: 14px; letter-spacing: 1.6px; color: rgba(var(--ph-rgb), .62); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-zlabels > span.hot { color: var(--vx-core); text-shadow: 0 0 6px rgba(var(--ph-rgb), .7); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-well { padding: 9px 13px; border: 0; border-radius: 8px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-well > .v { font-size: 22px; letter-spacing: 1.5px; color: color-mix(in srgb, var(--vx-core) 80%, #fff); text-shadow: 0 0 7px rgba(var(--ph-rgb), .7); }
+/* the next challenge: one lit strip */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-next-challenge {
+  gap: 6px 14px; padding: 12px 16px; border: 0; font-size: 17px;
+  box-shadow: var(--vx-pane-shadow), inset 3px 0 0 rgba(var(--ph-rgb), .9);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-next-challenge > span:first-child { font-size: 14px; letter-spacing: 2.6px; color: rgba(var(--ph-rgb), .72); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-next-challenge > b { font-weight: normal; font-size: 19px; letter-spacing: 1.5px; color: color-mix(in srgb, var(--vx-core) 80%, #fff); text-shadow: 0 0 7px rgba(var(--ph-rgb), .6); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-next-challenge > span:last-child { font-size: 17px; color: rgba(var(--ph-rgb), .85); }
+/* the measured scores */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-2 { grid-template-columns: repeat(auto-fit, minmax(min(100%, 250px), 1fr)); gap: 12px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-2 > div { padding: 16px 18px; border: 0; border-radius: 10px; background: var(--vx-pane); box-shadow: var(--vx-pane-shadow); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-2 > #gx-practice { grid-column: 1 / -1; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-2 .gx-sec { flex-direction: column; align-items: flex-start; gap: 5px; margin: 0 0 14px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth :is(.gx-2, .gx-trohead) .gx-title {
+  font-size: 19px; letter-spacing: 2.6px; text-transform: uppercase; color: color-mix(in srgb, var(--vx-core) 80%, #fff); text-shadow: 0 0 7px rgba(var(--ph-rgb), .6);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-2 .gx-tag { margin: 0; text-align: left; font-size: 15px; letter-spacing: .4px; color: rgba(var(--ph-rgb), .7); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-2 > div > div:has(> .gx-confnum) { align-items: center; gap: 12px; margin-bottom: 8px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-confnum { font-size: 42px; line-height: .9; color: color-mix(in srgb, var(--vx-core) 80%, #fff); text-shadow: 0 0 9px rgba(var(--ph-rgb), .8); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-confnum.cal { color: rgba(var(--ph-rgb), .6); text-shadow: none; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-band {
+  padding: 3px 10px; border: 0; border-radius: 5px; font-size: 15px; letter-spacing: 1.8px;
+  color: var(--vx-ink-hot); background: var(--vx-cap-on) border-box; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5), inset 0 0 0 1px rgba(0, 0, 0, .45), 0 0 0 1px #040506;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-band.cal { color: rgba(var(--ph-rgb), .85); background: var(--vx-cap) border-box; box-shadow: var(--vx-cap-shadow); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-2 .gx-row.gx-dim { margin-top: 9px; font-size: 15px; line-height: 1.35; color: rgba(var(--ph-rgb), .68); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth-station-link { margin: 18px 0; font-size: 17px; color: rgba(var(--ph-rgb), .85); }
+/* the trophy shelf */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-tros { grid-template-columns: repeat(auto-fill, minmax(min(100%, 188px), 1fr)); gap: 10px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-tro { padding: 12px 13px 12px 12px; border: 0; border-radius: 9px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-tro > div:first-child { align-items: center; gap: 12px; flex-wrap: nowrap; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-tro .gl {
+  flex: 0 0 28px; width: 28px; height: 28px; border: 0; border-radius: 50% !important; font-size: 18px; opacity: 1;
+  color: rgba(var(--ph-rgb), .55); background: #010203;
+  box-shadow: inset 0 2px 4px #000, inset 0 0 0 1px rgba(var(--ph-rgb), .3), 0 0 0 1px #07090c, 0 0 0 2px #59626d, 0 1px 0 2px #dfe5eb;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-tro.on .gl { color: var(--gold); text-shadow: 0 0 7px rgba(var(--gold-rgb), .8); box-shadow: inset 0 2px 4px #000, inset 0 0 0 1px rgba(var(--gold-rgb), .6), inset 0 0 8px rgba(var(--gold-rgb), .35), 0 0 0 1px #07090c, 0 0 0 2px #8d96a1, 0 1px 0 2px #eef2f6; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-tro .nm { font-size: 17px; line-height: 1.1; letter-spacing: 1.4px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-tro.off .nm { color: rgba(var(--ph-rgb), .85); opacity: 1; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-tro .sub { margin: 6px 0 0 40px; font-size: 15px; line-height: 1.25; color: rgba(var(--ph-rgb), .62); opacity: 1; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-tro.ag-next-trophy { box-shadow: var(--vx-read-shadow), 0 0 0 1px rgba(var(--ph-rgb), .8), 0 0 10px rgba(var(--ph-rgb), .25); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-tro.ag-next-trophy .nm { color: color-mix(in srgb, var(--vx-core) 80%, #fff); text-shadow: 0 0 6px rgba(var(--ph-rgb), .6); }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #terms .term:not(.pw) .ag-growth .gx-trohead > .gx-tag { font-size: 15px; letter-spacing: 1px; }
