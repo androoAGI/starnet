@@ -24,13 +24,7 @@ const RESERVED_AWAY = ['on', 'off', 'list', 'status', 'now'];
    'budget' and a question's 'clarifying' each read "last error (…)". A 'done' (or no word) beside 'error' is the failure the status says, and
    a word outside the end vocabulary (a config block's) names no outcome. Nor does a bare 'blocked': that is a security scan's refusal (cron-driver), and
    a reviewer's hold is always stamped. Same rule as the ROUTINES window (frontend/app/windows/routines.js). */
-function recordOutcome(j) {
-  if (RunOutcome.isOutcome(j.lastOutcome)) return j.lastOutcome;
-  const word = String(j.lastReason || '');
-  if (!word || word === 'done') return j.lastStatus === 'error' ? 'failed' : null;
-  const named = RunOutcome.ofWord(word).outcome;
-  return named === 'failed' || named === 'succeeded' || named === 'blocked' ? null : named;
-}
+function recordOutcome(j) { return RunOutcome.recordOutcome(j); }   // one rule for every reader (frontend/app/runoutcome.js, lane T6)
 
 function makeSlashActions(deps) {
   const d = deps || {};
@@ -82,7 +76,11 @@ function makeSlashActions(deps) {
     const oc = j.lastStatus === 'error' ? recordOutcome(j) : null;
     const status = oc === 'stopped' ? 'stopped' : j.lastStatus;
     const ended = oc && oc !== 'stopped' && oc !== 'failed' ? RunOutcome.line({ outcome: oc, failureCode: j.lastFailureCode || '' }) : '';
-    const last = status === 'stopped' ? '; last run stopped before it finished'
+    // lane T6: the verdict is RunOutcome.fireLook's, the one the card, the agent's routines tool and the phone's row read: a fire the unattended hold
+    // refused, and one whose work line stopped mid-way (lastStatus stays 'ok' by the line law), are said so — never "last ok"
+    const fl = RunOutcome.fireLook(j);
+    const flagged = fl.tone === 'held' ? '; last held (' + fl.why.slice(0, 80) + ')' : fl.tone === 'problem' ? '; last line stopped (' + fl.why.slice(0, 80) + ')' : '';
+    const last = flagged ? flagged : status === 'stopped' ? '; last run stopped before it finished'
       : ended ? (oc === 'asked' ? '; last run ' + ended : '; last run did not finish (' + ended + ')')
       : status ? ('; last ' + status + (j.lastError ? ' (' + String(j.lastError).slice(0, 60) + ')' : '')) : '';
     const owner = (me && j.agentId && String(j.agentId) !== String(me)) ? ' (' + j.agentId + '’s)' : '';

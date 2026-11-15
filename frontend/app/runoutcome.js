@@ -287,6 +287,69 @@
   function lineStatus(o) { return LINE_STATUS[lineOutcomeOf(o)] || 'failed'; }
   function lineLook(o) { return LINE_LOOK[lineOutcomeOf(o)] || LINE_LOOK.failed; }
 
+  /* A ROUTINE'S LAST FIRE AS ONE VERDICT (lane T6, 2026-11-15). A fire has two verdicts: its entry run's (lastStatus) and its work line's
+     (lastLine, cron-store markRun, routing/line-fire.js lineFacts): a line that stopped at stage 2 leaves lastStatus 'ok' by design, and four
+     readers (the ROUTINES card, /routine list, the agent's routines tool, the phone host's row) each combined the fields their own way, so one
+     stopped job showed different verdicts. They read this instead. Pure: the record in, { tone, word, why, at } out.
+       tone  never    no fire and no hold on the record          held     the unattended hold refused the newest fire (job.lastHold, T1)
+             running  a lease holds the routine now              stopped  someone stopped the last fire
+             failed   the last fire ended in an error            problem  the entry run was ok but its work line stopped short
+             ok       a clean fire
+     The words of the existing tones are what the readers printed before (the card's and /routine's RunOutcome.line words), so an older
+     record (no lastLine, no lastHold) reads exactly as it did. */
+  // the outcome a routine RECORD names (review 9.3): a stamped record's is its lastOutcome; a pre-lane record kept lastStatus 'error' beside the
+  // fire's own end word, and that word names it (ofWord): a stop's 'cancelled', a limit's 'budget', a question's 'clarifying'. A 'done' (or no
+  // word) beside 'error' is the failure the status says; a word outside the end vocabulary (a config block's) and a bare 'blocked' (a security
+  // scan's refusal; a reviewer's hold is always stamped) name no outcome.
+  function recordOutcome(j) {
+    const x = j && typeof j === 'object' ? j : {};
+    if (KNOWN.has(x.lastOutcome)) return x.lastOutcome;
+    const word = str(x.lastReason);
+    if (!word || word === 'done') return x.lastStatus === 'error' ? 'failed' : null;
+    const named = ofWord(word).outcome;
+    return named === 'failed' || named === 'succeeded' || named === 'blocked' ? null : named;
+  }
+  const SPEND_PAUSE_CODE = 'spend_history_unavailable';
+  const SPEND_PAUSE_WORDS = 'StarNet paused this unattended run: its spend history is incomplete. Settle it with COUNT AS in SETTINGS › SPENDING LIMITS';
+  const clipTo = (s, n) => { const t = str(s); return t.length > n ? t.slice(0, n - 1) + '…' : t; };
+  // a hold is the verdict only while it is NEWER than the last fire (a real fire clears it: cron-store markRun); no fire at all = held
+  function holdIsNewer(hold, ranAt) {
+    if (!ranAt) return true;
+    const h = Date.parse(str(hold.at)), r = Date.parse(str(ranAt));
+    return isFinite(h) && isFinite(r) && h > r;
+  }
+  // the work line's stop facts (lineFacts: { stopped, unapproved, partial, blocked, stopCode, halted }) in one sentence; '' = a clean line.
+  // `stopped` is already the stop's own sentence naming the stage (line-fire.js lineStop), so it is quoted, never re-derived.
+  function lineStopWhy(l) {
+    if (!l || typeof l !== 'object') return '';
+    if (l.halted) return 'the work line was stopped before it finished' + (l.stopped && str(l.stopped) !== 'stopped' ? ' — ' + str(l.stopped) : '');
+    if (l.blocked) return 'the work line stopped early — ' + str(l.blocked);
+    if (l.stopped) return 'the work line stopped early — ' + str(l.stopped);
+    if (l.partial) return 'the work line came out partial — ' + str(l.partial);
+    if (l.unapproved) return 'the work line went out unapproved — ' + str(l.unapproved);
+    return '';
+  }
+  function fireLook(job) {
+    const j = job && typeof job === 'object' ? job : {};
+    const ranAt = j.lastRunAt || null;
+    const hold = j.lastHold && typeof j.lastHold === 'object' ? j.lastHold : null;
+    const mk = (tone, word, why, at) => ({ tone, word, why: clipTo(why, 240), at: at || null });
+    if (!ranAt && !hold) return mk('never', 'never run', '', null);
+    if (j.inFlight === true) return mk('running', 'running', '', ranAt);
+    if (hold && holdIsNewer(hold, ranAt)) return mk('held', 'held', hold.say, hold.at);
+    const ok = j.lastStatus === 'ok';
+    const oc = ok ? null : recordOutcome(j);
+    if (!ok && (j.lastStatus === 'stopped' || oc === 'stopped')) return mk('stopped', line({ outcome: 'stopped' }), j.lastError, ranAt);
+    if (!ok) {
+      const words = oc ? line({ outcome: oc, failureCode: j.lastFailureCode || '' }) : (str(j.lastReason) || 'error');
+      const spend = str(j.lastFailureCode) === SPEND_PAUSE_CODE;
+      return mk('failed', words, str(j.lastError) || (spend ? SPEND_PAUSE_WORDS : ''), ranAt);
+    }
+    const why = lineStopWhy(j.lastLine);
+    if (why) return mk('problem', 'line stopped', why, ranAt);
+    return mk('ok', 'ok', '', ranAt);
+  }
+
   return { OUTCOMES, BY_REASON, NO_TERMINAL, PROVIDER_CODES, LOOK, resolve, ofEnd, ofRow, ofLine, ofWord, ofWorker, reasonOf, stamp, sink, line, look, isProviderCode, providerAnswered, isOutcome: v => KNOWN.has(v),
-    LINE_STOPS, LINE_OUTCOMES, lineOutcomeOf, lineStatus, lineLook, isLineStop: v => LINE_STOP_SET.has(v) };
+    LINE_STOPS, LINE_OUTCOMES, lineOutcomeOf, lineStatus, lineLook, isLineStop: v => LINE_STOP_SET.has(v), fireLook, recordOutcome };
 });

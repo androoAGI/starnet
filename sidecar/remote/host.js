@@ -392,6 +392,10 @@ function makeRemoteHost(d) {
     if (!s || typeof s !== 'object') return undefined;
     return SchedulerState.holdOf(s);
   }
+  function fireLookOf(j) {
+    const fl = RunOutcome.fireLook(j);
+    return { tone: fl.tone, word: fl.word, why: fl.why };
+  }
   async function routines() {
     const held = schedulerHold();
     return (d.routines() || []).map(j => Object.assign({
@@ -401,6 +405,9 @@ function makeRemoteHost(d) {
       nextRunAt: Object.prototype.hasOwnProperty.call(j, 'nextFireAt') ? j.nextFireAt :
         (held || j.enabled === false ? null : j.nextRunAt || null),
       lastRunAt: j.lastRunAt || null, lastStatus: (j.lastStatus === 'error' && j.lastOutcome === 'stopped') ? 'stopped' : (j.lastStatus || null),
+      // (additive, lane T6) the last fire's ONE verdict, the one the desk's card, /routine and the agent's routines tool read (RunOutcome.fireLook):
+      // a held fire and a work line that stopped mid-way show here though lastStatus stays as stored. The phone page does not read it yet.
+      look: fireLookOf(j),
       prompt: clip(j.prompt, 200)
     }, held === undefined ? null : { held: held }));
   }

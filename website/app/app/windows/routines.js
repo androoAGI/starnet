@@ -248,14 +248,18 @@
        recordOutcome. */
     function recordOutcome(j) {
       const RO = typeof RunOutcome !== 'undefined' ? RunOutcome : null;
-      if (!RO) return null;
-      if (RO.isOutcome(j.lastOutcome)) return j.lastOutcome;
-      const word = String(j.lastReason || '');
-      if (!word || word === 'done') return j.lastStatus === 'error' ? 'failed' : null;
-      const named = RO.ofWord(word).outcome;
-      return named === 'failed' || named === 'succeeded' || named === 'blocked' ? null : named;
+      return RO && typeof RO.recordOutcome === 'function' ? RO.recordOutcome(j) : null;   // the one rule: RunOutcome.recordOutcome (lane T6)
     }
+    /* lane T6: the verdict is RunOutcome.fireLook's, the one the /routine list, the agent's routines tool and the phone's row read too. A fire the
+       unattended hold refused (job.lastHold) and a fire whose work line stopped mid-way (lastStatus stays 'ok' by the line law, lastLine says
+       where) are no green ✓; every other record is drawn exactly as before. */
     function lastResult(j) {
+      const RO = typeof RunOutcome !== 'undefined' ? RunOutcome : null;
+      const fl = RO && typeof RO.fireLook === 'function' ? RO.fireLook(j) : null;
+      if (fl && (fl.tone === 'held' || fl.tone === 'problem')) {
+        return '<span style="color:var(--warn)">' + (fl.tone === 'held' ? '⏸ ' : '⚠ ') + esc(fl.word) + '</span> <span class="dim">' + esc(fmtRel(fl.at)) +
+          (fl.why ? ' — ' + esc(fl.why) : '') + '</span>';
+      }
       if (!j.lastRunAt) return '<span class="dim">never run</span>';
       const ok = j.lastStatus === 'ok';
       // a fire someone STOPPED (review r7: lastStatus 'stopped'; an older record's 'error' beside lastOutcome 'stopped', or a pre-lane one's beside
