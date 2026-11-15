@@ -1,6 +1,7 @@
 'use strict';
 const Policy = require('./taskbrief-policy.js');
 const Context = require('./taskbrief-context.js');
+const { swallow } = require('./failopen.js');
 
 // The batch-wide escape hatch the card sends for "use your judgment for the rest". Anchored and exact:
 // a deferral that carries a real constraint ("use your judgment for the rest, but keep it short") must
@@ -22,8 +23,14 @@ function noteHeldCall(state, call) {
   const list = Array.isArray(state.held) ? state.held : (state.held = []);
   if (list.indexOf(row) < 0 && list.length < HELD_MAX) list.push(row);
 }
-function heldAgainNote(state) {
+// the wire tool name of each held row (its first token): what survives a question on the brief (ops-1115 T3)
+const heldNamesOf = (state) => (state && Array.isArray(state.held) ? state.held : []).map(h => String(h).split(' ')[0]).filter(Boolean);
+// `kept`: the names an earlier run's question kept on the brief (store.noteHeld), named back without args unless this run
+// already holds the same tool with its args.
+function heldAgainNote(state, kept) {
+  const inRun = heldNamesOf(state);
   const held = state && Array.isArray(state.held) ? state.held.splice(0) : [];
+  for (const n of Array.isArray(kept) ? kept : []) if (inRun.indexOf(n) < 0 && held.indexOf(n) < 0) held.push(n);
   if (!held.length) return '';
   return '\nNothing has run yet: the call' + (held.length > 1 ? 's' : '') + ' the brief held must be made again now, in this same turn, before you report any result:\n'
     + held.map(h => '- ' + h).join('\n');
@@ -156,6 +163,11 @@ function registerTaskBriefTools(registry, store, state, deps) {
         // remaining ones resume from the durable 'clarifying' brief on the next reply.
       }
       const open = (state.brief.questions || []).find(x => !x.answer) || asked[0];
+      // the question ends this run and the per-run held list with it: keep the held tool NAMES on the brief (#187)
+      const heldNow = heldNamesOf(state);
+      if (heldNow.length && typeof store.noteHeld === 'function') {
+        await Promise.resolve().then(() => store.noteHeld(state.brief.id, heldNow)).catch(swallow('taskbrief.held.persist'));
+      }
       return { content: 'Waiting for the Commander\'s decision.', summary: 'task question ready', control: {
         final: true, reason: 'done', text: 'TASK_QUESTION: ' + open.text + ' || ' + (open.options.length ? open.options.join(' | ') : '[free text]')
       } };
@@ -192,10 +204,11 @@ function registerTaskBriefTools(registry, store, state, deps) {
     } },
     run: async args => {
       const checked = Policy.validateProceed(args); if (!checked.ok) throw new Error(checked.error);
+      const kept = state.brief && Array.isArray(state.brief.heldCalls) ? state.brief.heldCalls.slice() : [];   // proceed() clears them
       const saved = await store.proceed(state.brief.id, checked.brief, now());
       if (!saved) throw new Error('Task Brief cannot proceed from its current state. After a conversational answer call brief.update to incorporate it first.');
       state.brief = saved;
-      return { content: 'Task Brief settled. Consequential tools are unlocked.' + heldAgainNote(state), summary: 'task brief settled' };
+      return { content: 'Task Brief settled. Consequential tools are unlocked.' + heldAgainNote(state, kept), summary: 'task brief settled' };
     }
   });
   return ['brief.ask', 'brief.proceed', 'brief.update'];
