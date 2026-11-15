@@ -1544,6 +1544,12 @@
     // what to do). The failure ladder above keeps its own budget. limits.failureRecovery === false disables both.
     const FR_HELD_MAX = 1;
     let frHeldUsed = 0;
+    // THE HELD LEDGER (ops-1115 T3, #187): a held call stays undone until the SAME tool comes back not held. Another tool's ok
+    // (brief_proceed's own included) used to null the whole ledger, so a model that settled the brief and said "done"
+    // ended done with nothing run. The failed names keep their own rule (this turn's failures replace them).
+    const heldPending = new Set();
+    let frNames = [];
+    let heldNoted = false;   // a failure_recovery note that named held calls was sent
     // every turn-buying host note, counted by its tag (NUDGE_TAGS): returned as `nudges`, kept on the run row
     const nudgeCounts = Object.create(null);
     const nudged = (tag) => { nudgeCounts[tag] = (nudgeCounts[tag] || 0) + 1; };
@@ -3494,7 +3500,19 @@
           const hasSearch = tools.some(t => wireKey(t && t.function && t.function.name) === 'tool_search');
           const recovery = nudgePremise('failure_recovery', { failed: failureRecoveryPending.names, held: failureRecoveryPending.held, search: hasSearch });
           messages.push({ role: 'system', content: '<failure_recovery>' + recovery + HOST_CHECK + '</failure_recovery>' }); nudged('failure_recovery');
+          if (failureRecoveryPending.held.length) heldNoted = true;
           continue;
+        }
+        // HELD WORK NEVER RAN (ops-1115 T3, #187): the held note was sent, the failed ladder is spent or idle, and the model
+        // ends again with the held calls still unmade. That is not a delivery: end as the continuation guard does.
+        if (!empty && !graceUsed && heldNoted && failureRecoveryPending && failureRecoveryPending.held.length
+            && (!failureRecoveryPending.names.length || frUsed >= FR_MAX) && tools.length > 0 && !endsOnChoiceMarker(text)) {
+          const held = failureRecoveryPending.held;
+          const explanation = 'Work is incomplete: ' + held.join(', ') + ' ' + (held.length > 1 ? 'were' : 'was') + ' held by the Task Brief gate and never ran.';
+          assistant.content = text + '\n\n' + explanation;
+          emit('agent.token', { agentId, runId, delta: '\n\n' + explanation });
+          emit('agent.run.error', { agentId, runId, message: explanation, transient: false, failureCode: 'incomplete_work' });
+          return end('error', { failureStage: 'completion', failureCode: 'incomplete_work' });
         }
         // VERIFY-ON-STOP: the run CHANGED code and is now trying to finish without having run anything against
         // it. Spend one bounded turn asking for evidence instead of shipping an unproven claim of done. Gated
@@ -3819,14 +3837,21 @@
 
       // Arm recovery only for non-terminal technical failures. One successful alternate call disarms it;
       // a mixed batch retains only the names that failed so the next turn knows what still needs another route.
-      // A call the Task Brief gate HELD is pending too (the work is still undone), but as held, never as failed.
+      // A call the Task Brief gate HELD is pending too (the work is still undone), but as held, never as failed: it stays
+      // in heldPending until the same tool comes back not held, whatever other tools do in between.
       const recoverableFailures = [], heldCalls = [];
       for (const c of calls) {
         const r = results.find(x => x.callId === c.id);
-        if (r && r.isError && !terminalHumanDecision(r)) (isGateHeld(r) ? heldCalls : recoverableFailures).push(String(c.name || 'tool'));
+        const name = String(c.name || 'tool');
+        // The same tool coming back NOT held settles it: it ran (an ok; a failure the failed ladder below owns) or the
+        // Commander declined it. Another tool's ok never does.
+        if (r && isGateHeld(r)) heldPending.add(name);
+        else if (r) heldPending.delete(name);
+        if (r && r.isError && !terminalHumanDecision(r)) (isGateHeld(r) ? heldCalls : recoverableFailures).push(name);
       }
-      if (recoverableFailures.length || heldCalls.length) failureRecoveryPending = { names: Array.from(new Set(recoverableFailures)), held: Array.from(new Set(heldCalls)) };
-      else if (results.some(r => r && r.ok && !r.isError)) failureRecoveryPending = null;
+      if (recoverableFailures.length || heldCalls.length) frNames = Array.from(new Set(recoverableFailures));
+      else if (results.some(r => r && r.ok && !r.isError)) frNames = [];
+      failureRecoveryPending = (frNames.length || heldPending.size) ? { names: frNames, held: Array.from(heldPending) } : null;
 
       // (8) LOOP GUARD — break out of a run that keeps making the SAME failing tool call. Warn once, then stop.
       const lgWarnedNow = new Set();   // wire names nudged this turn (the breaker's same-tool nudge stays quiet for them)

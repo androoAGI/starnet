@@ -168,6 +168,8 @@ const touchedOf = t => { const m = /You changed code in this run \(([^)]*)\)/.ex
     A.ok(fr.length === 1 && !/The previous path failed/.test(fr[0]) && /\(fs_write\) was held by the Task Brief gate, not failed: it did not run\./.test(fr[0]) && !/nothing ran/.test(fr[0]), 'heldend: the note says held and that IT did not run, never failed: ' + JSON.stringify(String(fr[0] || '').slice(0, 200)));
     A.eq(he.main.length, 3, 'heldend: held write, answer, noted answer = 3 model calls (e316231d7 made 4: two "failed" notes)');
     A.eq(he.row && he.row.nudges, { failure_recovery: 1 }, 'heldend: the run row counts the recovery note');
+    // ops-1115 T3 (#187): the noted answer ends again with the held write never made: the run is incomplete, never done
+    A.eq([he.end.reason, he.row && he.row.reason, he.row && he.row.failureCode], ['error', 'error', 'incomplete_work'], 'heldend: held work that never ran ends the run error / incomplete_work on the record');
 
     // ---- a `cd` kept from an earlier call is where the next command runs: the shell says so, and it counts ----
     const cd = await scenario('SCEN_CDRUN', 'Create sub/hello.js, cd into sub and run it');

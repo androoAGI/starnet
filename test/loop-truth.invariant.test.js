@@ -210,7 +210,11 @@ const NOT_A_CHECK = 'commands the host does not count as a check';
     A.ok(/did NOT pass/.test(textOf(killedCheck.vos[0])) && /npm test/.test(textOf(killedCheck.vos[0])), 'A8 ...and the nudge says the check did NOT pass: ' + textOf(killedCheck.vos[0]).slice(0, 220));
 
     // A9. a check the Task Brief gate HELD never ran: "nothing ran" is the true premise there
-    const heldCheck = await run([write('w1', 'src/app.js'), exec('x1', 'npm test'), say(DONE), say(DONE), say('Not verified.')], { held: ['x1'] });
+    // ops-1115 T3 (#187): with recovery on, the held `npm test` buys its one held note and the next "Done" ends the run
+    // incomplete_work (held work never ran) before verify-on-stop is reached; the verify premise is read with recovery off.
+    const heldEnd = await run([write('w1', 'src/app.js'), exec('x1', 'npm test'), say(DONE), say(DONE), say('Not verified.')], { held: ['x1'] });
+    A.eq([heldEnd.fr.length, heldEnd.res.reason], [1, 'error'], 'A9 (T3) a held check that never ran ends the run as an error after its one held note');
+    const heldCheck = await run([write('w1', 'src/app.js'), exec('x1', 'npm test'), say(DONE), say('Not verified.')], { held: ['x1'], limits: { failureRecovery: false } });
     A.eq(heldCheck.vos.length, 1, 'A9 a held check clears nothing');
     A.ok(textOf(heldCheck.vos[0]).indexOf(NOTHING_RAN) > 0, 'A9 ...and "without running anything" is exactly true for a call that never ran');
 
