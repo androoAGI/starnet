@@ -74,9 +74,18 @@ for (const rel of ROOTS) {
     A.eq(offeredWork(open), false, 'an open question is not an offer: ' + open + tag);
     A.eq(isTaskDirective('yes', { priorAgentTurn: open }), false, '"yes" to an open question stays chat: ' + open + tag);
   }
-  for (const confirm of ['I can draft it for you - sound good?', 'I could set that up for you, okay?']) {
+  for (const confirm of ['I can draft it for you - sound good?', 'I could set that up for you, okay?',
+    'I can fix that for you - how does that sound?', 'Happy to draft the email for you - what do you think?', "I'd be happy to update the config, how about it?", 'I can create the file for you, what do you say?',
+    'I could generate the report for you. How would that sound?', 'I can save it for you, how’s that?']) {
     A.eq(offeredWork(confirm), true, 'a yes/no confirmation of a declared offer: ' + confirm + tag);
+    A.eq(isTaskDirective('yes please', { priorAgentTurn: confirm }), true, '"yes please" after a sounding-out closer is a task: ' + confirm + tag);
   }
+  // a sounding-out closer after something that is NOT an offer stays chat
+  A.eq(offeredWork('The build is green - what do you think?'), false, 'a sounding-out closer without an offer is not an offer' + tag);
+  A.eq(offeredWork('I cannot run that here - what do you think?'), false, 'a sounding-out closer after a refusal is not an offer' + tag);
+  A.eq(offeredWork('I cannot run it here. How does that sound?'), false, 'a separate sounding-out sentence after a refusal is not an offer' + tag);
+  A.eq(offeredWork('The report is saved. What do you think?'), false, 'a separate sounding-out sentence after a plain statement is not an offer' + tag);
+  A.eq(offeredWork('I can see the build is green - what do you think?'), false, 'a sounding-out closer after a status line is not an offer' + tag);
 
   // the question rule still works
   A.eq(isTaskDirective('yes', { priorAgentTurn: 'Want me to draft it?' }), true, 'the question rule is unchanged' + tag);

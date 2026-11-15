@@ -70,9 +70,15 @@
   /* An OPEN question (the reply's closing clause opens with what / which / where / when / who / how / why) is no offer
      to act: the Commander's answer is the content, not a yes. A yes/no confirmation of a declared offer ("I can draft it
      for you - sound good?") is not open, so it still reaches declaredOffer. Decided on the closing clause only. */
+  /* A SOUNDING-OUT closer asks yes/no about an offer just made ("how does that sound?", "what do you think?",
+     "how about it?", "what do you say?"). It opens with how / what but it confirms, it does not ask for content,
+     so it is not an open question and the declared-offer check still reads the line. */
+  const SOUNDING_OUT = /^\s*(?:(?:and|but|so|or)\s+)?(?:how (?:does|do|would) (?:that|this|it) sound|how(?:'s| is| about) (?:that|this|it)|what do you (?:think|say)|what about (?:that|this|it))\b/;
   function openQuestion(line) {
-    const clauses = String(line).split(/[,;:\u2013\u2014]|\s-\s|[.!?]\s+/).filter(function (p) { return p.trim(); });
-    return /^\s*(?:(?:and|but|so|or)\s+)?(?:what|which|where|when|who|whom|whose|how|why)\b/.test(clauses.length ? clauses[clauses.length - 1] : '');
+    const clauses = String(line).replace(/\u2019/g, "'").split(/[,;:\u2013\u2014]|\s-\s|[.!?]\s+/).filter(function (p) { return p.trim(); });
+    const last = clauses.length ? clauses[clauses.length - 1] : '';
+    if (SOUNDING_OUT.test(last)) return false;
+    return /^\s*(?:(?:and|but|so|or)\s+)?(?:what|which|where|when|who|whom|whose|how|why)\b/.test(last);
   }
   /* A DECLARED offer ("I can write that script for you.", "Let me know if you'd like me to set it up.") is an offer
      too, with or without a "?": its "yes" was chat and the run got zero tools. Decided on the reply's LAST SENTENCE
@@ -86,6 +92,8 @@
   const OFFER_STATUS = /\bi (?:can|could) (?:see|confirm|tell|say|verify|hear|notice|observe|understand|imagine|assume)\b/g;
   function declaredOffer(line) {
     const pieces = String(line).replace(/\u2019/g, "'").split(/[.!]\s+/).filter(function (p) { return p.trim(); });
+    // a sentence that is only a sounding-out closer ("How does that sound?") confirms the sentence before it: read that one
+    if (pieces.length > 1 && SOUNDING_OUT.test(pieces[pieces.length - 1])) pieces.pop();
     const sentence = (pieces.length ? pieces[pieces.length - 1] : '').replace(OFFER_STATUS, ' ');
     return DECLARED_OFFER.test(sentence) && OFFER_ACTION.test(sentence) && !OFFER_NEGATED.test(sentence);
   }
