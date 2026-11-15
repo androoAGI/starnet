@@ -1002,6 +1002,21 @@
     try { return fs.statSync(file).isFile() ? 'file' : 'absent'; }
     catch (e) { return e && (e.code === 'ENOENT' || e.code === 'ENOTDIR') ? 'absent' : 'unknown'; }
   }
+  /* GitHub #184. Python 3.14's Install Manager puts `python`, `python3` and `py` on PATH as app execution aliases in
+     %LOCALAPPDATA%\Microsoft\WindowsApps: zero-byte links a stat cannot open (EACCES), so the search above stopped at "unknown"
+     and every `python x.py` was refused. Such a link names the real program it starts. Only the Python Software Foundation's
+     own package is followed (another alias may be a console stub that opens an app window, as the Store's does), and the file
+     it names is then judged by its own PE header like any other: python.exe is a console tool, pythonw.exe is not. */
+  const PYTHON_ALIAS_TARGET_RE = /[\\/]WindowsApps[\\/]PythonSoftwareFoundation\.[A-Za-z0-9._-]+[\\/][A-Za-z0-9._-]+\.exe$/i;
+  function pythonAliasTarget(candidate, fs, P) {
+    if (!fs || typeof fs.lstatSync !== 'function' || typeof fs.readlinkSync !== 'function' || !P) return null;
+    try {
+      if (!/[\\/]WindowsApps[\\/][^\\/]+\.exe$/i.test(candidate) || !fs.lstatSync(candidate).isSymbolicLink()) return null;
+      const target = String(fs.readlinkSync(candidate) || '');
+      if (!P.isAbsolute(target) || /^[\\/]{2}/.test(target) || !PYTHON_ALIAS_TARGET_RE.test(target)) return null;
+      return probeFile(target, fs) === 'file' ? target : null;
+    } catch (_) { return null; }
+  }
   // Resolve the FIRST executable candidate, in cmd's own order: the working folder, then PATH (the working folder is out of the
   // search when the command's environment defines NoDefaultCurrentDirectoryInExePath), each folder in PATHEXT order.
   // An unreadable earlier candidate (or network path) cannot be vouched for by
@@ -1036,7 +1051,7 @@
       const hasExtension = value.includes('.');
       for (const candidate of (hasExtension ? [file] : []).concat(exts.map(ext => file + ext))) {
         const status = probeFile(candidate, fs);
-        if (status === 'unknown') return { status };
+        if (status === 'unknown') { const alias = pythonAliasTarget(candidate, fs, P); return alias ? { status: 'file', file: alias } : { status }; }
         if (status === 'file') return { status, file: candidate };
       }
       // A remaining raw extensionless file is not a console proof. Do not

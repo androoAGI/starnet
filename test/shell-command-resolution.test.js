@@ -212,7 +212,39 @@ const plumbing = (async () => {
   }
 })();
 
+// GitHub #184: Python 3.14's Install Manager puts python/python3/py on PATH as app execution aliases in WindowsApps (zero-byte
+// links a stat cannot open). The alias names the real program; only the Python Software Foundation's package is followed, and
+// the file it names is judged by its own header. Any other alias (the Store's console stub opens a window) stays unproven.
+{
+  const WA = 'C:\\Users\\u\\AppData\\Local\\Microsoft\\WindowsApps', PKG = 'C:\\Program Files\\WindowsApps\\PythonSoftwareFoundation.PythonManager_26.4.240.0_x64__qbz5n2kfra8p0';
+  const STORE = 'C:\\Program Files\\WindowsApps\\Microsoft.WindowsStore_22609.1401.13.0_x64__8wekyb3d8bbwe\\store.exe';
+  const links = { [WA + '\\python.exe']: PKG + '\\python.exe', [WA + '\\pythonw.exe']: PKG + '\\pythonw.exe', [WA + '\\store.exe']: STORE,
+    [WA + '\\evil.exe']: 'C:\\Users\\u\\Downloads\\PythonSoftwareFoundation.fake\\evil.exe' };
+  const faults = {}; for (const l of Object.keys(links)) faults[l.toLowerCase()] = 'EACCES';
+  const f = fixture({ [PKG + '\\python.exe']: consolePE, [PKG + '\\pythonw.exe']: guiPE, [STORE]: consolePE, 'C:\\Users\\u\\Downloads\\PythonSoftwareFoundation.fake\\evil.exe': consolePE }, faults);
+  const byKey = new Map(Object.entries(links).map(([k, v]) => [k.toLowerCase(), v]));
+  f.memory.lstatSync = p => ({ isSymbolicLink: () => byKey.has(String(p).toLowerCase()) });
+  f.memory.readlinkSync = p => { const t = byKey.get(String(p).toLowerCase()); if (!t) throw Object.assign(new Error('EINVAL'), { code: 'EINVAL' }); return t; };
+  const risk = cmd => api.commandSafetyRisk(cmd, { cwd: 'C:\\work', exactCwd: true, fs: f.memory, pathMod: path.win32, isWin: true, dialect: 'cmd', env: { PATH: WA, PATHEXT: '.COM;.EXE;.BAT;.CMD' } });
+  A.eq(risk('python validate.py'), null, '#184: the Python Install Manager\'s python alias is followed to its console program and runs');
+  A.ok(/GUI\/native runtime/.test(JSON.stringify(risk('pythonw validate.py'))), '#184: its pythonw alias is followed too, and refused as the GUI program it is');
+  A.ok(/could not confirm is a console tool/.test(JSON.stringify(risk('store'))), '#184: another package\'s alias is not followed, so it stays unproven');
+  A.ok(/could not confirm is a console tool/.test(JSON.stringify(risk('evil'))), '#184: a link that only names the package outside WindowsApps is not followed');
+}
+
 if (process.platform === 'win32') {
+  // the same on this host's real WindowsApps, where the Python Install Manager is installed
+  const realWA = path.join(process.env.LOCALAPPDATA || '', 'Microsoft', 'WindowsApps');
+  let pyAlias = '';
+  try { pyAlias = fs.lstatSync(path.join(realWA, 'python.exe')).isSymbolicLink() ? fs.readlinkSync(path.join(realWA, 'python.exe')) : ''; } catch (_) { pyAlias = ''; }
+  if (/PythonSoftwareFoundation/i.test(pyAlias)) {
+    const os = require('node:os'); const cwd = fs.mkdtempSync(path.join(os.tmpdir(), 'starnet-py184-'));
+    try {
+      const real = cmd => api.commandSafetyRisk(cmd, { cwd, exactCwd: true, fs, pathMod: path, isWin: true, dialect: 'cmd', env: Object.assign({}, process.env, { PATH: realWA + ';' + (process.env.SystemRoot || 'C:\\Windows') + '\\system32' }) });
+      A.eq(real('python -c "print(1)"'), null, '#184 on this host: the real python alias is allowed');
+      A.ok(real('pythonw -c "print(1)"'), '#184 on this host: the real pythonw alias is refused');
+    } finally { fs.rmSync(cwd, { recursive: true, force: true }); }
+  } else console.log('#184 real-alias check not run: no Python Install Manager alias on this host');
   const rig = windowsRig(api);
   try {
     const control = rig.execute('.\\probe.exe', true);
