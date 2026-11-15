@@ -68,8 +68,34 @@ function branchIdsOf(nodes) {
   return nodes.map(n => { const base = nodeKey(n) || 'branch'; let id = base, i = 1; while (seen.has(id)) id = base + ':' + (++i); seen.add(id); return id; });
 }
 const VERDICT_SET = new Set(['approved', 'revise', 'blocked']);
-// what a barrier keeps of a part beyond its agent, text and crate id (barrier.deliver's meta): the branch it came from, the run that made it, the draft that run was handed, its verdict and files
-const PART_META = ['branchId', 'runId', 'draft', 'verdict', 'files'];
+// what a barrier keeps of a part beyond its agent, text and crate id (barrier.deliver's meta): the branch it came from, the run that made it, the draft that run was handed, its verdict and files,
+// and (only when present) its refusals — the tool calls that did not run. In memory only: the saved hold and barrier shapes pick their own keys
+const PART_META = ['branchId', 'runId', 'draft', 'verdict', 'files', 'refusals'];
+/* STAGE FACTS (ops-1115 T4). refusalsOf(r) -> { denied, held } | null: the tool calls a stage's run did not make — refused by the person
+   (denied) or held by the Task Brief gate (held) — as line-runner.js reports them on the hop (strings only, six each). Anything else
+   (an older producer with no `refusals`, a malformed value, two empty lists) is null: nothing is added. refusalNote(who, f) is the ONE line
+   the join and the next stage's hand-off carry: a fact, never a verdict (no VERDICT word, never a host note) — the verdict is read first. */
+function refusalsOf(r) {
+  const x = r && r.refusals;
+  if (!x || typeof x !== 'object') return null;
+  const names = v => (Array.isArray(v) ? v.filter(n => typeof n === 'string' && n).slice(0, 6) : []);
+  const denied = names(x.denied), held = names(x.held);
+  return (denied.length || held.length) ? { denied, held } : null;
+}
+function refusalNote(who, f) {
+  const parts = [];
+  if (f.denied.length) parts.push('refused: ' + f.denied.join(', '));
+  if (f.held.length) parts.push('held: ' + f.held.join(', '));
+  return 'Line note — ' + who + ': ' + (f.denied.length + f.held.length) + ' tool call(s) did not run (' + parts.join('; ') + '); its text may describe work that did not happen.';
+}
+/* notedCrate(payload, notes) -> a JOINER's merged crate (Pipeline.joinPayload) with the join's note lines placed right under its
+   'JOINED OUTPUT — …' header line, ahead of the first branch. Never at the end (T4 review B2): the crate's tail is read — the last
+   branch's passed-on LOOP frame runs to the end (passedAt / reviewedWork), and parseVerdict / stripVerdict read the last three lines. */
+function notedCrate(payload, notes) {
+  const s = String(payload == null ? '' : payload), cut = s.indexOf('\n\n');
+  if (!notes || !notes.length) return s;
+  return cut < 0 ? notes.join('\n') + '\n\n' + s : s.slice(0, cut) + '\n\n' + notes.join('\n') + s.slice(cut);
+}
 // one digest of what a stage was handed / what it handed back (the evidence a hold saves; line-hold.js reads it, nothing recomputes it)
 const sha = v => crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex');
 const uint = n => (typeof n === 'number' && isFinite(n) && n >= 0) ? Math.floor(n) : 0;
@@ -816,13 +842,30 @@ function makeChainRunner(o) {
        words). The job still runs to its end (law 1: the next stage gets the partial set, marked), but it never counts as a clean
        product: no line-output, no shipment receipt, no SEND TO, no 'delivered' verdict. The run rows alone cannot tell — a hop the
        host refused before it ran (no credential, the floor changed) writes none, and a branch still out at the timeout has none. */
+    /* the refused / held calls of the stage whose RETURNED text the walk holds now: { text, who, facts } (T4). It is read only while the
+       text handed on is still that exact text (a gate's rewrite, a split part, a merge or the entry's own output carry none) */
+    let handFacts = null;
+    const noted = (t, h) => (h && h.text === t ? t + '\n\n' + refusalNote(h.who, h.facts) : t);
     const joined = (parts, missing, failed, joinId) => {
       const why = (failed || []).concat((missing || []).map(m => m + ' never reached the joiner'));
       if (why.length) out.partial = (out.partial ? out.partial + '; ' : '') + why.join(', ');
       const text = Pipeline.joinPayload(parts, missing, failed);
       producerVerdict = getVerdict(text);   // the join produces one aggregate; later gates reuse its verdict
       joinedFrom = { joinId: String(joinId), runIds: Array.from(new Set(parts.map(p => p.runId).filter(Boolean))), complete: parts.every(p => !!p.runId) };
-      return text;
+      handFacts = null;   // the merged crate is no one stage's own text: its parts' facts ride in it as the notes below
+      /* STAGE FACTS (T4): a branch whose tool calls did not run is still delivered (no verdict changes: it was read above), but the joiner
+         and the stage after it are told, one line per such part, that its text may describe work that did not happen */
+      const notes = [];
+      let calls = 0;
+      for (const p of parts) {
+        const f = p && p.refusals;
+        if (!f) continue;
+        notes.push(refusalNote(String(p.agentId || p.branchId || '?') + (p.branchId && p.branchId !== p.agentId ? ' (branch ' + p.branchId + ')' : ''), f));
+        calls += f.denied.length + f.held.length;
+      }
+      if (!notes.length) return text;
+      out.refusals = { parts: ((out.refusals && out.refusals.parts) || 0) + notes.length, calls: ((out.refusals && out.refusals.calls) || 0) + calls };
+      return notedCrate(text, notes);
     };
     /* THE TYPED STOP (line-job-runner): every stop below ends the walk here — the stop as its code and ONE sentence
        (routing/line-fire.js lineStop), the legacy words beside it (out.stopped holds the why), and the stage the job stopped at. A stop
@@ -939,7 +982,7 @@ function makeChainRunner(o) {
       }
     }
     // a branch that ends (terminal / parked at the joiner) hands the loop to the next queued branch; from then on the walk is inside THAT branch
-    const nextPending = () => { const b = pending.shift(); if (!b) return false; cur = b.from || cur; out.text = b.text; branchMode = true; branch = b.id || branch; return b; };
+    const nextPending = () => { const b = pending.shift(); if (!b) return false; cur = b.from || cur; out.text = b.text; handFacts = b.facts || null; branchMode = true; branch = b.id || branch; return b; };
     let forced = initial.forced;   // a queued branch's node, run on this hop in place of the walk's answer
     // the receiving dock's standing brief, for a divided branch's own hand-off (Pipeline.partHandoff)
     const briefOf = t => { if (!stageBrief || !t) return null; try { return t.dockId ? stageBrief(t.agentId, t.dockId) : stageBrief(t.agentId); } catch (_) { return null; } };
@@ -950,12 +993,14 @@ function makeChainRunner(o) {
     function attemptOf(o) {
       try {
         const r = o.r || {}, product = o.ok ? productOf(r, { draft: o.draft, getVerdict }) : null, files = product ? product.files : [];
-        const runId = (r.runId != null && String(r.runId)) || null;
-        return { runId, node: { agentId: o.node.agentId, dockId: o.node.dockId || null }, branchId: o.branchId || null,
+        const runId = (r.runId != null && String(r.runId)) || null, refusals = refusalsOf(r);
+        const att = { runId, node: { agentId: o.node.agentId, dockId: o.node.dockId || null }, branchId: o.branchId || null,
           workitemId: String(o.workitemId || ''), state: 'observed', inputDigest: sha([String(o.text == null ? '' : o.text), o.reads || []]),
           outputDigest: sha([String(r.text == null ? '' : r.text), String(o.draft == null ? '' : o.draft), product ? product.verdict : null, files, runId]),
           usd: o.usd, usageMissing: false, outcome: RunOutcome.isOutcome(r.outcome) ? r.outcome : (o.ok ? 'succeeded' : 'failed'),
           at: uint(o.t0), endedAt: null, files, projectRoot: typeof r.projectRoot === 'string' ? r.projectRoot : '' };
+        if (refusals) att.refusals = refusals;   // in memory only (T4): the saved attempt (line-hold.js) keeps its exact keys
+        return att;
       } catch (e) {
         failNote('chain.attempt', e);
         return { runId: null, node: asNode(o && o.node) || { agentId: null, dockId: null }, branchId: null, workitemId: '', state: 'observed', inputDigest: '',
@@ -973,8 +1018,10 @@ function makeChainRunner(o) {
     const ownEntryFiles = () => { const foreign = new Set(mergeFiles(s.handoffReads)); return mergeFiles(entryProduct.files).filter(f => !foreign.has(f)); };
     const crateFiles = () => { const l = lastAttempt(); return (l ? l.files : (R ? R.productFiles : ownEntryFiles())).slice(); };
     const verdictWord = t => { let v = null; try { v = getVerdict(String(t == null ? '' : t)); } catch (e) { failNote('chain.verdictWord', e); } return VERDICT_SET.has(v) ? v : null; };
-    // what a part leaves with when it parks at the barrier (barrier.deliver's meta): the branch it came from and the run that made it
-    const partMeta = () => ({ branchId: branch, runId: lastRunId(), draft: String(lastHanded == null ? '' : lastHanded), verdict: verdictWord(out.text), files: crateFiles() });
+    // what a part leaves with when it parks at the barrier (barrier.deliver's meta): the branch it came from and the run that made it, and
+    // (T4) the refusals of the stage whose own text it is (undefined otherwise: the part then has no such key)
+    const partMeta = () => ({ branchId: branch, runId: lastRunId(), draft: String(lastHanded == null ? '' : lastHanded), verdict: verdictWord(out.text), files: crateFiles(),
+      refusals: handFacts && handFacts.text === out.text ? handFacts.facts : undefined });
     const barrierKeys = () => Array.from(barriers.keys()).filter(k => k.endsWith('|' + runId));
     // a hold hands the barrier to the saved record: this run's barrier leaves memory and the barrier file (nothing is left to be reported "lost on restart")
     const dropBarriers = () => { const keys = barrierKeys(); for (const k of keys) barriers.delete(k); if (keys.length) persistBarriers(); };
@@ -1118,7 +1165,7 @@ function makeChainRunner(o) {
         say('workitem.placed', placed);
         const turn = b.entry ? String(originalText || '')
           : b.part ? Pipeline.partHandoff(originalText, b.part.text, b.part.i, b.part.k, hop0 + i, briefOf(t), handedFiles)
-          : hopTurn({ handoffText, stageBrief, loopGateAfter, lastStage, originalText, from: from.agentId, upstream: b.text, hop: hop0 + i, target: t.agentId, targetDock: t.dockId, lineId, files: handedFiles });
+          : hopTurn({ handoffText, stageBrief, loopGateAfter, lastStage, originalText, from: from.agentId, upstream: noted(b.text, b.facts), hop: hop0 + i, target: t.agentId, targetDock: t.dockId, lineId, files: handedFiles });
         // `parallel`: the host runs this hop OFF the line's shared conversation stream — a stream runs one turn at a time, so
         // three branches on it queued behind each other (live 2026-10-10), and a queued turn is rebuilt from the whole thread
         const call = { agentId: t.agentId, text: withoutHostNotes(turn), hop: hop0 + i, from: from ? from.agentId : null, signal: s.signal, workitemId, ceilingUsd: share, parallel: true };
@@ -1142,7 +1189,7 @@ function makeChainRunner(o) {
           return { id: b.id || nodeKey(t), node: t, usd, stopped: code === 'stopped', stop, error: stop.why, att };
         }
         say('workitem.delivered', withDock({ workitemId, finalQueueId: t.agentId, agentId: t.agentId, box: '', ms: (att.endedAt = now()) - t0, ts: now() }, t.dockId));
-        return { id: b.id || nodeKey(t), node: t, workitemId, usd, text: r.text, draft: call.draft, files: productOf(r, { draft: call.draft, getVerdict }).files, ms: now() - t0, att };
+        return { id: b.id || nodeKey(t), node: t, workitemId, usd, text: r.text, draft: call.draft, files: productOf(r, { draft: call.draft, getVerdict }).files, ms: now() - t0, att, refusals: att.refusals };
       })); } finally { batchLive -= items.length; }
       for (const x of results) {
         evidence.attempts.push(x.att);   // in item order, whichever branch finished first: the hold's accounting is deterministic
@@ -1160,7 +1207,7 @@ function makeChainRunner(o) {
         if (x.error) { if (fan) { fan.failed.push(x.error); fan.failedIds.push(x.id); } continue; }
         const fw = fan ? Math.max(1, fan.width - fan.failed.length) : 0;
         const d = barrier.deliver(bk, fw || jstep.expect, x.node.agentId, x.text, jstep.timeoutMin, x.node.dockId,
-          { branchId: x.id, runId: x.att.runId, draft: String(x.draft == null ? '' : x.draft), verdict: verdictWord(x.text), files: x.att.files.slice() });
+          { branchId: x.id, runId: x.att.runId, draft: String(x.draft == null ? '' : x.draft), verdict: verdictWord(x.text), files: x.att.files.slice(), refusals: x.refusals });
         cur = { agentId: x.node.agentId, dockId: x.node.dockId || null };
         if (d.released) rel = d;
       }
@@ -1246,7 +1293,7 @@ function makeChainRunner(o) {
           if (br.length) fan = { width: br.length, failed: [], failedIds: [], ids, joinKey: null, joinStep: null, handed: String(out.text || '') };   // what the branches were handed (a gate past the joiner reviews it)
           const allAt = joinOfAll(br.map(n => ({ node: n })));
           if (allAt) {
-            const items = br.map((n, i) => ({ id: ids[i], node: n, text: texts ? texts[i] : out.text, from: cur, part: partsInfo ? partsInfo[i] : null }));
+            const items = br.map((n, i) => ({ id: ids[i], node: n, text: texts ? texts[i] : out.text, from: cur, part: partsInfo ? partsInfo[i] : null, facts: handFacts }));
             const leadText = out.text, bk = allAt.join + '|' + runId;
             fan.joinKey = bk; fan.joinStep = allAt;
             const b = await runBatch(items, hop);
@@ -1275,7 +1322,7 @@ function makeChainRunner(o) {
           target = br.shift() || null;
           hopPart = partsInfo ? partsInfo[0] : null;
           if (target) branch = ids[0];   // the walk is inside the first branch now; the rest are queued
-          br.forEach((n, i) => pending.push({ id: ids[i + 1], node: n, text: texts ? texts[i + 1] : out.text, from: cur, part: partsInfo ? partsInfo[i + 1] : null, prod: madeBy }));
+          br.forEach((n, i) => pending.push({ id: ids[i + 1], node: n, text: texts ? texts[i + 1] : out.text, from: cur, part: partsInfo ? partsInfo[i + 1] : null, prod: madeBy, facts: handFacts }));
         } else if (step && step.join) {
           // THE BARRIER. Park this branch's output; release only when every in-lane has delivered for this run.
           const bk = step.join + '|' + runId;
@@ -1367,7 +1414,7 @@ function makeChainRunner(o) {
       // its own lane: it gets the original message, not a handoff turn.
       const turn = entryBranch ? String(originalText || '')
         : hopPart ? Pipeline.partHandoff(originalText, hopPart.text, hopPart.i, hopPart.k, hop, briefOf(target), out.files)
-        : hopTurn({ handoffText, stageBrief, loopGateAfter, lastStage, originalText, from: cur.agentId, upstream: out.text, hop, target: target.agentId, targetDock: target.dockId, lineId, files: out.files });
+        : hopTurn({ handoffText, stageBrief, loopGateAfter, lastStage, originalText, from: cur.agentId, upstream: noted(out.text, handFacts), hop, target: target.agentId, targetDock: target.dockId, lineId, files: out.files });
       const call = { agentId: target.agentId, text: withoutHostNotes(turn), hop, from: entryBranch ? null : cur.agentId, signal: s.signal, workitemId };
       if (failedLoops.size) call.revisePass = true;   // a retry after a failed review (W3.3): present only then
       // what is LEFT of the line's $ ceiling rides the hop as a lower-only cap: the pre-hop check alone let one own-key stage
@@ -1421,6 +1468,8 @@ function makeChainRunner(o) {
       if (target.dockId) hopRec.dockId = target.dockId;
       out.hops.push(hopRec);
       out.text = r.text; out.agentId = target.agentId;
+      // T4: this stage's refused / held calls ride beside its text into the next hand-off (the text itself, the answer, is never changed)
+      handFacts = att.refusals ? { text: r.text, who: String(target.agentId), facts: att.refusals } : null;
       const product = productOf(r, { draft: lastHanded, getVerdict });
       lastHanded = product.draft; producerVerdict = product.verdict; joinedFrom = null;
       out.files = mergeFiles(out.files, product.files);
@@ -1449,4 +1498,4 @@ function makeChainRunner(o) {
   return { advance, stopNote, initializeEntry, _limits: { maxHops, maxUsd }, _barrier: barrier };
 }
 
-module.exports = { makeChainRunner, effectiveLimits, loopDecision, heldByBrief, heldStop, preHopRefusal, preHopStop, hopTurn, lineRefusalNote, lineRefusalStop, asNode, nodeKey, MAX_HOPS, MAX_CHAIN_USD };
+module.exports = { makeChainRunner, effectiveLimits, loopDecision, notedCrate, heldByBrief, heldStop, preHopRefusal, preHopStop, hopTurn, lineRefusalNote, lineRefusalStop, asNode, nodeKey, MAX_HOPS, MAX_CHAIN_USD };
