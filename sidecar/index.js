@@ -9152,6 +9152,7 @@ const cronDriver = makeCronDriver({
   credentialError: (provider) => engineCredentialError(provider, 'this scheduled routine'),   // #89: the ONE sentence Run Now says too
   defaultModel: CRON_DEFAULT_MODEL, maxRunMs: CRON_MAX_RUN_MS, maxConsecutiveFailures: CRON_MAX_CONSECUTIVE_FAILURES,
   maxWallMs: CRON_MAX_WALL_MS,                             // a run that keeps heartbeating but never ends is stopped here
+  tickMs: CRON_TICK_MS,                                    // a sweep gap far past the tick period (a sleep) gives live leases that time back
   // NS-0 lease heartbeat: reclaim on stale-heartbeat, not fixed wall-clock age (a live long run fires exactly once).
   heartbeatStaleMs: CRON_HEARTBEAT_STALE_MS, stalenessMult: CRON_STALENESS_MULT, durableHeartbeatMs: CRON_DURABLE_HEARTBEAT_MS,
   maxParallel: CRON_MAX_PARALLEL,                          // G4.4 global concurrency cap: at most N cron runs in-flight; the rest defer
@@ -9223,7 +9224,7 @@ const cronDriver = makeCronDriver({
     /* A HOP RUNS AS THE TARGET AGENT ON THE TARGET'S OWN ROSTER CONFIG (2026-08-10 audit #3), on the routine's skills, workdir and
        toolsets, its events teed to the HUD like the entry run's, renewing the fire's lease (onHop). Its stop is worded by hopStoppedSaid. */
     streamId: o.streamId, config: (agentId) => cronHopConfigFor(agentId, o), routine: o, beforeHop: o.onHop,
-    tee: (name, p) => { const view = runTeeView(name, p); if (view) cronEmitNotify(name, view); },
+    tee: (name, p) => { if (typeof o.onHopEvent === 'function') o.onHopEvent(name, p); const view = runTeeView(name, p); if (view) cronEmitNotify(name, view); },
     system: cronSystemFor, station: (agentId, dockId) => admit.stationFor(agentId, dockId), stoppedSaid: hopStoppedSaid, stoppedByYou: hopStoppedByYou
   }) })
 });
@@ -20381,6 +20382,7 @@ async function handleCronRun(req, res) {
   // paths gate identically (see runSlashRoutine's note on that shared limit).
   // (quick win 31) the SAME rule as the scheduled wrapper: a routine carrying a pre-check SCRIPT is a model run, never redirected
   const firedAt = Date.now();   // this press's fire time: cron.fire's scheduledFor and the run's idempotency scope
+  const pressScope = routineRunIdentity(job, firedAt).idempotencyScope;   // the press's lease names it, so a transient retry reuses it
   if (runsAsCommand(assembledPrompt, job.script)) {
     const runIdC = crypto.randomUUID();
     openRunAnswer(res, sink, { runId: runIdC });
@@ -20407,7 +20409,7 @@ async function handleCronRun(req, res) {
   // firing a concurrent duplicate. Heartbeat renews off the tee below; the driver's stale sweep governs a
   // silent manual run by exactly the same rule as a scheduled one. Removed in the finally.
   // pausedAtStart (review 7.1): a press on a routine the Commander had already paused — its result goes out, never held for a resume
-  cronDriver.leases.set(job.id, { runId: runId, startedAt: Date.now(), heartbeatAt: Date.now(), ac: ac, isOnce: false, pausedAtStart: cronStore.deliveriesHeld(job) });
+  cronDriver.leases.set(job.id, { runId: runId, startedAt: Date.now(), heartbeatAt: Date.now(), ac: ac, isOnce: false, pausedAtStart: cronStore.deliveriesHeld(job), scope: pressScope });
   // res 'close', not req 'close' — same disconnect-detection law as handleRun: readBody() already consumed the
   // request, so req 'close' has fired before this listener attaches and a dead watcher was never noticed (F1).
   // DETACHED (additive, APPS 2026-09-30): an app's REFRESH is the routine's own job, not the watcher's — closing the
@@ -20428,7 +20430,7 @@ async function handleCronRun(req, res) {
   let pressed = null;   // what stage one's runOnce returned: its terminal text seeds the line (line-runner.js), never the streamed reply
   const teeEmit = (name, payload) => {
     try { emit(name, payload); } catch (_) {}
-    { const lz = cronDriver.leases.get(job.id); if (lz && lz.runId === runId) lz.heartbeatAt = Date.now(); }   // liveness for the driver's stale sweep
+    cronDriver.noteLeaseEvent(job.id, runId, name, payload);   // liveness for the driver's stale sweep (events, and tool calls in flight)
     const p = payload || {};
     if (assembler.feed(name, p)) { state.buf = assembler.text(); state.toolsRan = assembler.toolsRan; }
     // only the LEAD's own error and end settle the press (cron-driver's sink rule): a delegated worker's ride this stream under its runId
@@ -20534,7 +20536,7 @@ async function handleCronRun(req, res) {
         }, profile: LineRunner.profiles.manual({
           // the scheduled seam's hop exactly (line-runner.js): the TARGET's own roster config, the routine's skills, workdir and toolsets,
           // trigger 'manual', its events streamed into the SAME response and per-run stream so the session shows the whole line
-          streamId: 'cron-' + runId, config: (agentId) => cronHopConfigFor(agentId, { key: key, model: model, provider: provider }), emit: emit,
+          streamId: 'cron-' + runId, config: (agentId) => cronHopConfigFor(agentId, { key: key, model: model, provider: provider }), emit: (n, p) => { cronDriver.noteLeaseEvent(job.id, runId, n, p); emit(n, p); },
           routine: { preloadSkills: Array.isArray(job.skills) ? job.skills.slice() : [], requiredPreloads: true, workdir: job.workdir || null, enabledToolsets: Array.isArray(job.enabledToolsets) ? job.enabledToolsets.slice() : null },
           system: cronSystemFor, station: (agentId, dockId) => admit.stationFor(agentId, dockId), stoppedSaid: hopStoppedSaid, stoppedByYou: hopStoppedByYou
         }) });

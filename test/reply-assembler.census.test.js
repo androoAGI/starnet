@@ -221,10 +221,14 @@ async function runNowEntry(deltas) {
   const src = runNow();
   const from = src.indexOf("  const state = { buf: ''");
   const end = src.indexOf('\n  };\n', src.indexOf('const teeEmit', from)) + 6;
+  const leaseNotes = [];   // Run Now's tee also renews the driver's lease (cronDriver.noteLeaseEvent, the stale sweep's liveness)
   const lifted = vm.runInNewContext('(function () {\n' + src.slice(from, end) + '\nreturn { teeEmit: teeEmit, state: state };\n})()', {
-    makeReplyAssembler, emit: () => {}, cronDriver: { leases: new Map() }, job: { id: 'j' }, runId: 'r'
+    makeReplyAssembler, emit: () => {}, job: { id: 'j' }, runId: 'r',
+    cronDriver: { leases: new Map(), noteLeaseEvent: (jobId, rid, name) => leaseNotes.push([jobId, rid, name]) }
   });
   await runHost(deltas)({ agentId: 'ag', runId: 'r', emit: lifted.teeEmit });
+  A.ok(leaseNotes.length > 0 && leaseNotes.every(n => n[0] === 'j' && n[1] === 'r'),
+    'Run Now: its tee renews the lease of this job and run');
   return { text: lifted.state.buf, tools: lifted.state.toolsRan };
 }
 const runNowHop = (deltas, terminalText) => profiledHop('manual', deltas, terminalText);

@@ -194,6 +194,15 @@
     // consecutive-failure ceiling. Injected int; 0 = off.
     const maxWallMs = (function () { const n = parseInt(d.maxWallMs, 10); return (Number.isFinite(n) && n > 0) ? n : 0; })();
     const durableHeartbeatMs = (function () { const n = parseInt(d.durableHeartbeatMs, 10); return (Number.isFinite(n) && n > 0) ? n : Math.max(1, Math.round(heartbeatStaleMs / 4)); })();
+    // ONE LIVENESS RULE (ops-1115 T1): a run is alive while it emits, OR while a tool call it started is still running. A tool
+    // emits agent.tool_call before it runs and agent.tool_result after, nothing between (shell.exec may run 600 s), so a lease
+    // with an open call (noteLeaseEvent) gets toolStaleMs instead of heartbeatStaleMs. Injected int; default 3 x the window.
+    const toolStaleMs = (function () { const n = parseInt(d.toolStaleMs, 10); return (Number.isFinite(n) && n > 0) ? n : 3 * heartbeatStaleMs; })();
+    const MAX_OPEN_CALLS = 64;
+    // SUSPEND REBASE (ops-1115 T1): the host's tick period. A gap between sweeps far longer than it means the machine slept (or
+    // ticks were skipped), when no heartbeat could arrive; the sweep then moves each lease's heartbeat on by the gap. Absent: off.
+    const tickMs = (function () { const n = parseInt(d.tickMs, 10); return (Number.isFinite(n) && n > 0) ? n : 0; })();
+    let lastSweepAt = null;
     // G4.4 global concurrency cap: at most `maxParallel` cron runs may be IN-FLIGHT at once. When a tick's due
     // set would push the live-lease count over this, the EXTRA due jobs are DEFERRED to the next tick WITHOUT
     // advancing their nextRunAt (they stay due), so a burst of simultaneously-due routines never floods the run
@@ -403,6 +412,27 @@
         // the next progress event must retry instead of leaving restart recovery with a stale liveness stamp.
         if (setJobs(cronStore.renewOnceHeartbeat(getJobs(), jobId, { now: at })) !== false) lease.durableAt = at;
       } catch (e) { failNote('cron.heartbeat.persist', e); }
+    }
+
+    /* noteLeaseEvent — a run event reached the lease (the entry sink, a hop's tee, the host's Run Now seams). Renews exactly as
+       renewLease, then, on the CURRENT lease for this run only, tracks the calls in flight: agent.tool_call adds its callId
+       (at most MAX_OPEN_CALLS), agent.tool_result removes it, and the lead run's own agent.run.end clears them (a worker's end,
+       forwarded under its own runId, clears nothing). The sweep reads lease.openCalls. Never throws into the run's emit path. */
+    function noteLeaseEvent(jobId, runId, name, payload) {
+      try {
+        renewLease(jobId, runId);
+        const lease = leases.get(jobId);
+        if (!lease || lease.runId !== runId) return;
+        const p = payload || {};
+        if (name === 'agent.tool_call' && p.callId != null) {
+          if (!lease.openCalls) lease.openCalls = new Set();
+          if (lease.openCalls.size < MAX_OPEN_CALLS) lease.openCalls.add(String(p.callId));
+        } else if (name === 'agent.tool_result' && p.callId != null) {
+          if (lease.openCalls) lease.openCalls.delete(String(p.callId));
+        } else if (name === 'agent.run.end' && (!p.runId || String(p.runId) === String(runId))) {
+          if (lease.openCalls) lease.openCalls.clear();
+        }
+      } catch (e) { failNote('cron.lease-event', e); }
     }
 
     /* finishFire — record a fired run's outcome once it settles: markRun (the reducer owns the transient-backoff
@@ -649,8 +679,16 @@
         let held = null;
         try { held = admitUnattended(job, { provider: provider, model: model, prompt: assembledPrompt }); } catch (e) { failNote('cron.admitUnattended', e); held = null; }
         if (held) {
+          // HELD ON THE RECORD (ops-1115 T1): the routine's record says it was held, when and by what (job.lastHold, written once per
+          // distinct hold; a one-shot's in its release write). Its last result, streaks, nextRunAt and NEEDS YOU stay as they were.
+          const hold = { binding: String(held.binding || '').slice(0, 60), say: String(held.say || (typeof held.why === 'string' ? held.why : '')).slice(0, 240) };
           if (job.schedule && job.schedule.kind === 'once') {
-            try { setJobs(cronStore.releaseHeldOnce(getJobs(), job.id, { retryAt: nowMs + blockedRetryMs })); } catch (e) { failNote('cron.releaseHeldOnce', e); }
+            try { setJobs(cronStore.releaseHeldOnce(getJobs(), job.id, { retryAt: nowMs + blockedRetryMs, hold: hold, now: nowMs })); } catch (e) { failNote('cron.releaseHeldOnce', e); }
+          } else {
+            const was = (cronStore.getJob(getJobs(), job.id) || job).lastHold;
+            if (!was || was.binding !== hold.binding || was.say !== hold.say) {
+              try { setJobs(cronStore.markHeld(getJobs(), job.id, hold, { now: nowMs })); } catch (e) { failNote('cron.markHeld', e); }
+            }
           }
           return false;
         }
@@ -692,7 +730,7 @@
         // heartbeat, and (throttled) persist a durable heartbeat on a one-shot job so a fresh liveness signal
         // survives a restart and suppresses the fireClaim zombie re-fire. Throttle keeps the hot token path
         // from persisting on every delta: only persist once the durable heartbeat is older than heartbeatMs.
-        renewLease(job.id, runId);
+        noteLeaseEvent(job.id, runId, name, p);
         const fed = assembler.feed(name, p);
         if (fed) { state.buf = assembler.text(); state.toolsRan = assembler.toolsRan; }   // a tool call: prior prose was narration; only the terminal segment is deliverable
         if (fed === 'token') return;   // token stream never leaves the driver
@@ -830,7 +868,9 @@
                downstream hop that needed a grant fails honestly under the existing chain law: last good
                output + stop note. */
             unattendedGrants: [],
-            onHop: function () { renewLease(job.id, runId); }
+            onHop: function () { renewLease(job.id, runId); },
+            // every event of a hop reaches the lease too (a hop running a long tool keeps its fire alive: noteLeaseEvent)
+            onHopEvent: function (name, p) { noteLeaseEvent(job.id, runId, name, p); }
           })).then(
             // the LINE's answer, its stop note when it stopped short, its spend and its stop facts — as the channel hub folds it
             function (line) { foldLineIntoFire(state, line, handed); finishFire(job.id, runId, state, null); },
@@ -881,6 +921,24 @@
       //    NEVER reclaimed and fires exactly once regardless of duration (the duplicate-fire fix). A run that
       //    emits NOTHING still holds startedAt as its initial heartbeat, so a hung run with no output is
       //    reclaimed after heartbeatStaleMs (>= the old maxRunMs by default) rather than the old fixed ceiling.
+      // SUSPEND REBASE (ops-1115 T1): a gap between sweeps far past the tick period is time the machine slept (or ticks were
+      // skipped), when no heartbeat could arrive. Each live lease's heartbeat moves on by that gap less one tick, never past now;
+      // startedAt never moves, so maxWallMs still counts the sleep. A dead run is reclaimed one window later.
+      if (tickMs > 0) {
+        const gap = lastSweepAt != null ? nowMs - lastSweepAt : 0;
+        if (gap > Math.max(3 * tickMs, 60000)) {
+          let moved = 0;
+          for (const lease of leases.values()) {
+            if (!lease || lease.settlement) continue;
+            const beat = lease.heartbeatAt != null ? lease.heartbeatAt : lease.startedAt;
+            if (beat == null) continue;
+            lease.heartbeatAt = Math.min(nowMs, beat + gap - tickMs);
+            moved++;
+          }
+          if (moved) failNote('cron.suspend-rebase', new Error('no tick for ' + Math.round(gap / 1000) + 's; ' + moved + ' run lease(s) given that time back'));
+        }
+        lastSweepAt = nowMs;
+      }
       for (const entry of leases) {
         const jobId = entry[0], lease = entry[1];
         if (lease.settlement) continue;
@@ -894,7 +952,9 @@
           continue;
         }
         const beatAge = nowMs - (lease.heartbeatAt != null ? lease.heartbeatAt : lease.startedAt);
-        if (beatAge > heartbeatStaleMs) {
+        // a tool call in flight is silent by nature: such a lease gets toolStaleMs (ONE LIVENESS RULE, noteLeaseEvent)
+        const limit = (lease.openCalls && lease.openCalls.size > 0) ? toolStaleMs : heartbeatStaleMs;
+        if (beatAge > limit) {
           try { lease.ac.abort(); } catch (_) {}
           /* A RECLAIM IS A REAL OUTCOME (bug-sweep 2026-08-28): the aborted run's late finishFire is UNOWNED
              (generation fence) and never writes markRun — so before this, a reclaimed ONE-SHOT kept its
@@ -906,7 +966,7 @@
              aborted run's late finishFire arrives unowned for the same runId and is silenced (settledRunIds). */
           finishFire(jobId, lease.runId, {
             reason: 'stale-lock-reclaimed',
-            errMsg: 'run reclaimed: no progress for ' + Math.round(heartbeatStaleMs / 1000) + 's', transient: true
+            errMsg: 'run reclaimed: no progress for ' + Math.round(limit / 1000) + 's', transient: true
           }, null);
           try { emit('cron.skipped', { jobId: jobId, reason: 'stale-lock-reclaimed' }); } catch (_) {}
           skips++;
@@ -1116,7 +1176,7 @@
       return n;
     }
 
-    return { applyTick: applyTick, leases: leases, abortAllLeases: abortAllLeases, recoverFinalizations: recoverFinalizations, deliverFinalization: deliverFinalization, settleRun: finishFire,
+    return { applyTick: applyTick, leases: leases, abortAllLeases: abortAllLeases, recoverFinalizations: recoverFinalizations, deliverFinalization: deliverFinalization, settleRun: finishFire, noteLeaseEvent: noteLeaseEvent,
       _internals: { fireJob: fireJob, finishFire: finishFire, deliverFinalization: deliverFinalization } };
   }
 

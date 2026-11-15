@@ -19,6 +19,7 @@
      claimOnceFire(jobs, id, { now })            -> jobs'           // G4.5: stamp a one-shot fire-claim (advance-before-run analog)
      renewOnceHeartbeat(jobs, id, { now })       -> jobs'           // NS-0: bump a one-shot's liveness heartbeat while in flight
      markRun(jobs, id, result, { now, ... })     -> jobs'           // record an outcome (+ transient backoff; clears the fire-claim)
+     markHeld(jobs, id, hold, { now })           -> jobs'           // a held fire's receipt: lastHold { at, binding, say } (ops-1115 T1)
      removeJob(jobs, id)                         -> jobs'           // delete
      getJob(jobs, id)                            -> CronJob | null
      loadEnvelope(rawObjOrString)               -> { version, jobs } // tolerant, fail-closed
@@ -436,8 +437,23 @@
       if (!(job.schedule && job.schedule.kind === 'once') || job.lastRunAt) return job;
       const next = Object.assign({}, job, { fireClaim: null, heartbeatAt: null });
       if (retryAt != null) next.nextRunAt = iso(retryAt);
+      // (ops-1115 T1) the hold's receipt rides this same write (info.hold, at info.now), so a held one-shot pays one write
+      if (info && info.hold) { const h = holdOf(info.hold, info.now); if (!sameHold(job.lastHold, h)) next.lastHold = h; }
       return next;
     });
+  }
+
+  /* markHeld — HELD ON THE RECORD (ops-1115 T1): the unattended hold (W3.1) held a recurring routine's fire. The additive
+     job.lastHold = { at, binding, say } is the receipt the routine's card shows; lastStatus, the streaks, nextRunAt and NEEDS
+     YOU are untouched (a hold is no run and no failure), and markRun removes it on the next real fire. The same hold again
+     returns the job unchanged (its first time kept). Pure: `now` is injected. Older builds ignore the field (loadEnvelope). */
+  function holdOf(hold, now) {
+    return { at: iso(now || 0), binding: String((hold && hold.binding) || '').slice(0, 60), say: String((hold && hold.say) || '').slice(0, 240) };
+  }
+  function sameHold(was, h) { return !!was && typeof was === 'object' && was.binding === h.binding && was.say === h.say; }
+  function markHeld(jobs, id, hold, ctx) {
+    const h = holdOf(hold, ctx && ctx.now);
+    return mapJob(jobs, id, (job) => (sameHold(job.lastHold, h) ? job : Object.assign({}, job, { lastHold: h })));
   }
 
   function removeJob(jobs, id) { return (jobs || []).filter(j => !(j && j.id === id)); }
@@ -825,6 +841,7 @@
       const askedWhilePaused = pausedByYou && result.pausedAtStart === true;
       const isOnce = !!(job.schedule && job.schedule.kind === 'once');
       const next = Object.assign({}, job);
+      delete next.lastHold;   // a real fire ends the hold receipt (markHeld); deleted, not nulled, so a record that never held is unchanged
       next.lastRunId = result.runId != null ? String(result.runId) : job.lastRunId;
       next.lastReason = result.reason != null ? String(result.reason) : null;
       // TYPED OUTCOMES (additive): the run's outcome code (frontend/app/runoutcome.js) — a 'done' reason can still be cut_short
@@ -997,6 +1014,7 @@
     resumeJob: resumeJob,
     triggerJob: triggerJob,
     releaseHeldOnce: releaseHeldOnce,
+    markHeld: markHeld,
     claimOnceFire: claimOnceFire,
     renewOnceHeartbeat: renewOnceHeartbeat,
     markRun: markRun,

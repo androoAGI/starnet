@@ -586,7 +586,9 @@ async function viaPausedRunNow(run, pausedBefore) {
   });
   const job = cronStore.getJob(store, 'j1');
   const runId = 'rnp-' + run.kind, ac = new AbortController();
-  try { new Function('cronDriver', 'cronStore', 'job', 'runId', 'ac', RUN_NOW_LEASE)(cronDriver, cronStore, job, runId, ac); }
+  // pressScope: handleCronRun's press scope, the lease's `scope` (ops-1115 T1) — routineRunIdentity over the press's fire time
+  const pressScope = require('../sidecar/routine-identity.js').routineRunIdentity(job, T0 + 60000).idempotencyScope;
+  try { new Function('cronDriver', 'cronStore', 'job', 'runId', 'ac', 'pressScope', RUN_NOW_LEASE)(cronDriver, cronStore, job, runId, ac, pressScope); }
   catch (e) { return { job: cronStore.getJob(store, 'j1'), delivered, result: null, threw: String((e && e.message) || e) }; }
   const runReplay = async emit => { if (!pausedBefore) store = cronStore.pauseJob(store, 'j1'); replay(run, emit, runId, job.agentId); };
   const table = require('../sidecar/run-table.js').makeRunTable();
