@@ -92,8 +92,8 @@
   const OFFER_STATUS = /\bi (?:can|could) (?:see|confirm|tell|say|verify|hear|notice|observe|understand|imagine|assume)\b/g;
   function declaredOffer(line) {
     const pieces = String(line).replace(/\u2019/g, "'").split(/[.!]\s+/).filter(function (p) { return p.trim(); });
-    // a sentence that is only a sounding-out closer ("How does that sound?") confirms the sentence before it: read that one
-    if (pieces.length > 1 && SOUNDING_OUT.test(pieces[pieces.length - 1])) pieces.pop();
+    // a sentence that is only a sounding-out closer ("How does that sound?") confirms the sentence before it: read that one. A sentence that opens with one but itself declares the offer ("How about this: I can write a fix for you.") is the offer: keep it
+    if (pieces.length > 1 && SOUNDING_OUT.test(pieces[pieces.length - 1]) && !(DECLARED_OFFER.test(pieces[pieces.length - 1]) && OFFER_ACTION.test(pieces[pieces.length - 1]))) pieces.pop();
     const sentence = (pieces.length ? pieces[pieces.length - 1] : '').replace(OFFER_STATUS, ' ');
     return DECLARED_OFFER.test(sentence) && OFFER_ACTION.test(sentence) && !OFFER_NEGATED.test(sentence);
   }

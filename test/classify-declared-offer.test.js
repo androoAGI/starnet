@@ -80,6 +80,12 @@ for (const rel of ROOTS) {
     A.eq(offeredWork(confirm), true, 'a yes/no confirmation of a declared offer: ' + confirm + tag);
     A.eq(isTaskDirective('yes please', { priorAgentTurn: confirm }), true, '"yes please" after a sounding-out closer is a task: ' + confirm + tag);
   }
+  // a sentence that only STARTS with a sounding-out phrase but carries the offer itself is the offer, not a closer to drop
+  for (const lead of ['Here is the issue. How about this: I can write a fix for you.', 'The build broke. What do you think? I could update the config for you.',
+    'Found it. What do you say, I can fix it for you now.', 'Found it. How about it, I can run the migration for you.', 'Got it. What about this? I can draft the reply for you.']) {
+    A.eq(offeredWork(lead), true, 'an offer introduced by a sounding-out phrase: ' + lead + tag);
+    A.eq(isTaskDirective('yes please', { priorAgentTurn: lead }), true, '"yes please" is a task: ' + lead + tag);
+  }
   // a sounding-out closer after something that is NOT an offer stays chat
   A.eq(offeredWork('The build is green - what do you think?'), false, 'a sounding-out closer without an offer is not an offer' + tag);
   A.eq(offeredWork('I cannot run that here - what do you think?'), false, 'a sounding-out closer after a refusal is not an offer' + tag);
