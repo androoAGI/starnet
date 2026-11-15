@@ -265,14 +265,19 @@
     const first = m ? m[0] : s;
     return first.length > WHY_MAX ? first.slice(0, WHY_MAX - 1) + '…' : first;
   }
-  // the verdict a worker row's outcome reads as: a success, a refusal, a cut reply; any other end (an error, a stop, a limit, an
-  // empty reply, a failed schema) is a failed hand-off. A timeout and a refusal before the run started are the row's own words.
+  // the verdict a worker row's outcome reads as: a success, a refusal, an UNFINISHED end (cut_short), else a failed hand-off (an
+  // error, a run with no terminal outcome). THE FAMILY LAW (runoutcome.js look; away-briefing review 8.1, linewatch review 9.3): a
+  // limit, a question, an empty reply or a stop is never FAILED — a cut reply, a step limit (WORKER_MAX_ITERS ends bounded workers by
+  // design), a spend cap, a question, an empty reply, a stop and an interruption all read cut_short, so the summary's failed count
+  // and the UNFINISHED text rewrite stay the failed workers' alone. A timeout and a refusal before the run started are the row's own words.
+  const UNFINISHED_OUTCOMES = new Set(['cut_short', 'step_limit', 'out_of_budget', 'asked', 'empty', 'stopped', 'interrupted']);
   function verdictStatus(r) {
     if (r.reason === 'timeout') return 'timeout';
     if (r.reason === 'refused') return 'refused';
     if (workerOk(r)) return 'done';
     const word = RunOutcome.ofRow(r).outcome;
-    if (word === 'refused' || word === 'cut_short') return word;
+    if (word === 'refused') return word;
+    if (UNFINISHED_OUTCOMES.has(word)) return 'cut_short';
     return 'failed';
   }
   function workerVerdict(row, result, receipt, said) {

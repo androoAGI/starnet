@@ -123,6 +123,32 @@ async function dispatch(impl, args, extra) {
     A.ok(/— RESEARCHER \(UNFINISHED — the reply was cut short\):\nhalf an answ/.test(op) && op.indexOf('FAILED') < 0, 'live: a cut worker\'s hand-off block is unchanged: ' + op.slice(0, 300));
     A.ok((rows[0] || {}).status === 'cut_short' && (rows[0] || {}).result === 'half an answ', 'live: its row is cut_short, its text not rewritten');
   }
+  // fix round 1 (review): a limit, a spend cap, a question, an empty reply or a stop is never FAILED (the family law: away-briefing
+  // review 8.1, linewatch review 9.3). A bounded worker hits WORKER_MAX_ITERS by design: its row is cut_short, its text is its own, the
+  // summary counts no failure, and its dependant is still told it handed on nothing (that block keys on usability, not status).
+  {
+    const { res, rows, calls } = await dispatch((o, n) => n === 1 ? { reason: 'max_iters', messages: say(NARRATION), usd: 0, toolsOk: 3 } : answers(o));
+    results.push(res);
+    const w1 = rows[0] || {};
+    A.ok(w1.status === 'cut_short' && w1.result === NARRATION, 'live: a step-limit worker is cut_short, its text not rewritten: ' + JSON.stringify([w1.status, w1.result]));
+    A.ok(typeof w1.why === 'string' && w1.why.length > 0 && !('failureCode' in w1), 'live: and it says why, with no failure code: ' + JSON.stringify([w1.why, w1.failureCode]));
+    A.ok(/^dispatched 2 worker\(s\), 1 done$/.test(String(res.summary)) && String(res.summary).indexOf('failed') < 0, 'live: the summary counts no failure for a limit: ' + res.summary);
+    const op = openingOf(calls[1]);
+    A.ok(op.indexOf('— RESEARCHER (FAILED — ' + w1.why + '): it handed on nothing') >= 0 && op.indexOf(NARRATION) < 0, 'live: its dependant is still told it handed on nothing: ' + op.slice(0, 300));
+  }
+  for (const reason of ['budget', 'clarifying', 'empty', 'cancelled']) {
+    const { res, rows } = await dispatch(() => ({ reason, messages: say(NARRATION), usd: 0 }), { workers: [{ agentId: 'researcher', prompt: 'look into it' }] });
+    results.push(res);
+    const w1 = rows[0] || {};
+    A.ok(w1.status === 'cut_short' && w1.result === NARRATION, 'live: a \'' + reason + '\' worker is cut_short, its text not rewritten: ' + JSON.stringify([w1.status, w1.result]));
+    A.eq(res.summary, 'dispatched 1 worker(s), 0 done', 'live: a \'' + reason + '\' worker is not counted failed');
+  }
+  {
+    const { res, rows } = await dispatch(() => ({ reason: 'error', messages: say(NARRATION), usd: 0 }), { workers: [{ agentId: 'researcher', prompt: 'look into it' }] });
+    results.push(res);
+    A.ok((rows[0] || {}).status === 'failed' && String((rows[0] || {}).result).startsWith('UNFINISHED ('), 'live: an error is still failed and says UNFINISHED: ' + JSON.stringify(rows[0]));
+    A.eq(res.summary, 'dispatched 1 worker(s), 0 done, 1 failed', 'live: and is counted failed');
+  }
   {
     const slow = (o) => new Promise(resolve => {
       const sig = o.signal;
