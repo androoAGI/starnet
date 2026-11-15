@@ -248,6 +248,65 @@
      done", /api/overseer and the subagent_stop hook (child_reason) reported a cut worker as ended 'done'. A refused worker's record keeps
      the refusal's own end word ('refusal', review 8.1): the ledger's 'refused' is a worker that could not start. */
   function workerReason(row) { return (row && row.reason === 'error' && row.outcome === 'refused') ? 'refusal' : RunOutcome.reasonOf(row); }
+  /* WHAT HAPPENED TO ONE WORKER (ops-1115 T5, W1). A worker that started and then failed (a rate limit, a sign-in, a spend cap, a
+     step limit) came back as a row with no cause: only a refusal kept its code. workerVerdict(row, result, receipt) reads the row's
+     outcome (workerOk, RunOutcome.ofRow, never the bare end word) and the run's own facts: status done | timeout | refused | cut_short |
+     failed; failureCode and transient from the runOnce result, else from the run's receipt (watchRefusal: its agent.run.error, read
+     also when a result exists); why: one sentence, the run's error message, else `said` (the host's own sentence on a row whose text is
+     the host's: a run that threw, a refusal with no receipt, a result that failed its schema), else RunOutcome.line; startedWork: false
+     only for a refusal with no tool run (the only kind a dispatch may send again, C12). stampVerdict puts the additive fields on the
+     row: status (kept as it is on a team.resume row, whose status is the ledger's), and on a row that is not done failureCode, transient
+     and why. Never isError (C11): a failed worker is a fact for the lead, not a broken tool call. */
+  const WHY_MAX = 200;
+  const verdicts = (typeof WeakMap === 'function') ? new WeakMap() : null;   // row -> its verdict (startedWork rides here, not on the row)
+  function oneSentence(text) {
+    const s = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
+    const m = /^.{12,}?[.!?](?=\s|$)/.exec(s);
+    const first = m ? m[0] : s;
+    return first.length > WHY_MAX ? first.slice(0, WHY_MAX - 1) + '…' : first;
+  }
+  // the verdict a worker row's outcome reads as: a success, a refusal, a cut reply; any other end (an error, a stop, a limit, an
+  // empty reply, a failed schema) is a failed hand-off. A timeout and a refusal before the run started are the row's own words.
+  function verdictStatus(r) {
+    if (r.reason === 'timeout') return 'timeout';
+    if (r.reason === 'refused') return 'refused';
+    if (workerOk(r)) return 'done';
+    const word = RunOutcome.ofRow(r).outcome;
+    if (word === 'refused' || word === 'cut_short') return word;
+    return 'failed';
+  }
+  function workerVerdict(row, result, receipt, said) {
+    const r = row || {};
+    const status = verdictStatus(r);
+    const ran = !!result && ((Number(result.toolsOk) || 0) > 0 || (Array.isArray(result.toolTrace) && result.toolTrace.length > 0));
+    const v = { status, why: '', startedWork: !(status === 'refused' && !ran) };
+    if (status === 'done') return v;
+    const ref = receipt ? refusalOf(receipt.seen) : null;
+    const err = ref && ref.said ? ref : null;
+    const code = String((result && result.failureCode) || (err && err.failureCode) || r.failureCode || '').slice(0, 80);
+    if (code) v.failureCode = code;
+    const transient = (result && typeof result.transient === 'boolean') ? result.transient : (err ? err.transient : r.transient);
+    if (typeof transient === 'boolean') v.transient = transient;
+    v.why = oneSentence(status === 'timeout' ? 'ran out of time' : err ? err.said : said ? said : RunOutcome.line(RunOutcome.ofRow(code ? Object.assign({}, r, { failureCode: code }) : r)));
+    return v;
+  }
+  function stampVerdict(row, result, receipt, said, keepStatus) {
+    const v = workerVerdict(row, result, receipt, said);
+    if (!keepStatus) row.status = v.status;
+    if (v.status !== 'done') {
+      if (v.failureCode) row.failureCode = v.failureCode;
+      if (typeof v.transient === 'boolean') row.transient = v.transient;
+      row.why = v.why;
+    }
+    if (verdicts) verdicts.set(row, v);
+    return v;
+  }
+  const stamped = row => !!(verdicts && row && verdicts.has(row));
+  // a refusal before any work that can pass on its own: the one row a dispatch sends again (#177, C12), at most once
+  function retryable(row) {
+    const v = verdicts && row ? verdicts.get(row) : null;
+    return !!v && row.reason === 'refused' && row.transient !== false && v.startedWork === false;
+  }
   function aggregateBudget(ctx) {
     const n = Number(ctx && ctx.outputMax);
     return (Number.isFinite(n) && n > 0) ? Math.floor(n) : AGG_DEFAULT_BUDGET;
@@ -392,6 +451,9 @@
     const code = r && typeof r === 'object' ? String(r.code || '') : '';
     return (code === 'parent_cancelled' || code === 'worker_stalled') ? code : '';
   }
+  // the one-sentence why of a worker the host stopped (workerVerdict's `said`)
+  const hostStopWhy = code => code === 'worker_stalled'
+    ? 'the host stopped it: it made no progress for longer than the liveness threshold' : 'the run that started it was cancelled, so the host stopped it too';
   function hostStopRow(code, partial) {
     return {
       reason: code === 'worker_stalled' ? 'stalled' : 'cancelled',
@@ -607,6 +669,14 @@
     // user-visible text for a row whose `result` carries a model-directed note (the timeout row): never shown to the Commander
     const shownText = new WeakMap();
     const userTextOf = (row) => shownText.has(row) ? shownText.get(row) : String((row && row.result) || '');
+    /* A FAILED WORKER'S TEXT SAYS SO (ops-1115 T5). The lead read a failed worker's last narration as its answer. Its row now opens
+       UNFINISHED (why) and keeps that narration whole; the Commander's delivery keeps the worker's own words (shownText), as a
+       timeout's does. Only a row whose text is the worker's own: a done, timeout or cut_short row is unchanged. */
+    function markUnfinished(row, v) {
+      if (!v || v.status !== 'failed' || typeof row.result !== 'string') return;
+      shownText.set(row, userTextOf(row));
+      row.result = 'UNFINISHED (' + v.why + '). Last message before it stopped: ' + row.result;
+    }
     const workerName = (aid) => { const id = (crewNow && crewNow.get && crewNow.get(aid)) || null; return String((id && id.name) || aid || 'worker').toUpperCase(); };
     let crewNow = null;
     /* A WORKER'S FILES ARE WHERE ITS RUN PUT THEM (run-paths review M2). A worker names a saved file relative to ITS run's
@@ -628,7 +698,9 @@
     }
     async function earlierHandoff(rows) {
       const usable = (rows || []).filter(r => r && (r.reason === 'done' || r.reason === 'timeout'));
-      if (!usable.length) return null;
+      // a worker that failed or was refused is NAMED, never silently left out: its dependant must not build on input that does not exist
+      const failedRows = (rows || []).filter(r => r && usable.indexOf(r) < 0);
+      if (!usable.length && !failedRows.length) return null;
       const reads = [], blocks = [];
       for (const r of usable) {
         const files = await resolveHandoffFiles(r.agentId, r.artifacts, r.runId, handedRoot.get(r));
@@ -640,7 +712,10 @@
         blocks.push('— ' + workerName(r.agentId) + (unfinished ? ' (UNFINISHED — ' + unfinished + ')' : '') + ':\n'
           + (clipped || '(returned no text)') + (files.length ? '\nFiles: ' + files.map(f => f.abs).join(', ') : ''));
       }
-      return { text: blocks.join('\n\n').slice(0, EARLIER_MAX), reads, taint: taintOfRows(usable) || '' };
+      // one short block per failed row, no text and no files; it rides whole after the hand-off text, which the cap shortens first
+      const failedText = failedRows.map(r => '— ' + workerName(r.agentId) + ' (FAILED — ' + (r.why || 'it did not run') + '): it handed on nothing; do not assume its output exists.').join('\n\n');
+      const handed = blocks.join('\n\n').slice(0, Math.max(0, EARLIER_MAX - (failedText ? failedText.length + 2 : 0)));
+      return { text: [handed, failedText].filter(Boolean).join('\n\n'), reads, taint: taintOfRows(usable) || '' };
     }
     /* A WORKER'S CLOCK STOPS WHILE IT WAITS ON THE COMMANDER. The slice is for the worker's work: an fs_write approval
        sitting unanswered (the Commander was in BUILD MODE) used to drain it, and the worker was cut off with its draft
@@ -1049,7 +1124,7 @@
 
         const runWorker = async (job, o2) => {
           o2 = o2 || {};
-          if (job.error) return { agentId: job.agentId, reason: 'error', result: job.error, usd: 0 };
+          if (job.error) { const bad = { agentId: job.agentId, reason: 'error', result: job.error, usd: 0 }; stampVerdict(bad, null, null, job.error); return bad; }
           const wire = workerWire(job.ident, job.agentId);   // the worker's OWN provider+model when resolvable (see workerWire)
           // PER-WORKER WALL CLOCK (2026-07-26 audit finding A). Before this, the ONLY clock was the registry's
           // tool timeout over the WHOLE dispatch: one slow worker ate the shared budget, the registry rejected, and
@@ -1063,7 +1138,11 @@
           // minted up front (not inline in the runOnce call) so the row can carry the SAME id the run was filed
           // under — the page's delivery uses it to append the run to the session and to stay idempotent.
           const workerRunId = o2.runId || newId();
+          let result;
+          const receipt = watchRefusal(o2.emit || childEmit, workerRunId);   // #177: the host's own reason if it refuses this run
           const finish = async (row, deliver) => {
+            // every row says what happened (workerVerdict); a row with host-written text (a throw, a refusal, a failed schema) gives its why
+            if (!stamped(row)) stampVerdict(row, result, receipt, row.result);
             row.runId = workerRunId;
             if (bound) row.bound = BOUNDED_LABEL;   // every row of a bounded worker says who bounded it
             if (job.onlyHost) row.onlyHost = job.onlyHost;   // ...and of a scoped one, the host its lead confined it to
@@ -1115,7 +1194,6 @@
             shownText.set(row, partial);
             return row;
           };
-          let result;
           const handoff = o2.handoff || null;
           const contractedPrompt = openingMessage(job.prompt, job.context, job.resultSchema, handoff && handoff.text);
           const previousMessages = job.sessionContext && job.sessionContext.messages || [];
@@ -1123,7 +1201,6 @@
           // its slice and the dispatch's clocks pause while the run's spend pool holds its call (poolHoldClock); a background
           // worker's stall clock does too (o2.stall: its subagent handle), while the call's own clocks never watch it
           const watched = watchedPool(ctx, o2.background === true ? null : family, slice, o2.stall);
-          const receipt = watchRefusal(o2.emit || childEmit, workerRunId);   // #177: the host's own reason if it refuses this run
           try {
             const conn = connectorOptions(ctx);
             result = await runOnce({
@@ -1241,6 +1318,7 @@
             tokens: (Number(result.tokens) || 0) + (Number(repaired && repaired.tokens) || 0)
           };
           markWorkerOutcome(row, effective);   // a cut-short worker's row says so (outcome cut_short): never handed on as finished
+          markUnfinished(row, stampVerdict(row, effective, receipt));   // what happened, and a failed worker's text says UNFINISHED (why)
           const rowTaint = taintOfRun(result, repaired);
           if (rowTaint) row.taintedBy = rowTaint;
           if (wire.note) row.note = wire.note;   // honest credential-fallback disclosure (never silent)
@@ -1307,6 +1385,7 @@
             + 'dispatch this subtask in a follow-up call, and do not report it as done.'
         });
         let out = [];
+        const retriedAt = new Set();   // job indexes a sequential dispatch already retried at once: the end pass never sends them again
         for (let w = 0; w < waves.length; w++) {
           const left = leftAt(w);
           if (left <= 0) { for (const j of waves[w]) out.push(notStartedRow(j)); continue; }
@@ -1315,6 +1394,19 @@
           const handoff = (!args.parallel && out.length) ? await earlierHandoff(out) : null;
           const done = await Promise.all(waves[w].map(j => runWorker(j, { wallMs: share, handoff })));
           for (const r of done) out.push(r);
+          /* SEQUENTIAL RETRY AT ONCE (ops-1115 T5). A worker refused before it started, by a refusal that can pass (a full gate), was
+             retried only after every wave, so the worker listed after it (the one that needs its output) ran first on nothing. A
+             sequential wave is one worker: it is retried once, now, with the same hand-off and its share of the clock that is left.
+             A worker that started work is never sent again (retryable, C12). Parallel keeps the end pass: a full slot gets the later window. */
+          const i = out.length - 1;
+          if (!args.parallel && retryable(out[i])) {
+            retriedAt.add(i);
+            const leftNow = leftAt(w);
+            if (leftNow > 0) {
+              const again = await runWorker(jobs[i], { wallMs: Math.max(1, Math.floor(leftNow / (waves.length - w))), handoff });
+              out[i] = (again.reason === 'refused') ? Object.assign(again, { retried: true }) : again;
+            }
+          }
         }
         /* ONE RETRY PASS for a refusal. A 'refused' row means the admission gate was full at that instant — a
            sibling wave, another agent's run, or a cron beat holding the last slot. Waves make that rare instead of
@@ -1324,6 +1416,7 @@
            balance check that did not answer transient; a model that cannot run tasks, a sign-in that needs the Commander or
            a recovery journal that could not be saved refuses the same way again, so it is reported at once. */
         for (let i = 0; i < out.length && i < jobs.length; i++) {
+          if (retriedAt.has(i)) continue;   // at most one retry per worker
           if (out[i].reason !== 'refused' || out[i].transient === false) continue;
           const left = hasClock ? dispatchBudgetMs - (now() - startedAt - heldTotal - family.heldMs()) : Math.floor(dispatchBudgetMs / jobs.length);
           if (left <= 0) break;
@@ -1336,11 +1429,14 @@
         const ok = out.filter(workerOk).length;
         const late = out.filter(r => r.reason === 'timeout').length;
         const unrun = out.filter(r => r.reason === 'not-dispatched').length - overflow.length;
+        // the counts of what did not succeed, from each row's verdict (workerVerdict), after the prefix the leads already read
+        const failedN = out.filter(r => r.status === 'failed').length, refusedN = out.filter(r => r.status === 'refused').length;
         // every worker's row survives the result cap: fair-share its text, spill the whole text per worker
         const fit = await fitAggregate(out, { budget: aggregateBudget(ctx), what: r => 'worker ' + r.agentId + '\'s result', park: workerParker(ctx, 'team.dispatch'), scrub: scrubTextOf(ctx) });
         return withTaint({
           content: JSON.stringify(fit.rows),
           summary: 'dispatched ' + jobs.length + ' worker(s), ' + ok + ' done'
+            + (failedN > 0 ? ', ' + failedN + ' failed' : '') + (refusedN > 0 ? ', ' + refusedN + ' refused' : '')
             + (late ? ', ' + late + ' out of time' : '')
             + (unrun > 0 ? ', ' + unrun + ' never started (wall clock)' : '')
             + boundNote(out.filter(r => r.bound === BOUNDED_LABEL).length)
@@ -1467,6 +1563,7 @@
               const stopped = hostStopCode(h.signal);
               const r = stopped ? Object.assign({ label, agentId: ephemeralId, usd: 0 }, hostStopRow(stopped, ''))
                 : { label, agentId: ephemeralId, reason: 'error', result: 'subagent run failed: ' + ((e && e.message) || e), usd: 0 };
+              stampVerdict(r, null, receipt, stopped ? hostStopWhy(stopped) : r.result);
               settle(r); return { status: 'error', reason: r.reason, result: r.result, usd: 0 };
             } finally { watched.end(); }
             // Stopped by the HOST (its parent run was cancelled, or the liveness check found it hung): say which,
@@ -1475,12 +1572,14 @@
             if (hostStopped) {
               const r = Object.assign({ label, agentId: ephemeralId, usd: (result && result.usd) || 0 }, hostStopRow(hostStopped, result ? lastAssistant(result.messages) : ''));
               if (taintOfRun(result)) r.taintedBy = taintOfRun(result);
+              stampVerdict(r, result, receipt, hostStopWhy(hostStopped));
               settle(r); return { status: 'error', reason: r.reason, result: r.result, usd: r.usd, taintedBy: r.taintedBy || '' };
             }
             if (!result) {
               const typed = refusedRow(ephemeralId, refusalOf(receipt.seen), 'subagent could not start');
               const r = typed ? Object.assign({ label }, typed)
                 : { label, agentId: ephemeralId, reason: 'refused', result: 'subagent could not start — the concurrency cap (STARNET_MAX_CONCURRENT_AGENTS) is full or a sign-in is needed. Try fewer at once.', usd: 0 };
+              stampVerdict(r, null, receipt, r.result);
               settle(r); return { status: 'error', reason: r.reason, result: r.result, usd: 0, failureCode: r.failureCode || '' };
             }
             const firstText = lastAssistant(result.messages) || '(the subagent returned no text)';
@@ -1523,6 +1622,9 @@
             if (artifacts.length) r.artifacts = artifacts.map(a => Object.assign({}, a, { agentId: ephemeralId, workspace: ephemeralId }));
             if (taintOfRun(result, repaired)) r.taintedBy = taintOfRun(result, repaired);
             if (!(task.resultSchema && !contract.ok)) markWorkerOutcome(r, repaired || result);
+            // what happened (workerVerdict); a failed clone's text says UNFINISHED (why); a failed schema's row keeps the host's sentence
+            const verdict = stampVerdict(r, repaired || result, receipt, task.resultSchema && !contract.ok ? r.result : '');
+            if (!(task.resultSchema && !contract.ok)) markUnfinished(r, verdict);
             settle(r);
             return { status: workerOk(r) ? 'done' : 'error', reason: workerReason(r), result: r.result, usd: r.usd,
               structuredResult: r.structuredResult, validation: r.validation, repairRunId: r.repairRunId, artifacts: r.artifacts,
@@ -1762,7 +1864,6 @@
         const crew = roster() || new Map();
         const ident = crew.get(rec.agentId);
         if (!ident) return { status: 'error', reason: 'error', result: 'worker is no longer in the live roster', usd: 0 };
-        const finish = async row => { await finalizeWorkerDelivery(h.runId, row); return row; };
         const wire = workerWire(ident, rec.agentId);   // same cross-provider resolution as a fresh dispatch
         let result;
         const bound = boundOf(rec);   // the record keeps the lead's bounded:true (subagents.js); never re-read from rec.prompt
@@ -1772,6 +1873,8 @@
         // its stall clock stops while the run's spend pool holds its call (watchedPool: the liveness sweep covers it too)
         const watched = watchedPool(ctx, null, null, h);
         const receipt = watchRefusal(h.emit, h.runId);   // #177: the host's own reason if it refuses the restart
+        // the row says what happened (workerVerdict) beside its ledger status, which stays the subagent manager's; a host-written text gives its why
+        const finish = async row => { if (!stamped(row)) stampVerdict(row, result, receipt, row.result, true); await finalizeWorkerDelivery(h.runId, row); return row; };
         try {
           result = await runOnce({
             ...projectOptions(ctx, rec), ...resumeConnectorOptions(ctx, rec), ...watched.options,
@@ -1853,6 +1956,9 @@
         // (review 5.1) the resumed generation settles as the background starts do: its row names a non-success outcome, so the record's
         // reason (workerReason) and its durable delivery (deliveryReasonOf) read cut_short — a cut resume settled error / 'done'
         if (!invalid) markWorkerOutcome(row, repaired || result);
+        // what happened, read before its reason becomes the ledger's word; a failed worker's text says UNFINISHED (why)
+        const verdict = stampVerdict(row, repaired || result, receipt, invalid ? row.result : '', true);
+        if (!invalid) markUnfinished(row, verdict);
         row.reason = workerReason(row);
         return finish(row);
       };
