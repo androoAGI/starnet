@@ -4,11 +4,11 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**31** open (open+claimed) of 461 total — 0 P0 · 0 P1 · 31 P2
+**31** open (open+claimed) of 462 total — 0 P0 · 0 P1 · 31 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
-User/owner reports: **123** · source fixed: **103** · installer verified: **6** · customer confirmed: **1** · still reported failing: **5** · recovery unconfirmed: **117**.
+User/owner reports: **124** · source fixed: **104** · installer verified: **6** · customer confirmed: **1** · still reported failing: **5** · recovery unconfirmed: **118**.
 
 | Report | Family | Source | Installer | Customer |
 | --- | --- | --- | --- | --- |
@@ -52,6 +52,7 @@ User/owner reports: **123** · source fixed: **103** · installer verified: **6*
 | [Tier picker reports available managed models missing](bugs/ddea3c5d-tiers-ignore-managed-catalog.md) | catalog-truth | fixed | unverified | unconfirmed |
 | [Unavailable spend history blocks work without usable recovery](bugs/d688ea20-unavailable-spend-history-blocks-work-without-us.md) | spend-history-blocking | fixed | unverified | persists |
 | [Desktop bundle drops required calibration texture and disables graphical refresh](bugs/4a108286-desktop-bundle-drops-required-calibration-textur.md) | packaged-runtime-asset-closure | fixed | unverified | unconfirmed |
+| [Windows OPEN FOLDER opens Explorer at its default location](bugs/a555c9a4-windows-output-folder-default-location.md) | output-folder-navigation | fixed | unverified | unconfirmed |
 | [File approval hides the proposed edit and patch payload](bugs/48c51661-file-approval-omits-mutation.md) | informed-approval | fixed | unverified | unconfirmed |
 | [Shell approvals and history hide full command arguments](bugs/082ee8e5-shell-approvals-and-history-hide-full-command-ar.md) | shell-consent-history-visibility | fixed | unverified | unconfirmed |
 | [Add agents silently fails when group backend is unavailable](bugs/0245a284-add-agents-silently-fails-when-group-backend-is.md) | group-chat-picker | fixed | unverified | unconfirmed |
@@ -268,6 +269,7 @@ User/owner reports: **123** · source fixed: **103** · installer verified: **6*
 | P1 | fixed | release | [Release preflight mistakes installed smoke for completed soak](bugs/0ea3abca-release-preflight-mistakes-installed-smoke-for-c.md) | agent/release-0112-finalprep-0911 | b9c5539556fc2d36e0992290c4dd8efb08720b82 |
 | P1 | fixed | release | [Completing startup loading reopens a window closed to the tray](bugs/08eece34-startup-load-reopens-closed-tray-window.md) | release-0120-prep-0915 | 9c3b7819c |
 | P1 | fixed | release | [Swallowed errors can expose credentials in console warnings](bugs/a03ea726-swallowed-errors-can-expose-credentials-in-conso.md) | cleanup-0112-0910 | 0a3a605a9c41ecf944760782a4938ec442d02e6c |
+| P1 | fixed | release | [Windows OPEN FOLDER opens Explorer at its default location](bugs/a555c9a4-windows-output-folder-default-location.md) | contribution/windows-open-folder | 51dfe04e6f7c37a18d6038190f9936a1e67f4978 |
 | P1 | fixed | safecell | [An errored /api/projects is rendered as a CONFIRMED EMPTY trust ledger ("NO TRUSTED PROJECTS") and silently wipes the persisted project scope](bugs/e05cdba8-an-errored-api-projects-is-rendered-as-a-confirm.md) | sweep/safecell | ed200caa |
 | P1 | fixed | safecell | [Worker approvals hide the proposed request and lose parallel attention](bugs/6548b94d-delegated-approval-disclosure.md) | thread-ux-review-1011 | 09e6afba0179fe4aa6930fa5fe5b68a433d4934d |
 | P1 | fixed | safecell | [Execution and disconnect controls confuse transport success with action success](bugs/1b9af0d7-execution-and-disconnect-controls-confuse-transp.md) | agent/systemic-bugs-0919 | 8eb87b0d3 |

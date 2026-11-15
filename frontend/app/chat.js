@@ -3760,7 +3760,7 @@ const Chat = (() => {
   // A deliverable landed on disk in the agent's workspace; a beginner needs to be able to FIND it.
   // The absolute per-agent dir comes from the additive /api/workspace/dir route (the frontend otherwise
   // only knows the relative filename). Desktop reveals the exact artifact through the native shell and
-  // falls back to copying that exact path if the shell refuses it. A plain browser cannot reveal a local
+  // reports the native error if navigation fails. A plain browser cannot reveal a local
   // folder, so its button says and does "copy path". Truthful: the button does exactly what
   // its label says — it never claims to open a folder it can't.
   const _wsDirCache = new Map();   // agentId -> Promise<absolute dir | ''>
@@ -3824,19 +3824,25 @@ const Chat = (() => {
     const desktop = !!tauriCore();
     // the folder glyph only where the key really opens a folder: a browser's key copies the path, so it wears copy path's ⧉
     b.appendChild(desktop ? glyphSpan(SVG_FOLDER) : document.createTextNode('⧉'));
-    const defaultLabel = desktop ? 'folder' : 'copy path';
+    const defaultLabel = desktop ? 'OPEN FOLDER' : 'copy path';
     b.setAttribute('data-default-label', defaultLabel);
     const lbl = document.createElement('span'); lbl.className = 'fb-label'; lbl.textContent = defaultLabel; b.appendChild(lbl);
-    b.title = desktop ? 'reveal this saved file in its folder' : 'copy the full saved path';
-    b.addEventListener('click', () => {
+    b.title = desktop ? 'show this deliverable in Explorer / its system folder' : 'copy the full saved path';
+    b.setAttribute('aria-label', defaultLabel);
+    b.addEventListener('click', ev => {
+      ev.preventDefault(); ev.stopPropagation();
+      if (b.disabled) return;
       const core = tauriCore();
       if (core && core.invoke) {
-        Promise.resolve(core.invoke('starnet_reveal_path', { path: String(relPath || ''), agentId: agentId || 'agent' })).then(() => {
+        b.disabled = true;
+        Promise.resolve().then(() => core.invoke('starnet_reveal_path', { path: String(relPath || ''), agentId: agentId || 'agent' })).then(() => {
           lbl.textContent = 'opened'; setTimeout(() => resetFeedbackLabel(b), 1400);
         }).catch(err => {
           if (/declined at the host/i.test(String(err || ''))) { resetFeedbackLabel(b); return; }   // native-prompt Cancel: no reveal, no clipboard fallback
-          copyArtifactPath(b, agentId, relPath);
-        });
+          lbl.textContent = 'could not open folder';
+          if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify('Could not open folder: ' + String((err && err.message) || err || 'unknown error'), 'warn');
+          setTimeout(() => resetFeedbackLabel(b), 3000);
+        }).finally(() => { b.disabled = false; });
       } else copyArtifactPath(b, agentId, relPath);
     });
     return b;
@@ -3874,6 +3880,8 @@ const Chat = (() => {
     img.alt = shortName;
     a.appendChild(img);
     r.body.appendChild(a);
+    r.body.appendChild(folderButton(agentId, inRoot(projectRoot, title)));
+    if (tauriCore()) r.body.appendChild(copyPathButton(agentId, inRoot(projectRoot, title)));
     fileBlobUrl(title, agentId, projectRoot).then(u => {
       img.src = u;
       // once the <img> has decoded (or failed) it no longer needs the object URL — the decoded bitmap
@@ -3950,6 +3958,8 @@ const Chat = (() => {
     let blobUrl = '';
     el.addEventListener('error', () => openFallback(r.body, 'open ' + kind, title, agentId, projectRoot), { once: true });
     r.body.appendChild(el);
+    r.body.appendChild(folderButton(agentId, inRoot(projectRoot, title)));
+    if (tauriCore()) r.body.appendChild(copyPathButton(agentId, inRoot(projectRoot, title)));
     // a <video>/<audio> keeps needing its object URL for the WHOLE row lifetime (seek/replay re-read it, and
     // the error fallback links to it), so we don't revoke on load here. But free any prior URL before we
     // replace it (defensive against a double-resolve leaking the first one) — the general revoke-before-
@@ -3992,12 +4002,9 @@ const Chat = (() => {
     link.title = path;
     d.appendChild(link);
     if (typeof a.bytes === 'number' && a.bytes >= 0) d.appendChild(document.createTextNode(' — ' + fmtBytes(a.bytes)));
-    if (echo) return d;   // the copy + folder buttons are already on the inline row above — one set, not two
-    // Copy the authoritative absolute path, not the model-facing relative workspace path.
-    d.appendChild(copyPathButton(agentId, path));
-    // Reveal the exact artifact so a custom output path selects the right file instead of opening the
-    // default AppData workspace root.
-    if (a.kind !== 'message') d.appendChild(folderButton(agentId, path));
+    // Keep the recap actionable even when the original card is offscreen.
+    if (!echo) d.appendChild(copyPathButton(agentId, path));
+    d.appendChild(folderButton(agentId, path));
     return d;
   }
   const RECAP_MAX_ROWS = 12;   // a monster run lists the first dozen + a "+N more" note (the RUNS panel has the rest)

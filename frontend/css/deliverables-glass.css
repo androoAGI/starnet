@@ -158,15 +158,16 @@
    one' rides UNDER its file name (the name's own second line), the size sits in a right-hand column ending right before the
    keys on every row, and a name too long for its column wraps inside that column instead of pushing
    the size or the keys off the row. */
-.term.dlv-win .cfg.dlv .dlv-files li { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; column-gap: 8px; row-gap: 0;
+.term.dlv-win .cfg.dlv .dlv-files li { display: grid; grid-template-columns: auto minmax(80px, 1fr) auto; column-gap: 8px; row-gap: 4px;
   align-items: center; }
 .term.dlv-win .cfg.dlv .dlv-files li > .bb { grid-column: 1; grid-row: 1; }
 .term.dlv-win .cfg.dlv .dlv-files .dlv-fname { grid-column: 2; grid-row: 1; white-space: normal; overflow-wrap: anywhere; }
 .term.dlv-win .cfg.dlv .dlv-files .dlv-fname.off { grid-column: 1 / 3; }
 .term.dlv-win .cfg.dlv .dlv-files .dlv-fsize { grid-column: 3; grid-row: 1; white-space: nowrap; text-align: right; }
 .term.dlv-win .cfg.dlv .dlv-files .dlv-fmain { grid-column: 2 / 4; grid-row: 2; white-space: nowrap; line-height: 1.1; }
-.term.dlv-win .cfg.dlv .dlv-floc { display: inline-flex; gap: 6px; grid-column: 4; grid-row: 1; }
+.term.dlv-win .cfg.dlv .dlv-floc { display: inline-flex; gap: 6px; grid-column: 1 / -1; grid-row: 3; justify-self: end; flex-wrap: wrap; }
 .term.dlv-win .cfg.dlv .dlv-floc:empty { display: none; }
 .term.dlv-win .cfg.dlv .dlv-floc .dlv-loc-key { margin: 0; min-width: 34px; padding: 6px 8px; color: var(--ph-dim); opacity: 1; }
 .term.dlv-win .cfg.dlv .dlv-floc .dlv-loc-key .fb-label { display: none; }
+.term.dlv-win .cfg.dlv .dlv-floc .dlv-show-folder .fb-label { display: inline; }
 .term.dlv-win .cfg.dlv .dlv-floc .dlv-loc-key.fb-live .fb-label { display: inline; margin-left: 0; color: var(--ph-bright); }

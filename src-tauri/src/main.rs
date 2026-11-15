@@ -22,6 +22,8 @@ mod hud_mode;
 mod install_manifest;
 mod lifecycle_preferences;
 mod process_identity;
+#[cfg(windows)]
+mod reveal;
 mod process_job;
 mod sidecar_output;
 mod sidecar_reap;
@@ -4328,7 +4330,7 @@ fn safe_native_artifact_extension(path: &Path) -> bool {
 const HOST_GESTURE_DECLINED: &str = "declined at the host confirmation";
 
 /// Host-boundary human gesture (docs/MISTAKES.md law: "a token, renderer IPC call, or tool
-/// annotation is not a human gesture"). Every renderer-callable OS-launch command must obtain
+/// annotation is not a human gesture"). Every renderer-callable file/URL launch must obtain
 /// an exact, one-shot, NON-CACHEABLE confirmation from a blocking native dialog that names
 /// the canonical resolved path and the action, minted by the host at the moment of the call.
 /// Nothing is remembered between calls — the next launch asks again. This is an ADDITIONAL
@@ -4403,8 +4405,9 @@ async fn starnet_open_artifact(
 
 /// Reveal a proven deliverable in Explorer/Finder (or open its containing directory on
 /// Linux). Directories are opened directly so the existing Workshop "open folder" action
-/// uses the same constrained command. Same host-gesture gate as `starnet_open_artifact`:
-/// a blocking native dialog names the exact resolved path before anything spawns.
+/// uses the same constrained command. Windows navigates after the existing path jail,
+/// without launching the artifact or asking for a second click. Other platforms keep
+/// their existing confirmation before spawning.
 #[tauri::command]
 async fn starnet_reveal_path(
     path: String,
@@ -4413,31 +4416,26 @@ async fn starnet_reveal_path(
     state: State<'_, AppState>,
 ) -> Result<(), String> {
     let artifact = resolve_artifact_path(&state.workspaces, agent_id.as_deref(), &path)?;
-    let is_dir = artifact.is_dir();
-    let body = format!(
-        "{} in the system file manager?\n\n{}",
-        if is_dir {
-            "Open this folder"
-        } else {
-            "Reveal this file"
-        },
-        artifact.display()
-    );
-    if !confirm_host_launch(&app, "StarNet — reveal in folder", &body, "Reveal") {
-        return Err(format!("reveal {HOST_GESTURE_DECLINED}"));
-    }
-
+    // Windows navigation only: the existing resolver above still owns all path permissions.
+    // Unlike OPEN FILE, showing a filesystem item never invokes its file association.
     #[cfg(windows)]
     {
-        let mut command = Command::new("explorer.exe");
-        if is_dir {
-            command.arg(&artifact);
-        } else {
-            command.arg(format!("/select,{}", artifact.display()));
+        let _ = app;
+        reveal::show_in_explorer(&artifact)?;
+    }
+
+    #[cfg(not(windows))]
+    let is_dir = artifact.is_dir();
+    #[cfg(not(windows))]
+    {
+        let body = format!(
+            "{} in the system file manager?\n\n{}",
+            if is_dir { "Open this folder" } else { "Reveal this file" },
+            artifact.display()
+        );
+        if !confirm_host_launch(&app, "StarNet — reveal in folder", &body, "Reveal") {
+            return Err(format!("reveal {HOST_GESTURE_DECLINED}"));
         }
-        command
-            .spawn()
-            .map_err(|e| format!("Failed to reveal artifact: {e}"))?;
     }
 
     #[cfg(target_os = "macos")]
