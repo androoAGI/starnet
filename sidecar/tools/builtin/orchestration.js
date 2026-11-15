@@ -250,8 +250,8 @@
   function workerReason(row) { return (row && row.reason === 'error' && row.outcome === 'refused') ? 'refusal' : RunOutcome.reasonOf(row); }
   /* WHAT HAPPENED TO ONE WORKER (ops-1115 T5, W1). A worker that started and then failed (a rate limit, a sign-in, a spend cap, a
      step limit) came back as a row with no cause: only a refusal kept its code. workerVerdict(row, result, receipt) reads the row's
-     outcome (workerOk, RunOutcome.ofRow, never the bare end word) and the run's own facts: status done | timeout | refused | cut_short |
-     failed; failureCode and transient from the runOnce result, else from the run's receipt (watchRefusal: its agent.run.error, read
+     outcome (workerOk, RunOutcome.ofRow, never the bare end word) and the run's own facts: status done | timeout | refused | stopped |
+     cut_short | failed; failureCode and transient from the runOnce result, else from the run's receipt (watchRefusal: its agent.run.error, read
      also when a result exists); why: one sentence, the run's error message, else `said` (the host's own sentence on a row whose text is
      the host's: a run that threw, a refusal with no receipt, a result that failed its schema), else RunOutcome.line; startedWork: false
      only for a refusal with no tool run (the only kind a dispatch may send again, C12). stampVerdict puts the additive fields on the
@@ -265,21 +265,25 @@
     const first = m ? m[0] : s;
     return first.length > WHY_MAX ? first.slice(0, WHY_MAX - 1) + '…' : first;
   }
-  // the verdict a worker row's outcome reads as: a success, a refusal, an UNFINISHED end (cut_short), else a failed hand-off (an
-  // error, a run with no terminal outcome). THE FAMILY LAW (runoutcome.js look; away-briefing review 8.1, linewatch review 9.3): a
+  // the verdict a worker row's outcome reads as: a success, a refusal, a stop, an UNFINISHED end (cut_short), else a failed hand-off
+  // (an error, a run with no terminal outcome). THE FAMILY LAW (runoutcome.js look; away-briefing review 8.1, linewatch review 9.3): a
   // limit, a question, an empty reply or a stop is never FAILED — a cut reply, a step limit (WORKER_MAX_ITERS ends bounded workers by
-  // design), a spend cap, a question, an empty reply, a stop and an interruption all read cut_short, so the summary's failed count
-  // and the UNFINISHED text rewrite stay the failed workers' alone. A timeout and a refusal before the run started are the row's own words.
-  const UNFINISHED_OUTCOMES = new Set(['cut_short', 'step_limit', 'out_of_budget', 'asked', 'empty', 'stopped', 'interrupted']);
+  // design), a spend cap, a question, an empty reply and an interruption read cut_short; a STOP reads its own status, stopped (stopped
+  // while queued, by its lead's stop, or by the host: hostStopRow's 'cancelled' / 'stalled'), counted apart in the summary. So the
+  // summary's failed count and the UNFINISHED text rewrite stay the failed workers' alone. A timeout and a refusal before the run
+  // started are the row's own words.
+  const UNFINISHED_OUTCOMES = new Set(['cut_short', 'step_limit', 'out_of_budget', 'asked', 'empty', 'interrupted']);
   function verdictStatus(r) {
     if (r.reason === 'timeout') return 'timeout';
     if (r.reason === 'refused') return 'refused';
     if (workerOk(r)) return 'done';
+    if (r.reason === 'stalled') return 'stopped';   // the host's liveness stop (hostStopRow): an end word outside the run vocabulary
     const word = RunOutcome.ofRow(r).outcome;
-    if (word === 'refused') return word;
+    if (word === 'refused' || word === 'stopped') return word;
     if (UNFINISHED_OUTCOMES.has(word)) return 'cut_short';
     return 'failed';
   }
+  // `said` may be a function of the status (the main row paths: a stop's own words only for a row that reads stopped)
   function workerVerdict(row, result, receipt, said) {
     const r = row || {};
     const status = verdictStatus(r);
@@ -290,9 +294,12 @@
     const err = ref && ref.said ? ref : null;
     const code = String((result && result.failureCode) || (err && err.failureCode) || r.failureCode || '').slice(0, 80);
     if (code) v.failureCode = code;
-    const transient = (result && typeof result.transient === 'boolean') ? result.transient : (err ? err.transient : r.transient);
+    // review N3: the run's error says transient only when it carries the flag (refusalOf reads a missing flag as false); unknown is omitted
+    const errTransient = err ? receipt.seen.error.transient : undefined;
+    const transient = (result && typeof result.transient === 'boolean') ? result.transient : (err ? errTransient : r.transient);
     if (typeof transient === 'boolean') v.transient = transient;
-    v.why = oneSentence(status === 'timeout' ? 'ran out of time' : err ? err.said : said ? said : RunOutcome.line(RunOutcome.ofRow(code ? Object.assign({}, r, { failureCode: code }) : r)));
+    const host = typeof said === 'function' ? said(status) : said;
+    v.why = oneSentence(status === 'timeout' ? 'ran out of time' : err ? err.said : host ? host : RunOutcome.line(RunOutcome.ofRow(code ? Object.assign({}, r, { failureCode: code }) : r)));
     return v;
   }
   function stampVerdict(row, result, receipt, said, keepStatus) {
@@ -459,6 +466,16 @@
   // the one-sentence why of a worker the host stopped (workerVerdict's `said`)
   const hostStopWhy = code => code === 'worker_stalled'
     ? 'the host stopped it: it made no progress for longer than the liveness threshold' : 'the run that started it was cancelled, so the host stopped it too';
+  /* what stopped a worker whose row reads stopped, when its signal says (workerVerdict's `said` on the main row paths): the host's
+     coded stop; a foreground worker's dispatch call stopped (its lead's Stop, E-STOP, the call's own timeout); a background worker's
+     own Stop (subagents.interrupt aborts with no code). Nothing known = RunOutcome.line's 'stopped before it finished'. */
+  const stopSaid = (signal, background) => st => {
+    if (st !== 'stopped') return '';
+    const code = hostStopCode(signal);
+    if (code) return hostStopWhy(code);
+    if (!(signal && signal.aborted)) return '';
+    return background ? 'a Stop on this worker ended it before it finished' : 'the dispatch that started it was stopped, so it stopped too';
+  };
   function hostStopRow(code, partial) {
     return {
       reason: code === 'worker_stalled' ? 'stalled' : 'cancelled',
@@ -718,7 +735,8 @@
           + (clipped || '(returned no text)') + (files.length ? '\nFiles: ' + files.map(f => f.abs).join(', ') : ''));
       }
       // one short block per failed row, no text and no files; it rides whole after the hand-off text, which the cap shortens first
-      const failedText = failedRows.map(r => '— ' + workerName(r.agentId) + ' (FAILED — ' + (r.why || 'it did not run') + '): it handed on nothing; do not assume its output exists.').join('\n\n');
+      // a stopped worker is named STOPPED (a stop is never a failure); every other unusable row FAILED
+      const failedText = failedRows.map(r => '— ' + workerName(r.agentId) + ' (' + (r.status === 'stopped' ? 'STOPPED' : 'FAILED') + ' — ' + (r.why || 'it did not run') + '): it handed on nothing; do not assume its output exists.').join('\n\n');
       const handed = blocks.join('\n\n').slice(0, Math.max(0, EARLIER_MAX - (failedText ? failedText.length + 2 : 0)));
       return { text: [handed, failedText].filter(Boolean).join('\n\n'), reads, taint: taintOfRows(usable) || '' };
     }
@@ -1323,7 +1341,7 @@
             tokens: (Number(result.tokens) || 0) + (Number(repaired && repaired.tokens) || 0)
           };
           markWorkerOutcome(row, effective);   // a cut-short worker's row says so (outcome cut_short): never handed on as finished
-          markUnfinished(row, stampVerdict(row, effective, receipt));   // what happened, and a failed worker's text says UNFINISHED (why)
+          markUnfinished(row, stampVerdict(row, effective, receipt, stopSaid(parentSignal, o2.background === true)));   // what happened, and a failed worker's text says UNFINISHED (why)
           const rowTaint = taintOfRun(result, repaired);
           if (rowTaint) row.taintedBy = rowTaint;
           if (wire.note) row.note = wire.note;   // honest credential-fallback disclosure (never silent)
@@ -1390,7 +1408,6 @@
             + 'dispatch this subtask in a follow-up call, and do not report it as done.'
         });
         let out = [];
-        const retriedAt = new Set();   // job indexes a sequential dispatch already retried at once: the end pass never sends them again
         for (let w = 0; w < waves.length; w++) {
           const left = leftAt(w);
           if (left <= 0) { for (const j of waves[w]) out.push(notStartedRow(j)); continue; }
@@ -1402,10 +1419,12 @@
           /* SEQUENTIAL RETRY AT ONCE (ops-1115 T5). A worker refused before it started, by a refusal that can pass (a full gate), was
              retried only after every wave, so the worker listed after it (the one that needs its output) ran first on nothing. A
              sequential wave is one worker: it is retried once, now, with the same hand-off and its share of the clock that is left.
-             A worker that started work is never sent again (retryable, C12). Parallel keeps the end pass: a full slot gets the later window. */
+             A worker that started work is never sent again (retryable, C12). Parallel keeps the end pass: a full slot gets the later window.
+             Review N1 (completion, wave 4): refused AGAIN here, it keeps the end pass's retry too — a gate still full a moment later
+             must not cost it the free slot the later workers leave; a refusal does no work and costs nothing. The last worker has no
+             dependant to protect, so it keeps the base's one end-of-dispatch retry alone. */
           const i = out.length - 1;
-          if (!args.parallel && retryable(out[i])) {
-            retriedAt.add(i);
+          if (!args.parallel && w < waves.length - 1 && retryable(out[i])) {
             const leftNow = leftAt(w);
             if (leftNow > 0) {
               const again = await runWorker(jobs[i], { wallMs: Math.max(1, Math.floor(leftNow / (waves.length - w))), handoff });
@@ -1421,7 +1440,6 @@
            balance check that did not answer transient; a model that cannot run tasks, a sign-in that needs the Commander or
            a recovery journal that could not be saved refuses the same way again, so it is reported at once. */
         for (let i = 0; i < out.length && i < jobs.length; i++) {
-          if (retriedAt.has(i)) continue;   // at most one retry per worker
           if (out[i].reason !== 'refused' || out[i].transient === false) continue;
           const left = hasClock ? dispatchBudgetMs - (now() - startedAt - heldTotal - family.heldMs()) : Math.floor(dispatchBudgetMs / jobs.length);
           if (left <= 0) break;
@@ -1436,12 +1454,13 @@
         const unrun = out.filter(r => r.reason === 'not-dispatched').length - overflow.length;
         // the counts of what did not succeed, from each row's verdict (workerVerdict), after the prefix the leads already read
         const failedN = out.filter(r => r.status === 'failed').length, refusedN = out.filter(r => r.status === 'refused').length;
+        const stoppedN = out.filter(r => r.status === 'stopped').length;   // a stop is counted apart, never failed
         // every worker's row survives the result cap: fair-share its text, spill the whole text per worker
         const fit = await fitAggregate(out, { budget: aggregateBudget(ctx), what: r => 'worker ' + r.agentId + '\'s result', park: workerParker(ctx, 'team.dispatch'), scrub: scrubTextOf(ctx) });
         return withTaint({
           content: JSON.stringify(fit.rows),
           summary: 'dispatched ' + jobs.length + ' worker(s), ' + ok + ' done'
-            + (failedN > 0 ? ', ' + failedN + ' failed' : '') + (refusedN > 0 ? ', ' + refusedN + ' refused' : '')
+            + (failedN > 0 ? ', ' + failedN + ' failed' : '') + (refusedN > 0 ? ', ' + refusedN + ' refused' : '') + (stoppedN > 0 ? ', ' + stoppedN + ' stopped' : '')
             + (late ? ', ' + late + ' out of time' : '')
             + (unrun > 0 ? ', ' + unrun + ' never started (wall clock)' : '')
             + boundNote(out.filter(r => r.bound === BOUNDED_LABEL).length)
@@ -1628,12 +1647,14 @@
             if (taintOfRun(result, repaired)) r.taintedBy = taintOfRun(result, repaired);
             if (!(task.resultSchema && !contract.ok)) markWorkerOutcome(r, repaired || result);
             // what happened (workerVerdict); a failed clone's text says UNFINISHED (why); a failed schema's row keeps the host's sentence
-            const verdict = stampVerdict(r, repaired || result, receipt, task.resultSchema && !contract.ok ? r.result : '');
+            const verdict = stampVerdict(r, repaired || result, receipt, task.resultSchema && !contract.ok ? r.result : stopSaid(h.signal, true));
             if (!(task.resultSchema && !contract.ok)) markUnfinished(r, verdict);
             settle(r);
+            // the clone's code rides its ledger record (completion, wave 4): a background clone that started and then failed names its cause
+            // to the card, team.subagents and the subagent_stop hook (RunOutcome.ofWorker), as a background dispatch worker's does
             return { status: workerOk(r) ? 'done' : 'error', reason: workerReason(r), result: r.result, usd: r.usd,
               structuredResult: r.structuredResult, validation: r.validation, repairRunId: r.repairRunId, artifacts: r.artifacts,
-              taintedBy: r.taintedBy || '' };
+              taintedBy: r.taintedBy || '', failureCode: r.failureCode || '' };
           };
           // a FOREGROUND clone's result already went back to the lead inside its run: only a background one is the overseer's
           // to report on (parentStreamId set), or the Commander would get that result a second time
@@ -1962,7 +1983,7 @@
         // reason (workerReason) and its durable delivery (deliveryReasonOf) read cut_short — a cut resume settled error / 'done'
         if (!invalid) markWorkerOutcome(row, repaired || result);
         // what happened, read before its reason becomes the ledger's word; a failed worker's text says UNFINISHED (why)
-        const verdict = stampVerdict(row, repaired || result, receipt, invalid ? row.result : '', true);
+        const verdict = stampVerdict(row, repaired || result, receipt, invalid ? row.result : stopSaid(h.signal, true), true);
         if (!invalid) markUnfinished(row, verdict);
         row.reason = workerReason(row);
         return finish(row);
