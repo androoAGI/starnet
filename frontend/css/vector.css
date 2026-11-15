@@ -4272,3 +4272,19 @@ html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-row.asking
     linear-gradient(160deg, #ffffff 0, #dfe5eb 18%, #8d96a1 42%, #3a424b 58%, #aeb6c0 80%, #f4f7fa 100%) border-box;
   box-shadow: inset 0 0 0 1px #000, inset 0 3px 6px rgba(0, 0, 0, .9), 0 0 0 1px #050608, 0 0 9px 2px rgba(var(--gold-rgb), .7);
 }
+
+/* THE LENS FINDS THE FACE. The crop is cut from the top centre of the sprite, which is where most heads are. These are the
+   sprites whose head is somewhere else: under a tall hat or ears, behind a scythe, or beside a tail, a stick or a raised arm.
+   Offsets are sprite pixels (the figure is never scaled by them): across from the centre, then down from the lens top. */
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-portrait img[data-portrait-set="approved_catinthehat"] { object-position: calc(50% - 5px) -10px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-portrait img[data-portrait-set="approved_grimreaper"] { object-position: calc(50% + 3px) -6px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-portrait img[data-portrait-set="approved_xenomorph"] { object-position: calc(50% + 8px) 2px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-portrait img[data-portrait-set="pikachu"] { object-position: calc(50% + 2px) -4px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-portrait img[data-portrait-set="approved_bunnycutie"],
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-portrait img[data-portrait-set="approved_candyprincess"] { object-position: 50% -8px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-portrait img[data-portrait-set="approved_caseyjones"],
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-portrait img[data-portrait-set="approved_bikini"],
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-portrait img[data-portrait-set="approved_rickybobby"] { object-position: calc(50% + 1px) 2px; }
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-portrait img[data-portrait-set="approved_ricksanchez"],
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-portrait img[data-portrait-set="approved_tonymontana"],
+html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-portrait img[data-portrait-set="approved_harrypotter"] { object-position: calc(50% - 1px) 2px; }

@@ -1182,4 +1182,16 @@ A.ok(/background-image: /.test(lampK) && !/background: |background-color:/.test(
 A.ok(/right: -4px; bottom: -3px;/.test(lampK) && /0 0 0 2px #050608, 0 0 0 3px #aeb6c0/.test(lampK), 'and seats it on the ring in a black pocket with a chrome lip');
 A.ok(/rgba\(var\(--ph-rgb\), \.7\)/.test(ruleK('.crew-row.working .crew-portrait')) && /rgba\(var\(--gold-rgb\), \.7\)/.test(ruleK('.crew-row.asking .crew-portrait')),
   'a working agent’s lens is lit in the run colour and an asking agent’s in the wait colour: both are states the row already proves');
+// the lens finds the face (Andrew 2026-11-15: "some are not centered properly … scriptwriter and scout look a bit off"): sprites whose
+// head is not at the top centre (a tall hat, ears, a scythe, a tail) get their own crop offset, keyed on the set the painter stamps
+const fitK = rulesK.filter(r => r.sel.includes('[data-portrait-set='));
+A.ok(fitK.length >= 6, 'sprites whose head is off the top centre have a fit of their own (' + fitK.length + ' rules)');
+A.eq(fitK.filter(r => !/^object-position: (50%|calc\(50% [+-] \d+px\)) -?\d+px;$/.test(r.body)).map(r => r.sel).join(' | '), '',
+  'a fit only moves the crop, in whole sprite pixels: it never scales, stretches or restyles the figure');
+const setsK = fitK.flatMap(r => r.sel.split(', ')).map(x => (/^\.crew-portrait img\[data-portrait-set="([\w-]+)"\]$/.exec(x) || [])[1] || ('BAD ' + x));
+A.eq(setsK.filter(x => x.startsWith('BAD ')).join(' | '), '', 'each fit names one sprite set on the portrait image and nothing else');
+A.eq(setsK.filter((x, i) => setsK.indexOf(x) !== i).join(' | '), '', 'no sprite is fitted twice');
+A.eq(setsK.filter(x => !fs.existsSync(path.join(ROOT, 'frontend', 'assets', 'sprites', x, 'rot_south.png'))).join(' | '), '', 'every fitted set is a sprite the app ships: a renamed set cannot leave a dead fit behind');
+A.ok(['approved_catinthehat', 'approved_xenomorph', 'approved_grimreaper'].every(x => setsK.includes(x)), 'the three he could not read (the hat, the scythe, the tail) are fitted');
+A.ok(/img\.dataset\.portraitSet = set;/.test(read('frontend/app/agentportraits.js')), 'the painter still stamps the sprite set on the image: that stamp is what a fit keys on');
 A.report('vector-identity');
