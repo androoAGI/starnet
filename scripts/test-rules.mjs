@@ -104,6 +104,8 @@ export function exclusion(file, text, read, omit, depth = 2, seen = new Set(), m
   return null;
 }
 
+/* A step named *.http. or *.e2e. boots a sidecar or a browser by design, whatever its own text imports. */
+const WEB_NAME = /\.(?:http|e2e)\./;
 const stepName = line => String(line).split('|')[0].trim();
 
 /* The tier, in fast.list order. read(rel) returns a file's text or null. `omitMarkers` exists so a test can plant the
@@ -117,6 +119,7 @@ export function selectRulesTier({ fastList, read, slow, flaky, omitMarkers }) {
     if (!file || seenSteps.has(file)) continue;
     seenSteps.add(file);
     if (skip.has(file)) { skipped.push({ file, reason: 'declared slow or flaky' }); continue; }
+    if (WEB_NAME.test(file)) { skipped.push({ file, reason: 'named .http. or .e2e.: boots a sidecar or a browser' }); continue; }
     const text = read(file);
     if (typeof text !== 'string') { skipped.push({ file, reason: 'missing' }); continue; }
     const why = exclusion(file, text, read, omitMarkers, 2, new Set(), memo);
@@ -156,7 +159,7 @@ export async function main(argv, opts = {}) {
   const filters = args.filter(a => !a.startsWith('--'));
   const picked = filters.length ? tier.filter(f => filters.some(x => f.includes(x))) : tier;
   if (!picked.length) { log('test:rules: no rules step matches ' + filters.join(', ')); return 1; }
-  const dir = mkdtempSync(join(opts.tmpRoot || tmpdir(), 'starnet-test-rules-'));
+  const dir = mkdtempSync(join(tmpdir(), 'starnet-test-rules-'));
   try {
     const listFile = join(dir, 'rules.list');
     writeFileSync(listFile, picked.join('\n') + '\n');

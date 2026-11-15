@@ -199,7 +199,7 @@ export async function main(argv, opts = {}) {
   const tests = gate.map(file => ({ file, text: read(file) })).filter(t => typeof t.text === 'string');
   const out = selectTests({ changed, tests, read });
   if (args.includes('--run')) {
-    const dir = mkdtempSync(join(opts.tmpRoot || tmpdir(), 'starnet-tests-for-changes-'));
+    const dir = mkdtempSync(join(tmpdir(), 'starnet-tests-for-changes-'));
     try {
       const listFile = join(dir, 'selected.list');
       writeFileSync(listFile, out.selected.join('\n') + '\n');

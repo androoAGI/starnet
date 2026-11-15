@@ -35,6 +35,12 @@ A.ok(existsSync(join(ROOT, 'test/persist-seam.http.test.js')), 'the known spawni
 A.ok(!tier.includes('test/persist-seam.http.test.js'), 'the tier excludes the spawning test/persist-seam.http.test.js');
 A.ok(tier.every(f => fast.includes(f)), 'every pick is a line of test/fast.list (there is no second list)');
 A.eq(tier, [...new Set(tier)], 'no duplicates');
+// a step named .e2e. or .http. never enters the tier, even when its own text only imports a script (it boots a sidecar and Chrome)
+A.ok(fast.includes('test/session-reliability.e2e.test.js'), 'the known e2e step is on fast.list');
+A.ok(!tier.includes('test/session-reliability.e2e.test.js'), 'the tier excludes test/session-reliability.e2e.test.js');
+A.ok(tier.every(f => !/\.(?:http|e2e)\./.test(f)), 'no .http. or .e2e. step is in the tier');
+A.ok(mod.selectRulesTier({ fastList: ['test/x.e2e.test.js', 'test/y.http.test.js'], read: () => "import('../scripts/qa/x.mjs');", slow: [], flaky: [] }).tier.length === 0, 'a web-named step with clean text is still skipped');
+
 A.ok(out.skipped.some(s => s.file === 'test/persist-seam.http.test.js') || !fast.includes('test/persist-seam.http.test.js'),
   'a skipped step names the reason it was skipped, or was never on fast.list');
 
@@ -105,7 +111,7 @@ A.eq(pkg.scripts['test:fast'].includes('test:fast:raw'), true, 'the existing gat
 {
   const made = [];
   const code2 = await mod.main([], {
-    log: () => {}, cwd: ROOT, read: rd, tmpRoot: tmpdir(),
+    log: () => {}, cwd: ROOT, read: rd,
     run: async o => { made.push(o.listFile); A.ok(existsSync(o.listFile), 'the runner is handed a real list file'); A.eq(readFileSync(o.listFile, 'utf8').split(/\r?\n/).filter(Boolean), tier, 'the temp list is the tier'); return 0; }
   });
   A.eq(code2, 0, 'a run returns the runner exit code');
