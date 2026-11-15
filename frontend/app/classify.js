@@ -61,7 +61,20 @@
     const t = String(agentText == null ? '' : agentText).trim().toLowerCase();
     if (!t) return false;
     const tail = t.slice(-400);                     // the offer is the reply's closing question, not something said mid-way
-    return /\?\s*[)"'*_`]*\s*$/.test(tail) && OFFER.test(tail.slice(tail.lastIndexOf('\n') + 1) || tail);
+    const lastLine = tail.slice(tail.lastIndexOf('\n') + 1) || tail;
+    if (/\?\s*[)"'*_`]*\s*$/.test(tail) && OFFER.test(lastLine)) return true;
+    return declaredOffer(lastLine);
+  }
+  /* A DECLARED offer ("I can write that script for you.", "Let me know if you'd like me to set it up.") is an offer
+     too, with or without a "?": its "yes" was chat and the run got zero tools. Decided on the reply's LAST SENTENCE
+     only: it states the offer, names an action, and is not a refusal ("I can't ..."). No lookbehind (webkit floor). */
+  const DECLARED_OFFER = /\b(i can|i could|i'?d be happy to|happy to|let me know if you(?:'d| would) like me to|if you(?:'d| would) like,? i(?:'ll| will| can)|if you want,? i(?:'ll| will| can)|just say (?:the word|go|yes)|say (?:the word|go|yes) and i(?:'ll| will))\b/;
+  const OFFER_ACTION = /\b(write|draft|create|build|run|make|set (?:it |this |that )?up|save|send|generate|fix|update|implement|execute|install|start|apply|code|script|do (?:it|that|this))\b/;
+  const OFFER_NEGATED = /\bi (?:can(?:no|')t|cannot|could(?:n'?t| not))\b/;
+  function declaredOffer(line) {
+    const pieces = String(line).replace(/’/g, "'").split(/[.!]\s+/).filter(function (p) { return p.trim(); });
+    const sentence = pieces.length ? pieces[pieces.length - 1] : '';
+    return DECLARED_OFFER.test(sentence) && OFFER_ACTION.test(sentence) && !OFFER_NEGATED.test(sentence);
   }
 
   /* CONTENT TAG — what KIND of work is this, so a FILTER junction can sort it to the right agent's bay.
