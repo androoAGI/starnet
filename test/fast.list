@@ -701,6 +701,7 @@ test/spotify.pkce.test.js
 test/spotify.store.test.js
 test/spotify.tools.test.js
 test/classify.test.js
+test/classify-declared-offer.test.js
 test/specialties.test.js
 test/profile.test.js
 test/worksignal.test.js
@@ -943,6 +944,9 @@ test/confbeats.test.js
 test/cron.test.js
 test/cron-human.test.js
 test/cron-store.test.js
+test/cron-liveness-opencalls.test.js
+test/cron-runnow-scope.test.js
+test/cron-hold-record.test.js
 test/mint-ledger.test.js
 test/cron.dispatch.test.js
 test/cron.delivery-backlog.test.js
@@ -960,6 +964,7 @@ test/cron.lock.test.js
 test/cron-session-hydration.test.js
 test/routine-receipts.test.js
 test/routine-receipts-unopened.test.js
+test/routine-fire-look.test.js
 test/routine-spend-pause-words.test.js
 test/routine-quiet-records.test.js
 test/loopjob.test.js
@@ -1022,6 +1027,7 @@ test/desk-one-per-agent.test.js
 test/recruit-identity-ui.test.js
 test/subagents.test.js
 test/orchestration.test.js
+test/dispatch-worker-verdict.test.js
 test/delegation-refusal-177.test.js
 test/worker-prefix.test.js
 test/slim-note.test.js
@@ -1265,6 +1271,7 @@ test/channels.workline-transcript.test.js
 test/line-hop-stop.test.js
 test/line-runner.census.test.js
 test/line-runner.test.js
+test/line-stage-facts.test.js
 test/line-runner-owned-admission.test.js
 test/line-jobs.invariant.test.js
 test/line-job-cron-durability.test.js
@@ -1844,6 +1851,8 @@ dev/industrial-textures/approved-sheet-effects.test.cjs
 dev/industrial-textures/coordinated-effects/accessories.test.cjs
 dev/industrial-textures/coordinated-effects/utility.test.cjs
 test/test-list-completeness.test.js
+test/test-rules-tier.test.mjs
+test/tests-for-changes.test.mjs
 test/test-ports.lint.test.js
 test/test-ports-imports.lint.test.js
 test/provider.verify-contract.test.js
