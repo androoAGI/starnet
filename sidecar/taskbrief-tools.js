@@ -7,6 +7,28 @@ const Context = require('./taskbrief-context.js');
 // NOT silently swallow the remaining questions — it falls through as an ordinary answer to this one.
 const REST_SKIP = /^\s*use your judgment for the rest\s*[.!]?\s*$/i;
 
+/* THE HELD CALL IS MADE AGAIN (#187, 2026-11-14). The brief gate holds a write/execute call ("nothing ran"), the model settles
+   the brief, and the settle's reply used to say only "unlocked". A small local model (qwen3:8b, live wire capture) then took
+   that as the work being done: it never re-made the held fs_write + shell_exec and told the Commander "created and executed"
+   with no file on disk. The gate records each call it holds (noteHeldCall, from index.js briefHoldFor) and the settle names
+   them, so the next step is the call itself, not a summary of work that never ran. Bounded: 6 calls, 300 chars of args each;
+   the args are the model's own, sent back to it. Cleared by the settle, so a later settle never repeats them. */
+const HELD_MAX = 6, HELD_ARGS_MAX = 300;
+function noteHeldCall(state, call) {
+  if (!state || !call || !call.name) return;
+  let text = '{}';
+  try { text = JSON.stringify(call.args && typeof call.args === 'object' ? call.args : {}) || '{}'; } catch (_) {}
+  const row = String(call.name).replace(/\./g, '_') + ' ' + (text.length > HELD_ARGS_MAX ? text.slice(0, HELD_ARGS_MAX) + '…' : text);
+  const list = Array.isArray(state.held) ? state.held : (state.held = []);
+  if (list.indexOf(row) < 0 && list.length < HELD_MAX) list.push(row);
+}
+function heldAgainNote(state) {
+  const held = state && Array.isArray(state.held) ? state.held.splice(0) : [];
+  if (!held.length) return '';
+  return '\nNothing has run yet: the call' + (held.length > 1 ? 's' : '') + ' the brief held must be made again now, in this same turn, before you report any result:\n'
+    + held.map(h => '- ' + h).join('\n');
+}
+
 function registerTaskBriefTools(registry, store, state, deps) {
   const now = () => deps && deps.now ? deps.now() : 0;
   // IN-TURN CLARIFY (2026-07-31, Hermes-parity): on a WATCHED run the host wires a blocking asker —
@@ -173,10 +195,10 @@ function registerTaskBriefTools(registry, store, state, deps) {
       const saved = await store.proceed(state.brief.id, checked.brief, now());
       if (!saved) throw new Error('Task Brief cannot proceed from its current state. After a conversational answer call brief.update to incorporate it first.');
       state.brief = saved;
-      return { content: 'Task Brief settled. Consequential tools are unlocked.', summary: 'task brief settled' };
+      return { content: 'Task Brief settled. Consequential tools are unlocked.' + heldAgainNote(state), summary: 'task brief settled' };
     }
   });
   return ['brief.ask', 'brief.proceed', 'brief.update'];
 }
 
-module.exports = { registerTaskBriefTools };
+module.exports = { registerTaskBriefTools, noteHeldCall };

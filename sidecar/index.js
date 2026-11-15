@@ -470,7 +470,7 @@ const { makePersonalizationStore } = require('./personalization-store.js'); // o
 const { makeTaskBriefStore } = require('./taskbrief-store.js'); // durable original request + visible task decisions
 const WorkflowTakeover = require('./workflow-takeover.js');
 const TaskBriefPolicy = require('./taskbrief-policy.js');       // host validation + mutation boundary
-const { registerTaskBriefTools } = require('./taskbrief-tools.js'); // structured ask/proceed controls
+const { registerTaskBriefTools, noteHeldCall } = require('./taskbrief-tools.js'); // structured ask/proceed controls
 const CrewCall = require('./crew-call.js');   // names a crew member the Commander asked for at the END of the lead prompt
 const DelegationHint = require('./delegation-hint.js');   // W2.9: the WHAT A WORKER COSTS line of the team note and its switch's parser (delegationHintOn reads STARNET_DELEGATION_HINT through ENV())
 const TaskIntent = require('../frontend/app/fork.js').TaskIntent;    // shared TASK_QUESTION protocol + prompt doctrine
@@ -26953,6 +26953,7 @@ async function runOnceCore(o) {
     // NOT RUN, NOT FAILED (rc walk 2026-10-14): the summary is the shared held-call stamp (fork.js TaskIntent.GATE_HELD) the
     // chat draws as a neutral not-run chip, and the model is told this is a routine step (it narrated "Ah, I need to settle
     // the brief first" over a red ✗ team.dispatch chip).
+    if (!gate.ok) noteHeldCall(taskBriefState, c);   // #187: the settle names the held calls so the model makes them again
     if (!gate.ok) return { ok: false, isError: true, content: TaskIntent.GATE_HELD_LEAD + ' ' + String(gate.reason).charAt(0).toUpperCase() + String(gate.reason).slice(1) + ', then make this same call again (in one response, brief_proceed first). This is a routine step: the Commander sees your brief as its own card, so make the brief call with no text before it and never mention the gate.', summary: TaskIntent.GATE_HELD, quietRepair: true };
     return null;
   };
