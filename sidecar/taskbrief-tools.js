@@ -16,8 +16,8 @@ const REST_SKIP = /^\s*use your judgment for the rest\s*[.!]?\s*$/i;
 const HELD_MAX = 6, HELD_ARGS_MAX = 300;
 function noteHeldCall(state, call) {
   if (!state || !call || !call.name) return;
-  let text = '{}';
-  try { text = JSON.stringify(call.args && typeof call.args === 'object' ? call.args : {}) || '{}'; } catch (_) {}
+  let text;
+  try { text = JSON.stringify(call.args && typeof call.args === 'object' ? call.args : {}) || '{}'; } catch (_) { text = '{}'; /* cyclic or BigInt args: named without them */ }
   const row = String(call.name).replace(/\./g, '_') + ' ' + (text.length > HELD_ARGS_MAX ? text.slice(0, HELD_ARGS_MAX) + '…' : text);
   const list = Array.isArray(state.held) ? state.held : (state.held = []);
   if (list.indexOf(row) < 0 && list.length < HELD_MAX) list.push(row);
