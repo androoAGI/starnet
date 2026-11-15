@@ -679,8 +679,16 @@
         let held = null;
         try { held = admitUnattended(job, { provider: provider, model: model, prompt: assembledPrompt }); } catch (e) { failNote('cron.admitUnattended', e); held = null; }
         if (held) {
+          // HELD ON THE RECORD (ops-1115 T1): the routine's record says it was held, when and by what (job.lastHold, written once per
+          // distinct hold; a one-shot's in its release write). Its last result, streaks, nextRunAt and NEEDS YOU stay as they were.
+          const hold = { binding: String(held.binding || '').slice(0, 60), say: String(held.say || (typeof held.why === 'string' ? held.why : '')).slice(0, 240) };
           if (job.schedule && job.schedule.kind === 'once') {
-            try { setJobs(cronStore.releaseHeldOnce(getJobs(), job.id, { retryAt: nowMs + blockedRetryMs })); } catch (e) { failNote('cron.releaseHeldOnce', e); }
+            try { setJobs(cronStore.releaseHeldOnce(getJobs(), job.id, { retryAt: nowMs + blockedRetryMs, hold: hold, now: nowMs })); } catch (e) { failNote('cron.releaseHeldOnce', e); }
+          } else {
+            const was = (cronStore.getJob(getJobs(), job.id) || job).lastHold;
+            if (!was || was.binding !== hold.binding || was.say !== hold.say) {
+              try { setJobs(cronStore.markHeld(getJobs(), job.id, hold, { now: nowMs })); } catch (e) { failNote('cron.markHeld', e); }
+            }
           }
           return false;
         }
