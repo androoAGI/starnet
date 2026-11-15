@@ -14,6 +14,9 @@
         them (the host's o.briefGate.unlocked, the gate's own predicate; absent or unknown = no conversion); (d) since they
         were held, no call of a tool the gate governs (o.briefGate.governs) came back ok — that tool may have done the work.
         Otherwise the run ends exactly as at base: same reason, same reply text, nothing appended, no error event.
+        The held note is held to the same proof (completion round 1): it is sent as base sent it (no ok since the call was
+        last held), or when it leads to an end the host could prove. Work done by another tool or a held look the model no
+        longer needs gets no note: the model's first reply ends the run, as at base.
      3. taskbrief-store.js keeps the held tool NAMES (wire form, no args) on the brief across a question (heldCalls, additive,
         absent on older briefs); brief.ask persists them; proceed() clears them; brief.proceed names them back.
 
@@ -162,10 +165,11 @@ const material = () => ({ dimension: 'audience', question: 'who is this note for
     A.ok(/Say "continue"/.test(plain), '(i) ...and what to do next');
     A.ok(!/kept saying what it would do next|gate/.test(plain), '(i) ...never the continuation guard\'s cause, never "gate" jargon');
   }
-  // (i') the host did not wire its gate predicate (o.briefGate absent): the loop cannot prove the work is undone -> base end
+  // (i') the host did not wire its gate predicate (o.briefGate absent): the loop cannot prove the work is undone -> base end,
+  // and base's note rule (brief_proceed's ok came back after the hold, so no note): the first "Done." is the reply
   {
-    const r = await run([write('w1'), settle('p1'), say('Done.'), say('Done.')], { held: ['w1'] });
-    A.eq(r.fr.length, 1, '(i\') no briefGate: the held note is still sent');
+    const r = await run([write('w1'), settle('p1'), say('Done.'), say('Not this one.')], { held: ['w1'] });
+    A.eq([r.fr.length, r.calls], [0, 3], '(i\') no briefGate: no held note after an ok, three model calls, as at base');
     asBase(r, 'Done.', '(i\') no briefGate wired');
   }
 
@@ -195,13 +199,25 @@ const material = () => ({ dimension: 'audience', question: 'who is this note for
   }
 
   // ===== (iv) settled, and the work is done with a DIFFERENT consequential tool: the host cannot prove it undone (P1) =====
+  // Base shape exactly: no held note (it would tell the model to re-make fs_write over the work just done), four model
+  // calls, and the model's FIRST "Done: ..." is the reply. Green on base code too.
   {
     const T = 'Done: I used fs_edit instead of fs_write; note.txt is saved.';
-    const e = await run([write('w1'), settle('p1'), call('e1', 'fs_edit', { path: 'note.txt' }), say('Done.'), say(T)], { gate: true });
-    asBase(e, T, '(iv) fs_edit after the held fs_write');
-    const S = 'Done: I wrote note.txt with the shell.';
-    const s = await run([write('w1'), settle('p1'), call('x1', 'shell_exec', { cmd: 'echo note > note.txt' }), say('Done.'), say(S)], { gate: true });
-    asBase(s, S, '(iv) shell_exec after the held fs_write');
+    for (const wired of [true, false]) {
+      const o = wired ? { gate: true } : { held: ['w1'] }, tag = wired ? ' (gate wired)' : ' (no gate wired)';
+      const e = await run([write('w1'), settle('p1'), call('e1', 'fs_edit', { path: 'note.txt' }), say(T), say('Not this one.')], o);
+      A.eq([e.fr.length, e.calls], [0, 4], '(iv) fs_edit after the held fs_write: no held note, four model calls' + tag);
+      asBase(e, T, '(iv) fs_edit after the held fs_write' + tag);
+      const S = 'Done: I wrote note.txt with the shell.';
+      const s = await run([write('w1'), settle('p1'), call('x1', 'shell_exec', { cmd: 'echo note > note.txt' }), say(S), say('Not this one.')], o);
+      A.eq([s.fr.length, s.calls], [0, 4], '(iv) shell_exec after the held fs_write: no held note, four model calls' + tag);
+      asBase(s, S, '(iv) shell_exec after the held fs_write' + tag);
+      // the held LOOK: a shell `ls` held while the brief was open, the brief settled, the write made, "Done."
+      const L = 'Done: note.txt saved.';
+      const lo = await run([call('x1', 'shell_exec', { cmd: 'ls' }), settle('p1'), write('w1'), say(L), say('Not this one.')], wired ? { gate: true } : { held: ['x1'] });
+      A.eq([lo.fr.length, lo.calls], [0, 4], '(iv) a held shell look, then the write: no held note, four model calls' + tag);
+      asBase(lo, L, '(iv) a held shell look, then the write' + tag);
+    }
     // a READ after the settle is not the work: it does not stop the end
     const rd = await run([write('w1'), settle('p1'), call('r1', 'fs_read', { path: 'note.txt' }), say('Done.'), say('Done.')], { gate: true });
     A.eq(ended(rd), 'error/incomplete_work', '(iv) a read the gate does not govern is not the held work: still incomplete_work');
@@ -250,10 +266,12 @@ const material = () => ({ dimension: 'audience', question: 'who is this note for
       const c = await run([write('w1'), call('k1', ctl, {}), say('Done.'), say('Done.')], { held: ['w1'], gate: OPEN_GATE });
       A.eq([c.fr.length, ended(c)], [1, 'error/incomplete_work'], 'L2 an ok ' + ctl + ' never clears the held fs_write');
     }
-    // ...while the brief is unsettled (only asked or updated) the end never converts: base outcome
+    // ...while the brief is unsettled (only asked or updated) the end can never be proved, so no note either: base outcome,
+    // the first reply ends the run (base: the ok cleared the held note)
     for (const ctl of ['brief_ask', 'brief_update']) {
-      const c = await run([write('w1'), call('k1', ctl, {}), say('Done.'), say('Done.')], { gate: true });
-      A.eq([c.fr.length, ended(c)], [1, 'done'], 'L2 ' + ctl + ' alone leaves the brief unsettled: noted, then the base end');
+      const c = await run([write('w1'), call('k1', ctl, {}), say('Done.'), say('Not this one.')], { gate: true });
+      A.eq([c.fr.length, ended(c), c.calls], [0, 'done', 3], 'L2 ' + ctl + ' alone leaves the brief unsettled: no note, the base end');
+      asBase(c, 'Done.', 'L2 ' + ctl + ' unsettled');
     }
 
     // a reply that ends on a choice marker is a question to the Commander: it ends normally

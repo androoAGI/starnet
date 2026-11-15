@@ -1551,9 +1551,11 @@
     // wire name (fs.write and fs_write are one tool); the value is the name the notes show.
     const heldPending = new Map();
     const heldSince = new Map();      // key -> the batch that held it (this pending spell)
+    const heldLast = new Map();       // key -> the latest batch that held it (base kept only the latest held batch pending)
     const heldNamed = new Set();      // keys a held note has named
     let frNames = [];
     let batchSeq = 0, governedOkSeq = -1;   // the last batch in which a tool the brief gate governs came back ok
+    let anyOkSeq = -1;                      // the last batch in which ANY call came back ok (base cleared its held note on it)
     /* THE HOST ENDS A RUN INCOMPLETE ONLY WHEN IT CAN PROVE THE HELD WORK DID NOT HAPPEN (ops-1115 T3, wave 4). The loop
        cannot see the Task Brief: the host lends the gate's own predicate as o.briefGate = { unlocked(keys), governs(call) }
        (index.js; TaskBriefPolicy.canMutate). unlocked: true only when the gate would no longer hold those calls. governs:
@@ -1565,6 +1567,22 @@
       if (!briefGate || !keys.length) return false;
       for (const k of keys) if (!heldNamed.has(k) || !(heldSince.get(k) > governedOkSeq)) return false;   // (a) named, (d) nothing governed ran since
       try { return briefGate.unlocked(keys.slice()) === true; } catch (e) { failNote('loop.briefGate.unlocked', e); return false; }   // (c)
+    };
+    /* WHICH HELD CALLS A HELD-ONLY NOTE NAMES (completion round 1). The note is held to the same proof as the end: it is
+       sent for a pending call (1) the way base sent it (no call came back ok since that call was last held), or (2) when
+       it leads to an end the host could prove: every pending call held since the last governed ok, and the gate would let
+       them run now. Otherwise no note: work done by another tool (fs_edit or the shell after a held fs_write) or a held
+       look the model no longer needs ends on the model's own reply, exactly as at base. Without o.briefGate only (1)
+       applies, which is base's rule (plus one note per different held tool, FR_HELD_MAX). */
+    const heldNoteKeys = () => {
+      const keys = Array.from(heldPending.keys()), unnamed = keys.filter(k => !heldNamed.has(k));
+      if (!unnamed.length) return [];
+      if (briefGate && keys.every(k => heldSince.get(k) > governedOkSeq)) {
+        let open = false;
+        try { open = briefGate.unlocked(keys.slice()) === true; } catch (e) { failNote('loop.briefGate.unlocked', e); }
+        if (open) return unnamed;
+      }
+      return unnamed.filter(k => heldLast.get(k) >= anyOkSeq);
     };
     // every turn-buying host note, counted by its tag (NUDGE_TAGS): returned as `nudges`, kept on the run row
     const nudgeCounts = Object.create(null);
@@ -3510,14 +3528,16 @@
         // may then report the exact blocker honestly. A call the Task Brief gate HELD did not fail and did not run
         // (LOOP TRUTH, W1.11): when only held calls are pending the note says exactly that, once per held tool (FR_HELD_MAX).
         const frHeldOnly = !!failureRecoveryPending && !failureRecoveryPending.names.length;
-        const heldUnnamed = Array.from(heldPending.keys()).some(k => !heldNamed.has(k));
-        if (!empty && !graceUsed && failureRecoveryPending && (frHeldOnly ? (FR_MAX > 0 && frHeldUsed < FR_HELD_MAX && heldUnnamed) : frUsed < FR_MAX)
-            && tools.length > 0 && !endsOnChoiceMarker(text)) {
+        let noteKeys = [];
+        if (!empty && !graceUsed && failureRecoveryPending
+            && (frHeldOnly ? (FR_MAX > 0 && frHeldUsed < FR_HELD_MAX) : frUsed < FR_MAX)
+            && tools.length > 0 && !endsOnChoiceMarker(text)
+            && (!frHeldOnly || (noteKeys = heldNoteKeys()).length)) {
           if (frHeldOnly) frHeldUsed++; else frUsed++;
           const hasSearch = tools.some(t => wireKey(t && t.function && t.function.name) === 'tool_search');
-          const recovery = nudgePremise('failure_recovery', { failed: failureRecoveryPending.names, held: failureRecoveryPending.held, search: hasSearch });
+          const recovery = nudgePremise('failure_recovery', { failed: failureRecoveryPending.names, held: frHeldOnly ? noteKeys.map(k => heldPending.get(k)) : failureRecoveryPending.held, search: hasSearch });
           messages.push({ role: 'system', content: '<failure_recovery>' + recovery + HOST_CHECK + '</failure_recovery>' }); nudged('failure_recovery');
-          if (frHeldOnly) for (const k of heldPending.keys()) heldNamed.add(k);   // a mixed note names only the failure
+          for (const k of noteKeys) heldNamed.add(k);   // only the calls this note named; a mixed note names only the failure
           continue;
         }
         // HELD WORK NEVER RAN (ops-1115 T3, #187): a held note named the calls, the failed ladder is spent or idle, and the
@@ -3866,13 +3886,14 @@
         const name = String(c.name || 'tool'), k = wireKey(name);
         // The same tool coming back NOT held settles it: it ran (an ok; a failure the failed ladder below owns) or the
         // Commander declined it. Another tool's ok never does.
-        if (r && isGateHeld(r)) { if (!heldPending.has(k)) { heldPending.set(k, name); heldSince.set(k, batchSeq); } }
-        else if (r) { heldPending.delete(k); heldSince.delete(k); }
+        if (r && isGateHeld(r)) { if (!heldPending.has(k)) { heldPending.set(k, name); heldSince.set(k, batchSeq); } heldLast.set(k, batchSeq); }
+        else if (r) { heldPending.delete(k); heldSince.delete(k); heldLast.delete(k); }
         if (r && r.isError && !terminalHumanDecision(r)) (isGateHeld(r) ? heldCalls : recoverableFailures).push(name);
       }
       // a tool the gate governs came back ok while held work is pending: it may have done that work (fs_edit for a held
       // fs_write), so from here the host cannot prove the held calls changed nothing
       if (heldPending.size && calls.some(c => { const r = results.find(x => x.callId === c.id); return r && r.ok && !r.isError && !isGateHeld(r) && gateGoverns(c); })) governedOkSeq = batchSeq;
+      if (results.some(r => r && r.ok && !r.isError)) anyOkSeq = batchSeq;
       if (recoverableFailures.length || heldCalls.length) frNames = Array.from(new Set(recoverableFailures));
       else if (results.some(r => r && r.ok && !r.isError)) frNames = [];
       failureRecoveryPending = (frNames.length || heldPending.size) ? { names: frNames, held: Array.from(heldPending.values()) } : null;
