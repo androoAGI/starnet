@@ -227,6 +227,9 @@ async function drive(fixture, model, scen, arm) {
 function normalized(raw, f) {
   let s = String(raw || '');
   for (const p of [f.workspace, f.workspace.replace(/\\/g, '\\\\'), f.workspace.replace(/\\/g, '/'), f.workspace.replace(/\\/g, '\\\\\\\\')]) if (p) s = s.split(p).join('<WS>');
+  // the TRACK RECORD evidence lines are a 30-second wall-clock memo of run history (stationTrackRecord): an arm that
+  // runs past 30s on a loaded box re-folds mid-arm and grows them, the other arm does not. A clock, not the switch.
+  s = s.replace(/(?:\\n)*- TRACK RECORD: [^"\\]*/g, '');
   return s.replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi, '<UUID>')
     .replace(/\b\d{4}-\d{2}-\d{2}[T ][0-9:.]+Z?\b/g, '<TS>').replace(/\b\d{1,2}:\d{2}(:\d{2})?\s?(AM|PM)?\b/gi, '<CLOCK>')
     .replace(/\b(Mon|Tue|Wed|Thu|Fri|Sat|Sun)[a-z]*,? [A-Z][a-z]+ \d{1,2},? \d{4}\b/g, '<DATE>').replace(/\b\d{10,}\b/g, '<N>')
