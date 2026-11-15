@@ -297,6 +297,15 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
     const r = { authoritySeal: { notices: [{ kind: 'migrated', at: 1, text: 'sealed once' }, { kind: 'unsealed', name: 'hooks.json', at: 2, text: 'hooks.json was changed' }, { kind: 'x', at: 3 }] } };
     ctx.showSealNotices(r); ctx.showSealNotices(r); ctx.showSealNotices(null); ctx.showSealNotices({});
     A.eq(shown, [['sealed once', 'info'], ['hooks.json was changed', 'warn']], 'each notice is shown once; the upgrade as info, a refusal as a warning');
+    // the upgrade notice is shown whole and kept in the bell (keyed), a refusal stays a toast cut at 400 (2026-11-14)
+    const full = [];
+    const ctx2 = vm.createContext({ StationUI: { notify: (t, k, c, o) => full.push({ t, k, o }) } });
+    vm.runInContext(app.slice(start, end) + '\nthis.showSealNotices = showSealNotices;', ctx2);
+    const long = 'Not carried over: ' + 'Full Access for "Agent", '.repeat(40);
+    ctx2.showSealNotices({ authoritySeal: { notices: [{ kind: 'migrated', at: 7, text: long }, { kind: 'unsealed', name: 'hooks.json', at: 8, text: 'w'.repeat(900) }] } });
+    A.eq(full[0].t, long, 'the upgrade notice is shown whole (' + long.length + ' chars), not cut at 400');
+    A.ok(full[0].o && full[0].o.kind === 'result' && full[0].o.key === 'authority-seal-upgrade-7', 'the upgrade notice is kept in the bell, one keyed entry');
+    A.ok(full[1].t.length === 400 && full[1].o === undefined, 'a refusal is still a toast cut at 400');
   }
 
   // ---- 7. the shell floor names the authority files (stopgap) ----
@@ -903,6 +912,38 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
       const n = st.notices().find(x => x.kind === 'migrated');
       A.ok(n && /FULL BYPASS on/.test(n.text) && /Full Access for "Overseer"/.test(n.text) && /confirm at the desk/.test(n.text), '#5: the upgrade notice names what to turn on again, at the desk');
       A.eq(r.lowered.length, 2, '#5: the boot reports both');
+    }
+    {
+      // THE UPGRADE KEEPS THE TOOLS (Andrew, 2026-11-14): his 0.15.0 roster had every agent on Full Access with a wider
+      // profile; the upgrade took both, so 13 agents came up asking first AND on Station Gear (no tools, no connectors).
+      // Full Access is still not taken on the file's word; the execution profiles are.
+      const roster = { version: 1, agents: [
+        { agentId: 'a1', name: 'Ultron', approvalMode: 'full', executionProfile: 'this-computer' },
+        { agentId: 'a2', name: 'Cypher', approvalMode: 'full', executionProfile: 'trusted-project' },
+        { agentId: 'a3', name: 'Scout', approvalMode: 'ask', executionProfile: 'safe-cell' },
+        { agentId: 'a4', name: 'Plain', approvalMode: 'ask' }
+      ] };
+      const files = { 'agent.roster.json': roster }, mk = memMarker();
+      const st = S.makeAuthoritySeal({ key: KEY, now: () => 5000, marker: mk });
+      const r = st.boot(listOf(files));
+      A.eq(r.mode, 'migrated', 'keep-tools: the one-time upgrade');
+      const ro = st.open('agent.roster.json', files['agent.roster.json']);
+      const row = id => ro.value.agents.find(a => a.agentId === id);
+      A.ok(ro.ok, 'keep-tools: the sealed roster opens');
+      A.eq([row('a1').approvalMode, row('a2').approvalMode], ['ask', 'ask'], 'keep-tools: Full Access is still lowered to ask');
+      A.eq([row('a1').executionProfile, row('a2').executionProfile, row('a3').executionProfile], ['this-computer', 'trusted-project', 'safe-cell'],
+        'keep-tools: every execution profile is kept as it was (tools and connectors stay)');
+      A.ok(!Object.prototype.hasOwnProperty.call(row('a4'), 'executionProfile'), 'keep-tools: a row with no profile is not given one');
+      A.eq(r.lowered, ['Full Access for "Ultron"', 'Full Access for "Cypher"'], 'keep-tools: only Full Access is reported as not carried over');
+      const n = st.notices().find(x => x.kind === 'migrated');
+      A.ok(n && !/execution profile/.test(n.text), 'keep-tools: the notice no longer says a profile was taken');
+      // after the upgrade a raise is still capped by the seal: an outside edit to a wider profile is not obeyed
+      const edited = JSON.parse(JSON.stringify(ro.value)); edited.agents.find(a => a.agentId === 'a4').executionProfile = 'this-computer';
+      const again = S.makeAuthoritySeal({ key: KEY, now: () => 6000, marker: mk });
+      again.boot(listOf({ 'agent.roster.json': edited }));
+      const after = again.open('agent.roster.json', edited);
+      A.ok(!after.ok || !after.value || after.value.agents.find(a => a.agentId === 'a4').executionProfile !== 'this-computer',
+        'keep-tools: a wider profile written outside StarNet after the upgrade is not obeyed');
     }
     {
       // an upgrade with nothing raised says nothing extra

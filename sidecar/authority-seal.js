@@ -302,6 +302,18 @@ function lowerOf(name, value, cap, nowMs) {
 
 // lowers(name, prev, next) -> true when `next` takes away power `prev` gave (a file with no rule: always true, the safe
 // side: its floor moves). prev null: nothing was sealed before it (the upgrade), so there is nothing to take away.
+/* THE UPGRADE KEEPS THE TOOLS (Andrew's call, 2026-11-14). The one-time upgrade lowered the roster against an empty cap, so
+   besides Full Access it also took every agent's wider execution profile (This Computer, Trusted Project, Remote SSH) back
+   to Station Gear: on his real station all 13 agents came up asking first AND without their tools and connectors. Full
+   Access and FULL BYPASS are the power a planted file could hand itself without a single ask, so those two still need the
+   Commander again; a profile only sets where an agent may work, and with Full Access gone every consequential call in it
+   still asks first. So the upgrade's cap is the file's own profiles: Full Access is lowered, the profiles stay. */
+function upgradeCapOf(name, value) {
+  if (name !== 'agent.roster.json') return {};
+  const rows = plainObject(value) && Array.isArray(value.agents) ? value.agents : (Array.isArray(value) ? value : []);
+  return { agents: rows.filter(plainObject).filter(r => Object.prototype.hasOwnProperty.call(r, 'executionProfile'))
+    .map(r => ({ agentId: r.agentId, executionProfile: r.executionProfile })) };
+}
 function lowers(name, prev, next, nowMs) {
   if (prev === null) return false;
   const r = lowerOf(name, prev, next, nowMs);
@@ -723,7 +735,7 @@ function makeAuthoritySeal(opts) {
          planted FULL BYPASS or Full Access sealed. So those two are not taken on the upgrade's word: they are sealed off,
          and the Commander turns them on again, each confirmed at the desk as any raise is. Everything else is kept. */
       if (UPGRADE_ASKS.indexOf(x.f.name) >= 0) {
-        const low = lowerOf(x.f.name, strip(value), {}, now());
+        const low = lowerOf(x.f.name, strip(value), upgradeCapOf(x.f.name, strip(value)), now());
         if (low && low.dropped.length) { value = low.value; for (const d of low.dropped) lowered.push(d); }
       }
       known.set(x.f.name, null);            // nothing was sealed before the upgrade: no floor to move
