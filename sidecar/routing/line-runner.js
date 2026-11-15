@@ -11,8 +11,8 @@
                                         sessionId, runId, edited, preview, fromDock, streamId }.
                                         -> { text, usd, error, stopped, stopCode, runId, workitemId, tools, denied, ms, refusals? }: text is the
                                         stage's returned TERMINAL text when it counts (hopVerdict below), else ''; refusals { denied, held }
-                                        (only when a call did not run: refused by the person / held by the Task Brief gate) is a fact the
-                                        chain hands on, never a verdict
+                                        (only when a call did not run: refused by the person / held by the Task Brief gate, and no later
+                                        call of that tool ran) is a fact the chain hands on, never a verdict
        runLineJob({ job?, seed, profile }) -> chain.advance(seed) with hopRunner(profile) as its runAgent — the one chain.advance call.
                                         With a job (open below) every hop it runs is kept on the job (its run id and verdict, for the
                                         settle) and the seed carries the job's id (SEND TO links the sending job by it). It never
@@ -363,8 +363,12 @@ function makeLineRunner(deps) {
       }
       // the hop's OWN run settles the hop: a worker it delegated to forwards its error / end here under its own runId. The sink keeps
       // what only the stream says (an error the run raised, its own end, its spend, its tool steps); the hand-off is never read from it
-      // denied / held: the tool calls the person refused and the ones the Task Brief gate held — neither ran (the stage's facts)
-      const hs = { errMsg: null, usd: 0, end: null, stopped: false, tools: 0, calls: {}, denied: [], held: [] };
+      // denied: every tool the person refused (the step test reads it as it is). notRun: per tool name, how many of its refused /
+      // gate-held calls were NOT followed by a call of that tool that ran — the held call the model made again after brief_proceed
+      // (or a refused one made again and allowed) did run, so it is no fact of the stage (T4 review B1)
+      const hs = { errMsg: null, usd: 0, end: null, stopped: false, tools: 0, calls: {}, denied: [], notRun: { denied: new Map(), held: new Map() } };
+      const notRun = (m, t, d) => m.set(t, (m.get(t) || 0) + d);
+      const stillNotRun = m => Array.from(m).filter(e => e[1] > 0).map(e => e[0]).slice(0, 6);
       const sink = (name, payload) => {
         if (typeof p.tap === 'function') say(p.tap, name, payload);
         let x = payload;
@@ -381,9 +385,14 @@ function makeLineRunner(deps) {
         } else if (name === 'agent.tool_result' && x.summary === 'denied') {
           const t = hs.calls[x.callId] || 'a tool';
           if (hs.denied.indexOf(t) < 0 && hs.denied.length < 6) hs.denied.push(t);
+          notRun(hs.notRun.denied, t, 1);
         } else if (name === 'agent.tool_result' && TaskIntent.isGateHeld(x)) {
-          const t = hs.calls[x.callId] || 'a tool';
-          if (hs.held.indexOf(t) < 0 && hs.held.length < 6) hs.held.push(t);
+          notRun(hs.notRun.held, hs.calls[x.callId] || 'a tool', 1);
+        } else if (name === 'agent.tool_result' && x.ok === true && !x.isError && hs.calls[x.callId]) {
+          // a call of a held / refused tool ran: it settles one of them (a held one first — the gate's own "make this same call again")
+          const t = hs.calls[x.callId];
+          if (hs.notRun.held.get(t) > 0) notRun(hs.notRun.held, t, -1);
+          else if (hs.notRun.denied.get(t) > 0) notRun(hs.notRun.denied, t, -1);
         } else if (name === 'agent.run.error') { if (lead) hs.errMsg = x.message || 'run error'; }
         else if (name === 'capdenied') hs.errMsg = hs.errMsg || ('no ' + (x.need || 'capability') + ' — ' + (x.reason || ''));
         else if (name === 'agent.run.end' && typeof x.usd === 'number' && isFinite(x.usd)) hs.usd = Math.max(hs.usd, x.usd);
@@ -445,7 +454,8 @@ function makeLineRunner(deps) {
       if (history && v.ok && typeof history.append === 'function') await history.append(h, 'assistant', v.text);
       const product = await workProduct(Object.assign({}, ret || {}, { text: v.text, runId }), h);
       // refusals (additive, only when a call did not run): the chain carries it to the join and the next stage as a fact, never a verdict
-      const refusals = (hs.denied.length || hs.held.length) ? { refusals: { denied: hs.denied.slice(), held: hs.held.slice() } } : {};
+      const nr = { denied: stillNotRun(hs.notRun.denied), held: stillNotRun(hs.notRun.held) };
+      const refusals = (nr.denied.length || nr.held.length) ? { refusals: nr } : {};
       return Object.assign(product, { usd: hs.usd, error, stopped, stopCode, stop: v.stop || null, lineStop: ret && ret.lineStop || null, workitemId: h.workitemId || crateId || null, tools: hs.tools, denied: hs.denied, ms: Math.max(0, now() - t0) }, refusals);
     };
   }

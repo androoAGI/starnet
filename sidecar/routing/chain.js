@@ -88,6 +88,14 @@ function refusalNote(who, f) {
   if (f.held.length) parts.push('held: ' + f.held.join(', '));
   return 'Line note — ' + who + ': ' + (f.denied.length + f.held.length) + ' tool call(s) did not run (' + parts.join('; ') + '); its text may describe work that did not happen.';
 }
+/* notedCrate(payload, notes) -> a JOINER's merged crate (Pipeline.joinPayload) with the join's note lines placed right under its
+   'JOINED OUTPUT — …' header line, ahead of the first branch. Never at the end (T4 review B2): the crate's tail is read — the last
+   branch's passed-on LOOP frame runs to the end (passedAt / reviewedWork), and parseVerdict / stripVerdict read the last three lines. */
+function notedCrate(payload, notes) {
+  const s = String(payload == null ? '' : payload), cut = s.indexOf('\n\n');
+  if (!notes || !notes.length) return s;
+  return cut < 0 ? notes.join('\n') + '\n\n' + s : s.slice(0, cut) + '\n\n' + notes.join('\n') + s.slice(cut);
+}
 // one digest of what a stage was handed / what it handed back (the evidence a hold saves; line-hold.js reads it, nothing recomputes it)
 const sha = v => crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex');
 const uint = n => (typeof n === 'number' && isFinite(n) && n >= 0) ? Math.floor(n) : 0;
@@ -857,7 +865,7 @@ function makeChainRunner(o) {
       }
       if (!notes.length) return text;
       out.refusals = { parts: ((out.refusals && out.refusals.parts) || 0) + notes.length, calls: ((out.refusals && out.refusals.calls) || 0) + calls };
-      return text + '\n\n' + notes.join('\n');
+      return notedCrate(text, notes);
     };
     /* THE TYPED STOP (line-job-runner): every stop below ends the walk here — the stop as its code and ONE sentence
        (routing/line-fire.js lineStop), the legacy words beside it (out.stopped holds the why), and the stage the job stopped at. A stop
@@ -1490,4 +1498,4 @@ function makeChainRunner(o) {
   return { advance, stopNote, initializeEntry, _limits: { maxHops, maxUsd }, _barrier: barrier };
 }
 
-module.exports = { makeChainRunner, effectiveLimits, loopDecision, heldByBrief, heldStop, preHopRefusal, preHopStop, hopTurn, lineRefusalNote, lineRefusalStop, asNode, nodeKey, MAX_HOPS, MAX_CHAIN_USD };
+module.exports = { makeChainRunner, effectiveLimits, loopDecision, notedCrate, heldByBrief, heldStop, preHopRefusal, preHopStop, hopTurn, lineRefusalNote, lineRefusalStop, asNode, nodeKey, MAX_HOPS, MAX_CHAIN_USD };

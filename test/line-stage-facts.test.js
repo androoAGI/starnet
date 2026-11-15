@@ -7,8 +7,12 @@
      1. line-runner.js: a hop's held calls (fork.js TaskIntent.isGateHeld on its agent.tool_result) are kept beside the refused ones, and the
         hop result carries the additive `refusals: { denied, held }` when either list is non-empty (denied, hopVerdict, stopCode unchanged).
      2. chain.js: the barrier part keeps `refusals` (PART_META), from a parallel batch (batchToBarrier) and from a branch that parks itself.
-     3. the JOIN: after the joined verdict is read (so it cannot change), one 'Line note — ' line per part with refusals is appended, and the
-        walk says how many on `out.refusals = { parts, calls }`.
+     3. the JOIN: after the joined verdict is read (so it cannot change), one 'Line note — ' line per part with refusals is placed under the
+        crate's 'JOINED OUTPUT — …' header (never at its end: the tail is read by the verdict parser and by the passed-on frame reader), and
+        the walk says how many on `out.refusals = { parts, calls }`.
+   FIX ROUND 1 (review B1, B2): a held (or refused) call that the model made again and that RAN is no fact of the stage (block 3b), and a
+   noted crate reads back exactly like the pure one at the next gate — a passed-on LOOP frame as the last branch still unwraps, and a
+   trailing VERDICT line stays in the three-line tail (blocks 1c, 1d, 1e).
      4. the ONE-AFTER-ANOTHER hand-off: the next stage's turn carries the same note under the upstream text; the answer (out.text) and the
         draft handed on are never changed.
    Real compiler, real router, real chain runner, real hop executor; fakes only at runAgent / runOnce, injected clock and timer.
@@ -18,7 +22,7 @@
    `entry`, and the step test's `denied` is the same. */
 'use strict';
 const A = require('./_assert.js');
-const { makeChainRunner } = require('../sidecar/routing/chain.js');
+const { makeChainRunner, loopDecision, notedCrate } = require('../sidecar/routing/chain.js');
 const { makeRouter } = require('../sidecar/routing/router.js');
 const P = require('../frontend/app/pipeline.js');
 const WM = require('../frontend/app/worldmodel.js');
@@ -31,6 +35,12 @@ let T = 0; const clock = () => (T += 10);
 const counter = () => { let i = 0; return () => 'id' + (++i); };
 const NOTE = 'Line note — ';
 const noteLines = t => String(t || '').split('\n').filter(l => l.startsWith(NOTE));
+// the crate a stage was handed, read back out of its hand-off turn (Pipeline.handoffPrompt: "The upstream stage (x) produced:\n<crate>\n\n<ask>")
+const upstreamOf = turn => { const m = /The upstream stage \([^)\n]*\) produced:\n([\s\S]*)\n\n(?:Do YOUR part|You are the LAST stage)/.exec(String(turn || '')); return m ? m[1] : null; };
+// the oracle for where the join's notes go: right under the 'JOINED OUTPUT — …' header line, ahead of the first branch
+const underHeader = (s, notes) => { const i = s.indexOf('\n\n'); return s.slice(0, i) + '\n\n' + notes.join('\n') + s.slice(i); };
+const ctxOk = { verdict: 'approved' };
+const gate = o => Object.assign({ loop: '12,4', backTo: 'drafter', max: 2, when: 'approved', next: 'publisher' }, o || {});
 
 // INBOX -> SPLIT -> (A | B) -> JOINER -> D (the entry A is branch one; B runs after it and parks itself: the sequential branch)
 function joinFloor() {
@@ -151,6 +161,49 @@ process.on('exit', () => { if (!finished) { console.error('line-stage-facts.test
     A.eq(joinRead.length === 1 && joinRead[0].v, 'approved', '1b: the joined verdict is the one the merged branches said (approved)');
     for (const n of notes) A.ok(!/approved|revise|blocked/i.test(n) && !/^verdict/i.test(n) && !n.startsWith('[StarNet]'), '1b: the note carries no verdict word and is not a host note: ' + n);
   }
+  {
+    /* (c) review B2a: a gate's done lane parked a PASSED-ON frame at the joiner as the LAST branch, and that branch had a write refused.
+       The note must not run into the frame's REVIEW part: a bare approval at the next verdict gate still hands on the joined work, the
+       frame unwrapped in place (as on the pure crate), never the reviewer's "Looks good." */
+    const W = 'The draft: rooftop installs grew 34% in 2025, battery attach passed half, permits are the top soft cost.';
+    const frame = loopDecision(gate(), ctxOk, 0, {}, 'Looks good.\nVERDICT: approved', W).text;
+    A.ok(/^\[LOOP — [^\n]* the reviewer passed the work on without restating it\]/.test(frame), '1c: the branch\'s text is a passed-on frame');
+    const R = await joinRun({ text: frame, usd: 0.01, outcome: 'succeeded', reason: 'done', denied: ['fs.write'], refusals: { denied: ['fs.write'], held: [] } });
+    const crate = upstreamOf(R.dTurn), pure = (R.spy.seen.find(x => /^JOINED OUTPUT/.test(x.text)) || {}).text || '';
+    const notes = noteLines(crate);
+    A.ok(crate && /=== BRANCH 2 of 2 — B ===\n\[LOOP — /.test(crate), '1c: the frame is the LAST branch of the crate D was handed');
+    A.eq(notes.length, 1, '1c: one note, for B');
+    A.eq(crate, underHeader(pure, notes), '1c: the note sits under the JOINED OUTPUT header, ahead of the branches (the crate\'s tail is the frame\'s own)');
+    const bare = (g, t) => loopDecision(g, ctxOk, 0, {}, 'Looks good.\nVERDICT: approved', t).text;
+    const U = bare(gate({ next: null }), pure);   // the pure crate, its last branch's frame unwrapped in place
+    A.ok(U !== 'Looks good.' && U.indexOf(W) > 0 && U.indexOf('without restating it]') < 0, '1c: (the pure crate unwraps: the oracle holds)');
+    const out1 = bare(gate({ next: null }), crate);
+    A.eq(out1, underHeader(U, notes), '1c: a bare approval out of the line hands on the joined work, the frame unwrapped, the note kept: ' + JSON.stringify(out1.slice(0, 160)));
+    const toDock = bare(gate(), crate);
+    A.eq(toDock, bare(gate(), pure).replace(U, underHeader(U, notes)), '1c: a bare approval to a dock hands on one frame round the joined work, never "Looks good." alone');
+  }
+  {
+    /* (d) review B2b, through the walk: two refusing branches and a VERDICT line that is the last branch's next-to-last line. On the pure
+       crate the three-line tail holds it; two notes at the END pushed it out. The noted crate reads and strips exactly like the pure one. */
+    const R = await swarmRun({ crew0: { text: 'crew0 findings', usd: 0.01, outcome: 'succeeded', refusals: { denied: [], held: ['shell.exec'] } },
+      crew2: { text: 'crew2 findings\nVERDICT: approved\nSources: the permit office.', usd: 0.01, outcome: 'succeeded', refusals: { denied: ['fs.write'], held: [] } } });
+    const crate = upstreamOf(R.writerTurn), pure = (R.spy.seen.find(x => /^JOINED OUTPUT/.test(x.text)) || {}).text || '';
+    const notes = noteLines(crate);
+    A.eq(notes.length, 2, '1d: two notes (crew0 held, crew2 refused)');
+    A.eq(crate, underHeader(pure, notes), '1d: both notes sit under the header');
+    A.eq([Verdict.parseVerdict(crate), Verdict.parseVerdict(pure)], ['approved', 'approved'], '1d: parseVerdict reads the noted crate as the pure one');
+    A.eq(Verdict.stripVerdict(crate), underHeader(Verdict.stripVerdict(pure), notes), '1d: stripVerdict takes the VERDICT line out of the noted crate as out of the pure one');
+  }
+  {
+    // (e) review B2b, the crate shape alone: THREE notes on a crate whose last line is a VERDICT line
+    const pure = P.joinPayload([{ agentId: 'a', text: 'alpha' }, { agentId: 'b', text: 'beta' }, { agentId: 'c', text: 'gamma' }, { agentId: 'd', text: 'delta\nVERDICT: approved' }], []);
+    const three = ['a', 'b', 'c'].map(w => NOTE + w + ': 1 tool call(s) did not run (refused: fs.write); its text may describe work that did not happen.');
+    const crate = typeof notedCrate === 'function' ? notedCrate(pure, three) : pure + '\n\n' + three.join('\n');
+    A.eq(crate, underHeader(pure, three), '1e: three notes go under the header');
+    A.eq(Verdict.parseVerdict(crate), Verdict.parseVerdict(pure), '1e: parseVerdict on the noted crate = on the pure one (approved)');
+    A.eq(Verdict.stripVerdict(crate), underHeader(Verdict.stripVerdict(pure), three), '1e: stripVerdict leaves no VERDICT line in the work');
+    A.eq(typeof notedCrate === 'function' && notedCrate(pure, []), pure, '1e: no notes, the crate byte for byte');
+  }
 
   /* ---- 2. ONE AFTER ANOTHER: the next stage is told, under the upstream text; the answer and the draft are untouched ---- */
   {
@@ -216,6 +269,45 @@ process.on('exit', () => { if (!finished) { console.error('line-stage-facts.test
       return { reason: 'done', outcome: 'succeeded', text: 'x' };
     } }).hopRunner(kinds.schedule)({ agentId: 'writer', text: 'work' });
     A.eq(capped.refusals && capped.refusals.held.length, 6, '3: at most six held names are kept, like denied');
+
+    /* (3b) review B1: the Task Brief gate holds a consequential call until brief_proceed and tells the model to make the same call again —
+       held, then run, is the NORMAL path of a channel line hop. A call that was made again and ran is no fact of the stage: no refusals,
+       no note downstream. One that never ran again still is (liveness). The real channel hop executor, then a real two-stage walk. */
+    const seq = steps => async o => {
+      const e = (n, p) => o.emit(n, Object.assign({ agentId: o.agentId, runId: o.runId }, p));
+      e('agent.run.start', {});
+      steps.forEach(([name, result], i) => {
+        e('agent.tool_call', { callId: 'q' + i, name });
+        e('agent.tool_result', Object.assign({ callId: 'q' + i }, result === 'held' ? { ok: false, isError: true, summary: TaskIntent.GATE_HELD }
+          : result === 'denied' ? { ok: false, isError: true, summary: 'denied' } : result === 'error' ? { ok: false, isError: true, summary: 'error' } : { ok: true, isError: false, summary: 'ok' }));
+      });
+      e('agent.run.end', { reason: 'done', outcome: 'succeeded', usd: 0 });
+      return { reason: 'done', outcome: 'succeeded', text: 'Done - I wrote the file.', usd: 0 };
+    };
+    const hopOf = async steps => LR.makeLineRunner({ runOnce: seq(steps), newId: () => 'b1', now: () => 1, runRow: () => null }).hopRunner(kinds.channel)({ agentId: 'writer', text: 'work', lineId: 'L1' });
+    // the hop's result as stage A of E -> A -> B: what B is handed
+    const handOn = async hop => {
+      const log = [];
+      const c = makeChainRunner({ nextAgent: a => ({ E: 'A', A: 'B' })[a] || null, now: clock, emit: () => {},
+        runAgent: async call => { calls.push(call); log.push(call); return call.agentId === 'A' ? hop : { text: 'B final.', usd: 0, outcome: 'succeeded' }; } });
+      await c.advance({ agentId: 'E', text: 'E brief', originalText: 'do it', runId: 'b1' });
+      return noteLines((log.find(l => l.agentId === 'B') || {}).text);
+    };
+    const retried = await hopOf([['fs_write', 'held'], ['brief_proceed', 'ok'], ['fs_write', 'ok']]);
+    A.ok(!('refusals' in retried), '3b: held, brief_proceed, the same call made again and run: no refusals key (' + JSON.stringify(retried.refusals) + ')');
+    A.eq(await handOn(retried), [], '3b: ...and no note reaches the next stage');
+    const never = await hopOf([['fs_write', 'held'], ['brief_proceed', 'ok'], ['fs_read', 'ok']]);
+    A.eq(never.refusals, { denied: [], held: ['fs_write'] }, '3b live: a held call never made again is still a fact');
+    A.eq(await handOn(never), [NOTE + 'A: 1 tool call(s) did not run (held: fs_write); its text may describe work that did not happen.'], '3b live: ...and the next stage is told');
+    const twice = await hopOf([['fs_write', 'held'], ['fs_write', 'held'], ['brief_proceed', 'ok'], ['fs_write', 'ok']]);
+    A.eq(twice.refusals, { denied: [], held: ['fs_write'] }, '3b: two held calls of one tool, one made again: the other still did not run');
+    const failedAgain = await hopOf([['fs_write', 'held'], ['brief_proceed', 'ok'], ['fs_write', 'error']]);
+    A.eq(failedAgain.refusals, { denied: [], held: ['fs_write'] }, '3b: made again but it failed: still not done');
+    const ranFirst = await hopOf([['fs_write', 'ok'], ['fs_write', 'held']]);
+    A.eq(ranFirst.refusals, { denied: [], held: ['fs_write'] }, '3b: a call that ran BEFORE the hold settles nothing');
+    const allowed = await hopOf([['fs_write', 'denied'], ['fs_write', 'ok']]);
+    A.ok(!('refusals' in allowed), '3b: a refused call made again and allowed: no refusals');
+    A.eq(allowed.denied, ['fs_write'], '3b: ...while denied (the step test\'s) is unchanged');
   }
 
   /* ---- LIVENESS: good data from older writers and every producer still passes ---- */
