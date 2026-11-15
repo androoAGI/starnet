@@ -62,18 +62,39 @@
     if (!t) return false;
     const tail = t.slice(-400);                     // the offer is the reply's closing question, not something said mid-way
     const lastLine = tail.slice(tail.lastIndexOf('\n') + 1) || tail;
-    if (/\?\s*[)"'*_`]*\s*$/.test(tail) && OFFER.test(lastLine)) return true;
+    const endsQ = /\?\s*[)"'*_`]*\s*$/.test(tail);
+    if (endsQ && OFFER.test(lastLine)) return true;
+    if (endsQ && openQuestion(lastLine)) return false;   // "Happy to make changes - what would you like?" asks for content; a bare yes answers nothing
     return declaredOffer(lastLine);
+  }
+  /* An OPEN question (the reply's closing clause opens with what / which / where / when / who / how / why) is no offer
+     to act: the Commander's answer is the content, not a yes. A yes/no confirmation of a declared offer ("I can draft it
+     for you - sound good?") is not open, so it still reaches declaredOffer. Decided on the closing clause only. */
+  /* A SOUNDING-OUT closer asks yes/no about an offer just made ("how does that sound?", "what do you think?",
+     "how about it?", "what do you say?"). It opens with how / what but it confirms, it does not ask for content,
+     so it is not an open question and the declared-offer check still reads the line. */
+  const SOUNDING_OUT = /^\s*(?:(?:and|but|so|or)\s+)?(?:how (?:does|do|would) (?:that|this|it) sound|how(?:'s| is| about) (?:that|this|it)|what do you (?:think|say)|what about (?:that|this|it))\b/;
+  function openQuestion(line) {
+    const clauses = String(line).replace(/\u2019/g, "'").split(/[,;:\u2013\u2014]|\s-\s|[.!?]\s+/).filter(function (p) { return p.trim(); });
+    const last = clauses.length ? clauses[clauses.length - 1] : '';
+    if (SOUNDING_OUT.test(last)) return false;
+    return /^\s*(?:(?:and|but|so|or)\s+)?(?:what|which|where|when|who|whom|whose|how|why)\b/.test(last);
   }
   /* A DECLARED offer ("I can write that script for you.", "Let me know if you'd like me to set it up.") is an offer
      too, with or without a "?": its "yes" was chat and the run got zero tools. Decided on the reply's LAST SENTENCE
      only: it states the offer, names an action, and is not a refusal ("I can't ..."). No lookbehind (webkit floor). */
-  const DECLARED_OFFER = /\b(i can|i could|i'?d be happy to|happy to|let me know if you(?:'d| would) like me to|if you(?:'d| would) like,? i(?:'ll| will| can)|if you want,? i(?:'ll| will| can)|just say (?:the word|go|yes)|say (?:the word|go|yes) and i(?:'ll| will))\b/;
+  const DECLARED_OFFER = /\b(i can|i could|i'?d be happy to|happy to|let me know if you(?:'d| would) like me to|if you(?:'d| would) like,? i(?:'ll| will| can)|if you want,? i(?:'ll| will| can)|i(?:'ll| will)\b[^.!?]*\bif you(?:'d| would)? (?:like|want)|just say (?:the word|go|yes)|say (?:the word|go|yes) and i(?:'ll| will))\b/;
   const OFFER_ACTION = /\b(write|draft|create|build|run|make|set (?:it |this |that )?up|save|send|generate|fix|update|implement|execute|install|start|apply|code|script|do (?:it|that|this))\b/;
-  const OFFER_NEGATED = /\bi (?:can(?:no|')t|cannot|could(?:n'?t| not))\b/;
+  const OFFER_NEGATED = /\bi(?: (?:can(?: ?not|'t| no longer)|could(?:n'?t| not)|am (?:unable|not able) to|(?:won'?t|will not) be able to)|'m (?:unable|not able) to)\b/;
+  /* STATUS / PERCEPTION ("I can see the build is green.", "I can confirm the tests run clean.", "I can tell that ...")
+     says what the agent knows, it offers no work. These phrases are cut out of the sentence before it is read, so
+     "I can see the build is green, and I can fix the lint warning." still offers the fix. */
+  const OFFER_STATUS = /\bi (?:can|could) (?:see|confirm|tell|say|verify|hear|notice|observe|understand|imagine|assume)\b/g;
   function declaredOffer(line) {
-    const pieces = String(line).replace(/’/g, "'").split(/[.!]\s+/).filter(function (p) { return p.trim(); });
-    const sentence = pieces.length ? pieces[pieces.length - 1] : '';
+    const pieces = String(line).replace(/\u2019/g, "'").split(/[.!]\s+/).filter(function (p) { return p.trim(); });
+    // a sentence that is only a sounding-out closer ("How does that sound?") confirms the sentence before it: read that one. A sentence that opens with one but itself declares the offer ("How about this: I can write a fix for you.") is the offer: keep it
+    if (pieces.length > 1 && SOUNDING_OUT.test(pieces[pieces.length - 1]) && !(DECLARED_OFFER.test(pieces[pieces.length - 1]) && OFFER_ACTION.test(pieces[pieces.length - 1]))) pieces.pop();
+    const sentence = (pieces.length ? pieces[pieces.length - 1] : '').replace(OFFER_STATUS, ' ');
     return DECLARED_OFFER.test(sentence) && OFFER_ACTION.test(sentence) && !OFFER_NEGATED.test(sentence);
   }
 
