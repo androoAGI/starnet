@@ -1624,7 +1624,12 @@ const App = (() => {
       const id = String(n && n.kind) + '|' + String(n && n.name || '') + '|' + String(n && n.at || '');
       if (!n || typeof n.text !== 'string' || !n.text || shownSealNotices.has(id)) continue;
       shownSealNotices.add(id);
-      if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify(n.text.slice(0, 400), (n.kind === 'migrated' || n.kind === 'info') ? 'info' : 'warn');
+      // the one-time upgrade notice names every agent whose Full Access was not carried over: a 4-second toast cut at 400
+      // characters lost most of the names, and the station holds its notices only until it restarts. So it is shown whole
+      // and also kept in the bell (one entry, keyed), where it survives the toast and the restart (2026-11-14).
+      const upgrade = n.kind === 'migrated';
+      if (typeof StationUI !== 'undefined' && StationUI.notify) StationUI.notify(n.text.slice(0, upgrade ? 4000 : 400), (n.kind === 'migrated' || n.kind === 'info') ? 'info' : 'warn',
+        undefined, upgrade ? { kind: 'result', key: 'authority-seal-upgrade-' + String(n.at || '') } : undefined);
     }
   }
   // a wider profile a roster push did not ask for: the station kept its own, and so does this page (fix-sec2 review 7)
