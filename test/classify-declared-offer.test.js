@@ -46,6 +46,38 @@ for (const rel of ROOTS) {
   A.eq(isTaskDirective('yes please'), false, 'context-free "yes please" is chat' + tag);
   A.ok(isAffirmation('yes please'), 'isAffirmation is unchanged' + tag);
 
+  // ---- COMPLETION (wave 4): negations in other forms, status lines, open questions ----
+  // a refusal written with a space or another form is a refusal, so an "ok" after it is an acknowledgement
+  for (const refusal of ['I can not run that here.', 'I can no longer write to that folder.', 'Unfortunately I am unable to install it.', "I'm unable to run it.", 'I am not able to save it.', "I'm not able to send it.",
+    "I won't be able to run that; I can only describe it.", 'I will not be able to build it.', 'I could not write the file.', "I couldn't write the file.", 'I cannot run that here.']) {
+    A.eq(offeredWork(refusal), false, 'a refusal is not an offer: ' + refusal + tag);
+    A.eq(isTaskDirective('ok', { priorAgentTurn: refusal }), false, '"ok" after a refusal is an acknowledgement: ' + refusal + tag);
+  }
+  A.eq(isTaskDirective('yes', { priorAgentTurn: 'I can not run that here. I can write it for you.' }), true, 'a spaced refusal followed by a real offer: the last sentence decides' + tag);
+  A.eq(isTaskDirective('yes', { priorAgentTurn: 'I am unable to run it here. I can write it for you.' }), true, '"unable to" followed by a real offer: the last sentence decides' + tag);
+  A.eq(isTaskDirective('yes', { priorAgentTurn: "I can write it for you. I'm not able to run it here." }), false, 'a real offer followed by "not able to": the last sentence decides' + tag);
+
+  // a status or perception statement ("I can see / confirm / tell ...") says what the agent knows, it offers nothing
+  for (const status of ['I can see the build is green.', 'I can confirm the tests run clean.', 'I can tell that the file is saved.', 'I could see that the script runs.', 'I can verify the update was applied.']) {
+    A.eq(offeredWork(status), false, 'a status line is not an offer: ' + status + tag);
+    A.eq(isTaskDirective('yes', { priorAgentTurn: status }), false, '"yes" after a status line is chat: ' + status + tag);
+  }
+  // real offers still count, including one that shares a sentence with a status clause
+  for (const offer of ['I can write that script for you.', 'I could set that up.', "I'll draft it if you like.", 'I will save it if you want.', 'I can see the build is green, and I can fix the lint warning.', 'The build is green. I can run the full suite too.']) {
+    A.eq(offeredWork(offer), true, 'a real offer: ' + offer + tag);
+    A.eq(isTaskDirective('yes please', { priorAgentTurn: offer }), true, '"yes please" after a real offer is a task: ' + offer + tag);
+  }
+
+  // a reply that ends with an OPEN question ("what would you like?") is asking for content: a bare yes answers nothing,
+  // so it is not an offer to act even when it opens with "Happy to ...". A yes/no confirmation of the offer still is.
+  for (const open of ['Happy to make changes - what would you like?', 'Happy to make changes. What would you like?', 'Happy to write that script for you - which file name do you want?', 'Happy to build it for you, but how should it look?']) {
+    A.eq(offeredWork(open), false, 'an open question is not an offer: ' + open + tag);
+    A.eq(isTaskDirective('yes', { priorAgentTurn: open }), false, '"yes" to an open question stays chat: ' + open + tag);
+  }
+  for (const confirm of ['I can draft it for you - sound good?', 'I could set that up for you, okay?']) {
+    A.eq(offeredWork(confirm), true, 'a yes/no confirmation of a declared offer: ' + confirm + tag);
+  }
+
   // the question rule still works
   A.eq(isTaskDirective('yes', { priorAgentTurn: 'Want me to draft it?' }), true, 'the question rule is unchanged' + tag);
   A.eq(isTaskDirective('yes', { priorAgentTurn: 'Anything else?' }), false, 'a plain question stays chat' + tag);
