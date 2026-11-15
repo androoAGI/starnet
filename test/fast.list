@@ -684,6 +684,7 @@ test/authority-census.test.js
 test/dormant-followups.test.js
 test/tool-search-switch.test.js
 test/taskbrief.held-again.test.js
+test/held-ledger-187.test.js
 test/prefix-lanes.test.js
 test/register-impact.test.js
 test/process-operation-copy.test.js
@@ -945,6 +946,7 @@ test/cron.test.js
 test/cron-human.test.js
 test/cron-store.test.js
 test/cron-liveness-opencalls.test.js
+test/cron-hop-token-liveness.test.js
 test/cron-runnow-scope.test.js
 test/cron-hold-record.test.js
 test/mint-ledger.test.js
