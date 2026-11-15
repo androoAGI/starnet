@@ -439,6 +439,9 @@
       text: m => m[1] + ' kept returning the same result (' + m[2] + ' turns in a row), so StarNet stopped this unattended run as stuck. Check what it was waiting for, then run it again.' },
     { kind: 'incomplete_work', re: /Work is incomplete: the model kept announcing/i,
       text: () => 'The agent stopped before finishing: it kept saying what it would do next without actually doing it. Say "continue" to push it on, or switch to a stronger model.' },
+    // the held end (loop.js, ops-1115 T3 #187): the same failureCode, its own cause — the named calls never ran
+    { kind: 'incomplete_work', re: /Work is incomplete: (.+?) (was|were) held by the Task Brief gate and never ran/i,
+      text: m => { const many = /^were$/i.test(m[2]); return 'The agent stopped before finishing: ' + m[1] + ' never ran, so ' + (many ? 'those calls' : 'that call') + ' changed nothing. ' + (many ? 'They were' : 'It was') + ' held until the task brief was settled, and the agent ended without making ' + (many ? 'them' : 'it') + ' again. Say "continue" to have the agent make ' + (many ? 'them' : 'it') + ' now, or say what to do instead.'; } },
     { kind: 'memory_unverified', re: /memory update is unverified|promise to remember above is unverified/i,
       text: () => 'The agent said it saved (or would remember) something, but nothing was written to memory — it will not remember this next time. Ask it again to save it.' },
     { kind: 'output_limit', re: /hit the model's output limit while writing a large (\S+) call/i,

@@ -72,11 +72,17 @@ const SAMPLES = [
   ["The reply hit the model's output limit while writing a large fs_write call: it was cut off 3 times in a row and never ran, so nothing from it was saved.", 'output_limit', /output limit while writing a large fs_write call/],
   ['run checkpoint failed: ENOSPC: no space left on device', 'checkpoint_failed', /free disk space/],
   ['blocked by your hook `deploy-freeze`: deploys are frozen until Friday', 'hook_blocked', /Your hook `deploy-freeze` blocked this run: deploys are frozen until Friday/],
-  ["context still too large after compacting: about 210,000 tokens remain against the model's 200,000-token window after 2 folds", 'context_overflow', /even after StarNet compacted it/]
+  ["context still too large after compacting: about 210,000 tokens remain against the model's 200,000-token window after 2 folds", 'context_overflow', /even after StarNet compacted it/],
+  // the held end (ops-1115 T3, #187) shares failureCode incomplete_work with the continuation guard but has its OWN cause:
+  // COMMS led it with "it kept saying what it would do next" and the channels sent the raw line in place of an explanation
+  // what happened (never ran), that it changed nothing, and what to do next ("continue")
+  ['Work is incomplete: fs_write was held by the Task Brief gate and never ran.', 'incomplete_work', /^The agent stopped before finishing: fs_write never ran, so that call changed nothing\. It was held until the task brief was settled.* Say "continue" to have the agent make it now/],
+  ['Work is incomplete: fs_write, shell_exec were held by the Task Brief gate and never ran.', 'incomplete_work', /^The agent stopped before finishing: fs_write, shell_exec never ran, so those calls changed nothing\. They were held until the task brief was settled.* Say "continue" to have the agent make them now/]
 ];
 for (const [msg, kind, words] of SAMPLES) {
   const s = SR.explainStop(msg), f = Friendly.explainStop(msg);
   A.ok(s && f, 'both copies explain: ' + msg.slice(0, 40));
+  if (!s || !f) continue;
   A.eq([s.kind, s.text], [f.kind, f.text], 'the sidecar copy and the browser mirror say the SAME thing for ' + kind);
   A.eq(s.kind, kind, 'kind of: ' + msg.slice(0, 40));
   A.ok(words.test(s.text), 'words of ' + kind + ': ' + s.text);
@@ -84,6 +90,15 @@ for (const [msg, kind, words] of SAMPLES) {
   A.eq(v.userMessage, s.text, kind + ': COMMS leads with what happened, never "Something went wrong"');
   A.ok(!/Something went wrong/.test(v.userMessage), kind + ': not the generic headline');
   A.eq(v.raw, msg, kind + ': the raw text still rides along for the sub-line / diagnostics');
+}
+// the held end keeps its own cause on the CODED path too (Harness.chat hands COMMS failureCode incomplete_work), never the
+// continuation guard's "kept saying what it would do next"; and loop.js still emits the shape the row keys on
+A.ok(/' held by the Task Brief gate and never ran\.'/.test(loopSrc), 'loop.js still emits the held-end stop shape');
+for (const msg of ['Work is incomplete: fs_write was held by the Task Brief gate and never ran.', 'Work is incomplete: fs_write, shell_exec were held by the Task Brief gate and never ran.']) {
+  const v = Friendly.friendlyError(msg, null, { engineAlive: true, code: 'incomplete_work' });
+  const s = SR.explainStop(msg);
+  A.eq([v.kind, v.userMessage], ['incomplete_work', s && s.text], 'the held end leads COMMS with its own cause on the coded path: ' + v.userMessage);
+  A.ok(!/kept saying what it would do next/.test(v.userMessage), 'the held end is never told as the continuation guard\'s cause: ' + v.userMessage);
 }
 A.eq(SR.STOP_EXPLAINERS.map(e => e.kind + ':' + e.re.source), Friendly.STOP_EXPLAINERS.map(e => e.kind + ':' + e.re.source), 'the two explainer tables match pattern for pattern');
 A.eq(Friendly.explainStop('Anthropic http 529 - Overloaded'), null, 'provider failures are not harness stops (their classifier owns them)');
