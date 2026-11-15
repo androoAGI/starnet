@@ -136,7 +136,9 @@
       return true;
     }
     try {
-      await core.invoke('starnet_open_artifact', { path: artifactPath(f), agentId: r.agentId || 'agent' });
+      const loc = savedLocation(r, f, r.project || '');
+      if (!loc) throw new Error('This deliverable has no saved path.');
+      await core.invoke('starnet_open_artifact', { path: loc.path, agentId: loc.agentId });
     } catch (err) {
       // Cancel at the host confirmation is an answer. Falling through would bypass the user's refusal.
       if (/declined at the host/i.test(String(err || ''))) return true;
@@ -405,7 +407,7 @@
         // the main file leads the list (its OPEN is the drawer's first key — org pass 10-14, P13); the rows are built in the
         // backend's order first, so every data-file index still points at its own file
         ? '<ul class="dlv-files">' + mainFirst((r.files || []).map((f, fi) => f.openUrl
-            ? '<li><a class="bb sm' + (r.main && f.path === r.main ? ' dlv-hero' : '') + '" data-file="' + fi + '" href="' + esc(openHref(f)) + '" target="_blank" rel="noopener">OPEN</a><span class="dlv-fname">' + esc(f.path) + '</span><span class="dlv-fsize">' + esc(fmtSize(f.bytes)) + '</span>' + (r.main && f.path === r.main ? '<span class="dlv-fmain">the main one</span>' : '') + '<span class="dlv-floc" data-floc="' + fi + '"></span></li>'
+            ? '<li><a class="bb sm' + (r.main && f.path === r.main ? ' dlv-hero' : '') + '" data-file="' + fi + '" href="' + esc(openHref(f)) + '" target="_blank" rel="noopener">OPEN FILE</a><span class="dlv-fname">' + esc(f.path) + '</span><span class="dlv-fsize">' + esc(fmtSize(f.bytes)) + '</span>' + (r.main && f.path === r.main ? '<span class="dlv-fmain">the main one</span>' : '') + '<span class="dlv-floc" data-floc="' + fi + '"></span></li>'
             : '<li><span class="dlv-fname off">' + esc(f.path) + '</span><span class="dlv-fsize">no longer available</span></li>')) + '</ul>'
         : '<p class="dlv-none">This run recorded no files.</p>';
       const openSession = (r.jobId ? '<button class="bb sm" data-act="workflow">OPEN IN WORKFLOWS</button>' : '') + ((run && run.streamId) ? '<button class="bb sm" data-act="session">↗ OPEN THE FULL CONVERSATION</button>' : '');
@@ -686,6 +688,7 @@
         const tip = p => { shown = p; keys.forEach((k, ki) => { k.removeAttribute('title'); k.setAttribute('data-tip-path', ''); k.setAttribute('data-tip', [verbs[ki], lead, breakable(p)].filter(Boolean).join('\n')); }); };
         keys.forEach((k, ki) => {
           k.classList.add('bb', 'sm', 'dlv-loc-key');
+          if (tauriCore() && ki === 0) k.classList.add('dlv-show-folder');
           if (verbs[ki]) k.setAttribute('aria-label', verbs[ki]);
           const lbl = k.querySelector && k.querySelector('.fb-label');
           if (lbl && typeof MutationObserver !== 'undefined') new MutationObserver(() => k.classList.toggle('fb-live', lbl.textContent !== k.getAttribute('data-default-label'))).observe(lbl, { childList: true, characterData: true, subtree: true });

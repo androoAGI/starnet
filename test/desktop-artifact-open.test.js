@@ -49,7 +49,13 @@ A.ok(/fn confirm_host_launch[\s\S]{0,900}blocking_show/.test(rust),
 A.ok(/fn starnet_open_artifact[\s\S]{0,1500}confirm_host_launch/.test(rust),
   'native open spawns nothing without a host-confirmed gesture');
 A.ok(/fn starnet_reveal_path[\s\S]{0,1500}confirm_host_launch/.test(rust),
-  'native reveal spawns nothing without a host-confirmed gesture');
+  'non-Windows reveal retains the host confirmation');
+const reveal = fs.readFileSync(path.join(__dirname, '../src-tauri/src/reveal.rs'), 'utf8');
+const winBody = rust.slice(rust.indexOf('async fn starnet_reveal_path('), rust.indexOf('#[cfg(test)]', rust.indexOf('async fn starnet_reveal_path(')));
+A.ok(/#\[cfg\(windows\)\][\s\S]*?reveal::show_in_explorer\(&artifact\)\?/.test(winBody), 'Windows navigates only after the unchanged artifact resolver');
+A.ok(!/explorer\.exe|\/select,/.test(winBody), 'Windows reveal has no command-line quoting ambiguity');
+A.ok(/SHOpenFolderAndSelectItems\(item\.0, 0, null\(\), 0\)/.test(reveal), 'files are selected through the native Shell API');
+A.ok(!/Command::|FileProtocolHandler/.test(reveal), 'the reveal module cannot launch a file association or shell command');
 A.ok(/HOST_GESTURE_DECLINED/.test(rust) && /declined at the host confirmation/.test(rust),
   'a declined gesture returns the marker error the frontend keys off');
 A.ok(/declined at the host/.test(chat),

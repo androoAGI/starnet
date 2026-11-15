@@ -396,11 +396,18 @@ const Delegated = (() => {
       + (d.sites.length ? '<div class="dg-receipt-row"><span class="k">Sites</span><span class="v">' + d.sites.length + ' opened · ' + esc(d.sites.map(s => s.host).join(', ')) + '</span></div>' : '')
       + (d.searches.length ? '<div class="dg-receipt-row"><span class="k">Searched</span><span class="v">' + esc(d.searches.slice(0, 3).map(q => '"' + q + '"').join(', ')) + '</span></div>' : '')
       + d.files.map((f, i) => '<div class="dg-receipt-row"><span class="k">' + (i ? '' : 'Files') + '</span><span class="v">' + esc(f.name) + '</span>'
-        + '<button type="button" class="dg-key" data-dg-file="' + esc(f.path) + '" data-dg-agent="' + esc(f.agentId) + '" data-dg-project="' + esc(f.projectRoot) + '">Open</button></div>').join('')
+        + '<button type="button" class="dg-key" data-dg-file="' + esc(f.path) + '" data-dg-agent="' + esc(f.agentId) + '" data-dg-project="' + esc(f.projectRoot) + '">OPEN FILE</button><span data-dg-folder="' + esc(f.path) + '" data-dg-agent="' + esc(f.agentId) + '" data-dg-project="' + esc(f.projectRoot) + '"></span></div>').join('')
       + '</div>';
   }
   // a worker's answer is untrusted output: rendered through COMMS' safe prose renderer, never raw HTML
   function hydrate(card) {
+    if (typeof Chat !== 'undefined' && Chat.folderButton) card.querySelectorAll('[data-dg-folder]').forEach(slot => {
+      if (slot.childNodes.length) return;
+      const p = slot.dataset.dgFolder || '', root = slot.dataset.dgProject || '';
+      const absolute = /^([A-Za-z]:[\\/]|[\\/])/.test(p);
+      const full = root && !absolute ? root.replace(/[\\/]+$/, '') + '/' + p : p;
+      slot.appendChild(Chat.folderButton(slot.dataset.dgAgent, full));
+    });
     card.querySelectorAll('[data-dg-answer]').forEach(el => {
       const rec = receipts.get(el.dataset.dgAnswer), text = rec && rec.data ? rec.data.answer : '';
       const ws = typeof Workstreams !== 'undefined' && Workstreams.get(el.dataset.dgAnswer);

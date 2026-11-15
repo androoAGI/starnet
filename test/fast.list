@@ -1328,6 +1328,7 @@ test/install-manifest.test.js
 test/desktop-build-macos-notarization.test.js
 test/desktop-build-macos-python-host.test.js
 test/desktop-artifact-open.test.js
+test/windows-output-folder.test.js
 test/release-train-macos-trust.test.js
 test/installed-integrity-proofs.test.js
 test/release-train-windows-trust.test.js
