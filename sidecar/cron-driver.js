@@ -404,6 +404,10 @@
       if (!lease || lease.runId !== runId) return;             // a sweep may have reclaimed+replaced this lease
       const at = now();
       lease.heartbeatAt = at;
+      persistOnceBeat(jobId, lease, at);
+    }
+    // the one-shot's DURABLE heartbeat (planTick reads it: a fresh one means in flight, not due), throttled per durableHeartbeatMs
+    function persistOnceBeat(jobId, lease, at) {
       if (!lease.isOnce) return;                               // recurring jobs need no durable heartbeat (advance-before-run covers restart)
       // throttle the durable write: only persist once the last durable stamp is older than durableHeartbeatMs.
       if (lease.durableAt != null && (at - lease.durableAt) < durableHeartbeatMs) return;
@@ -970,6 +974,10 @@
           }, null);
           try { emit('cron.skipped', { jobId: jobId, reason: 'stale-lock-reclaimed' }); } catch (_) {}
           skips++;
+        } else if (lease.openCalls && lease.openCalls.size > 0) {
+          // a ONE-SHOT inside a long tool call: keep its DURABLE heartbeat fresh, or planTick plans it due on every tick and the lease
+          // guard writes an already-running skip each time (ops-1115 T1b, N2). The in-memory heartbeat is left alone: toolStaleMs bounds the call
+          persistOnceBeat(jobId, lease, nowMs);
         }
       }
 
