@@ -148,6 +148,10 @@
       wire = w ? { provider: w.provider || null, model: w.model || null, source: w.source || null } : null;
     }
     const nextFireAt = scheduler && Scheduler ? Scheduler.nextFireOf(scheduler, job) : job.nextRunAt;
+    // lane T6: the last fire's one verdict (RunOutcome.fireLook), said when lastStatus alone would mislead: a fire the unattended hold refused, or
+    // whose work line stopped mid-way (lastStatus stays 'ok' by the line law). Every other record lists exactly as before.
+    const fl = RunOutcome && typeof RunOutcome.fireLook === 'function' ? RunOutcome.fireLook(job) : null;
+    const look = fl && (fl.tone === 'held' || fl.tone === 'problem') ? { tone: fl.tone, word: fl.word, why: fl.why, at: fl.at } : null;
     return {
       id: job.id,
       name: job.name,
@@ -173,6 +177,7 @@
       lastReason: job.lastReason ? (RunOutcome ? RunOutcome.reasonOf({ reason: job.lastReason, outcome: job.lastOutcome || (job.lastStatus === 'error' && job.lastReason === 'done' ? 'failed' : undefined) }) : job.lastReason) : null,
       lastOutcome: job.lastOutcome || undefined, lastFailureCode: job.lastFailureCode || undefined,
       lastLine: job.lastLine || null,   // the work line stopped short / came out partial / unapproved on its last fire (quick win 25)
+      ...(look ? { look } : {}),
       deliver: job.deliver || 'local',
       completedRuns: job.repeat && job.repeat.completed || 0,
       provider: job.provider || null,
