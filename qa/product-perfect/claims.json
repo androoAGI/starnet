@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "7b83566d8c8db56fc54e7d510a3f713a3676fb87",
+    "sourceCommit": "900d1328746b9ba68bf198045b1b5a57a0033c2a",
     "pathSetSha256": "967af97ff9c6cbb9e744a70595665e2d29d64aa71efb2efaba623913bea16068",
     "files": [
       {
@@ -368,8 +368,8 @@
       },
       {
         "path": "frontend/app/classify.js",
-        "bytes": 9398,
-        "sha256": "6e54329df75fae0fa62f0902d316733a122ee0f446d15fc1615e794eb1087049"
+        "bytes": 13224,
+        "sha256": "425b13e76be73f9d64c7a2358ce69c3d533458073eb093fe8025d0eed520748e"
       },
       {
         "path": "frontend/app/cloudsave.js",
@@ -528,8 +528,8 @@
       },
       {
         "path": "frontend/app/friendlyerror.js",
-        "bytes": 121515,
-        "sha256": "06a24b45dc96d9d4bb0f0c44876a206c7b2a53a0ca5863683a84b2a4066b99e2"
+        "bytes": 122195,
+        "sha256": "3e8d3d4d0542989aa7b686942b51384883ce8111e2abffbe02a5f92d942acb66"
       },
       {
         "path": "frontend/app/fullscreen.js",
@@ -1138,8 +1138,8 @@
       },
       {
         "path": "frontend/app/runoutcome.js",
-        "bytes": 22841,
-        "sha256": "5a075eda1f98a7857a012b5c6c0e1bb10e9d60f97857d6f7c072fe22681a8c74"
+        "bytes": 27603,
+        "sha256": "65edd5bc5818906b325fe49445d6de971311e4d2ef248fb2106e5a53edef0c85"
       },
       {
         "path": "frontend/app/save.js",
@@ -1483,8 +1483,8 @@
       },
       {
         "path": "frontend/app/windows/routines.js",
-        "bytes": 88367,
-        "sha256": "6d060509159206ebcb6488987b7147f3fed2cf65c3b99a1aa72f9a4c3ec4db18"
+        "bytes": 88966,
+        "sha256": "e65234bf99399cd7eb8333a48b78e5e408fbb75708f57415a7cddbe1b6a1426b"
       },
       {
         "path": "frontend/app/windows/trophies.js",
