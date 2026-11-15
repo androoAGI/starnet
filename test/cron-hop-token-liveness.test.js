@@ -226,5 +226,14 @@ function oneShot() {
     A.eq([o.signal.aborted, s.count('stale-lock-reclaimed')], [true, 1], '(7) and it is reclaimed past 8 minutes, as before');
   }
 
+  /* ---- SOURCE PIN: the host's schedule profile hands the driver's lease renewal to the hop as beforeHop (what case 1 drives) ---- */
+  {
+    const Source = require('./helpers/source.js');
+    const index = Source.readSidecarIndex();
+    const sched = Source.objectProps(Source.callRegion(index, 'profile: LineRunner.profiles.schedule({', '}) })'));
+    const before = (sched.find(p => p.key === 'beforeHop') || {}).expr || '';
+    A.eq(before.trim(), 'o.onHop', 'pin: the schedule profile\'s beforeHop is the cron driver\'s onHop (the fire\'s lease renewal)');
+  }
+
   A.report('cron-hop-token-liveness');
 })().catch(e => { console.error(e); process.exitCode = 1; A.report('cron-hop-token-liveness'); });
