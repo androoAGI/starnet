@@ -20382,6 +20382,7 @@ async function handleCronRun(req, res) {
   // paths gate identically (see runSlashRoutine's note on that shared limit).
   // (quick win 31) the SAME rule as the scheduled wrapper: a routine carrying a pre-check SCRIPT is a model run, never redirected
   const firedAt = Date.now();   // this press's fire time: cron.fire's scheduledFor and the run's idempotency scope
+  const pressScope = routineRunIdentity(job, firedAt).idempotencyScope;   // the press's lease names it, so a transient retry reuses it
   if (runsAsCommand(assembledPrompt, job.script)) {
     const runIdC = crypto.randomUUID();
     openRunAnswer(res, sink, { runId: runIdC });
@@ -20408,7 +20409,7 @@ async function handleCronRun(req, res) {
   // firing a concurrent duplicate. Heartbeat renews off the tee below; the driver's stale sweep governs a
   // silent manual run by exactly the same rule as a scheduled one. Removed in the finally.
   // pausedAtStart (review 7.1): a press on a routine the Commander had already paused — its result goes out, never held for a resume
-  cronDriver.leases.set(job.id, { runId: runId, startedAt: Date.now(), heartbeatAt: Date.now(), ac: ac, isOnce: false, pausedAtStart: cronStore.deliveriesHeld(job) });
+  cronDriver.leases.set(job.id, { runId: runId, startedAt: Date.now(), heartbeatAt: Date.now(), ac: ac, isOnce: false, pausedAtStart: cronStore.deliveriesHeld(job), scope: pressScope });
   // res 'close', not req 'close' — same disconnect-detection law as handleRun: readBody() already consumed the
   // request, so req 'close' has fired before this listener attaches and a dead watcher was never noticed (F1).
   // DETACHED (additive, APPS 2026-09-30): an app's REFRESH is the routine's own job, not the watcher's — closing the
