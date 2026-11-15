@@ -217,8 +217,8 @@ A.ok(/#crew-search-close \{[^}]*border-radius: 50%/.test(css), 'the crew finder 
 const rawCss = read('frontend/css/vector.css');
 const strip = (t) => t.replace(/\/\*[\s\S]*?\*\//g, '');
 const cut = (title) => { const at = rawCss.indexOf(title); return at < 0 ? -1 : rawCss.lastIndexOf('/*', at); };
-const baseAt = cut('23 · THE BLACK CHASSIS'), bAt = cut('24 · VARIATION B'), pAt = cut('25 · THE PERFECTED VECTOR'), fAt = cut('26 · THE FIT'), hAt = cut('27 · THE HEADS'), nAt = cut('28 · THE PANELS'), iAt = cut('29 · THE INSIDES'), cAt = cut('30 · THE CARDS'), lAt = cut('31 · THE REST'), xAt = cut('32 · THE FORMAT'), tAt = cut('33 · THE FIRST TEST'), sAt = cut('34 · THE SECOND TEST'), crewAt = cut('35 · THE CREW LENS');
-A.ok(baseAt > 0 && bAt > baseAt && pAt > bAt && fAt > pAt && hAt > fAt && nAt > hAt && iAt > nAt && cAt > iAt && lAt > cAt && xAt > lAt && tAt > xAt && sAt > tAt && crewAt > sAt,
+const baseAt = cut('23 · THE BLACK CHASSIS'), bAt = cut('24 · VARIATION B'), pAt = cut('25 · THE PERFECTED VECTOR'), fAt = cut('26 · THE FIT'), hAt = cut('27 · THE HEADS'), nAt = cut('28 · THE PANELS'), iAt = cut('29 · THE INSIDES'), cAt = cut('30 · THE CARDS'), lAt = cut('31 · THE REST'), xAt = cut('32 · THE FORMAT'), tAt = cut('33 · THE FIRST TEST'), sAt = cut('34 · THE SECOND TEST'), crewAt = cut('35 · THE CREW LENS'), popAt = cut('36 · THE PIECES THAT POP UP');
+A.ok(baseAt > 0 && bAt > baseAt && pAt > bAt && fAt > pAt && hAt > fAt && nAt > hAt && iAt > nAt && cAt > iAt && lAt > cAt && xAt > lAt && tAt > xAt && sAt > tAt && crewAt > sAt && popAt > crewAt,
   'vector.css carries the black chassis, variation B, the perfected VECTOR, the fit pass, the heads, the panels, the insides, the cards, the rest, the format and the first test’s fixes as sections 23 to 33 in that order');
 const cssA = strip(rawCss.slice(0, baseAt));
 const cssBase = strip(rawCss.slice(baseAt, bAt));
@@ -233,7 +233,8 @@ const cssL = strip(rawCss.slice(lAt, xAt));
 const cssX = strip(rawCss.slice(xAt, tAt));
 const cssT = strip(rawCss.slice(tAt, sAt));
 const cssS = strip(rawCss.slice(sAt, crewAt));
-const cssK = strip(rawCss.slice(crewAt));
+const cssK = strip(rawCss.slice(crewAt, popAt));
+const cssPop = strip(rawCss.slice(popAt));
 // an at-rule's own prelude (@container ... {) is not a selector: drop it, and its closing brace leaves an empty chunk
 const selsOf = (t) => t.replace(/@[a-z-]+[^{};]*\{/g, '').split('}').map(r => r.slice(0, Math.max(0, r.indexOf('{')))).filter(x => x.trim()).flatMap(x => x.split(/,\n/)).map(x => x.trim());
 // a selector list can also run on ONE line, so the line-start check alone is not enough: every root in a section must carry its gate
@@ -1194,4 +1195,52 @@ A.eq(setsK.filter((x, i) => setsK.indexOf(x) !== i).join(' | '), '', 'no sprite 
 A.eq(setsK.filter(x => !fs.existsSync(path.join(ROOT, 'frontend', 'assets', 'sprites', x, 'rot_south.png'))).join(' | '), '', 'every fitted set is a sprite the app ships: a renamed set cannot leave a dead fit behind');
 A.ok(['approved_catinthehat', 'approved_xenomorph', 'approved_grimreaper'].every(x => setsK.includes(x)), 'the three he could not read (the hat, the scythe, the tail) are fitted');
 A.ok(/img\.dataset\.portraitSet = set;/.test(read('frontend/app/agentportraits.js')), 'the painter still stamps the sprite set on the image: that stamp is what a fit keys on');
+// ---- section 36 · THE PIECES THAT POP UP (Andrew 2026-11-15, on local live voice: "totally unacceptable, this does not match our new
+// style at all … find ANY other pieces of UI that have not been converted"). Every window had been toured; these are the pieces a
+// script hangs on the page only when it is needed ----
+const selsPop = selsOf(cssPop);
+const POPS = ['.live-voice-panel', '.lw-card', '.quit-guard-card', '.tut-coach', '.tut-brief', '.model-dock-tip', '.ov-mdl-pop', '.comms-lightbox', '.fnv-dialogue', ':is(#save-preserved-notice, #save-conflict-notice)'];
+A.ok(selsPop.length >= 80, 'the pop-up pieces are their own section (' + selsPop.length + ' selectors)');
+A.eq(selsPop.filter(x => !x.startsWith(TPFX + ' ')).length, 0, 'every selector there opens with the VECTOR gate: variation B and the classic look never see it');
+A.eq(selsPop.filter(x => !POPS.some(p => x.slice(TPFX.length + 1).replace(/^#chat-panel /, '').startsWith(p))).join(' | '), '', 'and each is about one of the pop-up pieces, by name: nothing else on the page is restyled from here');
+A.eq(stray(cssPop, ':not(.vx-b)').join(' | '), '', 'none slips its scope inside a one-line list');
+A.ok(!/\[class/.test(cssPop) && !/@/.test(cssPop) && !/[;{\s]filter:\s/.test(cssPop) && !/#stage-wrap/.test(cssPop), 'it has no [class] selector, no at-rule and no filter, and styles nothing under #stage-wrap');
+A.ok(!/font-family|animation|transition|display:|visibility|content: '[^']/.test(cssPop), 'it changes no typeface, adds no motion, writes no word, and sets no display: a piece the module hides stays hidden');
+A.ok(!/--lv-accent:|--lv-talker:|--lv-amp:|--lw-accent:/.test(cssPop), 'a state colour and the live level stay the module’s own: the look only reads them');
+A.ok(/\.live-voice-panel \.lv-pip \{[^}]*var\(--lv-accent\)/.test(cssPop) && /\.live-voice-panel \.lv-meter \{[^}]*var\(--vx-well\)[^}]*var\(--lv-amp\)/.test(cssPop),
+  'the voice unit’s lamp is the state colour and its level well still glows with the real microphone level');
+A.ok(/\.live-voice-panel \.lv-controls \{[^}]*var\(--vx-seat\)/.test(cssPop) && /\.lv-controls \.bb\[aria-pressed="true"\] \{[^}]*var\(--vx-cap-on\)/.test(cssPop),
+  'PAUSE MIC and SEND NOW are caps on one chrome seat, and a paused mic is the pressed lit cap');
+A.ok(/:is\(#save-preserved-notice, #save-conflict-notice\) \{[^}]*border: 0 !important;[^}]*!important;[^}]*color: var\(--text\) !important;/.test(cssPop),
+  'the save banners paint their own flat fill inline, so the look out-ranks an inline style there (and only there)');
+A.eq((cssPop.match(/!important/g) || []).length, 5, 'nothing else in the section needs !important');
+A.ok(/\.tut-coach \.tut-coach-ok \{ background: var\(--vx-cap-on\);/.test(cssPop) && /\.fnv-dialogue \.fnv-custom-send \{ background: var\(--vx-cap-on\);/.test(cssPop),
+  'the two keys that were flat fills ("got it", SEND) are the lit glass cap');
+// the pieces the sources still write, under the names the look styles
+const srcPop = { 'frontend/app/voice-live.js': "'live-voice-panel'", 'frontend/app/cratecard.js': "'lw-card'", 'frontend/app/quitguard.js': 'class="quit-guard-card"', 'frontend/app/tutorial.js': "'tut-brief", 'frontend/app/chat.js': "'comms-lightbox'", 'frontend/app/dialogue.js': "'fnv-floating'", 'frontend/app/stationui.js': "'save-preserved-notice'" };
+A.eq(Object.keys(srcPop).filter(f => !read(f).includes(srcPop[f])).join(' | '), '', 'each piece is still written by its module under the name the look styles');
+// THE FAMILY, CLOSED: whatever a script hangs on <body> is either named by the look or listed here with its reason. A new floating
+// piece fails this until someone decides which it is (that is how local live voice shipped unconverted: nothing asked).
+const NOT_A_PANEL = {
+  'kepler-review': 'dev tool', 'kepler-fit-audit': 'dev tool', 'projection-audit': 'dev tool', 'world-perf': 'dev tool', 'skin-study-preview': 'dev tool', 'world-lab': 'dev tool',
+  'tut-spot': 'the tutorial’s scrim: a dim, not a surface', 'tut-ring': 'the tutorial’s highlight ring around a real control',
+  'arrival-controls': 'the arrival film’s skip link: bare by design', 'arrival-identity': 'the arrival film’s title: bare by design',
+};
+const vxAll = strip(rawCss);
+const namedByLook = (tok) => new RegExp('[.#]' + tok.replace(/-/g, '\\-') + '(?![\\w-])').test(vxAll);
+const hung = [];
+for (const dir of ['frontend/app', 'frontend/js']) for (const f of fs.readdirSync(path.join(ROOT, dir)).filter(x => x.endsWith('.js'))) {
+  const lines = read(dir + '/' + f).split('\n');
+  lines.forEach((l, i) => {
+    const m = /document\.body\.(?:appendChild|append|prepend|insertBefore)\(\s*([\w$]+)/.exec(l); if (!m) return;
+    const back = lines.slice(Math.max(0, i - 60), i + 1).join('\n');
+    const id = (new RegExp(m[1] + "\\.id\\s*=\\s*['\"]([\\w-]+)").exec(back) || [])[1] || '';
+    const cls = ((new RegExp(m[1] + "\\.className\\s*=\\s*['\"]([\\w -]+)").exec(back) || [])[1] || '').split(/\s+/).filter(Boolean);
+    const toks = [id, ...cls].filter(Boolean);
+    if (toks.length) hung.push({ at: f + ':' + (i + 1), toks });
+  });
+}
+A.ok(hung.length >= 20, 'the sweep still finds the pieces scripts hang on the page (' + hung.length + ')');
+A.eq(hung.filter(h => !h.toks.some(t => namedByLook(t) || NOT_A_PANEL[t])).map(h => h.at + ' ' + h.toks.join('.')).join(' | '), '',
+  'every piece a script hangs on <body> is named by the look, or listed in NOT_A_PANEL with its reason');
 A.report('vector-identity');

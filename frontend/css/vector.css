@@ -4288,3 +4288,281 @@ html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-portrait i
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-portrait img[data-portrait-set="approved_ricksanchez"],
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-portrait img[data-portrait-set="approved_tonymontana"],
 html body.vx:not(.hud-mode):not(.vx-b) #screen-game #left #crew .crew-portrait img[data-portrait-set="approved_harrypotter"] { object-position: calc(50% - 1px) 2px; }
+
+/* ============================================================
+   36 · THE PIECES THAT POP UP — Andrew 2026-11-15, on the local live voice panel: "totally unacceptable, this does not match
+   our new style at all … find ANY other pieces of UI that have not been converted". Every window was toured; what was missed
+   is what a script hangs on the page only when it is needed. Paint and size only: each piece keeps its own words, states,
+   controls and place, and takes the materials the rest of the device is made of.
+   ============================================================ */
+
+/* --- THE VOICE UNIT: local live voice is a small device of its own: a black bay in the chrome lip, its state on a jewel lamp,
+   the level in a recessed well, PAUSE MIC and SEND NOW as caps on one chrome seat. Every state, word and control is the module's
+   own; only the materials and the sizes change (it was 9px type on a flat brown card with hairline boxes) --- */
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel {
+  width: 336px; min-width: 300px; gap: 9px; padding: 0 12px 12px;
+  border: 0; border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, .9) 0, rgba(0, 0, 0, 0) 6px),
+    linear-gradient(180deg, #05070a 0, #0d1116 60%, #161b21 100%);
+  box-shadow: var(--vx-lip2), 0 0 0 1px #000, 0 0 0 2px #c4ccd5, 0 1px 0 2px #eef2f6, 0 0 0 3px #2a3037, 0 10px 30px 3px rgba(0, 0, 0, .7);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel::after { content: none; }
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel[data-dragging="true"] {
+  box-shadow: var(--vx-lip2), 0 0 0 1px #000, 0 0 0 2px #eef2f6, 0 1px 0 2px #fff, 0 0 0 3px #2a3037, 0 0 0 4px rgba(var(--ph-rgb), .6), 0 16px 34px 4px rgba(0, 0, 0, .8);
+}
+/* the head is the grab bar: the bay's own top with the chrome lip under it, as a window's head has */
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-head {
+  min-height: 30px; margin: 0 -12px 1px; padding: 8px 10px 12px 15px; gap: 10px;
+  background: linear-gradient(180deg, #05070a 0, #0d1116 100%);
+  box-shadow: inset 0 -3px 0 var(--vx-veilc), inset 0 -1px 0 #2a3037, inset 0 -2px 0 #eef2f6, inset 0 -3px 0 #c4ccd5, inset 0 -4px 0 #000;
+}
+/* the state lamp: a jewel in the state's own colour, in a chrome lip */
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-pip {
+  width: 10px; height: 10px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, color-mix(in srgb, var(--lv-accent) 55%, #fff) 0, var(--lv-accent) 48%, color-mix(in srgb, var(--lv-accent) 45%, #000) 100%);
+  box-shadow: 0 0 0 1px #000, 0 0 0 2px rgba(0, 0, 0, .35), 0 1px 0 2px rgba(255, 255, 255, .55), 0 0 7px 1px color-mix(in srgb, var(--lv-accent) 70%, transparent);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-state {
+  font-size: 17px; line-height: 1; letter-spacing: 2.4px;
+  text-shadow: 0 0 6px color-mix(in srgb, var(--lv-accent) 60%, transparent);
+}
+/* the close key: the round chrome knob every window closes with */
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-x {
+  width: 26px; min-width: 26px; height: 26px; min-height: 26px; padding: 0; margin-left: auto;
+  border: 0; border-radius: 50%; opacity: 1; pointer-events: auto;
+  background: var(--vx-knob); color: var(--vx-ink); font-size: 13px; line-height: 1; text-shadow: none;
+  box-shadow: 0 0 0 1px #050608, 0 2px 4px rgba(0, 0, 0, .7);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-x:is(:hover, :focus-visible) { background: var(--vx-knob-hot); color: var(--vx-ink-hot); }
+/* the level: a recessed well; your voice still lights it (the glow is the module's own level) */
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-meter {
+  height: 46px; padding: 0 11px; border: 0; border-radius: 10px;
+  background: var(--vx-well);
+  box-shadow: var(--vx-well-shadow), 0 0 calc(var(--lv-amp) * 14px) color-mix(in srgb, var(--lv-talker) 40%, transparent);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-meter:is(:hover, :focus-visible) {
+  outline: 0;
+  box-shadow: inset 0 0 0 1px var(--vx-node), var(--vx-well-shadow), 0 0 calc(var(--lv-amp) * 14px) color-mix(in srgb, var(--lv-talker) 40%, transparent);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-wave { gap: 3px; font-size: 22px; }
+/* PAUSE MIC and SEND NOW: two caps on one chrome seat; a paused mic is the pressed, lit cap */
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-controls {
+  gap: 4px; padding: 4px; border-radius: 12px;
+  background: var(--vx-seat); box-shadow: var(--vx-seat-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-controls .bb {
+  min-height: 34px; border: 0; border-radius: 8px; clip-path: none;
+  background: var(--vx-cap); box-shadow: var(--vx-cap-shadow);
+  color: var(--vx-core); font-size: 16px; letter-spacing: 2.2px; text-shadow: 0 0 6px rgba(var(--ph-rgb), .75);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-controls .bb:is(:hover, :focus-visible):not(:disabled) { background: var(--vx-cap-hot); }
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-controls .bb[aria-pressed="true"] {
+  background: var(--vx-cap-on); box-shadow: var(--vx-cap-on-shadow);
+  color: var(--vx-ink); text-shadow: none;
+}
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-controls .bb:disabled { opacity: 1; color: rgba(var(--ph-rgb), .36); text-shadow: none; }
+/* what it heard and what the agent says: readable lines, not captions */
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-heard { margin: 1px 3px 0; font-size: 17px; line-height: 1.2; letter-spacing: .6px; }
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-say.on { margin: 0 3px; font-size: 16px; line-height: 1.2; }
+/* TURN END: a label and a well with its own chevron */
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-end-control { gap: 10px; margin: 1px 3px 0; font-size: 15px; letter-spacing: 1.8px; color: rgba(var(--ph-rgb), .72); }
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-end-control span { opacity: 1; }
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-endpoint {
+  max-width: none; height: 30px; padding: 0 28px 0 11px; border: 0; border-radius: 9px;
+  background:
+    linear-gradient(45deg, transparent 50%, var(--vx-core) 50%) right 14px top 52% / 5px 5px no-repeat,
+    linear-gradient(135deg, var(--vx-core) 50%, transparent 50%) right 9px top 52% / 5px 5px no-repeat,
+    var(--vx-well);
+  box-shadow: var(--vx-well-shadow);
+  color: var(--vx-core); font-size: 15px; letter-spacing: 1.6px; line-height: 30px;
+}
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-endpoint:focus { outline: 0; box-shadow: inset 0 0 0 1px var(--vx-node), var(--vx-well-shadow); }
+/* VOICE DETAILS: a tile that opens onto its readings */
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-details {
+  border-radius: 8px; font-size: 15px; color: rgba(var(--ph-rgb), .8);
+  background: var(--vx-tile); box-shadow: var(--vx-tile-shadow);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-details summary { padding: 7px 11px; letter-spacing: 1.8px; }
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-details summary:is(:hover, :focus-visible) { outline: 0; color: var(--vx-core); text-shadow: 0 0 6px rgba(var(--ph-rgb), .6); }
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-rail {
+  flex-flow: column nowrap; gap: 5px; margin: 0; padding: 8px 11px 10px;
+  border-top: 0; box-shadow: inset 0 1px 0 #000, inset 0 2px 0 rgba(255, 255, 255, .13);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-row { gap: 9px; }
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-row dt { flex: 0 0 66px; opacity: 1; font-size: 14px; letter-spacing: 1.6px; color: rgba(var(--ph-rgb), .58); }
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-row dd { font-size: 14px; letter-spacing: .8px; white-space: normal; }
+/* a fault: a tile lit in the fault colour with its edge, and TRY AGAIN as a cap in its own ring */
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-error {
+  margin: 0; padding: 8px 11px 8px 14px; border: 0; border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .07), transparent 40%),
+    linear-gradient(180deg, color-mix(in srgb, var(--bad) 27%, transparent), color-mix(in srgb, var(--bad) 9%, transparent)),
+    rgba(0, 3, 1, .5);
+  box-shadow: inset 3px 0 0 var(--bad), inset 0 1px 0 rgba(255, 255, 255, .16), inset 0 -1px 0 rgba(0, 0, 0, .5), 0 0 0 1px rgba(0, 0, 0, .66);
+  color: color-mix(in srgb, var(--bad) 72%, #fff); font-size: 16px; line-height: 1.25; letter-spacing: .8px;
+}
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-retry {
+  height: 32px; margin: 4px 4px 4px auto; padding: 0 17px; border: 0; border-radius: 8px;
+  background: var(--vx-cap);
+  box-shadow: var(--vx-cap-shadow), 0 0 0 3px rgba(154, 163, 174, .55), 0 0 0 4px #050608;
+  color: var(--vx-core); font-size: 16px; letter-spacing: 2.2px; text-shadow: 0 0 6px rgba(var(--ph-rgb), .75);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .live-voice-panel .lv-retry:is(:hover, :focus-visible) { background: var(--vx-cap-hot); color: var(--vx-core); }
+/* --- THE OTHER PIECES THAT ONLY APPEAR ON DEMAND (found by sweeping every floating rule in the app's sheets for a subject this
+   sheet never named): the crate card, the "agents still working" guard, the two save banners, the tutorial's coach and checklist,
+   the enlarged image and two small pop-ups. One shell for all of them, the pop-up lists' own: a black bay in the chrome lip --- */
+html body.vx:not(.hud-mode):not(.vx-b) .lw-card,
+html body.vx:not(.hud-mode):not(.vx-b) .quit-guard-card,
+html body.vx:not(.hud-mode):not(.vx-b) .tut-coach,
+html body.vx:not(.hud-mode):not(.vx-b) .tut-brief,
+html body.vx:not(.hud-mode):not(.vx-b) .model-dock-tip,
+html body.vx:not(.hud-mode):not(.vx-b) .ov-mdl-pop {
+  border-color: transparent;
+  border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, .9) 0, rgba(0, 0, 0, 0) 6px) border-box,
+    linear-gradient(180deg, #05070a 0, #0d1116 60%, #161b21 100%) border-box;
+  box-shadow: var(--vx-lip2), 0 0 0 1px #000, 0 0 0 2px #c4ccd5, 0 1px 0 2px #eef2f6, 0 0 0 3px #2a3037, 0 10px 30px 3px rgba(0, 0, 0, .7);
+  -webkit-backdrop-filter: none; backdrop-filter: none;
+}
+html body.vx:not(.hud-mode):not(.vx-b) .model-dock-tip { border-radius: 12px; }
+html body.vx:not(.hud-mode):not(.vx-b) .model-dock-tip::after { border-top-color: #c4ccd5; }
+html body.vx:not(.hud-mode):not(.vx-b) .ov-mdl-pop { border-radius: 12px; }
+
+/* the crate card: its head over an engraved line, the close key a chrome knob, the figure in a well, its doors caps on a seat */
+html body.vx:not(.hud-mode):not(.vx-b) .lw-card { padding: 11px 13px 13px; }
+html body.vx:not(.hud-mode):not(.vx-b) .lw-card .lw-head { gap: 10px; margin-bottom: 9px; padding-bottom: 9px; border-bottom: 0; box-shadow: 0 1px 0 #000, 0 2px 0 rgba(255, 255, 255, .15); }
+html body.vx:not(.hud-mode):not(.vx-b) .lw-card .lw-kind { color: var(--vx-core); text-shadow: 0 0 6px rgba(var(--ph-rgb), .6); }
+html body.vx:not(.hud-mode):not(.vx-b) .lw-card .lw-st { font-size: 15px; text-shadow: 0 0 6px color-mix(in srgb, var(--lw-accent, var(--ph)) 60%, transparent); }
+html body.vx:not(.hud-mode):not(.vx-b) .lw-card .lw-row { grid-template-columns: 66px 1fr; gap: 8px; }
+html body.vx:not(.hud-mode):not(.vx-b) .lw-card .lw-row dt { font-size: 14px; letter-spacing: 1.6px; color: rgba(var(--ph-rgb), .6); }
+html body.vx:not(.hud-mode):not(.vx-b) .lw-card .lw-rows { gap: 4px; }
+html body.vx:not(.hud-mode):not(.vx-b) .lw-card .lw-thumb { border-radius: 7px; background: var(--vx-well); box-shadow: var(--vx-well-shadow); }
+html body.vx:not(.hud-mode):not(.vx-b) .lw-card .lw-foot { gap: 4px; margin-top: 11px; padding: 4px; border-radius: 12px; background: var(--vx-seat); box-shadow: var(--vx-seat-shadow); }
+html body.vx:not(.hud-mode):not(.vx-b) .lw-card .lw-foot .bb {
+  flex: 1 1 auto; min-height: 32px; border: 0; border-radius: 8px;
+  background: var(--vx-cap); box-shadow: var(--vx-cap-shadow);
+  color: var(--vx-core); font-size: 15px; letter-spacing: 1.8px; text-shadow: 0 0 6px rgba(var(--ph-rgb), .75);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .lw-card .lw-foot .bb:is(:hover, :focus-visible) { outline: 0; background: var(--vx-cap-hot); box-shadow: var(--vx-cap-shadow); }
+
+/* every close key on these pieces: the round chrome knob */
+html body.vx:not(.hud-mode):not(.vx-b) .lw-card .lw-x,
+html body.vx:not(.hud-mode):not(.vx-b) .tut-brief .tut-brief-x,
+html body.vx:not(.hud-mode):not(.vx-b) .comms-lightbox .lb-close {
+  width: 26px; min-width: 26px; height: 26px; min-height: 26px; padding: 0;
+  border: 0; border-radius: 50%;
+  background: var(--vx-knob); color: var(--vx-ink); font-size: 13px; line-height: 1; text-shadow: none;
+  box-shadow: 0 0 0 1px #050608, 0 2px 4px rgba(0, 0, 0, .7);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .lw-card .lw-x:is(:hover, :focus-visible),
+html body.vx:not(.hud-mode):not(.vx-b) .tut-brief .tut-brief-x:is(:hover, :focus-visible),
+html body.vx:not(.hud-mode):not(.vx-b) .comms-lightbox .lb-close:is(:hover, :focus-visible) { outline: 0; background: var(--vx-knob-hot); color: var(--vx-ink-hot); box-shadow: 0 0 0 1px #050608, 0 2px 4px rgba(0, 0, 0, .7); }
+
+/* the guard before closing with agents at work: the warning is a tile lit in the warning colour, STAY and CLOSE ANYWAY are caps */
+html body.vx:not(.hud-mode):not(.vx-b) .quit-guard-card { max-width: 500px; padding: 14px; }
+html body.vx:not(.hud-mode):not(.vx-b) .quit-guard-card .up-guard {
+  padding: 10px 13px 10px 16px; border: 0; border-radius: 8px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, .07), transparent 40%),
+    linear-gradient(180deg, color-mix(in srgb, var(--warn) 24%, transparent), color-mix(in srgb, var(--warn) 8%, transparent)),
+    rgba(0, 3, 1, .5);
+  box-shadow: inset 3px 0 0 var(--warn), inset 0 1px 0 rgba(255, 255, 255, .16), inset 0 -1px 0 rgba(0, 0, 0, .5), 0 0 0 1px rgba(0, 0, 0, .66);
+  font-size: 16px; line-height: 1.25; letter-spacing: 1px;
+}
+html body.vx:not(.hud-mode):not(.vx-b) .quit-guard-card .up-actions { gap: 4px; margin-top: 12px; padding: 4px; border-radius: 12px; background: var(--vx-seat); box-shadow: var(--vx-seat-shadow); }
+html body.vx:not(.hud-mode):not(.vx-b) .quit-guard-card .up-actions .bb,
+html body.vx:not(.hud-mode):not(.vx-b) :is(#save-preserved-notice, #save-conflict-notice) .bb {
+  min-height: 34px; padding: 0 18px; border: 0; border-radius: 8px;
+  background: var(--vx-cap); box-shadow: var(--vx-cap-shadow);
+  color: var(--vx-core); font-size: 16px; letter-spacing: 2px; text-shadow: 0 0 6px rgba(var(--ph-rgb), .75);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .quit-guard-card .up-actions .bb { flex: 1 1 auto; }
+html body.vx:not(.hud-mode):not(.vx-b) .quit-guard-card .up-actions .bb:is(:hover, :focus-visible),
+html body.vx:not(.hud-mode):not(.vx-b) :is(#save-preserved-notice, #save-conflict-notice) .bb:is(:hover, :focus-visible):not(:disabled) { outline: 0; background: var(--vx-cap-hot); }
+html body.vx:not(.hud-mode):not(.vx-b) .quit-guard-card .up-actions .bb.danger { color: color-mix(in srgb, var(--bad) 78%, #fff); text-shadow: 0 0 6px color-mix(in srgb, var(--bad) 70%, transparent); }
+html body.vx:not(.hud-mode):not(.vx-b) .quit-guard-card .up-actions .bb.danger:is(:hover, :focus-visible) {
+  background: var(--vx-litg), linear-gradient(180deg, rgba(255, 255, 255, .3) 0, rgba(255, 255, 255, .1) 44%, transparent 45%), linear-gradient(180deg, color-mix(in srgb, var(--bad) 42%, #1a1f24), color-mix(in srgb, var(--bad) 22%, #07090c));
+}
+
+/* the two save banners write their own flat fill inline, so every paint here must out-rank an inline style */
+html body.vx:not(.hud-mode):not(.vx-b) :is(#save-preserved-notice, #save-conflict-notice) {
+  top: 12px !important; padding: 14px 18px 15px 22px !important;
+  border: 0 !important; border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, .9) 0, rgba(0, 0, 0, 0) 6px),
+    linear-gradient(180deg, #05070a 0, #0d1116 60%, #161b21 100%) !important;
+  box-shadow: inset 4px 0 0 var(--gold), var(--vx-lip2), 0 0 0 1px #000, 0 0 0 2px #c4ccd5, 0 1px 0 2px #eef2f6, 0 0 0 3px #2a3037, 0 10px 30px 3px rgba(0, 0, 0, .7);
+  color: var(--text) !important; font-size: 17px; line-height: 1.3;
+}
+html body.vx:not(.hud-mode):not(.vx-b) :is(#save-preserved-notice, #save-conflict-notice) p { margin: 0 0 11px; }
+html body.vx:not(.hud-mode):not(.vx-b) :is(#save-preserved-notice, #save-conflict-notice) .bb { margin: 0 8px 0 0; }
+html body.vx:not(.hud-mode):not(.vx-b) :is(#save-preserved-notice, #save-conflict-notice) .bb:disabled { opacity: 1; color: rgba(var(--ph-rgb), .36); text-shadow: none; }
+
+/* the tutorial: the coach speaks from a bay; "got it" is the lit cap (it was a flat fill), "not now" a plain cap */
+html body.vx:not(.hud-mode):not(.vx-b) .tut-coach { padding: 12px 15px 14px; }
+html body.vx:not(.hud-mode):not(.vx-b) .tut-coach .tut-coach-who { color: var(--vx-core); text-shadow: 0 0 6px rgba(var(--ph-rgb), .6); }
+html body.vx:not(.hud-mode):not(.vx-b) .tut-coach :is(.tut-coach-ok, .tut-coach-bail) {
+  min-height: 32px; padding: 0 15px; border: 0; border-radius: 8px;
+  font-size: 16px; letter-spacing: 1.2px;
+}
+html body.vx:not(.hud-mode):not(.vx-b) .tut-coach .tut-coach-ok { background: var(--vx-cap-on); box-shadow: var(--vx-cap-on-shadow); color: var(--vx-ink); text-shadow: none; }
+html body.vx:not(.hud-mode):not(.vx-b) .tut-coach .tut-coach-bail { background: var(--vx-cap); box-shadow: var(--vx-cap-shadow); color: var(--vx-core); text-shadow: 0 0 6px rgba(var(--ph-rgb), .75); }
+html body.vx:not(.hud-mode):not(.vx-b) .tut-coach .tut-coach-bail:is(:hover, :focus-visible) { outline: 0; background: var(--vx-cap-hot); color: var(--vx-core); }
+/* the checklist: its head on the chrome lip, as a pop-up's head; a finished list wears the done colour as a ring */
+html body.vx:not(.hud-mode):not(.vx-b) .tut-brief .tut-brief-head {
+  gap: 9px; padding: 9px 10px 12px 14px; border-bottom: 0; border-radius: 15px 15px 0 0;
+  background: linear-gradient(180deg, #05070a 0, #0d1116 100%);
+  box-shadow: inset 0 -3px 0 var(--vx-veilc), inset 0 -1px 0 #2a3037, inset 0 -2px 0 #eef2f6, inset 0 -3px 0 #c4ccd5, inset 0 -4px 0 #000;
+}
+html body.vx:not(.hud-mode):not(.vx-b) .tut-brief .tut-brief-title { font-size: 16px; color: var(--vx-core); text-shadow: 0 0 6px rgba(var(--ph-rgb), .6); }
+html body.vx:not(.hud-mode):not(.vx-b) .tut-brief .tut-brief-count { font-size: 15px; }
+html body.vx:not(.hud-mode):not(.vx-b) .tut-brief .tut-brief-list { padding: 9px 14px 5px; }
+html body.vx:not(.hud-mode):not(.vx-b) .tut-brief .tut-brief-foot { padding: 5px 14px 11px; }
+html body.vx:not(.hud-mode):not(.vx-b) .tut-brief.complete {
+  border-color: transparent;
+  box-shadow: var(--vx-lip2), 0 0 0 1px #000, 0 0 0 2px #c4ccd5, 0 1px 0 2px #eef2f6, 0 0 0 3px #2a3037, 0 0 0 4px rgba(var(--ok-rgb), .7), 0 10px 30px 3px rgba(0, 0, 0, .7);
+}
+
+/* the enlarged image: the picture sits in a chrome lip, its name on a dark plate under it, the close key a knob */
+html body.vx:not(.hud-mode):not(.vx-b) .comms-lightbox .lb-frame { gap: 12px; }
+html body.vx:not(.hud-mode):not(.vx-b) .comms-lightbox .lb-frame img {
+  border: 0; border-radius: 10px;
+  box-shadow: var(--vx-lip3), 0 0 0 1px #000, 0 0 0 2px #c4ccd5, 0 1px 0 2px #eef2f6, 0 0 0 3px #2a3037, 0 0 0 4px #000, 0 14px 44px 4px rgba(0, 0, 0, .75);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .comms-lightbox .lb-name {
+  padding: 5px 14px 6px; border-radius: 9px;
+  background: var(--vx-well); box-shadow: var(--vx-well-shadow);
+  color: var(--vx-core); font-size: 15px; letter-spacing: 1.2px;
+}
+html body.vx:not(.hud-mode):not(.vx-b) .comms-lightbox .lb-close { width: 34px; min-width: 34px; height: 34px; min-height: 34px; font-size: 20px; }
+
+/* the first-run conversation in COMMS: the words keep the terminal's voice; the answers are tiles, the typed answer a well,
+   SEND the lit cap (it was a flat fill) and back a plain cap */
+html body.vx:not(.hud-mode):not(.vx-b) #chat-panel .fnv-dialogue { border-left: 0; }
+html body.vx:not(.hud-mode):not(.vx-b) .fnv-dialogue.fnv-floating {
+  border-color: transparent; border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, .9) 0, rgba(0, 0, 0, 0) 6px) border-box,
+    linear-gradient(180deg, #05070a 0, #0d1116 60%, #161b21 100%) border-box;
+  box-shadow: var(--vx-lip2), 0 0 0 1px #000, 0 0 0 2px #c4ccd5, 0 1px 0 2px #eef2f6, 0 0 0 3px #2a3037, 0 10px 30px 3px rgba(0, 0, 0, .7);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .fnv-dialogue .fnv-opt {
+  padding: 10px 14px; border-color: transparent; border-style: solid; border-radius: 8px;
+  background: var(--vx-tile) border-box; box-shadow: var(--vx-tile-shadow);
+  font-size: 17px;
+}
+html body.vx:not(.hud-mode):not(.vx-b) .fnv-dialogue .fnv-opt:is(:hover, :focus-visible) {
+  outline: 0; border-color: transparent;
+  background: var(--vx-tile-hot) border-box; box-shadow: var(--vx-tile-shadow);
+  color: var(--vx-core);
+}
+html body.vx:not(.hud-mode):not(.vx-b) .fnv-dialogue .fnv-opt.custom { box-shadow: inset 3px 0 0 rgba(var(--ph-rgb), .6), var(--vx-tile-shadow); }
+html body.vx:not(.hud-mode):not(.vx-b) .fnv-dialogue .fnv-custom-in { border-color: transparent; border-radius: 9px; background: var(--vx-well); box-shadow: var(--vx-well-shadow); }
+html body.vx:not(.hud-mode):not(.vx-b) .fnv-dialogue .fnv-custom-in:focus { outline: 0; box-shadow: inset 0 0 0 1px var(--vx-node), var(--vx-well-shadow); }
+html body.vx:not(.hud-mode):not(.vx-b) .fnv-dialogue :is(.fnv-custom-send, .fnv-custom-back) { min-height: 36px; padding: 0 16px; border: 0; border-radius: 8px; letter-spacing: 1.6px; }
+html body.vx:not(.hud-mode):not(.vx-b) .fnv-dialogue .fnv-custom-send { background: var(--vx-cap-on); box-shadow: var(--vx-cap-on-shadow); color: var(--vx-ink); }
+html body.vx:not(.hud-mode):not(.vx-b) .fnv-dialogue .fnv-custom-send:is(:hover, :focus-visible) { outline: 0; background: var(--vx-cap-on-raw); box-shadow: var(--vx-cap-on-shadow); }
+html body.vx:not(.hud-mode):not(.vx-b) .fnv-dialogue .fnv-custom-back { background: var(--vx-cap); box-shadow: var(--vx-cap-shadow); color: var(--vx-core); font-size: 16px; }
+html body.vx:not(.hud-mode):not(.vx-b) .fnv-dialogue .fnv-custom-back:is(:hover, :focus-visible) { outline: 0; background: var(--vx-cap-hot); color: var(--vx-core); }
