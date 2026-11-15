@@ -31,6 +31,7 @@
     "test:fast": "node scripts/timeout.mjs --label test:fast --timeout=3000000 -- npm run test:fast:raw",
     "test:fast:raw": "node scripts/run-fast-tests.mjs --deadline=2820000",
     "test": "npm run test:fast && npm run test:http",
+    "test:rules": "node scripts/test-rules.mjs",
     "website:stage": "node scripts/stage-website-deploy.mjs",
     "website:stage:check": "node scripts/stage-website-deploy.mjs --check",
     "start": "node sidecar/index.js",
