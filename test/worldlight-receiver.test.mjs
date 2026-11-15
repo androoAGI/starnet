@@ -4,11 +4,12 @@
    page, through all three supported bake representations. No sidecar or saved-world writes. */
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { readFileSync, mkdtempSync, rmSync } from 'node:fs';
+import { readFileSync, mkdtempSync } from 'node:fs';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
-import { join, relative, resolve, isAbsolute } from 'node:path';
-import { findChrome, connectCDP, evalJS, sleep } from '../scripts/lib/cdp.mjs';
+import { join } from 'node:path';
+import { findChrome, connectCDP, evalJS } from '../scripts/lib/cdp.mjs';
+import { stopChrome } from './helpers/chrome-stop.mjs';
 
 const source = readFileSync(new URL('../frontend/app/worldlight.js', import.meta.url), 'utf8');
 const freePort = () => new Promise((done, reject) => {
@@ -16,12 +17,6 @@ const freePort = () => new Promise((done, reject) => {
   server.listen(0, '127.0.0.1', () => {
     const port = server.address().port; server.close(error => error ? reject(error) : done(port));
   });
-});
-const stopChild = child => new Promise(done => {
-  if (!child || child.exitCode != null) { done(); return; }
-  const timer = setTimeout(done, 3000);
-  child.once('exit', () => { clearTimeout(timer); done(); });
-  try { child.kill('SIGKILL'); } catch { clearTimeout(timer); done(); }
 });
 
 function probe(sourceText) {
@@ -85,7 +80,7 @@ try {
   const executable = findChrome(), port = await freePort();
   profile = mkdtempSync(join(tmpdir(), 'starnet-wall-receiver-'));
   chrome = spawn(executable, ['--headless=new', '--no-first-run', '--no-default-browser-check', '--mute-audio',
-    `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore', windowsHide: true });
+    `--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore', windowsHide: true, detached: process.platform !== 'win32' });
   cdp = await connectCDP(port);
   const result = await evalJS(cdp, '(' + probe.toString() + ')(' + JSON.stringify(source) + ')');
   const close = (actual, expected, label, tolerance = 2) => assert.ok(Math.abs(actual - expected) <= tolerance,
@@ -117,18 +112,8 @@ try {
   console.log('worldlight-receiver: actual Canvas wall/deck separation, crossing prop, void and corners passed for path/mask/chunks');
 } catch (error) { failed = true; console.error(error.stack || error); }
 finally {
-  try { cdp?.ws.close(); } catch {}
-  await stopChild(chrome);
-  if (profile) {
-    const rel = relative(resolve(tmpdir()), resolve(profile));
-    assert.ok(rel && !rel.startsWith('..') && !isAbsolute(rel) && rel.startsWith('starnet-wall-receiver-'), 'cleanup stays inside its own test temp directory');
-    // Chrome's children can hold chrome_debug.log for seconds after the parent exits on a loaded
-    // Windows box (2s was not enough under a full gate) — the same transient-lock window
-    // stationbake.connections.test.mjs allows, and it still fails if the lock never lifts.
-    for (let attempt = 0; attempt < 50; attempt++) {
-      try { rmSync(profile, { recursive: true, force: true }); break; }
-      catch (error) { if (!['EBUSY', 'EPERM', 'ENOTEMPTY'].includes(error.code) || attempt === 49) throw error; await sleep(200); }
-    }
-  }
+  // Browser.close, wait for the child's exit, kill its own tree only if it is still ours, then remove the profile
+  // (retried, and a lock that never lifts still fails). See test/helpers/chrome-stop.mjs.
+  await stopChrome({ child: chrome, cdp, profile, prefix: 'starnet-wall-receiver-' });
 }
 process.exit(failed ? 1 : 0);
