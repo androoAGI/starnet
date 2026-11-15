@@ -58,6 +58,7 @@ const { TaskIntent } = require('../../frontend/app/fork.js');   // the held-call
 
 const UPSTREAM_TAINT = 'upstream agent output';
 const FAULT_SAID = 'the station hit an internal fault and stopped this run';   // index.js hopStoppedSaid's fault words
+const HOP_RENEW_MS = 15000;   // a streaming hop renews its fire's lease at most this often (the stale window is minutes)
 const say = (o, name, payload) => { try { o(name, payload); } catch (e) { failNote('line-runner.tap', e); } };   // a telemetry tap never fails the hop
 const sha = v => crypto.createHash('sha256').update(JSON.stringify(v)).digest('hex');   // a digest of what a stage was handed / handed back (the resumed hop's saved receipts)
 
@@ -352,7 +353,10 @@ function makeLineRunner(deps) {
     const stoppedSaid = typeof p.stoppedSaid === 'function' ? p.stoppedSaid : function () { return 'stopped by you'; };
     const stoppedByYou = typeof p.stoppedByYou === 'function' ? p.stoppedByYou : function (hs) { return !!(hs.stopped && !hs.errMsg); };
     return async function runHop(h) {
-      if (typeof p.beforeHop === 'function') { try { p.beforeHop(h); } catch (e) { failNote('line-runner.beforeHop', e); } }   // a lease renewal never stops the hop
+      // beforeHop is the scheduled fire's LEASE RENEWAL (schedule profile only: the cron driver's onHop); it never stops the hop
+      const renew = () => { if (typeof p.beforeHop === 'function') { try { p.beforeHop(h); } catch (e) { failNote('line-runner.beforeHop', e); } } };
+      renew();
+      let renewedAt = now();
       const runId = String((typeof p.runId === 'function' && p.runId(h)) || newId());
       if (typeof p.onRun === 'function') p.onRun(runId, h);
       let cfg = {};
@@ -377,6 +381,11 @@ function makeLineRunner(deps) {
         const lead = !x.runId || String(x.runId) === String(runId);
         if (name === 'agent.run.end' && lead && x.reason === 'cancelled') hs.stopped = true;   // STOP on this step: the line stops here
         if (name === 'agent.run.end' && lead) hs.end = x;
+        // EVERY event of the hop, its streamed text included, proves it alive: a stage that only streams (a slow local model, a long
+        // report) renews the fire's lease too, at most once per HOP_RENEW_MS of the injected clock, as the entry run's tokens do
+        // (ops-1115 T1b). Token deltas still stop on the next line and never reach the tee
+        const t = now();
+        if (!(t - renewedAt < HOP_RENEW_MS)) { renewedAt = t; renew(); }
         if (name === 'agent.token') return;
         if (name === 'agent.tool_call') {
           hs.tools++;
@@ -612,7 +621,8 @@ function channel(o) {
    #3), on the routine persona, with the routine's skills, workdir and toolsets (kept on hops on purpose: multi-stage routines rely
    on them, flagged 2026-08-04 to revisit), live in the host's run registry for the reconnect snapshot.
    o: { streamId, config(agentId), system(agentId), station(agentId, dockId), routine: { preloadSkills, requiredPreloads, workdir,
-        enabledToolsets }, stoppedSaid?, stoppedByYou?, beforeHop? (schedule), tee? (schedule), emit? (manual: the HTTP stream) } */
+        enabledToolsets }, stoppedSaid?, stoppedByYou?, beforeHop? (schedule: the fire's lease renewal, at hop start and on the
+        hop's events, tokens included, at most every 15 s), tee? (schedule), emit? (manual: the HTTP stream, which renews the press's lease) } */
 function routineProfile(o, trigger) {
   o = o || {};
   const r = o.routine || {};
