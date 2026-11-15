@@ -16,6 +16,17 @@ const CAP = 500;
 const STATES = new Set(['ready', 'clarifying', 'executing', 'done', 'cancelled']);
 
 function bounded(s, n) { return String(s == null ? '' : s).trim().slice(0, n); }
+const HELD_NAMES_MAX = 6;
+function heldNames(v) {
+  if (!Array.isArray(v)) return [];
+  const out = [];
+  for (const s of v) {
+    // the loop's key (loop.js wireKey): fs.write and fs_write are one tool, kept once
+    const n = typeof s === 'string' ? bounded(s, 80).replace(/\./g, '_') : '';
+    if (n && out.indexOf(n) < 0 && out.length < HELD_NAMES_MAX) out.push(n);
+  }
+  return out;
+}
 function normalizeQuestion(q) {
   if (!q || typeof q !== 'object') return null;
   const text = bounded(q.text || q.question, 240);
@@ -42,6 +53,9 @@ function normalizeBrief(b) {
     ...(x.originalRunId ? { originalRunId: bounded(x.originalRunId, 100) } : {}),
     // the transcript row of the directive the brief was opened on (turn identity; noteDirective). Absent on older briefs.
     ...(Number.isSafeInteger(x.directiveRowId) && x.directiveRowId > 0 ? { directiveRowId: x.directiveRowId } : {}),
+    // the tool NAMES the brief gate held before a question ended the run (noteHeld; ops-1115 T3, #187). Names only, never
+    // args: scrubText does not walk this field. Cleared by proceed(). Absent on older briefs.
+    ...(heldNames(x.heldCalls).length ? { heldCalls: heldNames(x.heldCalls) } : {}),
     agentId: bounded(x.agentId || 'agent', 40), source: bounded(x.source || 'interactive', 24),
     originalDirective: bounded(x.originalDirective, 4000), currentInput: bounded(x.currentInput, 4000),
     status: STATES.has(x.status) ? x.status : 'ready',
@@ -249,7 +263,22 @@ function makeTaskBriefStore(deps) {
       const checked = Policy.validateProceed(candidate); if (!checked.ok || b.status === 'clarifying' || b.status === 'done' || b.status === 'cancelled') return undefined;
       if(b.questions.some(q=>q.mode==='conversation' && q.answer) && !Context.current(b)) return undefined;
       b.settled = checked.brief; b.assumptions = checked.brief.assumptions;
+      delete b.heldCalls;   // the settle names them back (brief.proceed); a later settle never repeats them
       b.status = 'executing'; b.updatedAt = Number(now) || b.updatedAt; out = b; return rec;
+    }).then(() => out);
+  }
+
+  /* noteHeld(id, names) — the held tool NAMES survive the question that ended their run (ops-1115 T3, #187): brief.ask ends
+     the run through control.final and the per-run held list went with it. Merged with any names already kept, bounded by
+     normalizeBrief. Resolves the updated brief, or null when nothing changed. */
+  function noteHeld(id, names) {
+    const key = String(id || ''); const add = heldNames(names); let out = null;
+    if (!key || !add.length) return Promise.resolve(null);
+    return durable.update(STORE_KEY, cur => {
+      const rec = normalize(cur); const b = rec.briefs.find(x => x.id === key); if (!b) return undefined;
+      const next = heldNames((b.heldCalls || []).concat(add));
+      if (JSON.stringify(next) === JSON.stringify(b.heldCalls || [])) return undefined;
+      b.heldCalls = next; out = b; return rec;
     }).then(() => out);
   }
 
@@ -437,7 +466,7 @@ function makeTaskBriefStore(deps) {
       .map(t => t.dimension);
   }
 
-  return { read, list, active, prepare, reopenAnswer, ask, askMany, answerInTurn, updateContext, noteDirective, proceed, complete, scrubText, forget, patterns, groundedFor, dimensionDeferrals, deferredDimensions, fingerprintQuestion, _durable: durable };
+  return { read, list, active, prepare, reopenAnswer, ask, askMany, answerInTurn, updateContext, noteDirective, proceed, noteHeld, complete, scrubText, forget, patterns, groundedFor, dimensionDeferrals, deferredDimensions, fingerprintQuestion, _durable: durable };
 }
 
 module.exports = { makeTaskBriefStore, normalize, normalizeBrief, normalizeQuestion, fingerprintQuestion };
