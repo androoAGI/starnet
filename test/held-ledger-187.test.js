@@ -349,13 +349,22 @@ const material = () => ({ dimension: 'audience', question: 'who is this note for
     const rows3 = p3.content.split('\n').filter(l => l.indexOf('- ') === 0);
     A.eq(rows3, ['- fs_write', '- shell_exec'], 'S2 the persisted held names are named back by the settle');
     A.eq(p3.summary, 'task brief settled', 'S2 the chip summary is unchanged');
+    // lane T3s (attack A4-F1): names kept across a question are a FACT (held before the question, did not run), never an
+    // order: the Commander's answer came in between and may have declined them. Red on 8ca33b1a6 ("must be made again now").
+    A.ok(!/must be made again|Nothing has run yet/.test(p3.content), 'S2 names kept across a question are not ordered back: ' + JSON.stringify(p3.content));
+    A.ok(/These calls were held by the brief before your question to the Commander, and did not run:\n- fs_write\n- shell_exec\nEach is still owed, once, only if the task as it now stands, including what the Commander has answered since, still calls for it/.test(p3.content),
+      'S2 they are stated as held before the question and not run, owed only if the task still calls for them');
     const t4 = {};
     const st4 = { brief: { id: 'tb_4', status: 'ready', heldCalls: ['fs.write', 'shell_exec'] } };
     registerTaskBriefTools({ register: t => { t4[t.name] = t; } }, { proceed: async (id, b) => Object.assign({}, b, { id, status: 'executing' }) }, st4, { now: () => 1 });
     noteHeldCall(st4, { name: 'fs.write', args: { path: 'hello.py' } });
-    const rows4 = (await t4['brief.proceed'].run({ objective: 'write and run hello.py' })).content.split('\n').filter(l => l.indexOf('- ') === 0);
+    const p4 = (await t4['brief.proceed'].run({ objective: 'write and run hello.py' })).content;
+    const rows4 = p4.split('\n').filter(l => l.indexOf('- ') === 0);
     A.eq(rows4.length, 2, 'S2 an in-run held row and the persisted name of the same tool (dotted or not) are listed once: ' + JSON.stringify(rows4));
     A.ok(rows4[0].indexOf('- fs_write {') === 0 && rows4[1] === '- shell_exec', 'S2 the in-run row keeps its args; the other persisted name follows');
+    // the call this run made (and had held) keeps the #187 order; the name kept from before the question is a fact (T3s)
+    A.ok(/Nothing has run yet: the call the brief held must be made again now, in this same turn, before you report any result:\n- fs_write \{/.test(p4), 'S2 the in-run held call keeps the #187 words');
+    A.ok(/\nThis call was held by the brief before your question to the Commander, and did not run:\n- shell_exec\nIt is still owed, once, only if /.test(p4), 'S2 the kept name is a fact with its condition, not part of the order: ' + JSON.stringify(p4));
 
     // a real round trip through makeTaskBriefStore: kept through normalizeBrief and a restart, cleared by proceed()
     const disk = fakeDisk();
