@@ -259,8 +259,15 @@
      and why. Never isError (C11): a failed worker is a fact for the lead, not a broken tool call. */
   const WHY_MAX = 200;
   const verdicts = (typeof WeakMap === 'function') ? new WeakMap() : null;   // row -> its verdict (startedWork rides here, not on the row)
+  /* A REASON IS PLAIN TEXT (ops-1115 T5s). The why can be a provider's error body or the loop breaker's sentence, which names the tools a
+     model called: a NUL, an ANSI escape or a right-to-left override rode in it into the row, the UNFINISHED prefix and the next worker's
+     opening. plainText removes the C0 and C1 control characters (DEL included) and the Unicode direction controls (U+202A to U+202E,
+     U+2066 to U+2069) after a line break or a tab has become a space, as before. Words and marks are kept; nothing is escaped. */
+  const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f\u202a-\u202e\u2066-\u2069]/g;
+  const noControls = text => String(text == null ? '' : text).replace(CONTROL_CHARS, '');
+  const plainText = text => noControls(String(text == null ? '' : text).replace(/\s+/g, ' ')).replace(/ {2,}/g, ' ').trim();
   function oneSentence(text) {
-    const s = String(text == null ? '' : text).replace(/\s+/g, ' ').trim();
+    const s = plainText(text);
     const m = /^.{12,}?[.!?](?=\s|$)/.exec(s);
     const first = m ? m[0] : s;
     return first.length > WHY_MAX ? first.slice(0, WHY_MAX - 1) + '…' : first;
@@ -718,6 +725,37 @@
       try { const got = await deps.handoffFiles(aid, artifacts, { projectRoot: workerRoot(aid, runId, handed) }); return Array.isArray(got) ? got.filter(f => f && f.abs) : []; }
       catch (e) { failNote('dispatch.handoff-files', e); return []; }
     }
+    /* THE FAILED LINES (ops-1115 T5, bounded by T5s). One line per earlier worker that failed, was refused or was stopped: no text of
+       its own and no read grant. A stopped worker is named STOPPED (a stop is never a failure); every other unusable row FAILED. A
+       worker that saved files is not described as having handed on nothing: its line names them as UNFINISHED output, by the names
+       its row lists (plain, bounded; no path is resolved). The lines have a BOUNDED SHARE of the hand-off: at most FAILED_LINES_MAX
+       whole lines within FAILED_TEXT_MAX characters, then one host line that counts the rest, so the delivered blocks always keep
+       at least EARLIER_MAX - FAILED_TEXT_MAX - 2 and the whole hand-off stays within EARLIER_MAX. `named` is the rows whose line is in
+       the text: the hand-off's taint follows them (a row that is only counted puts no words in). */
+    const FAILED_LINES_MAX = 6, FAILED_TEXT_MAX = 2000, FAILED_MORE_ROOM = 120, FAILED_FILES_MAX = 5, FAILED_FILE_NAME_MAX = 80;
+    function failedLine(r) {
+      const names = (Array.isArray(r.artifacts) ? r.artifacts : []).map(a => noControls(a && a.path).trim()).filter(Boolean);
+      const shown = names.slice(0, FAILED_FILES_MAX).map(n => n.length > FAILED_FILE_NAME_MAX ? n.slice(0, FAILED_FILE_NAME_MAX - 1) + '…' : n);
+      return '— ' + workerName(r.agentId) + ' (' + (r.status === 'stopped' ? 'STOPPED' : 'FAILED') + ' — ' + (r.why || 'it did not run') + '): '
+        + (shown.length
+          ? 'it did not finish. It saved these files before it stopped (UNFINISHED output; do not present them as complete): ' + shown.join(', ') + (names.length > shown.length ? ' and ' + (names.length - shown.length) + ' more' : '')
+          : 'it handed on nothing; do not assume its output exists.');
+    }
+    function failedLines(failedRows) {
+      const lines = [], named = [];
+      let used = 0;
+      for (let i = 0; i < failedRows.length && lines.length < FAILED_LINES_MAX; i++) {
+        const line = failedLine(failedRows[i]);
+        const next = used + (lines.length ? 2 : 0) + line.length;
+        // a line that is not the last leaves room for the line that counts the rest
+        if (next + (i < failedRows.length - 1 ? FAILED_MORE_ROOM : 0) > FAILED_TEXT_MAX) break;
+        lines.push(line); named.push(failedRows[i]); used = next;
+      }
+      const rest = failedRows.length - named.length;
+      if (rest > 0) lines.push('— ' + (named.length ? 'and ' + rest + ' more' : String(rest)) + ' earlier worker'
+        + (rest === 1 ? ' failed or was stopped: do not assume its output exists.' : 's failed or were stopped: do not assume their output exists.'));
+      return { text: lines.join('\n\n'), named };
+    }
     async function earlierHandoff(rows) {
       const usable = (rows || []).filter(r => r && (r.reason === 'done' || r.reason === 'timeout'));
       // a worker that failed or was refused is NAMED, never silently left out: its dependant must not build on input that does not exist
@@ -734,11 +772,11 @@
         blocks.push('— ' + workerName(r.agentId) + (unfinished ? ' (UNFINISHED — ' + unfinished + ')' : '') + ':\n'
           + (clipped || '(returned no text)') + (files.length ? '\nFiles: ' + files.map(f => f.abs).join(', ') : ''));
       }
-      // one short block per failed row, no text and no files; it rides whole after the hand-off text, which the cap shortens first
-      // a stopped worker is named STOPPED (a stop is never a failure); every other unusable row FAILED
-      const failedText = failedRows.map(r => '— ' + workerName(r.agentId) + ' (' + (r.status === 'stopped' ? 'STOPPED' : 'FAILED') + ' — ' + (r.why || 'it did not run') + '): it handed on nothing; do not assume its output exists.').join('\n\n');
-      const handed = blocks.join('\n\n').slice(0, Math.max(0, EARLIER_MAX - (failedText ? failedText.length + 2 : 0)));
-      return { text: [handed, failedText].filter(Boolean).join('\n\n'), reads, taint: taintOfRows(usable) || '' };
+      // the failed lines ride whole after the delivered blocks, in their bounded share (failedLines); the cap shortens the blocks first
+      const failed = failedLines(failedRows);
+      const handed = blocks.join('\n\n').slice(0, Math.max(0, EARLIER_MAX - (failed.text ? failed.text.length + 2 : 0)));
+      // RELAYED TAINT: the hand-off carries the taint of every row whose text it carries, the delivered rows and each failed row it names
+      return { text: [handed, failed.text].filter(Boolean).join('\n\n'), reads, taint: taintOfRows(usable.concat(failed.named)) || '' };
     }
     /* A WORKER'S CLOCK STOPS WHILE IT WAITS ON THE COMMANDER. The slice is for the worker's work: an fs_write approval
        sitting unanswered (the Commander was in BUILD MODE) used to drain it, and the worker was cut off with its draft
@@ -1320,7 +1358,10 @@
             agentId: job.agentId, reason: 'invalid-result',
             result: 'Worker output failed its result schema after one bounded repair attempt. No completion was accepted.',
             usd: totalUsd, runId: workerRunId, repairRunId: contract.repairRunId || '', validation: contract.validation,
-            artifacts: artifacts.map(a => Object.assign({}, a, { agentId: job.agentId, workspace: job.agentId }))
+            artifacts: artifacts.map(a => Object.assign({}, a, { agentId: job.agentId, workspace: job.agentId })),
+            // RELAYED TAINT (T5s): the row carries the worker's file names and its validation errors, so it carries its taint, as
+            // team.spawn's and team.resume's rows for a failed schema do
+            taintedBy: taintOfRun(result, repaired) || undefined
           });
           const effective = repaired || result;
           const row = {
