@@ -100,6 +100,54 @@ for (const msg of ['Work is incomplete: fs_write was held by the Task Brief gate
   A.eq([v.kind, v.userMessage], ['incomplete_work', s && s.text], 'the held end leads COMMS with its own cause on the coded path: ' + v.userMessage);
   A.ok(!/kept saying what it would do next/.test(v.userMessage), 'the held end is never told as the continuation guard\'s cause: ' + v.userMessage);
 }
+/* THE HELD-END ROW MATCHES ONLY ITS OWN MESSAGE (ops-1115 lane T3s, attack A4-F5). Red on 8ca33b1a6: the row matched its
+   phrase ANYWHERE in an error text and copied whatever stood in the name slot into a host sentence, so a provider 400 that
+   echoed the phrase read "The agent stopped before finishing: fs_write never ran…" (before the lanes, 180b4060a: the
+   context-overflow line) and a rate-limit text read "…your payment and the refund of $500 never ran, so that call changed
+   nothing". The row now matches at the START of the message only, and its name slot takes only what tool names are made of
+   (letters, digits, _ . -, joined by ", "), each at most 80 characters, at most 24 names. Everything else gets what it got
+   before the lanes: no explanation from this table (a channel sends the raw text) and the desk's own classifier. */
+{
+  const PHRASE = 'Work is incomplete: fs_write was held by the Task Brief gate and never ran.';
+  const UNKNOWN = 'Something went wrong on that turn — try again.';
+  const tail = ' held by the Task Brief gate and never ran.';
+  // [label, message, the desk's kind and headline for it at 180b4060a (before the lanes)]
+  const NOT_ITS_MESSAGE = [
+    ['a provider 400 that echoes the phrase', 'OpenRouter 400: {"error":{"message":"Invalid request: messages[14].content: \\"' + PHRASE + '\\" exceeds the context window of 8000 tokens"}}',
+      'context_overflow', 'This conversation got too long for the model — start a fresh chat or shorten it.'],
+    ['a rate limit with free text in the name slot', 'Rate limited (429). Work is incomplete: your payment and the refund of $500 was held by the Task Brief gate and never ran',
+      'rate_limit', 'The model provider is busy (too many requests) — wait a few seconds and try again.'],
+    ['a failed command that printed the phrase', 'shell_exec kept failing: exit 1: FAIL test/held.test.js expected "' + PHRASE + '" got "Done."', 'unknown', UNKNOWN],
+    ['a worker reply quoted in a delegation error', 'team_dispatch failed: worker ada said: "' + PHRASE + ' I will retry later."', 'unknown', UNKNOWN],
+    ['free text in the name slot, at the start', 'Work is incomplete: your payment and the refund of $500 was' + tail, 'unknown', UNKNOWN],
+    ['markup in the name slot', 'Work is incomplete: <img src=x onerror=alert(1)> was' + tail, 'unknown', UNKNOWN],
+    ['a name longer than any tool name (81 characters)', 'Work is incomplete: ' + 'a'.repeat(81) + ' was' + tail, 'unknown', UNKNOWN],
+    ['more names than the bound (25)', 'Work is incomplete: ' + Array.from({ length: 25 }, (_, i) => 'tool_' + i).join(', ') + ' were' + tail, 'unknown', UNKNOWN],
+    ['names joined by something other than ", "', 'Work is incomplete: fs_write and shell_exec were' + tail, 'unknown', UNKNOWN]
+  ];
+  for (const [label, msg, kind, headline] of NOT_ITS_MESSAGE) {
+    A.eq(SR.explainStop(msg), null, label + ': the sidecar copy does not explain it (a channel sends the raw text, as before the lanes)');
+    A.eq(Friendly.explainStop(msg), null, label + ': nor does the browser copy');
+    const v = Friendly.friendlyError(msg, null, {});
+    A.eq([v.kind, v.userMessage], [kind, headline], label + ': COMMS says what it said before the lanes');
+    // on the coded path too, nothing from the message is copied into a host sentence
+    const c = Friendly.friendlyError(msg, null, { engineAlive: true, code: 'incomplete_work' });
+    A.ok(!/never ran, so/.test(c.userMessage) && !/payment|<img|aaaa/.test(c.userMessage), label + ': the coded path copies nothing from it: ' + c.userMessage);
+  }
+  // ...while everything a tool name is made of still gets the sentence, in both copies, in the same words
+  const ITS_MESSAGE = [
+    ['Work is incomplete: fs.write was' + tail, 'fs.write never ran, so that call changed nothing'],
+    ['Work is incomplete: mcp_files_write-file was' + tail, 'mcp_files_write-file never ran, so that call changed nothing'],
+    ['Work is incomplete: fs_write, shell_exec, team_dispatch were' + tail, 'fs_write, shell_exec, team_dispatch never ran, so those calls changed nothing'],
+    ['Work is incomplete: ' + 'a'.repeat(80) + ' was' + tail, 'a'.repeat(80) + ' never ran, so that call changed nothing'],
+    ['Work is incomplete: ' + Array.from({ length: 24 }, (_, i) => 'tool_' + i).join(', ') + ' were' + tail, 'tool_22, tool_23 never ran, so those calls changed nothing']
+  ];
+  for (const [msg, words] of ITS_MESSAGE) {
+    const s = SR.explainStop(msg), f = Friendly.explainStop(msg);
+    A.ok(!!s && s.kind === 'incomplete_work' && s.text.indexOf('The agent stopped before finishing: ') === 0 && s.text.indexOf(words) > 0, 'the held end is still explained: ' + msg.slice(0, 60) + ' -> ' + (s && s.text.slice(0, 90)));
+    A.eq(f, s, 'both copies say the same for: ' + msg.slice(0, 60));
+  }
+}
 A.eq(SR.STOP_EXPLAINERS.map(e => e.kind + ':' + e.re.source), Friendly.STOP_EXPLAINERS.map(e => e.kind + ':' + e.re.source), 'the two explainer tables match pattern for pattern');
 A.eq(Friendly.explainStop('Anthropic http 529 - Overloaded'), null, 'provider failures are not harness stops (their classifier owns them)');
 A.eq(Friendly.friendlyError(Object.assign(new Error('aborted'), { name: 'AbortError' })).kind, 'user_abort', 'a real user abort is still Stopped.');
