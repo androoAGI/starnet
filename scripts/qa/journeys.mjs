@@ -1107,7 +1107,9 @@ async function main() {
     console.log(`provider: controllable journey mock on ${mock.base}`);
     console.log(`sidecar: booting SEEDED SKYNET_DEV on :${PORT} (model=${DEFAULT_MODEL}) ...`);
     materializeSeedWorkspace(SCRATCH);
-    sidecar = bootSeededSidecar({ port: PORT, scratchDir: SCRATCH, logFile: SIDECAR_LOG });
+    // its console IS a log file, where a station writes no desk code since c6a8c2913; J4's grant reads the code back from
+    // that log, so this throwaway scratch station opts in the operator's way (STARNET_DESK_CODE_TO_LOG=1)
+    sidecar = bootSeededSidecar({ port: PORT, scratchDir: SCRATCH, logFile: SIDECAR_LOG, env: { STARNET_DESK_CODE_TO_LOG: '1' } });
     if (!(await waitUp(APP_URL))) { console.error('BLOCKED: seeded sidecar failed to come up on :' + PORT); return finish(2); }
     console.log('sidecar: ready');
   } catch (e) {
