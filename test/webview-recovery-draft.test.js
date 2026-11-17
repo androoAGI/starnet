@@ -145,7 +145,7 @@ for (const tree of ['frontend/app', 'website/app/app']) {
   }
 
   // 5. the wiring in the shipped page
-  const wake = A.fnBody(src, 'async function onWakeAttempt()');
+  const wake = A.fnBody(src, 'async function onWakeAttempt(');
   A.ok(wake.length > 2000 && wake.length < src.length / 2, t + 'onWakeAttempt sliced');
   const save = wake.indexOf('saveWakeDraft(model, baseUrl)'), test = wake.indexOf('await preflightWire()'), clear = wake.indexOf('clearWakeDraft()');
   A.ok(save > 0 && save < test && test < clear, t + 'the setup is kept just before the wire test and cleared as soon as it returns');

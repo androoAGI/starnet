@@ -2832,6 +2832,9 @@ const App = (() => {
       claudeCliTimer = setTimeout(refreshClaudeCliStatus, 5000);   // installing it flips this tile on its own
       return j;
     }
+    // an UNCERTAIN answer (the CLI did not answer `claude auth status` within the station's bound, or answered nothing
+    // readable) is no "signed out": the station records it as unavailable (noteAccountAuth's rule), and so does this tile
+    if (!j.loggedIn && j.error && j.code !== 'provider_not_configured') { paintClaudeCli('offline', '○ Claude Code didn’t answer its sign-in check — press CHECK AGAIN.'); return j; }
     if (!j.loggedIn) { paintClaudeCli('signedout', '○ Claude Code is installed — sign in with your Claude account.'); return j; }
     paintClaudeCli('connected', '● Signed in to Claude' + claudeCliWho(j) + ' — pick a model and WAKE.');
     return j;
@@ -3343,6 +3346,7 @@ const App = (() => {
     setTimeout(() => {
       try {
         if (!recovery) { const n = el('in-name'); if (n) n.focus(); }
+        else if (resumeUnsettled(Harness.readiness(Harness.getProv()))) { const b = el('btn-back'); if (b) b.focus(); }   // the banner says press RETRY AUTO-RESUME
         else if (pickedProvider === 'starnet') { const c = el('btn-starnet-link'); if (c) c.focus(); }
         else if (isOAuthProviderId(pickedProvider)) { const c = el('btn-codex-signin'); if (c) c.focus(); }
         else { const k = el('in-key'); if (k && el('key-block') && !el('key-block').classList.contains('hidden')) k.focus(); else { const c = el('btn-codex-signin'); if (c) c.focus(); } }
@@ -3354,16 +3358,50 @@ const App = (() => {
   // disconnect): swap the GENESIS header for a RESUME banner, lock the identity fields (name · skin · voice ·
   // approval) READ-ONLY so resume can't re-spec the agent, and keep the key/provider section + WAKE live. A
   // fresh first run passes recovery=false, which clears all of this back to the CREATE YOUR OVERSEER console.
-  // What RESUME asks for is what the STATION reports missing for the saved provider, never a guess: "Enter your key" only
-  // for a provider that takes one (11-17: a keyless Claude Code station was told to enter a key). An answer the station
-  // has not settled (none yet, or its own check unanswered) is said as that, with the key that re-asks.
+  // What RESUME asks for is what the STATION reports for the saved provider, never a guess (11-17: a keyless Claude Code
+  // station was told to enter a key). An answer the station has not settled (none from it, an answer kept from before it
+  // went quiet, or its own check unanswered) is said as that, for every provider, with the key that re-asks; a READY
+  // answer (it landed after RESUME opened) is said as ready; "Enter your key" only when the station reports a key
+  // provider's key missing or refused; any other settled no asks to reconnect that provider.
+  function resumeUnsettled(r) {
+    const st = r && r.credential ? r.credential.status : '';
+    return !r || r.cached === true || st === 'unknown' || st === 'unavailable';
+  }
   function resumeAskLine(provider) {
     const p = normalizeProviderId(provider);
-    if (providerNeedsKey(p)) return 'Enter your key to continue.';
     const r = (typeof Harness !== 'undefined' && Harness.readiness) ? Harness.readiness(p) : null;
-    const st = r && r.credential ? r.credential.status : '';
-    if (!r || r.cached || st === 'unknown' || st === 'unavailable') return providerLabel(p) + ' has not confirmed its connection yet — press RETRY AUTO-RESUME.';
+    if (resumeUnsettled(r)) return providerLabel(p) + ' has not confirmed its connection yet — press RETRY AUTO-RESUME.';
+    if (r.unattendedReady === true) return providerLabel(p) + ' is ready — press RETRY AUTO-RESUME.';
+    if (providerNeedsKey(p)) return 'Enter your key to continue.';
     return 'Reconnect ' + providerLabel(p) + ' below to continue.';
+  }
+  // The RESUME banner, re-painted from the station's latest answer (applyRecoveryMode, then each answer watchResume reads).
+  function paintResumeBanner() {
+    const banner = el('cc-recovery'); if (!banner || banner.classList.contains('hidden')) return;
+    banner.innerHTML = '▮ RESUMING <b>' + U.esc(banner.dataset.agentName || 'your agent') + '</b> — your agent is safe. ' + U.esc(resumeAskLine(Harness.getProv()));
+  }
+  /* RESUME KEEPS ASKING (11-17 review): RESUME that opened on an answer the station had not settled (none within the boot's
+     wait, or Claude Code's sign-in check ran past the station's own bound) keeps asking the station, bounded (every 2s for
+     60s). Each answer re-paints the banner, so it never goes stale under a tile that has since confirmed; a READY answer on
+     a screen the Commander has not touched resumes exactly as RETRY AUTO-RESUME would (the screen's own Claude Code tile
+     runs a fresh `claude auth status`, which feeds the station). Any re-entry, WAKE, provider pick or typed key ends it. */
+  let resumeWatch = 0;
+  function watchResume(provider) {
+    const mine = ++resumeWatch, ticket = doorSeq, p = normalizeProviderId(provider), until = Date.now() + 60000;
+    const untouched = () => mine === resumeWatch && ticket === doorSeq && !waking && !!resumingSaved
+      && el('screen-connect').classList.contains('active') && el('screen-connect').classList.contains('recovery')
+      && normalizeProviderId(pickedProvider) === p && (el('in-key').value || '') === prefilledKey;
+    (async () => {
+      while (Date.now() < until) {
+        await new Promise(r => setTimeout(r, 2000));
+        if (!untouched()) return;
+        await Harness.refreshProviderReadiness();
+        if (!untouched()) return;
+        paintResumeBanner();
+        if (Harness.configured(p)) { reentry(); return; }
+        if (!resumeUnsettled(Harness.readiness(p))) return;   // a settled "no" (signed out, a key refused) waits for the Commander
+      }
+    })().catch(() => {});
   }
   function applyRecoveryMode(recovery, savedAgent) {
     const screen = el('screen-connect');
@@ -3385,8 +3423,10 @@ const App = (() => {
       const nm = (savedAgent && savedAgent.name) || 'your agent';
       if (banner) {
         banner.classList.remove('hidden');
-        banner.innerHTML = '▮ RESUMING <b>' + U.esc(nm) + '</b> — your agent is safe. ' + U.esc(resumeAskLine(Harness.getProv()));
+        banner.dataset.agentName = nm;
+        paintResumeBanner();
       }
+      if (resumeUnsettled(Harness.readiness(Harness.getProv()))) watchResume(Harness.getProv());
       if (title) title.textContent = '▮ RESUME ' + nm.toUpperCase();
       if (sub) sub.innerHTML = 'your station is intact — this only re-connects the <b>brain</b>. Identity stays as you left it.';
       if (mode) mode.textContent = 'RESUME';
@@ -3419,8 +3459,10 @@ const App = (() => {
       // back to this screen even after the link was healthy again. Re-read the sidecar's live answer first.
       if (savedStationProv(saved) === 'starnet' && Harness.refreshCreditsConfigured) {
         const back = el('btn-back'); if (back) back.disabled = true;
+        const ticket = doorSeq;
         try { await Harness.refreshCreditsConfigured(); } catch (_) {}
         finally { if (back) back.disabled = false; }
+        if (ticket !== doorSeq) return;   // ONE DOOR: a WAKE or another re-entry entered while the link was re-read
       }
       reentry(); return;
     }
@@ -3463,9 +3505,16 @@ const App = (() => {
     if (dots) line.appendChild(dots);
   }
 
-  let reentrySeq = 0;
+  /* ONE DOOR (11-17 review). RESUME has two ways in, and both wait on the station: WAKE (onWake: the station re-checks the
+     sign-in, one real call, then resume) and a re-entry (RETRY AUTO-RESUME, a restored backup: reentry re-asks, then
+     resumes or re-renders RESUME). Their answers can land in either order, so `doorSeq` decides who acts: each re-entry
+     takes a ticket when it starts, whoever ENTERS the station takes one as it enters, and an answer that lands holding an
+     older ticket stands down (no screen change, no entry). Before it, RETRY pressed during a WAKE resumed the station and
+     the WAKE then fell through to its new-Overseer path over it (the saved Overseer's memory wiped), or entered twice. */
+  let doorSeq = 0;
   async function reentry() {
-    const seq = ++reentrySeq;
+    const seq = ++doorSeq;
+    const current = () => seq === doorSeq;
     const resumable = resumableSave();
     // FORWARD-VERSION GATE (P0.3): a re-entry (disconnect / back / recovery) must not fall through to a fresh
     // create when the stored save is from a NEWER build — Save.load() returns null for it, which would look like
@@ -3477,10 +3526,12 @@ const App = (() => {
       if (savedStationProv(saved) && Harness.setProv) Harness.setProv(savedStationProv(saved));
       if (saved.reasoningEffort && Harness.setReasoningEffort) Harness.setReasoningEffort(saved.reasoningEffort);
       // RETRY re-asks, never re-reads (#76's rule, for every provider); an answer still being worked out holds the boot veil
-      const ready = await savedCanResume({ reask: true, onPending: row => { if (!el('screen-boot').classList.contains('active')) show('screen-boot'); bootVeilLine(row); } });
-      if (seq !== reentrySeq) return;   // a newer re-entry took over while this one waited on the station
+      // (only while this re-entry still holds the door: a superseded one never covers the screen its successor chose)
+      const ready = await savedCanResume({ reask: true, stop: () => !current(),
+        onPending: row => { if (!current()) return; if (!el('screen-boot').classList.contains('active')) show('screen-boot'); bootVeilLine(row); } });
+      if (!current()) return;   // a newer re-entry, or a WAKE that entered meanwhile, owns the outcome
       if (ready) {
-        resumingSaved = null; resumeInto(saved); return;
+        doorSeq++; resumingSaved = null; resumeInto(saved); return;   // entering takes the door: a WAKE still testing its wire stands down
       }
       resumingSaved = saved;
       show('screen-connect'); initConnect(saved.agent.name, true, saved.agent);
@@ -3503,8 +3554,11 @@ const App = (() => {
   async function onWake() {
     if (waking) return;
     waking = true;
+    // ONE DOOR: this attempt may enter only while no re-entry has taken the screen since it began; entering takes the door
+    const ticket = doorSeq;
+    const door = { open: () => ticket === doorSeq, enter: () => { doorSeq++; } };
     try {
-      const entered = await onWakeAttempt();
+      const entered = await onWakeAttempt(door);
       if (!entered) { waking = false; wakeBtnBusy(false); }   // validation bounce (absent/edited key or model) — release so the user can retry
     } catch (e) {
       waking = false; wakeBtnBusy(false);
@@ -3615,8 +3669,10 @@ const App = (() => {
     }
   }
 
-  // Returns TRUE once it commits to entering the station (WAKING latched), FALSE on any validation bounce.
-  async function onWakeAttempt() {
+  // Returns TRUE once it commits to entering the station (WAKING latched), FALSE on any validation bounce. `door` (onWake's
+  // ONE DOOR ticket): an attempt a re-entry overtook while it waited on the station stands down, returning TRUE so it never
+  // releases a latch or writes a line on the screen that re-entry now owns.
+  async function onWakeAttempt(door) {
     SFX.boot(); SFX.open();
     stopCodexPoll();   // leaving the connect screen — drop any in-flight sign-in poll
     stopStarnetLinkPoll();   // …and any in-flight StarNet pairing poll (same screen-exit rule)
@@ -3724,6 +3780,7 @@ const App = (() => {
     // ANSWERED. A dead wire keeps the Commander at the console with the honest reason; there is no world where
     // the ceremony silently degrades because the model never actually spoke.
     await Harness.refreshProviderReadiness();
+    if (door && !door.open()) return true;   // ONE DOOR: a re-entry took the screen meanwhile (no wire call on its behalf)
     const readiness = Harness.readiness(Harness.getProv());
     if (!readiness.unattendedReady) {
       msg.className = 'msg bad';
@@ -3735,6 +3792,9 @@ const App = (() => {
     if (!resumingSaved) saveWakeDraft(model, baseUrl);   // #181: a page that dies during the test comes back to these choices
     const wire = await preflightWire();
     clearWakeDraft();
+    // ONE DOOR: RETRY / a restored backup re-entered while the wire was tested. That re-entry resumed the station or
+    // re-rendered RESUME; this attempt must not resume a second time, nor fall through to the new-Overseer path below.
+    if (door && !door.open()) return true;
     if (!wire.ok) {
       wakeBtnBusy(false);
       msg.className = 'msg bad';
@@ -3775,6 +3835,7 @@ const App = (() => {
     msg.textContent = '';
 
     wakeBtnBusy(true);   // COMMIT POINT: past every validation gate — show WAKING… and hold the latch through enterGame
+    if (door) door.enter();   // ONE DOOR: entering takes the door (a re-entry still waiting on the station stands down)
     if (resumingSaved) {
       const s = resumingSaved; resumingSaved = null;
       // Resume with the provider that just passed preflight (OpenAI may resolve to Codex).
@@ -6617,6 +6678,8 @@ const App = (() => {
       // Here the model dropdown DOES want the catalog, but bound the wait so a hung network can't strand the
       // recovery screen either — a timeout just yields an empty dropdown the Commander can still type a slug into.
       if (Harness.getProv && Harness.getProv() !== 'codex' && Harness.listModels) await Harness.listModels();
+      // the station's first answer after a silent boot can land READY while the catalog loads: then it resumes, never RESUME
+      if (Harness.configured && Harness.configured()) { resumeInto(saved); return; }
       resumingSaved = saved;
       show('screen-connect'); initConnect(saved.agent.name, true, saved.agent);
       return;

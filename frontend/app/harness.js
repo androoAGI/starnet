@@ -678,7 +678,8 @@ const Harness = (() => {
      the station's own check is still running (claude-cli answers credential.status 'unknown', "checking local sign-in",
      until its first `claude auth status` returns; the station bounds that at 15s). settleReadiness re-asks until the
      answer settles or the wait runs out (20s by default, past the station's own bound) and resolves the row it then
-     holds; a settled answer resolves at once (`reask`: after one fresh question first). It never rejects. */
+     holds; a settled answer resolves at once (`reask`: after one fresh question first). `stop()` true ends the wait at
+     once (its caller no longer wants the answer: a newer re-entry took the screen). It never rejects. */
   function readinessPending(provider) {
     const r = readiness(provider);
     return r.unattendedReady !== true && (r.cached === true || !!(r.credential && r.credential.status === 'unknown'));
@@ -686,10 +687,12 @@ const Harness = (() => {
   async function settleReadiness(provider, opts) {
     const o = opts || {};
     const until = Date.now() + (o.waitMs == null ? 20000 : o.waitMs);
+    const stopped = () => !!(o.stop && o.stop());
     if (o.reask) await refreshProviderReadiness();
-    while (readinessPending(provider) && Date.now() < until) {
+    while (!stopped() && readinessPending(provider) && Date.now() < until) {
       if (o.onPending) { try { o.onPending(readiness(provider)); } catch (_) {} }
       await new Promise(r => setTimeout(r, o.everyMs || 1000));
+      if (stopped()) break;
       await refreshProviderReadiness();
     }
     return readiness(provider);
