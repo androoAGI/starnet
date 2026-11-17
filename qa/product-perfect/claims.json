@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "900d1328746b9ba68bf198045b1b5a57a0033c2a",
+    "sourceCommit": "8b3eede41661a7d1fc676e7432a79ce97eb64c96",
     "pathSetSha256": "967af97ff9c6cbb9e744a70595665e2d29d64aa71efb2efaba623913bea16068",
     "files": [
       {
@@ -368,8 +368,8 @@
       },
       {
         "path": "frontend/app/classify.js",
-        "bytes": 13224,
-        "sha256": "425b13e76be73f9d64c7a2358ce69c3d533458073eb093fe8025d0eed520748e"
+        "bytes": 21279,
+        "sha256": "1bc34cc7aec481850d53cd5bbf1f852726e1f40b346252fd9c0544900450b52f"
       },
       {
         "path": "frontend/app/cloudsave.js",
@@ -528,8 +528,8 @@
       },
       {
         "path": "frontend/app/friendlyerror.js",
-        "bytes": 122195,
-        "sha256": "3e8d3d4d0542989aa7b686942b51384883ce8111e2abffbe02a5f92d942acb66"
+        "bytes": 122505,
+        "sha256": "885035ceecfca378a6a4241a3f92e08af99b58843a6f9b424284aefdd1584511"
       },
       {
         "path": "frontend/app/fullscreen.js",
