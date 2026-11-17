@@ -18,7 +18,7 @@
   "expectedClaimCount": 37,
   "releaseSurface": {
     "algorithm": "sha256",
-    "sourceCommit": "8b3eede41661a7d1fc676e7432a79ce97eb64c96",
+    "sourceCommit": "86cef4f69fd349bfbb740bbf33e07a564390ca69",
     "pathSetSha256": "967af97ff9c6cbb9e744a70595665e2d29d64aa71efb2efaba623913bea16068",
     "files": [
       {
@@ -368,8 +368,8 @@
       },
       {
         "path": "frontend/app/classify.js",
-        "bytes": 21279,
-        "sha256": "1bc34cc7aec481850d53cd5bbf1f852726e1f40b346252fd9c0544900450b52f"
+        "bytes": 23102,
+        "sha256": "797c9e8e4a245116c3cd7fa13d077da8f4bfb89c77ba8523c3140239a2054f99"
       },
       {
         "path": "frontend/app/cloudsave.js",
