@@ -1199,7 +1199,7 @@ A.ok(/img\.dataset\.portraitSet = set;/.test(read('frontend/app/agentportraits.j
 // style at all … find ANY other pieces of UI that have not been converted"). Every window had been toured; these are the pieces a
 // script hangs on the page only when it is needed ----
 const selsPop = selsOf(cssPop);
-const POPS = ['.live-voice-panel', '.lw-card', '.quit-guard-card', '.tut-coach', '.tut-brief', '.model-dock-tip', '.ov-mdl-pop', '.comms-lightbox', '.fnv-dialogue', ':is(#save-preserved-notice, #save-conflict-notice)'];
+const POPS = ['.live-voice-panel', '.lw-card', '.quit-guard-card', '.tut-coach', '.tut-brief', '.model-dock-tip', '.ov-mdl-pop', '.comms-lightbox', '.fnv-dialogue', ':is(#save-preserved-notice, #save-conflict-notice)', '#token-withheld-bar'];
 A.ok(selsPop.length >= 80, 'the pop-up pieces are their own section (' + selsPop.length + ' selectors)');
 A.eq(selsPop.filter(x => !x.startsWith(TPFX + ' ')).length, 0, 'every selector there opens with the VECTOR gate: variation B and the classic look never see it');
 A.eq(selsPop.filter(x => !POPS.some(p => x.slice(TPFX.length + 1).replace(/^#chat-panel /, '').startsWith(p))).join(' | '), '', 'and each is about one of the pop-up pieces, by name: nothing else on the page is restyled from here');
@@ -1212,12 +1212,15 @@ A.ok(/\.live-voice-panel \.lv-pip \{[^}]*var\(--lv-accent\)/.test(cssPop) && /\.
 A.ok(/\.live-voice-panel \.lv-controls \{[^}]*var\(--vx-seat\)/.test(cssPop) && /\.lv-controls \.bb\[aria-pressed="true"\] \{[^}]*var\(--vx-cap-on\)/.test(cssPop),
   'PAUSE MIC and SEND NOW are caps on one chrome seat, and a paused mic is the pressed lit cap');
 A.ok(/:is\(#save-preserved-notice, #save-conflict-notice\) \{[^}]*border: 0 !important;[^}]*!important;[^}]*color: var\(--text\) !important;/.test(cssPop),
-  'the save banners paint their own flat fill inline, so the look out-ranks an inline style there (and only there)');
-A.eq((cssPop.match(/!important/g) || []).length, 5, 'nothing else in the section needs !important');
+  'the save banners paint their own flat fill inline, so the look out-ranks an inline style there');
+A.ok(/#token-withheld-bar \{[^}]*border: 0 !important;[^}]*!important;/.test(cssPop) && /#token-withheld-bar > button \{[^}]*border: 0 !important;[^}]*background: var\(--vx-cap\) !important;/.test(cssPop),
+  'the withheld-key strip writes its fill, line and keys inline too, so the look out-ranks them the same way');
+A.ok(!/#token-withheld-bar[^{]*\{[^}]*(?:^|[;\s])color:/.test(cssPop), 'its words and keys keep the module’s warning colour: the look only reads it');
+A.eq((cssPop.match(/!important/g) || []).length, 10, 'nothing else in the section needs !important (the save banners 5, the withheld-key strip 5)');
 A.ok(/\.tut-coach \.tut-coach-ok \{ background: var\(--vx-cap-on\);/.test(cssPop) && /\.fnv-dialogue \.fnv-custom-send \{ background: var\(--vx-cap-on\);/.test(cssPop),
   'the two keys that were flat fills ("got it", SEND) are the lit glass cap');
 // the pieces the sources still write, under the names the look styles
-const srcPop = { 'frontend/app/voice-live.js': "'live-voice-panel'", 'frontend/app/cratecard.js': "'lw-card'", 'frontend/app/quitguard.js': 'class="quit-guard-card"', 'frontend/app/tutorial.js': "'tut-brief", 'frontend/app/chat.js': "'comms-lightbox'", 'frontend/app/dialogue.js': "'fnv-floating'", 'frontend/app/stationui.js': "'save-preserved-notice'" };
+const srcPop = { 'frontend/app/voice-live.js': "'live-voice-panel'", 'frontend/app/cratecard.js': "'lw-card'", 'frontend/app/quitguard.js': 'class="quit-guard-card"', 'frontend/app/tutorial.js': "'tut-brief", 'frontend/app/chat.js': "'comms-lightbox'", 'frontend/app/dialogue.js': "'fnv-floating'", 'frontend/app/stationui.js': "'save-preserved-notice'", 'frontend/app/harness.js': "bar.id = 'token-withheld-bar'" };
 A.eq(Object.keys(srcPop).filter(f => !read(f).includes(srcPop[f])).join(' | '), '', 'each piece is still written by its module under the name the look styles');
 // THE FAMILY, CLOSED: whatever a script hangs on <body> is either named by the look or listed here with its reason. A new floating
 // piece fails this until someone decides which it is (that is how local live voice shipped unconverted: nothing asked).

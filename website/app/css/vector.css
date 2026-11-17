@@ -4500,6 +4500,24 @@ html body.vx:not(.hud-mode):not(.vx-b) :is(#save-preserved-notice, #save-conflic
 html body.vx:not(.hud-mode):not(.vx-b) :is(#save-preserved-notice, #save-conflict-notice) .bb { margin: 0 8px 0 0; }
 html body.vx:not(.hud-mode):not(.vx-b) :is(#save-preserved-notice, #save-conflict-notice) .bb:disabled { opacity: 1; color: rgba(var(--ph-rgb), .36); text-shadow: none; }
 
+/* the withheld-key strip (harness.js, on a page the station gave no key) writes its fill, line and keys inline too, so the same
+   paints out-rank them. It floats as the save banners' bay (its inline top, left and right are 0, so margins move it); its words
+   and stripe stay the module's warning colour */
+html body.vx:not(.hud-mode):not(.vx-b) #token-withheld-bar {
+  margin: 12px 10% 0; border: 0 !important; border-radius: 16px;
+  background:
+    linear-gradient(180deg, rgba(0, 0, 0, .9) 0, rgba(0, 0, 0, 0) 6px),
+    linear-gradient(180deg, #05070a 0, #0d1116 60%, #161b21 100%) !important;
+  box-shadow: inset 4px 0 0 var(--warn), var(--vx-lip2), 0 0 0 1px #000, 0 0 0 2px #c4ccd5, 0 1px 0 2px #eef2f6, 0 0 0 3px #2a3037, 0 10px 30px 3px rgba(0, 0, 0, .7);
+  font-size: 17px;
+}
+html body.vx:not(.hud-mode):not(.vx-b) #token-withheld-bar > button {
+  min-height: 34px; border: 0 !important; border-radius: 8px;
+  background: var(--vx-cap) !important; box-shadow: var(--vx-cap-shadow);
+  letter-spacing: 2px; text-shadow: 0 0 6px color-mix(in srgb, var(--warn) 70%, transparent);
+}
+html body.vx:not(.hud-mode):not(.vx-b) #token-withheld-bar > button:is(:hover, :focus-visible) { outline: 0; background: var(--vx-cap-hot) !important; }
+
 /* the tutorial: the coach speaks from a bay; "got it" is the lit cap (it was a flat fill), "not now" a plain cap */
 html body.vx:not(.hud-mode):not(.vx-b) .tut-coach { padding: 12px 15px 14px; }
 html body.vx:not(.hud-mode):not(.vx-b) .tut-coach .tut-coach-who { color: var(--vx-core); text-shadow: 0 0 6px rgba(var(--ph-rgb), .6); }
