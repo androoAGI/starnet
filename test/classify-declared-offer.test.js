@@ -156,7 +156,146 @@ const ORDINARY_VERB_KEPT_AS_TASK = [
   'I can compare them all day, but the answer stays the same.',
   'Happy to post an update when it lands.'
 ];
+/* KNOWN RESIDUALS (T9s must-fix, 2026-11-16), pinned ON PURPOSE so a later change shows up. Not a claim that the answer is
+   right. Each of these is a KNOWN cheap error: an offer phrase, an offer verb (or an action word) after it, and nothing the rule
+   reads says it is a report, so an "ok" after it is a task and the run carries a tool set it does not need. */
+const KNOWN_TASK_PAST_COULD = ['I could run the tests and they all pass now.', 'I could build it locally and it works.', 'I could find the bug in the parser.', 'I could fix the build yesterday.'];   // a past "I could <verb>" success report
+const KNOWN_TASK_NOW_I_CAN = ['Now I can run the full suite without errors.', 'Now I can open the dashboard again.', 'I can now open the dashboard without errors.'];   // a "Now I can <verb>" line
+const KNOWN_TASK_ASSURANCE = ['I can assure you the script will run.', 'I can guarantee the script runs on Windows.', 'I can vouch that the fix is saved.'];   // an assurance verb, an action word after it
+const KNOWN_TASK_ALL_I_CAN = ['All I can do is describe the steps to run it.', 'All I could do was explain how to fix it.', 'All I can do here is draft the email.'];   // "All I can do is ..."
+// ... and the KNOWN miss the other way (A3-F2's open end): a stated offer whose verb no list holds (ACTIONABLE, OFFER_WORK,
+// OFFER_ACTION), with no action word after it, is no offer, so "yes please" stays chat and the run gets zero tools. Widen the
+// verb lists only together with a guard against past-tense reports.
+const KNOWN_CHAT_UNLISTED_VERB = ['I can restart the server for you.', 'I can merge the two branches for you.', 'I can upload the files to the shared drive.', 'I can commit and push the change.',
+  'I can refactor that function for you.', 'I can prepare the release notes for you.', 'Happy to put together a summary of the thread.', 'I can go ahead and clean up the old branches.',
+  'Not a problem, I can rerun the tests for you.', "If you don't mind waiting a minute I can rebuild it."];
+// ... and the hedge and condition rules' own KNOWN trade-offs: a real offer they read as none.
+const KNOWN_CHAT_TRADE_OFF = [
+  'I need your approval before I can deploy it.', "I'll need your confirmation before I can delete those 40 files.",   // an approval gate in any order: "before I can" is cut
+  'Let me know whether I can go ahead and deploy it.',   // "whether" right before the offer phrase is a hedge
+  "I can run the migration now, though I don't think it'll need any downtime.", "Although I don't think it's the cause, I can check the logs for you.",   // though/although + "I don't think" reads as taken back
+  "Don't worry I can fix that.", "It doesn't need a restart because I can apply the config live.",   // a hedge word with no comma, joining word or opening condition before the offer
+  'Ready to send it whenever you are, just say the word or let me know if you need anything else first.',   // "anything else" voids the open invitation's sentence
+  'I can delete all build.* files for you.',   // the * _ ~ strip reads a bare ".*" before a space as a sentence end
+  'Before I can deploy it, I need your approval.',      // "before I can" is a condition: chat again, as at BASE
+  'I am not busy so I can run the full suite now.'      // "not ... so I can" with no comma before "so" reads as hedged ("I am not busy, so I can ..." is an offer)
+];
+// ... the A3-F1 residual the T9s review found beyond the four kinds above (KNOWN cheap errors): an offer phrase and its verb, then an
+// obstacle or a limit the rules do not read, a hedge word OFFER_HEDGED lacks, or a sign-off other than "anything else"
+const KNOWN_TASK_OBSTACLE = ["Technically I could delete the branch, but I'd rather not.", 'Normally I could run that for you, but the sandbox is offline today.',
+  'I could deploy it, except the runner has been down since this morning.', "It's unlikely I can open that file without the right codec.",
+  'Glad I could fix that for you - just say the word if you need anything!'];
+// ... and the A3-F2 miss of OFFER_NEGATED, which vetoes the whole sentence: the alternative offered after "I can't" is never read
+const KNOWN_CHAT_NEGATED_ALTERNATIVE = ["I can't push to main, but I can open a PR instead."];
 const ACKS = ['ok', 'yes', 'sounds good'];
+
+/* ---- T9s MUST-FIX: A HEDGE IS NO OFFER (2026-11-16) ----
+   Red at d0d85ac23 (the T9s lane as merged, 395c61d60): the rule read only what FOLLOWS the offer phrase, so the commonest way
+   an agent says no ("I don't think I can open that drive from here.") still read as an offer, and so did a refusal with one word
+   in *italics*, a result line signed off "just say the word if you need anything else", "I'd need the API key before I can run
+   it." and an offer taken back with "though" or "however". A bare "ok" after any of them ran with the whole tool set (on the real
+   sidecar about 56 KB a request instead of about 2.3 KB, and a promise in the model's answer ended the run red: work incomplete).
+   The rule under test: a hedge or a negation before the offer phrase, in its own clause, takes the offer back (a clause that opens
+   with if / since / when / once / unless / because / after / "as soon as" negates its condition, not the offer); * _ ~ marks are
+   not words; though / although / however take an offer back as "but" does, and so does "I'd advise against it"; an invitation
+   that names no work of its own ("anything else") offers nothing; "before / until / unless / once / now that / so that I can" is
+   a condition or a purpose. The rows are the decider's must-fix list (review-fix decide-T9s). */
+// EVERY offer verb of classify.js: its ACTIONABLE, OFFER_WORK and OFFER_ACTION alternatives, as the file writes them. The module
+// does not export them, so they are copied here, and the tree loop checks the copy against the file's own source: a verb added
+// there fails this test until it has its rows here.
+const OFFER_VERB_LISTS = {
+  ACTIONABLE: ['research', 'search', 'google', 'find', 'look ?up', 'fetch', 'scrape', 'crawl', 'download', 'browse', 'visit', 'go to', 'read', 'open', 'write', 'save', 'create', 'generate', 'build',
+    'make', 'draft', 'compile', 'summari[sz]e', 'report', 'list', 'extract', 'analy[sz]e', 'investigate', 'compare', 'check', 'calculate', 'translate', 'plan', 'schedule', 'email', 'post', 'send'],
+  OFFER_WORK: ['delete', 'deploy', 'test', 'add', 'rename', 'pull', 'look in ?to', 'dig in ?to', "(?:set|look) (?:[\\w'-]+ ){1,4}up"],
+  OFFER_ACTION: ['write', 'draft', 'create', 'build', 'run', 'make', 'set (?:it |this |that )?up', 'save', 'send', 'generate', 'fix', 'update', 'implement', 'execute', 'install', 'start', 'apply',
+    'code', 'script', 'do (?:it|that|this)']
+};
+// each alternative as an agent says it, [with an object, alone]: a plain verb takes "that", a pattern every spelling it reads
+const VERB_SPELLINGS = {
+  'look ?up': [['look up that', 'look up'], ['lookup that', 'lookup']],
+  'summari[sz]e': [['summarize that', 'summarize'], ['summarise that', 'summarise']],
+  'analy[sz]e': [['analyze that', 'analyze'], ['analyse that', 'analyse']],
+  'look in ?to': [['look into that', 'look into'], ['look in to that', 'look in to']],
+  'dig in ?to': [['dig into that', 'dig into'], ['dig in to that', 'dig in to']],
+  "(?:set|look) (?:[\\w'-]+ ){1,4}up": [['set the nightly backup up', 'set up'], ['look the latest numbers up', 'look up']],
+  'set (?:it |this |that )?up': [['set that up', 'set up'], ['set it up', 'set up']],
+  'do (?:it|that|this)': [['do that', 'do'], ['do it', 'do']]
+};
+const OFFER_VERBS = [];
+for (const alt of [].concat(...Object.values(OFFER_VERB_LISTS))) for (const said of VERB_SPELLINGS[alt] || [[alt + ' that', alt]]) if (!OFFER_VERBS.some(v => v[0] === said[0])) OFFER_VERBS.push(said);
+// every frame once with every verb, each sentence once
+const framed = (frames) => [...new Set([].concat(...frames.map(frame => OFFER_VERBS.map(frame))))];
+// the must-fix list's five hedge frames, the first and the third also with a typographic apostrophe
+const HEDGED = framed([
+  v => "I don't think I can " + v[0] + ' for you.',
+  v => 'I don' + Q + 't think I can ' + v[0] + ' for you.',
+  v => "I'm not sure I can " + v[0] + ' for you.',
+  v => "That's not something I can " + v[1] + ' for you.',
+  v => 'That' + Q + 's not something I can ' + v[1] + ' for you.',
+  v => "There's no way I can " + v[0] + ' for you.',
+  v => 'I doubt I can ' + v[0] + ' for you.'
+]).concat([   // ... and the decider's own natural hedges
+  "I don't think I can open that drive from here.", "I'm not sure I can send email from this station.", "I'm not certain I could run that script safely.",
+  'I really doubt I can fix that without the original files.', "That's not something I can install for you, unfortunately.", "There's no way I could build that before the deadline.",
+  "Honestly, I don't believe I can deploy that from this machine.", "I'm not convinced I can write a script that handles every edge case.", "That's not a page I can open from this sandbox.",
+  "It's not something I could run without admin rights.", "I don't know whether I can download files that large.", "I'm unsure whether I could update the firmware remotely.",
+  "I'm not so sure I can fix that one.", "Unfortunately I don't think I could search that site, it blocks automated access.", "I'm afraid it's not a file I can read in this chat.",
+  "I don't see how I could test that without a staging server.", "I'm not 100% sure I can build it on Windows.", "That isn't something I could schedule from here.",
+  "Honestly? I don't think I can open that drive from here.", "Run it on prod? That's not something I can do from here.", "Not sure\u2026 I don't think I can write to that folder.",
+  "Can I fix it? I'm not sure I can fix that from here.", 'Whether I can fix it depends on the logs.', 'I wonder whether I can run it from here.',
+  'I *really* wish I could run that for you.', "I don't think I can **fix** that from here."
+]);
+// its condition frame, "I'd need X before I can", also with "could"
+const CONDITIONED = framed([
+  v => "I'd need the API key before I can " + v[0] + ' for you.',
+  v => 'I would need admin rights before I could ' + v[0] + ' for you.'
+]).concat([   // ... and the decider's own status lines with a condition or a purpose
+  "I'd need the API key before I can run it.", 'I would need admin rights before I could install it.', 'It took a while before I could fix the build.', 'I restarted the service so that I can build again.', 'Before I could run it, the server timed out.', 'Now that I can run the build, the tests pass.'
+]);
+// an offer taken back in its own sentence: "though I don't think", "but honestly I don't think", "however I'd advise against it"
+const WITHDRAWN = framed([
+  v => 'I could ' + v[0] + ", though I don't think it is worth it.",
+  v => 'I could ' + v[0] + ", but honestly I don't think it is worth it.",
+  v => 'I could ' + v[0] + ", however I'd advise against it."
+]).concat([   // ... and each other spelling the rule reads, once
+  "I could run it, although I don't think it is safe.", "I could run it, but I really don't think it is safe.", "I could run it, but frankly, I wouldn't recommend it.",
+  'I could deploy it now, though I would advise against it.', "I could delete those files, however I'd recommend against it.", "I could run it, however, I don't think it is wise.",
+  'I could write that script for you, though I don' + Q + 't think that is wise.'
+]);
+// the confirmed A3-F1 rows (the attacker's refusals and status lines, the skeptic's results and refusals) with ONE word in
+// *italics*, **bold** or _underscores_ (each word in turn, each mark), and each with "just say the word if you need anything else"
+const A3_F1_ROWS = [...new Set(REFUSALS.concat(STATUS_LINES, SKEPTIC_RESULTS, SKEPTIC_REFUSALS))];
+const MARKS = [w => '*' + w + '*', w => '**' + w + '**', w => '_' + w + '_'];
+function marked(row) {
+  const words = row.split(' '), out = [];
+  words.forEach((token, i) => {
+    const m = /^([^A-Za-z0-9]*)(\S*[A-Za-z0-9])([^A-Za-z0-9]*)$/.exec(token);   // the word, without the punctuation around it
+    if (m) for (const mark of MARKS) out.push(words.slice(0, i).concat(m[1] + mark(m[2]) + m[3], words.slice(i + 1)).join(' '));
+  });
+  return out;
+}
+const EMPHASISED = [].concat(...A3_F1_ROWS.map(marked));
+const SIGNED_OFF = A3_F1_ROWS.map(row => row.replace(/([.!]?)$/, (end) => ', just say the word if you need anything else' + (end || '.'))).concat([   // ... and the decider's own
+  'Glad I could fix that for you - just say the word if you need anything else!', 'All done, the report is saved; just say the word if you need anything else.',
+  'The fix is live. Just say the word if you need anything else.', 'Updated the docs as well, so just say the word if anything else comes up.'
+]);
+// the offers beside them stay offers: a hedge word inside a condition, "no problem", a hedge before a comma or a joining word,
+// and a condition before a real offer. The must-fix list's five first, then the decider's own.
+const HEDGE_OFFER_CONTROLS = [
+  "If you haven't sent it yet, I can draft a reply.", 'No problem I can update the config for you.', 'Not sure if this helps, but I can write a quick script for it.',
+  "If it's not urgent I can schedule it for tonight.", "Since the tests didn't run I can run them again now.",
+  "If you haven't sent it yet I can draft a reply.", "Since the tests didn't run, I can run them again now.", "It didn't save, but I can write it to a new file.",
+  "There's no need to wait - I can run it right now.", 'I am not busy, so I can run the full suite now.', 'No problem, I can update the config for you.',
+  "If you don't mind, I can restart the build now.", "If you'd rather not do it by hand, I can write a script for it.", "Don't worry, I can fix that.",
+  "There's no rush, but I can start on the draft now.", 'No need to do it by hand, I can generate the report.', "It's no trouble, I can write it now.", "It's no trouble I can write it now.",
+  "Nothing's been sent yet, so I can still update the wording.", "If that doesn't work, I can write a fallback script.", "If that doesn't work I can write a fallback script.",
+  'Whether or not it passes, I can send you the full log.', "When you're not around I can run the backups for you.",
+  'Once I can reach the server I can deploy it.', 'Until I can reproduce it, I can add more logging to the script.', 'Now that I can access the repo, I can fix the bug for you.',
+  "I'll set up a test database so that I can run the full suite, if you like.", 'I can fix it now so that you can test it tonight.', 'Once you approve, I can deploy it.',
+  "Didn't get the email? I can send it again.", 'Not what you wanted? I can write a new version.', 'Still not loading? I can check the server logs for you.',
+  "That didn't work\u2026 I can run it again with verbose logging.", "Let me know whether you'd like me to run the migration.", 'Tell me whether you want me to delete the old drafts.',
+  'As soon as the build finishes I can run the tests.', 'I can deploy it as soon as you approve.'
+];
 
 for (const rel of ROOTS) {
   const { isTaskDirective, isAffirmation, offeredWork } = require(path.join('..', rel));
@@ -264,6 +403,22 @@ for (const rel of ROOTS) {
   }
   for (const [prior, reply] of STATED_OFFERS_NOT_READ) A.eq(isTaskDirective(reply, { priorAgentTurn: prior }), false, 'known gap, an offer in another language is not read: ' + prior + tag);
   for (const prior of ORDINARY_VERB_KEPT_AS_TASK) A.eq(isTaskDirective('ok', { priorAgentTurn: prior }), true, 'known cheap error, the verb follows the offer phrase: ' + prior + tag);
+  // the KNOWN residuals of the T9s must-fix, pinned on purpose (see the tables): a later change to any of them shows up here
+  for (const [kind, rows] of [['a past "I could <verb>" report', KNOWN_TASK_PAST_COULD], ['a "Now I can <verb>" line', KNOWN_TASK_NOW_I_CAN], ['an assurance verb', KNOWN_TASK_ASSURANCE], ['"All I can do is ..."', KNOWN_TASK_ALL_I_CAN]]) {
+    for (const prior of rows) A.eq(isTaskDirective('ok', { priorAgentTurn: prior }), true, 'known cheap error, ' + kind + ' reads as an offer: ' + prior + tag);
+  }
+  for (const prior of KNOWN_CHAT_UNLISTED_VERB) {
+    A.eq(offeredWork(prior), false, 'known miss, a verb no list holds is not read as an offer: ' + prior + tag);
+    A.eq(isTaskDirective('yes please', { priorAgentTurn: prior }), false, 'known miss, "yes please" after it stays chat: ' + prior + tag);
+  }
+  for (const prior of KNOWN_CHAT_TRADE_OFF) for (const reply of ['ok', 'yes please']) {
+    A.eq(isTaskDirective(reply, { priorAgentTurn: prior }), false, 'known trade-off of the hedge and condition rules, ' + JSON.stringify(reply) + ' after an offer they read as none stays chat: ' + prior + tag);
+  }
+  for (const prior of KNOWN_TASK_OBSTACLE) A.eq(isTaskDirective('ok', { priorAgentTurn: prior }), true, 'known cheap error, an obstacle or limit after the offer is not read: ' + prior + tag);
+  for (const prior of KNOWN_CHAT_NEGATED_ALTERNATIVE) {
+    A.eq(offeredWork(prior), false, 'known miss, the alternative after "I can\'t" is not read: ' + prior + tag);
+    A.eq(isTaskDirective('yes please', { priorAgentTurn: prior }), false, 'known miss, "yes please" after it stays chat: ' + prior + tag);
+  }
 
   // RULE 1, the verb belongs to the offer: it follows the offer phrase, it is not a word somewhere else in the sentence
   for (const elsewhere of ['I can also confirm the tests run clean.', 'I can hardly run that without network access.', 'I can only describe the steps, I have no way to run them.',
@@ -343,6 +498,34 @@ for (const rel of ROOTS) {
   for (const [text, want] of [['yes', false], ['ok', false], ['yes thanks', false], ['ok great', false], ['ya', false], ['yes please', false], ['sounds good', false], ['search the web', true], ['ok, try it now', true]]) {
     A.eq(isTaskDirective(text), want, 'no prior turn, unchanged: ' + JSON.stringify(text) + tag);
     A.eq(isTaskDirective(text, { priorAgentTurn: '' }), want, 'an empty prior turn, unchanged: ' + JSON.stringify(text) + tag);
+  }
+
+  // ---- T9s MUST-FIX: a hedge, a condition, a marked word, a sign-off and a withdrawal offer nothing ----
+  // the verbs the rows use are the module's own lists (copied above, checked here against this tree's source)
+  {
+    const src = require('fs').readFileSync(path.join(__dirname, '..', rel), 'utf8');
+    const listIn = (re) => {   // the pattern's top-level alternatives
+      const m = re.exec(src); if (!m) return null;
+      const out = []; let depth = 0, cur = '';
+      for (const ch of m[1]) { if (ch === '(') depth++; else if (ch === ')') depth--; if (ch === '|' && !depth) { out.push(cur); cur = ''; } else cur += ch; }
+      return out.concat(cur);
+    };
+    A.eq(listIn(/const ACTIONABLE = \/\\b\(([^)]*)\)\\b/), OFFER_VERB_LISTS.ACTIONABLE, 'the ACTIONABLE verbs of the must-fix rows are classify.js\'s own' + tag);
+    A.eq(listIn(/const OFFER_WORK = \/\^\(\?:(.*)\)\\b\/;/), OFFER_VERB_LISTS.OFFER_WORK, 'the OFFER_WORK verbs of the must-fix rows are classify.js\'s own' + tag);
+    A.eq(listIn(/const OFFER_ACTION = \/\\b\((.*)\)\\b\/;/), OFFER_VERB_LISTS.OFFER_ACTION, 'the OFFER_ACTION verbs of the must-fix rows are classify.js\'s own' + tag);
+  }
+  // an "ok", "yes" or "sounds good" after each stays chat
+  for (const [kind, rows] of [['a hedge before the offer phrase', HEDGED], ['a condition ("before I can")', CONDITIONED], ['a refusal or result line with one word marked', EMPHASISED],
+    ['a refusal or result line with a sign-off', SIGNED_OFF], ['an offer taken back', WITHDRAWN]]) {
+    for (const prior of rows) {
+      A.eq(offeredWork(prior), false, kind + ' is not an offer: ' + JSON.stringify(prior) + tag);
+      for (const ack of ACKS) A.eq(isTaskDirective(ack, { priorAgentTurn: prior }), false, JSON.stringify(ack) + ' after ' + kind + ' stays chat: ' + JSON.stringify(prior) + tag);
+    }
+  }
+  // the offers beside them stay offers
+  for (const prior of HEDGE_OFFER_CONTROLS) {
+    A.eq(offeredWork(prior), true, 'still an offer: ' + JSON.stringify(prior) + tag);
+    for (const reply of ['yes please', 'ok', 'yes', 'sounds good']) A.eq(isTaskDirective(reply, { priorAgentTurn: prior }), true, JSON.stringify(reply) + ' after it is a task: ' + JSON.stringify(prior) + tag);
   }
 }
 

@@ -112,11 +112,24 @@
   const OFFER_NEGATED = /\bi(?: (?:can(?: ?not|'t| no longer)|could(?:n'?t| not)|am (?:unable|not able) to|(?:won'?t|will not) be able to)|'m (?:unable|not able) to)\b/;
   // an offer taken back in its own sentence ("I could write it, but I don't think that is wise."), and work put off to no
   // set time ("Happy to make more changes anytime!", "I can fix that next time.") leave a bare yes nothing to accept
-  const OFFER_WITHDRAWN = /\bbut i (?:don't|do not|wouldn't|would not)(?: \w+)? (?:think|recommend|advise|suggest)\b|\b(?:any ?time|next time)\b/;
+  const OFFER_WITHDRAWN = /\b(?:but|though|although|however)(?:,? (?:honestly|frankly|personally|really))?,? i(?: (?:really|honestly|personally|just))? (?:don't|do not|wouldn't|would not)(?: \w+)? (?:think|recommend|advise|suggest)\b|\b(?:but|though|although|however),? i(?:'d| would)(?: \w+)? (?:advise|recommend) against\b|\b(?:any ?time|next time)\b/;
+  // a hedge or negation BEFORE the offer phrase in its own clause ("I don't think I can fix
+  // that from here.", "That's not something I can run.", "I doubt I could build it.") is no offer. The clause starts
+  // after , ; : ? an ellipsis, a dash or a joining word, so "Not sure it helps, but I can write a script." and "Didn't
+  // get the email? I can send it again." still offer. "whether" hedges only right before the offer phrase ("I wonder
+  // whether I can run it."), so "Let me know whether you'd like me to run it." still offers.
+  const OFFER_HEDGED = /\b(?:not|never|nothing|doubt|unsure|whether(?=\s*$)|hardly|barely|no(?! (?:problem|worries|sweat|trouble|issues?|matter|rush|need)\b))\b|n't\b/;
+  const OFFER_JOIN = /[,;:?\u2026–—]| - |\b(?:and|but|or|then|plus)\b/;
+  // a clause that opens with a condition ("If it's not urgent I can schedule it.") negates the condition, not the offer
+  const OFFER_COND = /^\s*(?:if|since|when|once|unless|because|after|as soon as)\b/;
+  function hedgedBefore(s, at) { const head = s.slice(Math.max(0, at - 80), at).split(OFFER_JOIN); const h = head[head.length - 1]; return OFFER_HEDGED.test(h) && !OFFER_COND.test(h); }
+  // a generic sign-off ("just say the word if you need anything else") names no work of its own
+  const OFFER_ELSE = /\b(?:anything|something) (?:else|more)\b/;
   /* REFUSALS AND REPORTS that hold an offer phrase. Each is cut out of the sentence before it is read, so a real offer
      beside one still counts ("Glad I could fix that for you, and I can update the docs too."). */
   const OFFER_NOT = new RegExp('\\b(?:' + [
     "(?:wish|if|if only)(?: that)? i could",                                              // "I wish I could run that for you.", "If I could run it I would."
+    "(?:before|until|unless|once|now that|so that) i (?:can|could)",                      // a condition or a purpose, not an offer: "I would need the key before I can run it."
     "(?:glad|happy|pleased|relieved)(?: that)? i (?:can|could)",                          // "Glad I could fix that for you."
     "(?:nothing|anything|everything|whatever|everywhere|wherever|much|little)(?: more| else| that)? i (?:can|could)",   // "That is everything I could fix in this pass."
     "what i (?:can|could)(?! do(?: \\w+){0,2}(?: is\\b|:))",                              // "beyond what I can build here"; "What I can do is write it." stays an offer
@@ -152,12 +165,12 @@
   function statesOffer(sentence) {
     if (OFFER_NEGATED.test(sentence) || OFFER_WITHDRAWN.test(sentence)) return false;
     const s = sentence.replace(OFFER_NOT, ' ');
-    if (OFFER_SAY.test(s) && OFFER_ACTION.test(s)) return true;
+    if (OFFER_SAY.test(s) && OFFER_ACTION.test(s) && !OFFER_ELSE.test(s)) return true;
     const asks = OFFER_IF.test(s);
     OFFER_LEAD.lastIndex = 0;
     for (let m = OFFER_LEAD.exec(s); m; m = OFFER_LEAD.exec(s)) {
       const promise = m[1] === "i'll" || m[1] === 'i will';
-      if ((asks || !promise) && offersAt(s, OFFER_LEAD.lastIndex, m[1].indexOf('i could') === 0)) return true;
+      if ((asks || !promise) && offersAt(s, OFFER_LEAD.lastIndex, m[1].indexOf('i could') === 0) && !hedgedBefore(s, m.index)) return true;
     }
     return false;
   }
@@ -168,7 +181,7 @@
   const OFFER_CLOSER = /^[\s*_"'`(]*(?:(?:so|and|or)\s+)?(?:(?:just\s+)?(?:say the word|let me know(?:\s+if\b[^.!?]*)?)[\s.!*_"'`)]*|(?:sounds? good|ok(?:ay)?)\s*\?[\s*_"'`)]*)$/;
   const OFFER_PHRASE = /\b(?:i (?:can|could)|happy to|say (?:the word|go|yes)\b)/;
   function closes(sentence) { return OFFER_CLOSER.test(sentence) || (SOUNDING_OUT.test(sentence) && !(OFFER_PHRASE.test(sentence) && OFFER_ACTION.test(sentence))); }
-  function sentencesOf(line) { return String(line).replace(/[\u2018\u2019\u02bc]/g, "'").split(/[.!]\s+/).filter(function (p) { return p.trim(); }); }
+  function sentencesOf(line) { return String(line).replace(/[\u2018\u2019\u02bc]/g, "'").replace(/[*_~]+/g, '').replace(/\s+/g, ' ').split(/[.!]\s+/).filter(function (p) { return p.trim(); }); }
   // `before` is the reply's text above the last line: a closer that stands on a line of its own closes the line above it
   function declaredOffer(line, before) {
     let pieces = sentencesOf(line);
