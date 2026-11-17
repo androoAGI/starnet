@@ -381,3 +381,9 @@ test/skillreview-useful.e2e.test.js
 test/prefix-lanes.e2e.test.js
 # payload.budget: six real sidecar boots since the prefix lanes' on-state rows (the probe station, the COMMS station, then one station per switch, two calls each) - 21 s standalone on a quiet box, 38 s with four boots while other lanes' gates ran (2026-11-14); listed because a boot alone passed 30 s at 100% CPU that day.
 test/payload.budget.test.js
+# claude-cli-effort.e2e: a real sidecar with a fake `claude`, the station restarted on one workspace for each value of STARNET_CLI_EFFORT and the same runs made each time — 113.3 s and 112.6 s in two sharded HTTP gates (2026-11-15), over 120 s twice on a saturated box the same day.
+test/claude-cli-effort.e2e.test.js
+# turn-identity.property: the C5 property fast tier, a PageModel and oracle over production storage and run decisions — 66.5 s on a quiet gate, 115.0 s on a saturated one (2026-11-15).
+test/turn-identity.property.test.js
+# history-unvouched-words: every 5xx history shape driven through the real page read seam (seal-rig) — 86.5 s in two fast gates (2026-11-15).
+test/history-unvouched-words.test.js

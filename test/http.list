@@ -36,9 +36,11 @@ test/full-access.e2e.test.js
 test/reach-fence.e2e.test.js
 test/ask-brief-before-approval.e2e.test.js
 test/brief-same-response.e2e.test.js
+test/taskbrief.held-answer.e2e.test.js
 test/batch-hint.e2e.test.js
 test/delegation-hint.e2e.test.js
 test/brief-readonly-shell.e2e.test.js
+test/classify-declared-offer.e2e.test.js
 test/toolsets-preview-equals-run.e2e.test.js
 test/output-recovery.e2e.test.js
 test/context-allowance.e2e.test.js
@@ -86,6 +88,7 @@ test/comms-owner.e2e.test.js
 test/station-builder.e2e.test.mjs
 test/e2e.worker-access.test.js
 test/taint-lineage.e2e.test.js
+test/dispatch-failed-taint.e2e.test.js
 test/taint-inherited-refusal.e2e.test.js
 test/e2e.trigger-fullaccess-taint.test.js
 test/attachment-taint-decay.http.test.js
