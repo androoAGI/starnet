@@ -672,6 +672,28 @@ const Harness = (() => {
   function providerNeedsKey(provider) { return SK.providers.registry.providerRequiresKey(normalizeProviderId(provider)); }
   function configured(provider) { return readiness(provider).unattendedReady === true; }
   function hasStoredCredential(provider) { return readiness(provider).credential.present === true; }
+  /* A VERDICT STILL BEING WORKED OUT IS NO "NO" (11-17: a cold boot opened a signed-in Claude Code station on RESUME,
+     "Enter your key to continue"). A provider's readiness is PENDING while this page holds no answer from the station for
+     it (the station did not answer, or a connection change it has not re-checked yet: the cache reads `cached`) or while
+     the station's own check is still running (claude-cli answers credential.status 'unknown', "checking local sign-in",
+     until its first `claude auth status` returns; the station bounds that at 15s). settleReadiness re-asks until the
+     answer settles or the wait runs out (20s by default, past the station's own bound) and resolves the row it then
+     holds; a settled answer resolves at once (`reask`: after one fresh question first). It never rejects. */
+  function readinessPending(provider) {
+    const r = readiness(provider);
+    return r.unattendedReady !== true && (r.cached === true || !!(r.credential && r.credential.status === 'unknown'));
+  }
+  async function settleReadiness(provider, opts) {
+    const o = opts || {};
+    const until = Date.now() + (o.waitMs == null ? 20000 : o.waitMs);
+    if (o.reask) await refreshProviderReadiness();
+    while (readinessPending(provider) && Date.now() < until) {
+      if (o.onPending) { try { o.onPending(readiness(provider)); } catch (_) {} }
+      await new Promise(r => setTimeout(r, o.everyMs || 1000));
+      await refreshProviderReadiness();
+    }
+    return readiness(provider);
+  }
 
   // getKey() returns the real key in the browser; in desktop it returns '' (the key isn't here).
   const getKey = provider => DESKTOP ? '' : readScoped(LS.key, provider);
@@ -2324,6 +2346,7 @@ const Harness = (() => {
   return {
     isDelegatedRun: (id) => delegatedRuns.has(String(id || '')),
     pingEngine, engineState, restartEngine,
+    settleReadiness, readinessPending,   // the boot and RETRY resume decision waits out an answer the station is still working out (11-17)
     canRestartEngine: () => !!tauriCoreNow(),
     isDesktop: () => DESKTOP,   // lets the UI tell a desktop keychain-store failure (token saved locally) from a browser no-op
     // a desk challenge the station handed something other than this page's own fetch (a lead's station.power change,

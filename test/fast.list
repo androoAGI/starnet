@@ -1051,6 +1051,7 @@ test/comms-busy-age.test.js
 test/comms-link-honesty.test.js
 test/link-down-recovery.test.js
 test/app-boot-provider-truth.test.js
+test/resume-verdict.test.js
 test/steer-idle-honesty.test.js
 test/queued-send-now.test.js
 test/steer-history-merge.test.js

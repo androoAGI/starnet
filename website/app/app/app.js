@@ -3354,6 +3354,17 @@ const App = (() => {
   // disconnect): swap the GENESIS header for a RESUME banner, lock the identity fields (name · skin · voice ·
   // approval) READ-ONLY so resume can't re-spec the agent, and keep the key/provider section + WAKE live. A
   // fresh first run passes recovery=false, which clears all of this back to the CREATE YOUR OVERSEER console.
+  // What RESUME asks for is what the STATION reports missing for the saved provider, never a guess: "Enter your key" only
+  // for a provider that takes one (11-17: a keyless Claude Code station was told to enter a key). An answer the station
+  // has not settled (none yet, or its own check unanswered) is said as that, with the key that re-asks.
+  function resumeAskLine(provider) {
+    const p = normalizeProviderId(provider);
+    if (providerNeedsKey(p)) return 'Enter your key to continue.';
+    const r = (typeof Harness !== 'undefined' && Harness.readiness) ? Harness.readiness(p) : null;
+    const st = r && r.credential ? r.credential.status : '';
+    if (!r || r.cached || st === 'unknown' || st === 'unavailable') return providerLabel(p) + ' has not confirmed its connection yet — press RETRY AUTO-RESUME.';
+    return 'Reconnect ' + providerLabel(p) + ' below to continue.';
+  }
   function applyRecoveryMode(recovery, savedAgent) {
     const screen = el('screen-connect');
     if (screen) screen.classList.toggle('recovery', recovery);
@@ -3374,7 +3385,7 @@ const App = (() => {
       const nm = (savedAgent && savedAgent.name) || 'your agent';
       if (banner) {
         banner.classList.remove('hidden');
-        banner.innerHTML = '▮ RESUMING <b>' + U.esc(nm) + '</b> — your agent is safe. Enter your key to continue.';
+        banner.innerHTML = '▮ RESUMING <b>' + U.esc(nm) + '</b> — your agent is safe. ' + U.esc(resumeAskLine(Harness.getProv()));
       }
       if (title) title.textContent = '▮ RESUME ' + nm.toUpperCase();
       if (sub) sub.innerHTML = 'your station is intact — this only re-connects the <b>brain</b>. Identity stays as you left it.';
@@ -3430,7 +3441,31 @@ const App = (() => {
     return { doc: Save.has() ? Save.load() : null, memory: false };
   }
 
-  function reentry() {
+  /* THE RESUME DECISION, one for boot and every re-entry: a saved station goes straight back in when a key is in hand, on
+     codex (its tokens live on the station; a dead one surfaces as a run error that asks for a new sign-in), or when the
+     STATION says the saved provider is ready. An answer the station is still working out (Harness.settleReadiness: no
+     answer yet, or Claude Code's first sign-in check still running) is waited for, bounded, before RESUME is chosen:
+     11-17 a cold boot showed a signed-in Claude Code station "Enter your key to continue" because the station's first
+     `claude auth status` had not returned yet. */
+  async function savedCanResume(opts) {
+    if (Harness.getKey() || Harness.getProv() === 'codex') return true;
+    if (Harness.settleReadiness) await Harness.settleReadiness(Harness.getProv(), opts);
+    return !!(Harness.configured && Harness.configured());
+  }
+  // The boot veil says what that wait is for, in the station's own words: "checking CLAUDE CODE sign-in" only while the
+  // station's fresh answer reports its check running (credential 'unknown'; the cache's no-answer row reads 'unknown' too,
+  // but `cached`); with no answer from the station yet, "establishing local uplink".
+  function bootVeilLine(row) {
+    const line = document.querySelector('#screen-boot .boot-line'); if (!line) return;
+    const dots = line.querySelector('.boot-dots');
+    line.textContent = (row && row.cached === false && row.credential && row.credential.status === 'unknown')
+      ? 'checking ' + providerLabel(row.provider) + ' sign-in' : 'establishing local uplink';
+    if (dots) line.appendChild(dots);
+  }
+
+  let reentrySeq = 0;
+  async function reentry() {
+    const seq = ++reentrySeq;
     const resumable = resumableSave();
     // FORWARD-VERSION GATE (P0.3): a re-entry (disconnect / back / recovery) must not fall through to a fresh
     // create when the stored save is from a NEWER build — Save.load() returns null for it, which would look like
@@ -3441,7 +3476,10 @@ const App = (() => {
       migrateLegacyReasoning(saved);   // before any saved effort reaches the wire (0.12.5 reasoning migration)
       if (savedStationProv(saved) && Harness.setProv) Harness.setProv(savedStationProv(saved));
       if (saved.reasoningEffort && Harness.setReasoningEffort) Harness.setReasoningEffort(saved.reasoningEffort);
-      if (Harness.getKey() || (Harness.configured && Harness.configured()) || Harness.getProv() === 'codex') {
+      // RETRY re-asks, never re-reads (#76's rule, for every provider); an answer still being worked out holds the boot veil
+      const ready = await savedCanResume({ reask: true, onPending: row => { if (!el('screen-boot').classList.contains('active')) show('screen-boot'); bootVeilLine(row); } });
+      if (seq !== reentrySeq) return;   // a newer re-entry took over while this one waited on the station
+      if (ready) {
         resumingSaved = null; resumeInto(saved); return;
       }
       resumingSaved = saved;
@@ -6569,7 +6607,7 @@ const App = (() => {
       // and if that is slow/blocked, awaiting it here strands boot on the connect screen forever (the seeded DEV
       // shoot regression). The catalog is cosmetic for resume (dropdown/pricing/context gauge), so fire it in the
       // BACKGROUND and enter the station immediately — pricing fills in a beat later, the floor never waits.
-      const canResume = !!(Harness.getKey() || (Harness.configured && Harness.configured()) || Harness.getProv() === 'codex');
+      const canResume = await savedCanResume({ onPending: bootVeilLine });   // waits out a verdict the station is still working out (11-17)
       if (canResume) {
         if (Harness.getProv && Harness.getProv() !== 'codex' && Harness.listModels) { Promise.resolve(Harness.listModels()).catch(() => {}); }
         resumeInto(saved); return;
