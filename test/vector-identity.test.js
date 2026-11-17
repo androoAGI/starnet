@@ -1213,9 +1213,13 @@ A.ok(/\.live-voice-panel \.lv-controls \{[^}]*var\(--vx-seat\)/.test(cssPop) && 
   'PAUSE MIC and SEND NOW are caps on one chrome seat, and a paused mic is the pressed lit cap');
 A.ok(/:is\(#save-preserved-notice, #save-conflict-notice\) \{[^}]*border: 0 !important;[^}]*!important;[^}]*color: var\(--text\) !important;/.test(cssPop),
   'the save banners paint their own flat fill inline, so the look out-ranks an inline style there');
-A.ok(/#token-withheld-bar \{[^}]*border: 0 !important;[^}]*!important;/.test(cssPop) && /#token-withheld-bar > button \{[^}]*border: 0 !important;[^}]*background: var\(--vx-cap\) !important;/.test(cssPop),
-  'the withheld-key strip writes its fill, line and keys inline too, so the look out-ranks them the same way');
+A.ok(/#token-withheld-bar \{[^}]*border: 0 !important;[^}]*background:[^;}]*!important;/.test(cssPop)
+  && /#token-withheld-bar > button \{[^}]*border: 0 !important;[^}]*background: var\(--vx-cap\) !important;/.test(cssPop)
+  && /#token-withheld-bar > button:is\(:hover, :focus-visible\) \{ outline: 0; background: var\(--vx-cap-hot\) !important; \}/.test(cssPop),
+  'the withheld-key strip writes its fill, line and keys inline too, so the look out-ranks each by name: the fill, the line, each key, and the lit key on hover and keyboard focus');
 A.ok(!/#token-withheld-bar[^{]*\{[^}]*(?:^|[;\s])color:/.test(cssPop), 'its words and keys keep the module’s warning colour: the look only reads it');
+const stripRules = (cssPop.match(/[^{}]*#token-withheld-bar[^{]*\{[^}]*\}/g) || []).join('\n');
+A.eq((stripRules.match(/!important/g) || []).length, 5, 'the strip needs exactly five !important: its fill and line, each key’s fill and line, the lit key');
 A.eq((cssPop.match(/!important/g) || []).length, 10, 'nothing else in the section needs !important (the save banners 5, the withheld-key strip 5)');
 A.ok(/\.tut-coach \.tut-coach-ok \{ background: var\(--vx-cap-on\);/.test(cssPop) && /\.fnv-dialogue \.fnv-custom-send \{ background: var\(--vx-cap-on\);/.test(cssPop),
   'the two keys that were flat fills ("got it", SEND) are the lit glass cap');
