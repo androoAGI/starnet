@@ -28,9 +28,12 @@ function page(cache) {
   const ui = read('stationui'), cardStart = ui.indexOf('      const readiness = h && h.readiness ?'), cardEnd = ui.indexOf('      const health = providerHealth[p.id];', cardStart);
   if (cardStart < 0 || cardEnd < cardStart) throw new Error('Settings readiness slice missing');
   const card = new Function('h', 'p', 'isOAuthProvider', ui.slice(cardStart, cardEnd) + '\nreturn configured;');
-  const app = read('app'), wakeStart = app.indexOf('    await Harness.refreshProviderReadiness();'), wakeEnd = app.indexOf('    wakeBtnBusy(true);', wakeStart);
-  if (wakeStart < 0 || wakeEnd < wakeStart) throw new Error('WAKE readiness slice missing');
-  const wake = new Function('Harness', 'msg', 'return (async () => {\n' + app.slice(wakeStart, wakeEnd) + '\nreturn true; })();');
+  // WAKE's own readiness gate, found INSIDE onWakeAttempt: the same line elsewhere (the RESUME watch re-asks the station
+  // too) must never be taken for it. `door` is WAKE's ONE DOOR ticket; absent here, its stand-down checks are skipped.
+  const app = read('app'), wakeFn = app.indexOf('  async function onWakeAttempt('),
+    wakeStart = app.indexOf('    await Harness.refreshProviderReadiness();', wakeFn), wakeEnd = app.indexOf('    wakeBtnBusy(true);', wakeStart);
+  if (wakeFn < 0 || wakeStart < 0 || wakeEnd < wakeStart) throw new Error('WAKE readiness slice missing');
+  const wake = new Function('Harness', 'msg', 'door', 'return (async () => {\n' + app.slice(wakeStart, wakeEnd) + '\nreturn true; })();');
   harness.consumerParity = async (id, expected, label) => {
     selected = id;
     A.eq(dock(id), expected, label + ': ModelDock uses the common row');
@@ -114,7 +117,8 @@ async function acpRefusal(fx) {
   fs.mkdirSync(path.join(fx.workspace, 'codex'), { recursive: true });
   fs.writeFileSync(path.join(fx.workspace, 'codex/tokens.json'), JSON.stringify({ access_token: 'fixture-expired-token', refresh_token: 'fixture-dead-refresh',
     expires_at: 1, authDead: { reason: 'fixture sign-in expired', code: 'codex_relogin_required', at: '2026-11-03T00:00:00Z' } }));
-  const cache = makeCache(), browser = page(cache);
+  const cache = makeCache();
+  let browser = null;   // built inside the try: a slice that no longer parses fails the test at once, never hangs it on the open fixture server
   const read = async (id, expected, label) => {
     const providers = (await fx.json('GET', '/api/providers')).body.providers;
     const row = providers.find(p => p.id === id);
@@ -131,6 +135,7 @@ async function acpRefusal(fx) {
   const put = (key, url = baseUrl, provider = 'openrouter', keyPool = []) => fx.json('POST', '/api/providers/engine-key', { provider, key, baseUrl: url, keyPool });
   const probe = provider => fx.json('POST', '/api/providers/probe', { provider });
   try {
+    browser = page(cache);
     await fx.start();
     A.eq((await read('openrouter', false, 'missing')).credential.status, 'missing', 'missing credential stated');
     await put('fixture-good-key');
