@@ -747,4 +747,57 @@ const wrongServerCase = (async () => {
   }
 }
 
+/* THE HELD-END SENTENCE IS FOR THE HELD END ONLY (ops-1115 lane T3s, attack A4-F5). The loop's own message "Work is
+   incomplete: <tool names> was/were held by the Task Brief gate and never ran." gets its plain sentence from the sidecar
+   copy, the browser copy and the website mirror, in the same words. Red on 8ca33b1a6: an error that only QUOTED the phrase
+   (a provider 400 echoing the transcript) lost its own explanation to that sentence, and free text in the name slot was
+   copied into it ("your payment and the refund of $500 never ran, so that call changed nothing"). Both halves are driven:
+   the node delegate and the browser ladder real users run, from the page tree and from the mirror. The kinds and headlines
+   pinned for the quoting messages are the ones 180b4060a (before the lanes) gave them. */
+{
+  const vm = require('vm');
+  const fs4 = require('fs');
+  const path4 = require('path');
+  const StopReason = require('../sidecar/stop-reason.js');
+  const inBrowser = (rel) => {
+    const sandbox = { console };
+    sandbox.globalThis = sandbox;
+    vm.createContext(sandbox);
+    vm.runInContext(fs4.readFileSync(path4.join(__dirname, '..', rel), 'utf8') + '\nthis.__F = Friendly;', sandbox, { filename: rel });
+    return sandbox.__F;
+  };
+  const COPIES = [
+    ['NODE page', require('../frontend/app/friendlyerror.js')], ['NODE mirror', require('../website/app/app/friendlyerror.js')],
+    ['BROWSER page', inBrowser('frontend/app/friendlyerror.js')], ['BROWSER mirror', inBrowser('website/app/app/friendlyerror.js')]
+  ];
+  const ONE = 'Work is incomplete: fs_write was held by the Task Brief gate and never ran.';
+  const TWO = 'Work is incomplete: fs_write, shell_exec were held by the Task Brief gate and never ran.';
+  const ONE_SAYS = 'The agent stopped before finishing: fs_write never ran, so that call changed nothing. It was held until the task brief was settled, and the agent ended without making it again. Say "continue" to have the agent make it now, or say what to do instead.';
+  const TWO_SAYS = 'The agent stopped before finishing: fs_write, shell_exec never ran, so those calls changed nothing. They were held until the task brief was settled, and the agent ended without making them again. Say "continue" to have the agent make them now, or say what to do instead.';
+  A.eq([StopReason.explainStop(ONE), StopReason.explainStop(TWO)], [{ kind: 'incomplete_work', text: ONE_SAYS }, { kind: 'incomplete_work', text: TWO_SAYS }], 'SIDECAR: the exact held end gets its sentence');
+  const PROVIDER_400 = 'OpenRouter 400: {"error":{"message":"Invalid request: messages[14].content: \\"' + ONE + '\\" exceeds the context window of 8000 tokens"}}';
+  const RATE_LIMIT = 'Rate limited (429). Work is incomplete: your payment and the refund of $500 was held by the Task Brief gate and never ran';
+  const FREE_TEXT = 'Work is incomplete: your payment and the refund of $500 was held by the Task Brief gate and never ran.';
+  for (const m of [PROVIDER_400, RATE_LIMIT, FREE_TEXT]) A.eq(StopReason.explainStop(m), null, 'SIDECAR: not the held end, so no sentence from this table (the raw text goes out, as before the lanes): ' + m.slice(0, 50));
+  for (const [half, F] of COPIES) {
+    for (const [msg, says] of [[ONE, ONE_SAYS], [TWO, TWO_SAYS]]) {
+      const v = F.friendlyError(msg, null, {}), c = F.friendlyError(msg, null, { engineAlive: true, code: 'incomplete_work' });
+      A.eq([v.kind, v.userMessage, v.raw], ['incomplete_work', says, msg], half + ': the exact held end leads with its own sentence and keeps the raw line');
+      A.eq(c.userMessage, says, half + ': the same on the coded path');
+    }
+    const p = F.friendlyError(PROVIDER_400, null, {});
+    A.eq([p.kind, p.userMessage], ['context_overflow', 'This conversation got too long for the model — start a fresh chat or shorten it.'],
+      half + ': a provider 400 that echoes the phrase keeps its own explanation');
+    const r = F.friendlyError(RATE_LIMIT, null, {});
+    A.eq([r.kind, r.userMessage], ['rate_limit', 'The model provider is busy (too many requests) — wait a few seconds and try again.'],
+      half + ': a rate-limit text that carries the phrase keeps its own explanation');
+    const f = F.friendlyError(FREE_TEXT, null, {});
+    A.eq([f.kind, f.userMessage], ['unknown', 'Something went wrong on that turn — try again.'], half + ': free text in the name slot does not match');
+    A.eq(F.explainStop(FREE_TEXT), null, half + ': ...in the table itself');
+    for (const m of [PROVIDER_400, RATE_LIMIT, FREE_TEXT]) {
+      A.ok(!/payment|never ran, so/.test(F.friendlyError(m, null, { code: 'incomplete_work' }).userMessage), half + ': nothing from a quoting message is copied into a host sentence on the coded path');
+    }
+  }
+}
+
 wrongServerCase.then(() => A.report('friendlyerror.test'), e => { A.ok(false, 'the wrong-server case threw: ' + (e && e.stack)); A.report('friendlyerror.test'); });

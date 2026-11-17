@@ -15,6 +15,8 @@ const REST_SKIP = /^\s*use your judgment for the rest\s*[.!]?\s*$/i;
    them, so the next step is the call itself, not a summary of work that never ran. Bounded: 6 calls, 300 chars of args each;
    the args are the model's own, sent back to it. Cleared by the settle, so a later settle never repeats them. */
 const HELD_MAX = 6, HELD_ARGS_MAX = 300;
+// how many of the brief's questions the Commander has answered so far: what a hold is stamped with, and what the settle compares
+const answeredOf = (state) => (state && state.brief && Array.isArray(state.brief.questions) ? state.brief.questions : []).filter(q => q && q.answer).length;
 function noteHeldCall(state, call) {
   if (!state || !call || !call.name) return;
   let text;
@@ -22,20 +24,45 @@ function noteHeldCall(state, call) {
   const row = String(call.name).replace(/\./g, '_') + ' ' + (text.length > HELD_ARGS_MAX ? text.slice(0, HELD_ARGS_MAX) + '…' : text);
   const list = Array.isArray(state.held) ? state.held : (state.held = []);
   if (list.indexOf(row) < 0 && list.length < HELD_MAX) list.push(row);
+  // the answers given when this call was LAST held (heldAgainNote reads it). Run-local like the list: never saved.
+  if (list.indexOf(row) >= 0) (state.heldAnswered instanceof Map ? state.heldAnswered : (state.heldAnswered = new Map())).set(row, answeredOf(state));
 }
 // the wire tool name of each held row (its first token), once each: what survives a question on the brief (ops-1115 T3).
 // The same key the loop's held ledger uses (loop.js wireKey: dots read as underscores).
 const heldKey = (n) => String(n == null ? '' : n).replace(/\./g, '_');
 const heldNamesOf = (state) => Array.from(new Set((state && Array.isArray(state.held) ? state.held : []).map(h => heldKey(String(h).split(' ')[0])).filter(Boolean)));
-// `kept`: the names an earlier run's question kept on the brief (store.noteHeld), named back without args unless this run
-// already holds the same tool with its args.
-function heldAgainNote(state, kept) {
+/* THE SETTLE'S NOTE STATES WHAT THE HOST KNOWS (ops-1115 T3s, attack A4-F1). The one place this text is written.
+   The host knows which calls the brief held and that they did not run. It does not know whether the task still wants a call
+   once the Commander has answered a question since the hold: "Should I replace the note file?" / "No, keep it" used to be
+   followed by "the call the brief held must be made again now". So the note has two voices:
+     - NO answer came between the hold and the settle (the #187 case: held, settle, "done"): the order, in the words that
+       fixed #187. Nothing can have changed the task, and a model that stops here would report work that never ran.
+     - an answer came between: the fact (held, did not run) and the condition. The call is owed once only if the task as it
+       now stands, with that answer, still calls for it.
+   How "an answer came between" is known, without a clock:
+     - in this run: each hold is stamped with the number of answered questions on the brief (noteHeldCall, kept on the
+       LAST hold of that call); `answered` is that number when the brief was settled. Fewer at the hold = the live card was
+       answered after it. A call the model made again after the answer is stamped after it, so it keeps the order.
+     - from an earlier run: `kept`, the names that run's question kept on the brief (store.noteHeld). They are on a brief
+       being settled only because that question was answered since (a brief with an open question does not settle), so
+       they were all held before an answer. Named without args, and only when this run does not hold the same tool itself. */
+function heldAgainNote(state, kept, answered) {
+  const stamp = state && state.heldAnswered instanceof Map ? state.heldAnswered : new Map();
   const inRun = heldNamesOf(state);
-  const held = state && Array.isArray(state.held) ? state.held.splice(0) : [];
-  for (const k of Array.isArray(kept) ? kept : []) { const n = heldKey(k); if (n && inRun.indexOf(n) < 0 && held.indexOf(n) < 0) held.push(n); }
-  if (!held.length) return '';
-  return '\nNothing has run yet: the call' + (held.length > 1 ? 's' : '') + ' the brief held must be made again now, in this same turn, before you report any result:\n'
-    + held.map(h => '- ' + h).join('\n');
+  const rows = state && Array.isArray(state.held) ? state.held.splice(0) : [];
+  if (state) delete state.heldAnswered;
+  const before = rows.filter(r => stamp.has(r) && stamp.get(r) < (Number(answered) || 0));   // an unstamped row reads as no answer since: the order
+  const fresh = rows.filter(r => before.indexOf(r) < 0);
+  const earlier = [];
+  for (const k of Array.isArray(kept) ? kept : []) { const n = heldKey(k); if (n && inRun.indexOf(n) < 0 && earlier.indexOf(n) < 0) earlier.push(n); }
+  const list = (a) => a.map(h => '- ' + h).join('\n');
+  const fact = (a, when) => '\n' + (a.length > 1 ? 'These calls were' : 'This call was') + ' held by the brief before ' + when + ', and did not run:\n' + list(a);
+  let out = '';
+  if (fresh.length) out += '\nNothing has run yet: the call' + (fresh.length > 1 ? 's' : '') + ' the brief held must be made again now, in this same turn, before you report any result:\n' + list(fresh);
+  if (before.length) out += fact(before, 'the Commander answered your question');
+  if (earlier.length) out += fact(earlier, 'your question to the Commander');
+  if (before.length + earlier.length) out += '\n' + (before.length + earlier.length > 1 ? 'Each is' : 'It is') + ' still owed, once, only if the task as it now stands, including what the Commander has answered since, still calls for it: then make it now, in this same turn, before you report any result. Otherwise it is not owed and stays not run.';
+  return out;
 }
 
 function registerTaskBriefTools(registry, store, state, deps) {
@@ -207,10 +234,11 @@ function registerTaskBriefTools(registry, store, state, deps) {
     run: async args => {
       const checked = Policy.validateProceed(args); if (!checked.ok) throw new Error(checked.error);
       const kept = state.brief && Array.isArray(state.brief.heldCalls) ? state.brief.heldCalls.slice() : [];   // proceed() clears them
+      const answered = answeredOf(state);   // the answers given as the brief is settled (read before proceed() replaces the brief)
       const saved = await store.proceed(state.brief.id, checked.brief, now());
       if (!saved) throw new Error('Task Brief cannot proceed from its current state. After a conversational answer call brief.update to incorporate it first.');
       state.brief = saved;
-      return { content: 'Task Brief settled. Consequential tools are unlocked.' + heldAgainNote(state, kept), summary: 'task brief settled' };
+      return { content: 'Task Brief settled. Consequential tools are unlocked.' + heldAgainNote(state, kept, answered), summary: 'task brief settled' };
     }
   });
   return ['brief.ask', 'brief.proceed', 'brief.update'];
