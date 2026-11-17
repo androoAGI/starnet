@@ -45,7 +45,11 @@ for (const [src, name, header] of [
   [app, 'wakeBtnBusy', '  function wakeBtnBusy(busy)'],
   [app, 'onWake', '  async function onWake()'],
   [app, 'onWakeAttempt', '  async function onWakeAttempt(door)'],
-  [app, 'refreshClaudeCliStatus', '  async function refreshClaudeCliStatus()']
+  [app, 'refreshClaudeCliStatus', '  async function refreshClaudeCliStatus()'],
+  [app, 'resumeReask', '  function resumeReask()'],
+  // RESTORE BACKUP's two handlers (statements inside init(): the button, and the file it picks)
+  [app, 'restoreClick', "    el('btn-import').onclick = () => {"],
+  [app, 'restorePick', '    fileImport.onchange = async () => {']
 ]) {
   const b = A.fnBody(src, header);
   A.ok(b.length > 40 && b.length < 40000, name + ' is sliced from its shipped source');
@@ -158,6 +162,13 @@ function page(script, opts) {
     let heard = 0;
     const r = await within(p.c, p.H.settleReadiness('claude-cli', { stop: () => heard >= 2, onPending: () => { heard++; } }), 30000);
     A.ok(r.done && r.at === 2000 && p.calls.refresh === 1, 'stop() ends the wait at once: a superseded caller stops asking (' + r.at + ' ms, ' + p.calls.refresh + ' asks)');
+  }
+  {
+    // stop() turning true WHILE a question is out ends the wait as that answer lands: no further veil line, no further ask
+    const p = page([], { boot: cliRow('checking'), station: () => cliRow('checking') });
+    let heard = 0;
+    const r = await within(p.c, p.H.settleReadiness('claude-cli', { stop: () => p.calls.refresh >= 1, onPending: () => { heard++; } }), 30000);
+    A.ok(r.done && heard === 1 && p.calls.refresh === 1, 'a caller superseded mid-question hears nothing more and asks nothing more (' + heard + ' veil lines, ' + p.calls.refresh + ' asks)');
   }
   {
     const p = page([cliRow('ready')], { boot: cliRow('ready') });
@@ -291,7 +302,7 @@ function page(script, opts) {
       const paints = [];
       const fn = new Function('claudeCliCall', 'paintClaudeCli', 'claudeCliWho', 'setTimeout',
         'let claudeCliSeq = 0, claudeCliState = null, claudeCliFlow = null, claudeCliTimer = null, pickedProvider = "claude-cli";\n' +
-        'function stopClaudeCliTimer() {}\nfunction pollClaudeCli() {}\n' + S.refreshClaudeCliStatus + '\nreturn refreshClaudeCliStatus;')(
+        'function stopClaudeCliTimer() {}\nfunction pollClaudeCli() {}\nfunction resumeReask() {}\n' + S.refreshClaudeCliStatus + '\nreturn refreshClaudeCliStatus;')(
         async () => j, (mode, text) => paints.push(mode + ': ' + text), () => '', () => 0);
       return fn().then(() => paints[paints.length - 1]);
     };
@@ -314,7 +325,11 @@ function page(script, opts) {
     const c = clock();
     const log = [];
     const L = s => log.push('[' + c.elapsed() + '] ' + s);
-    const st = { cli: o.cli || 'checking', latency: o.latency == null ? 5 : o.latency, asked: 0 };
+    const delay = ms => new Promise(r => c.setTimeout(r, ms || 0));
+    // the station: Claude Code in one of cliRow's states, codex signed in, and the managed / key / endpoint providers ready or not
+    const st = { cli: o.cli || 'checking', latency: o.latency == null ? 5 : o.latency, asked: 0,
+      ready: Object.assign({ starnet: false, openrouter: false, custom: false }, o.ready || {}) };
+    const rows = cli => [cliRow(cli), codexRow()].concat(Object.keys(st.ready).map(id => keyRow(id, st.ready[id] === true)));
     function fetch(url, init) {
       return new Promise((resolve, reject) => {
         if (init && init.signal) init.signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
@@ -322,13 +337,14 @@ function page(script, opts) {
         st.asked++;
         c.setTimeout(() => {
           if (st.cli === 'offline') return reject(new TypeError('Failed to fetch'));
-          resolve({ ok: true, json: async () => ({ providers: [cliRow(st.cli), codexRow()] }) });
+          resolve({ ok: true, json: async () => ({ providers: rows(st.cli) }) });
         }, st.latency);
       });
     }
     const readinessCache = makeCache();
-    if (o.boot) readinessCache.accept([cliRow(o.boot), codexRow()], readinessCache.ticket());
-    let prov = 'claude-cli';
+    if (o.boot) readinessCache.accept(rows(o.boot), readinessCache.ticket());
+    // THE LIVE WIRE: what the next COMMS run goes out on (Harness.chat reads getModel()/getProv() at send time)
+    let prov = o.prov || 'claude-cli', model = 'claude-sonnet-5-5';
     const normalizeProviderId = p => String(p || 'openrouter');
     const getProv = () => prov;
     const H = new Function('readinessCache', 'fetch', 'AbortController', 'setTimeout', 'clearTimeout', 'Date', 'normalizeProviderId', 'getProv',
@@ -340,20 +356,32 @@ function page(script, opts) {
     const Harness = {
       getKey: () => '', getProv, setProv: p => { prov = normalizeProviderId(p); }, configured: p => H.readiness(p).unattendedReady === true,
       readiness: H.readiness, refreshProviderReadiness: H.refreshProviderReadiness, settleReadiness: H.settleReadiness, readinessPending: H.readinessPending,
-      setModel() {}, getModel: () => 'claude-sonnet-5-5', setReasoningEffort() {}, getReasoningEffort: () => 'medium',
-      memoryReset: id => L('memoryReset(' + id + ')'), listModels: async () => [], resetTotals() {}
+      setModel: m => { model = m; }, getModel: () => model, setReasoningEffort() {}, getReasoningEffort: () => 'medium',
+      memoryReset: id => L('memoryReset(' + id + ')'), listModels: async () => [], resetTotals() {},
+      hasStoredCredential: p => H.readiness(p).credential.present === true,
+      setBaseUrl: async p => { L('WAKE: endpoint saved'); await delay(o.endpointMs); st.ready.custom = true; return { engine: true }; },
+      validateAndSetKey: async (k, p) => {
+        L('WAKE: key saved for ' + p); await delay(o.keyMs);
+        if (o.keyRejects) throw new Error('the key was refused');
+        st.ready[p] = true; return { engine: true };
+      },
+      // RETRY on a StarNet station re-reads the link first (#76)
+      refreshCreditsConfigured: async () => { L('RETRY: re-reading the StarNet link'); await delay(o.linkMs); await H.refreshProviderReadiness(); return H.readiness('starnet').unattendedReady === true; }
     };
     const els = {};
     function mk(id) {
       const cls = new Set(id === 'screen-boot' ? ['screen', 'active'] : /^screen-/.test(id) ? ['screen'] : []);
-      return { id, value: '', textContent: '', innerHTML: '', className: '', disabled: false, readOnly: false, tabIndex: 0, dataset: {}, attrs: {},
+      const listeners = [];
+      return { id, value: '', textContent: '', innerHTML: '', className: '', disabled: false, readOnly: false, tabIndex: 0, dataset: {}, attrs: {}, open: false, listeners,
         classList: { contains: k => cls.has(k), add: k => cls.add(k), remove: k => cls.delete(k), toggle: (k, on) => { if (on === undefined ? !cls.has(k) : on) cls.add(k); else cls.delete(k); } },
-        setAttribute(k, v) { this.attrs[k] = v; }, removeAttribute(k) { delete this.attrs[k]; }, querySelector: () => null, appendChild() {}, focus() {} };
+        setAttribute(k, v) { this.attrs[k] = v; }, removeAttribute(k) { delete this.attrs[k]; }, querySelector: () => null, appendChild() {}, focus() {},
+        addEventListener(type, fn, capture) { listeners.push({ type, fn, capture: !!capture }); } };
     }
     const el = id => (els[id] = els[id] || mk(id));
     const screens = ['screen-boot', 'screen-connect', 'screen-game', 'screen-future'];
     screens.forEach(el);
-    const counts = { resumeInto: 0, newOverseer: 0, veilOverStation: 0 };
+    const counts = { resumeInto: 0, newOverseer: 0, veilOverStation: 0, wire: 0, imports: 0 };
+    const entries = [];
     let entered = false;
     const show = id => {
       screens.forEach(s => el(s).classList.remove('active')); el(id).classList.add('active'); L('show(' + id + ')');
@@ -361,51 +389,94 @@ function page(script, opts) {
     };
     const veilLine = mk('boot-line');
     const document = { querySelector: q => (q === '#screen-boot .boot-line' ? veilLine : null) };
-    const savedDoc = () => ({ agent: { id: 'agent', name: 'ULTRON', model: 'claude-sonnet-5-5', provider: 'claude-cli', onboarded: true }, prov: 'claude-cli' });
-    const codexDoc = () => ({ agent: { id: 'agent', name: 'CYPHER', model: 'gpt-5.5', provider: 'codex', onboarded: true }, prov: 'codex' });
-    let doc = savedDoc;
+    const saveOf = (name, provider, mdl) => ({ agent: { id: 'agent', name, model: mdl || 'claude-sonnet-5-5', provider: provider || 'claude-cli', onboarded: true }, prov: provider || 'claude-cli' });
+    const savedDoc = () => saveOf('ULTRON');
+    const codexDoc = () => saveOf('CYPHER', 'codex', 'gpt-5.5');
+    let doc = o.doc || savedDoc;
     let statusGate = null;
+    const status = { text: '' };
+    // a backup file the Commander picks: RESTORE writes its save at once (applyBundle), then confirms autonomy and memories
+    const backup = (name, provider, mdl) => ({ name: name.toLowerCase() + '.json', doc: () => saveOf(name, provider, mdl) });
+    const fileImport = { files: [], value: '', click() { L('RESTORE: file chooser opened'); } };
     const stubs = {
-      Harness, el, document, show, setTimeout: c.setTimeout, Date: c.Date, normalizeProviderId,
+      Harness, el, document, show, setTimeout: c.setTimeout, Date: c.Date, normalizeProviderId, fileImport,
       Save: { has: () => true, load: () => doc(), isFuture: () => false, loadStatus: () => ({ version: 0 }) },
-      CloudSave: undefined, Dialogue: undefined, U: { esc: s => String(s) }, SFX: { click() {}, boot() {}, open() {} },
+      CloudSave: undefined, Dialogue: undefined, StationUI: undefined, U: { esc: s => String(s) }, SFX: { click() {}, boot() {}, open() {}, bad() {} },
       stopCodexPoll() {}, stopStarnetLinkPoll() {}, stopStarnetBalancePoll() {}, migrateLegacyReasoning() {},
       savedStationProv: d => (d && d.agent && d.agent.provider) || (d && d.prov) || '',
       showFutureSaveGate: () => L('showFutureSaveGate'), startCreation: () => L('startCreation'),
-      providerNeedsBaseUrl: () => false, isOAuthProviderId: () => false, providerSignupUrl: () => '', esc: s => s, codexConnected: false,
-      refreshStarnetGenesisStatus: async () => null, defaultModelFor: () => '', updateHint() {}, refusedPageLine: () => '', warnStation() {},
+      providerNeedsBaseUrl: p => p === 'custom', isOAuthProviderId: () => false, providerSignupUrl: () => 'https://example.invalid', esc: s => s, codexConnected: false,
+      defaultModelFor: () => '', updateHint() {}, refusedPageLine: () => '',
+      // WAKE's StarNet credit read (GET /api/credits)
+      refreshStarnetGenesisStatus: async () => {
+        if (!o.credits) return null;
+        L('WAKE: reading StarNet credits'); await delay(o.credits.ms);
+        return { answered: true, linked: o.credits.linked !== false, balanceUsd: o.credits.balanceUsd == null ? 5 : o.credits.balanceUsd };
+      },
       // WAKE's own GET /api/auth/claude-cli/status: a fresh `claude auth status` on the station, whose answer feeds the station
       refreshClaudeCliStatus: async () => {
         L('WAKE: claude auth status');
         if (o.statusGate) await new Promise(r => { statusGate = r; });
-        st.cli = 'ready';
-        return { installed: true, loggedIn: true };
+        st.cli = o.statusSays || 'ready';
+        return { installed: true, loggedIn: st.cli === 'ready' };
       },
       saveWakeDraft() {}, clearWakeDraft() {},
-      preflightWire: () => new Promise(r => c.setTimeout(() => { L('WAKE: the wire answered'); r({ ok: true }); }, o.preflightMs || 4000)),
-      resumeInto: d => { counts.resumeInto++; entered = true; L('resumeInto(' + d.agent.name + ')'); show('screen-game'); },
+      preflightWire: () => { counts.wire++; L('WAKE: one real call to ' + model); return new Promise(r => c.setTimeout(() => { L('WAKE: the wire answered'); r({ ok: true }); }, o.preflightMs || 4000)); },
+      // resumeInto writes the saved agent's wire (its provider, then its model), as the real one does
+      resumeInto: d => {
+        counts.resumeInto++; entered = true;
+        Harness.setProv(stubs.savedStationProv(d)); Harness.setModel(d.agent.model);
+        entries.push({ name: d.agent.name, prov, model }); L('resumeInto(' + d.agent.name + ' on ' + prov + ' / ' + model + ')'); show('screen-game');
+      },
       enterGame: () => { entered = true; L('enterGame: a NEW Overseer'); show('screen-game'); },
       persist: () => L('persist'),
       PermissionsStore: { reset: async () => { counts.newOverseer++; L('NEW-OVERSEER PATH: PermissionsStore.reset'); } },
-      AutonomyStore: { reset: async () => ({ ok: true }) }, JourneyStore: { reset: async () => ({ ok: true }) }
+      AutonomyStore: { reset: async () => (o.autonomyFails ? { ok: false, error: 'the autonomy reset was not confirmed' } : { ok: true }) }, JourneyStore: { reset: async () => ({ ok: true }) },
+      Backup: {
+        importFile: async f => {
+          counts.imports++; L('RESTORE: writing ' + f.name);
+          if (!o.importFails && !o.importThrows) doc = f.doc;
+          await delay(o.importMs);
+          if (o.importThrows) throw new Error('the backup could not be parsed');
+          return o.importFails ? { ok: false, error: 'file is not valid JSON' } : { ok: true, agentName: f.doc().agent.name, records: 3 };
+        }
+      },
+      dataStatus: s => { status.text = s; L('data-status: ' + s); }
     };
     const names = Object.keys(stubs);
     const App = new Function(...names,
       '"use strict";\n' +
-      'let resumingSaved = null, waking = false, agent = null, prefilledKey = "", keyOverwriteConfirmed = false, pickedProvider = "claude-cli";\n' +
-      'let doorSeq = 0, resumeWatch = 0;\n' +
-      // the real initConnect's order: prefilledKey, applyRecoveryMode, the WAKE latch re-armed, then selectProviderUI picks the saved provider
-      'function initConnect(n, r, a) { el("in-key").value = ""; prefilledKey = el("in-key").value || ""; el("in-model").value = (a && a.model) || ""; el("in-name").value = n || ""; applyRecoveryMode(!!r && !!a, a); waking = false; el("btn-wake").disabled = false; pickedProvider = Harness.getProv(); }\n' +
-      [S.providerNeedsKey, S.providerLabel, S.resumeUnsettled, S.resumeAskLine, S.paintResumeBanner, S.watchResume, S.applyRecoveryMode,
+      'let resumingSaved = null, waking = false, agent = null, prefilledKey = "", keyOverwriteConfirmed = false, pickedProvider = "claude-cli", gateActive = false;\n' +
+      'let doorSeq = 0, restoring = false, resumeWatch = 0, resumeTouchWired = false;\n' +
+      // the real initConnect's order: prefilledKey, applyRecoveryMode, the WAKE latch and label re-armed, then selectProviderUI picks the saved provider
+      'function initConnect(n, r, a) { el("in-key").value = ""; prefilledKey = el("in-key").value || ""; el("in-model").value = (a && a.model) || ""; el("in-name").value = n || ""; applyRecoveryMode(!!r && !!a, a); waking = false; { const wb = el("btn-wake"); wb.disabled = false; delete wb.dataset.idleLabel; } pickedProvider = Harness.getProv(); }\n' +
+      [S.providerNeedsKey, S.providerLabel, S.resumeUnsettled, S.resumeAskLine, S.paintResumeBanner, S.resumeReask, S.watchResume, S.applyRecoveryMode,
         S.resumableSave, S.savedCanResume, S.bootVeilLine, S.reentry, S.onConnectBack, S.wakeBtnBusy, S.onWake, S.onWakeAttempt].join('\n') + '\n' +
-      'return { reentry, onConnectBack, onWake, renderResume: d => { resumingSaved = d; show("screen-connect"); initConnect(d.agent.name, true, d.agent); }, pick: p => { pickedProvider = p; } };'
+      S.restoreClick + ';\n' + S.restorePick + ';\n' +
+      'return { reentry, onConnectBack, onWake, renderResume: d => { resumingSaved = d; show("screen-connect"); initConnect(d.agent.name, true, d.agent); },\n' +
+      '  pick: p => { pickedProvider = p; }, restoreClick: () => el("btn-import").onclick(), restorePick: f => { fileImport.files = [f]; return fileImport.onchange(); },\n' +
+      '  renderCreate: () => { resumingSaved = null; show("screen-connect"); initConnect("", false, null); },\n' +
+      '  resumeReask, state: () => ({ waking, restoring }) };'
     )(...names.map(k => stubs[k]));
-    return { App, c, st, log, counts, cache: readinessCache, el, savedDoc, useCodexBackup: () => { doc = codexDoc; }, release: () => statusGate && statusGate(),
+    // the Commander's own input on RESUME: a trusted event the screen hears (a script's synthetic one is untrusted)
+    const touch = (type, trusted) => el('screen-connect').listeners.filter(l => l.type === type && l.capture).forEach(l => l.fn({ type, isTrusted: trusted !== false }));
+    const errors = [];
+    return { App, c, st, log, counts, entries, status, cache: readinessCache, el, touch, savedDoc, backup, errors, saved: () => doc(),
+      useCodexBackup: () => { doc = codexDoc; }, useBackup: (n, p, m) => { doc = () => saveOf(n, p, m); }, release: () => statusGate && statusGate(),
+      restore: f => { App.restorePick(f).catch(e => errors.push(e)); },
+      wire: () => ({ prov, model }), wake: () => el('btn-wake'), msg: () => el('connect-msg').textContent,
       screen: () => screens.filter(s => el(s).classList.contains('active')).join(','), banner: () => el('cc-recovery').innerHTML };
   }
-  const story = w => JSON.stringify(w.counts) + ' final ' + w.screen() + (w.c.errors.length ? ' ERRORS ' + w.c.errors.map(e => e.message).join('; ') : '') + '\n    ' + w.log.join('\n    ');
-  const once = (w, what) => A.ok(w.counts.resumeInto === 1 && w.counts.newOverseer === 0 && w.counts.veilOverStation === 0 && w.screen() === 'screen-game' && !w.c.errors.length,
-    what + ': the station opens exactly once, never under a new Overseer, never under a veil — ' + story(w));
+  const story = w => JSON.stringify(w.counts) + ' entered ' + JSON.stringify(w.entries) + ' wire ' + JSON.stringify(w.wire()) + ' final ' + w.screen()
+    + ((w.c.errors.length || w.errors.length) ? ' ERRORS ' + w.c.errors.concat(w.errors).map(e => e.message).join('; ') : '') + '\n    ' + w.log.join('\n    ');
+  // exactly one entry, of the expected save, never under a new Overseer or a veil, and the live wire is still the one that entry
+  // set (nothing an overtaken attempt did afterwards rewrote the model or provider the next COMMS run goes out on)
+  const once = (w, what, name) => {
+    const e = w.entries[0] || {}, wire = w.wire();
+    A.ok(w.counts.resumeInto === 1 && e.name === (name || 'ULTRON') && wire.prov === e.prov && wire.model === e.model
+      && w.counts.newOverseer === 0 && w.counts.veilOverStation === 0 && w.screen() === 'screen-game' && !w.c.errors.length && !w.errors.length,
+      what + ': the station opens exactly once (' + (name || 'ULTRON') + '), never under a new Overseer, never under a veil, on the wire it entered with — ' + story(w));
+  };
   {
     // the review's case: WAKE (RESUME STATION) first, nothing visible while the station runs `claude auth status`, then RETRY
     for (const pre of ['checking', 'unavailable']) {
@@ -463,11 +534,12 @@ function page(script, opts) {
     w.App.renderResume(w.savedDoc());
     w.App.onConnectBack(); await w.c.advance(1200);
     A.ok(w.screen() === 'screen-boot', '(RETRY is waiting on the station behind the veil)');
-    w.useCodexBackup(); w.App.reentry(); await w.c.advance(1800);
+    w.useCodexBackup(); w.App.reentry(); await w.c.advance(0);
+    A.ok(w.counts.resumeInto === 1, '(the codex backup entered at once) ' + story(w));
     const askedAtEntry = w.st.asked;
-    w.st.cli = 'missing'; await w.c.advance(30000);
-    once(w, 'RETRY waiting, then a restored backup enters');
-    A.ok(w.st.asked - askedAtEntry <= 1, 'the superseded wait stops asking the station (' + (w.st.asked - askedAtEntry) + ' asks after the entry)');
+    await w.c.advance(30000);   // the station still checking the whole time: only a wait that stopped asks nothing more
+    once(w, 'RETRY waiting, then a restored backup enters', 'CYPHER');
+    A.eq(w.st.asked - askedAtEntry, 0, 'the superseded wait stops asking the station the moment the backup entered');
   }
   {
     // RETRY re-asks, never re-reads (#76's rule): RESUME said "signed out", the Commander signed in elsewhere, then RETRY
@@ -490,6 +562,220 @@ function page(script, opts) {
     A.ok(w.counts.resumeInto === 1, '(WAKE entered before RETRY asked again) ' + story(w));
     await w.c.advance(30000);
     once(w, 'RETRY waiting behind the veil, WAKE enters first');
+  }
+  {
+    // #10: two re-entries both waiting on the station, each holding a DIFFERENT save (RETRY on ULTRON, then a re-entry for a
+    // restored NOVA). The station turns ready: only the newer one enters, with the newer save.
+    const w = world({ boot: 'checking', cli: 'checking' });
+    w.App.renderResume(w.savedDoc());
+    w.App.onConnectBack(); await w.c.advance(1200);
+    w.useBackup('NOVA'); w.App.reentry(); await w.c.advance(1300);
+    w.st.cli = 'ready'; await w.c.advance(30000);
+    once(w, 'RETRY on ULTRON, then a re-entry for a restored NOVA, both waiting', 'NOVA');
+  }
+  for (const order of ['WAKE, then RETRY', 'RETRY, then WAKE']) {
+    // #11: a StarNet station. RETRY re-reads the account link first (#76; ~3s here) while WAKE reads credits and tests the wire (~1s)
+    const sol = () => ({ agent: { id: 'agent', name: 'SOL', model: 'starnet/claude-sonnet', provider: 'starnet', onboarded: true }, prov: 'starnet' });
+    const w = world({ prov: 'starnet', boot: 'checking', cli: 'checking', ready: { starnet: true }, doc: sol, credits: { ms: 10 }, preflightMs: 1000, linkMs: 3000 });
+    w.App.renderResume(w.saved());
+    if (order === 'WAKE, then RETRY') { w.App.onWake(); await w.c.advance(500); w.App.onConnectBack(); }
+    else { w.App.onConnectBack(); await w.c.advance(500); w.App.onWake(); }
+    await w.c.advance(30000);
+    once(w, 'a StarNet RESUME: ' + order + ' while the link is re-read', 'SOL');
+  }
+  {
+    // #12: WAKE's sign-in check is quick, its readiness question to the station slow (1s); RETRY is pressed while that is out.
+    // RETRY enters; the overtaken WAKE makes no wire call (one real model call) for a screen it no longer owns.
+    const w = world({ boot: 'checking', cli: 'checking', latency: 1000 });
+    w.App.renderResume(w.savedDoc());
+    w.App.onWake(); await w.c.advance(100);
+    w.App.onConnectBack(); await w.c.advance(30000);
+    once(w, 'RETRY while WAKE waits on its readiness question');
+    A.eq(w.counts.wire, 0, 'the overtaken WAKE made no wire call');
+  }
+  {
+    // X5: WAKE (another model picked) waits on its sign-in check; RETRY re-asks, the station's answer is settled (it could not
+    // tell), RESUME is re-rendered. The overtaken WAKE then stands down: no wire call, no WAKING… on the new screen's button,
+    // nothing painted, no model written. (The re-rendered RESUME later resumes by itself once the station confirms.)
+    const w = world({ boot: 'unavailable', cli: 'unavailable', statusGate: true });
+    w.App.renderResume(w.savedDoc());
+    w.el('in-model').value = 'claude-opus-5-5';
+    w.App.onWake(); await w.c.advance(100);
+    w.App.onConnectBack(); await w.c.advance(200);
+    A.ok(w.screen() === 'screen-connect' && w.counts.resumeInto === 0, '(RETRY re-rendered RESUME on the settled answer) ' + story(w));
+    w.release(); await w.c.advance(100);
+    A.ok(w.counts.wire === 0 && !w.wake().disabled && !/WAKING/.test(w.wake().textContent) && !/testing the wire/.test(w.msg()) && w.wire().model === 'claude-sonnet-5-5',
+      'an overtaken WAKE stands down as its sign-in answer lands: no wire call, the new RESUME untouched, the live model unchanged — ' + story(w));
+    await w.c.advance(30000);
+    once(w, 'X5, then the re-rendered RESUME resumes by itself');
+  }
+  {
+    // #16: claude-opus-5-5 picked, RESUME STATION pressed; RETRY resumes the station (on its saved model) while WAKE's sign-in
+    // check is out. WAKE's late answer must not switch the live model under the running station.
+    const w = world({ boot: 'unavailable', cli: 'ready', statusGate: true });
+    w.App.renderResume(w.savedDoc());
+    w.el('in-model').value = 'claude-opus-5-5';
+    w.App.onWake(); await w.c.advance(100);
+    w.App.onConnectBack(); await w.c.advance(500);
+    w.release(); await w.c.advance(30000);
+    once(w, 'RETRY resumes while WAKE (another model picked) waits on its sign-in check');
+  }
+  {
+    // #16, the provider: STARNET picked on the Claude Code RESUME, WAKE waits on the credit read; RETRY resumes Claude Code.
+    // The late credit answer must not switch the live provider to StarNet (the next runs would bill managed credits).
+    const w = world({ boot: 'unavailable', cli: 'ready', credits: { ms: 5700 } });
+    w.App.renderResume(w.savedDoc());
+    w.App.pick('starnet'); w.el('in-model').value = 'starnet/claude-sonnet';
+    w.App.onWake(); await w.c.advance(1100);
+    w.App.onConnectBack(); await w.c.advance(30000);
+    once(w, 'RETRY resumes Claude Code while WAKE (StarNet picked) waits on the credit read');
+  }
+  for (const [what, o, setup] of [
+    ['a custom endpoint', { endpointMs: 1000 }, w => { w.App.pick('custom'); w.el('in-base-url').value = 'http://127.0.0.1:11434/v1'; w.el('in-model').value = 'llama3'; }],
+    ['a typed key', { keyMs: 1000 }, w => { w.App.pick('openrouter'); w.el('in-key').value = 'sk-or-typed'; w.el('in-model').value = 'openrouter/auto'; }]
+  ]) {
+    // #16, the key and endpoint saves: RETRY resumes while WAKE saves what the Commander typed; WAKE writes no model or provider after
+    const w = world(Object.assign({ boot: 'unavailable', cli: 'ready' }, o));
+    w.App.renderResume(w.savedDoc());
+    setup(w);
+    w.App.onWake(); await w.c.advance(100);
+    w.App.onConnectBack(); await w.c.advance(30000);
+    once(w, 'RETRY resumes while WAKE saves ' + what);
+  }
+  {
+    // #18: WAKE #1 (StarNet picked) waits on the credit read; RETRY re-renders RESUME (Claude Code still not confirmed); WAKE #2
+    // (Claude Code) tests its wire. WAKE #1's answer (not linked) lands meanwhile: it paints nothing on the new screen and leaves
+    // WAKE #2's WAKING… alone (a second press would have run a second real wire call).
+    const w = world({ boot: 'unavailable', cli: 'unavailable', credits: { ms: 6800, linked: false }, preflightMs: 10000 });
+    w.App.renderResume(w.savedDoc());
+    w.App.pick('starnet');
+    w.App.onWake(); await w.c.advance(100);
+    w.App.onConnectBack(); await w.c.advance(900);
+    A.ok(w.screen() === 'screen-connect', '(RETRY re-rendered RESUME) ' + story(w));
+    w.App.onWake(); await w.c.advance(6000);
+    A.ok(/WAKING/.test(w.wake().textContent) && w.wake().disabled && !/StarNet/.test(w.msg()),
+      "an overtaken WAKE's late answer paints nothing on the new RESUME and leaves the live WAKE's button alone — msg: " + w.msg() + ' / button: ' + w.wake().textContent);
+    await w.c.advance(30000);
+    once(w, 'an overtaken WAKE beside a live one');
+    A.eq(w.counts.wire, 1, 'one wire call: the live WAKE only');
+  }
+  {
+    // an overtaken WAKE whose typed key then fails to save says nothing on the RESUME that RETRY re-rendered
+    const w = world({ boot: 'unavailable', cli: 'unavailable', keyMs: 1000, keyRejects: true });
+    w.App.renderResume(w.savedDoc());
+    w.App.pick('openrouter'); w.el('in-key').value = 'sk-or-typed'; w.el('in-model').value = 'openrouter/auto';
+    w.App.onWake(); await w.c.advance(100);
+    w.App.onConnectBack(); await w.c.advance(3000);
+    A.ok(w.screen() === 'screen-connect' && !/could not start/.test(w.msg()) && w.counts.resumeInto === 0 && !w.c.errors.length,
+      'an overtaken WAKE whose key save fails paints no error on the RESUME that RETRY re-rendered — msg: ' + w.msg() + ' ' + story(w));
+  }
+
+  {
+    // a WAKE that ENTERED keeps the door: a bounce after its own entry (the create screen's new-Overseer path, its autonomy reset
+    // unconfirmed) is still its own, and releases the latch so the Commander can WAKE again
+    const w = world({ boot: 'ready', cli: 'ready', autonomyFails: true, preflightMs: 200 });
+    w.App.renderCreate(); w.el('in-model').value = 'claude-sonnet-5-5';
+    w.App.onWake(); await w.c.advance(5000);
+    A.ok(w.counts.newOverseer === 1 && !w.App.state().waking && !w.wake().disabled && /autonomy reset was not confirmed/.test(w.msg()),
+      'a bounce after the WAKE took the door releases its own latch — msg: ' + w.msg() + ' ' + story(w));
+  }
+
+  // ---- RESTORE BACKUP takes the door ----
+  {
+    const w = world({ boot: 'unavailable', cli: 'unavailable', importMs: 300 });
+    w.App.renderResume(w.savedDoc());
+    w.App.restoreClick(); await w.c.advance(500);
+    w.st.cli = 'ready'; await w.c.advance(5000);
+    A.ok(w.counts.resumeInto === 0, 'RESTORE BACKUP ends RESUME\'s own asking: the station confirming while the file chooser is open opens nothing — ' + story(w));
+    w.restore(w.backup('NOVA')); await w.c.advance(30000);
+    once(w, 'RESTORE BACKUP on RESUME', 'NOVA');
+  }
+  {
+    // RETRY pressed, RESTORE BACKUP clicked while RETRY's first question is out (the chooser is modal: RETRY keeps waiting behind
+    // it, under its veil). The restore takes the door as it starts writing; the station turns ready during the write.
+    const w = world({ boot: 'checking', cli: 'checking', latency: 300, importMs: 2000 });
+    w.App.renderResume(w.savedDoc());
+    w.App.onConnectBack(); await w.c.advance(100);
+    w.App.restoreClick(); await w.c.advance(1400);
+    A.ok(w.screen() === 'screen-boot', '(RETRY waits behind its veil while the chooser is open) ' + w.screen());
+    w.restore(w.backup('NOVA')); await w.c.advance(500);
+    w.st.cli = 'ready'; await w.c.advance(30000);
+    once(w, 'RETRY waiting, then a RESTORE BACKUP that takes the door', 'NOVA');
+  }
+  {
+    const w = world({ boot: 'unavailable', cli: 'unavailable', importMs: 3000 });
+    w.App.renderResume(w.savedDoc());
+    w.App.restoreClick(); w.restore(w.backup('NOVA')); await w.c.advance(500);
+    w.App.onConnectBack(); w.st.cli = 'ready'; await w.c.advance(30000);
+    once(w, 'RETRY pressed while a restore is being written', 'NOVA');
+  }
+  {
+    const w = world({ boot: 'unavailable', cli: 'ready', importMs: 3000, preflightMs: 200 });
+    w.App.renderResume(w.savedDoc());
+    w.App.restoreClick(); w.restore(w.backup('NOVA')); await w.c.advance(500);
+    w.App.onWake(); await w.c.advance(30000);
+    once(w, 'RESUME STATION pressed while a restore is being written', 'NOVA');
+    A.eq(w.counts.wire, 0, 'the held WAKE made no wire call');
+  }
+  {
+    const w = world({ boot: 'unavailable', cli: 'unavailable', statusGate: true, preflightMs: 200 });
+    w.App.renderResume(w.savedDoc());
+    w.App.onWake(); await w.c.advance(100);
+    w.App.restoreClick(); w.restore(w.backup('NOVA')); await w.c.advance(100);
+    A.ok(w.counts.imports === 0 && /still connecting/.test(w.status.text), 'RESTORE BACKUP beside a WAKE still connecting is refused, and says why — ' + w.status.text);
+    w.release(); await w.c.advance(30000);
+    once(w, 'RESTORE BACKUP refused beside a WAKE');
+  }
+  {
+    // RETRY pressed, RESTORE BACKUP clicked while its question is out; RETRY enters while the chooser is still open. The file picked
+    // afterwards restores nothing under the running station and opens nothing a second time.
+    const w = world({ boot: 'checking', cli: 'ready', latency: 300 });
+    w.App.renderResume(w.savedDoc());
+    w.App.onConnectBack(); await w.c.advance(100);
+    w.App.restoreClick(); await w.c.advance(1000);
+    A.ok(w.counts.resumeInto === 1, '(RETRY entered while the chooser was open) ' + story(w));
+    w.restore(w.backup('NOVA')); await w.c.advance(30000);
+    once(w, 'a file picked after the station opened');
+    A.eq(w.counts.imports, 0, 'nothing is restored under a running station');
+  }
+  {
+    const w = world({ boot: 'unavailable', cli: 'unavailable', importFails: true, importMs: 200 });
+    w.App.renderResume(w.savedDoc());
+    w.App.restoreClick(); w.st.cli = 'ready'; await w.c.advance(100);
+    const asked = w.st.asked;
+    w.restore(w.backup('NOVA')); await w.c.advance(30000);
+    A.ok(w.counts.resumeInto === 0 && w.screen() === 'screen-connect' && w.st.asked === asked && /import failed/.test(w.status.text) && !w.App.state().restoring,
+      'a restore that fails on RESUME stays on RESUME: nothing opens by itself, nothing is re-asked — ' + w.status.text + ' ' + story(w));
+    w.App.onWake(); await w.c.advance(30000);
+    once(w, 'RESUME STATION after a failed restore');
+  }
+  {
+    // the restore took the door from a RETRY waiting under its veil, then failed: the screen is settled as that RETRY would have
+    const w = world({ boot: 'checking', cli: 'checking', latency: 300, importFails: true, importMs: 500 });
+    w.App.renderResume(w.savedDoc());
+    w.App.onConnectBack(); await w.c.advance(100);
+    w.App.restoreClick(); await w.c.advance(900);
+    w.restore(w.backup('NOVA')); await w.c.advance(200);
+    w.st.cli = 'missing'; await w.c.advance(30000);
+    A.ok(w.screen() === 'screen-connect' && w.counts.resumeInto === 0 && /Reconnect CLAUDE CODE/.test(w.banner()),
+      'a failed restore that overtook a RETRY never leaves the veil up: RESUME again, on the station\'s answer — ' + w.banner() + ' ' + story(w));
+  }
+  {
+    const w = world({ boot: 'unavailable', cli: 'ready', importThrows: true, importMs: 100, preflightMs: 200 });
+    w.App.renderResume(w.savedDoc());
+    w.App.restoreClick(); w.restore(w.backup('NOVA')); await w.c.advance(500);
+    A.ok(/import failed — the backup could not be parsed/.test(w.status.text) && !w.App.state().restoring && !w.errors.length,
+      'a restore that throws says so and releases RESUME — ' + w.status.text + ' ' + story(w));
+    w.App.onWake(); await w.c.advance(30000);
+    once(w, 'RESUME STATION after a restore that threw');
+  }
+  {
+    // the prior-install gate has its own RESTORE BACKUP (the same file input): a restore that fails there stays on the gate
+    const w = world({ boot: 'ready', cli: 'ready', importFails: true });
+    w.el('screen-boot').classList.remove('active'); w.el('screen-future').classList.add('active');
+    const asked = w.st.asked;
+    w.restore(w.backup('NOVA')); await w.c.advance(30000);
+    A.ok(w.screen() === 'screen-future' && w.counts.resumeInto === 0 && w.st.asked === asked, 'a restore that fails on a gate screen stays on that gate — ' + story(w));
   }
 
   // ---- RESUME keeps asking while the station has not settled ----
@@ -519,6 +805,69 @@ function page(script, opts) {
     if (touch) touch(w); else w.App.onWake();
     await w.c.advance(1000); w.st.cli = 'ready'; await w.c.advance(20000);
     A.ok(w.counts.resumeInto === 0 && w.counts.newOverseer === 0, 'RESUME touched (' + what + ') never resumes by itself — ' + story(w));
+  }
+  // #15: ANY touch of the screen is a touch — the Commander's own clicks, keys and edits (the model catalog lives inside RESUME)
+  for (const [type, what] of [['pointerdown', 'a click: the model catalog opened, a tile chosen'], ['input', 'a model or key typed'], ['keydown', 'a key pressed'], ['change', 'a choice changed']]) {
+    const w = world({ boot: 'unavailable', cli: 'unavailable' });
+    w.App.renderResume(w.savedDoc());
+    await w.c.advance(500); w.touch(type);
+    await w.c.advance(500); w.st.cli = 'ready'; await w.c.advance(70000);
+    A.ok(w.counts.resumeInto === 0, 'RESUME touched (' + what + ') never resumes by itself — ' + story(w));
+  }
+  {
+    const w = world({ boot: 'unavailable', cli: 'unavailable' });
+    w.App.renderResume(w.savedDoc());
+    await w.c.advance(500); ['pointerdown', 'input', 'keydown', 'change'].forEach(t => w.touch(t, false));
+    await w.c.advance(500); w.st.cli = 'ready'; await w.c.advance(20000);
+    once(w, "a script's own synthetic events are no touch: an untouched RESUME still resumes");
+  }
+  {
+    // #15: the model catalog open (a modal inside RESUME): RESUME never resumes under it
+    const w = world({ boot: 'unavailable', cli: 'unavailable' });
+    w.App.renderResume(w.savedDoc());
+    w.el('ov-model-dialog').open = true;
+    await w.c.advance(1000); w.st.cli = 'ready'; await w.c.advance(20000);
+    A.ok(w.counts.resumeInto === 0, 'RESUME never resumes by itself while the model catalog is open — ' + story(w));
+  }
+  {
+    // #14: the touch lands while the watch's own question is out (1.5s): the READY answer it brings back resumes nothing
+    const w = world({ boot: 'unavailable', cli: 'unavailable', latency: 1500 });
+    w.App.renderResume(w.savedDoc());
+    await w.c.advance(2500);   // the watch asked at 2s; its answer lands at 3.5s
+    w.st.cli = 'ready'; w.App.pick('openrouter');
+    await w.c.advance(30000);
+    A.ok(w.counts.resumeInto === 0, "a provider picked while the watch's question is out: the READY answer it brings back resumes nothing — " + story(w));
+  }
+  {
+    // a WAKE that bounced (the station could not tell) ends RESUME's own asking too: the Commander is at the controls
+    const w = world({ boot: 'unavailable', cli: 'unavailable', statusSays: 'unavailable' });
+    w.App.renderResume(w.savedDoc());
+    await w.c.advance(500); w.App.onWake(); await w.c.advance(1000);
+    A.ok(!w.App.state().waking && /check this connection before WAKE/.test(w.msg()), '(the WAKE bounced on the unsettled answer) ' + w.msg());
+    w.st.cli = 'ready'; await w.c.advance(70000);
+    A.ok(w.counts.resumeInto === 0, "a WAKE that bounced ends RESUME's own asking — " + story(w));
+  }
+  {
+    // #17: the banner follows every answer on this screen, not only the watch's: WAKE's own check lands signed OUT
+    const w = world({ boot: 'unavailable', cli: 'unavailable', statusSays: 'missing' });
+    w.App.renderResume(w.savedDoc());
+    w.App.onWake(); await w.c.advance(1000);
+    A.ok(/Reconnect CLAUDE CODE below to continue/.test(w.banner()), 'a WAKE whose own check says signed out re-paints the banner (never "has not confirmed" beside "not signed in") — ' + w.banner());
+  }
+  {
+    // #17: the Claude Code tile's own answer (SIGN IN WITH CLAUDE completed, CHECK AGAIN) re-asks the station and re-paints the
+    // banner: never "Reconnect" or "has not confirmed" beside a tile that says signed in
+    const w = world({ boot: 'missing', cli: 'missing' });
+    w.App.renderResume(w.savedDoc());
+    A.ok(/Reconnect CLAUDE CODE/.test(w.banner()), '(RESUME opened on a settled "signed out")');
+    w.st.cli = 'ready'; w.App.resumeReask(); await w.c.advance(100);
+    A.ok(/CLAUDE CODE is ready — press RETRY AUTO-RESUME/.test(w.banner()) && w.counts.resumeInto === 0,
+      "the tile's answer re-paints the banner from the station (and opens nothing by itself) — " + w.banner());
+    A.ok(/claudeCliState = j;\s*resumeReask\(\);/.test(S.refreshClaudeCliStatus) && /resumeReask\(\);\s*\}$/.test(A.fnBody(app, '  function onClaudeCliConnected(j)')),
+      'the tile re-asks after every status it reads, and after a sign-in completes');
+    const v = world({ boot: 'missing', cli: 'ready' });
+    const asked = v.st.asked; v.App.resumeReask(); await v.c.advance(100);
+    A.eq(v.st.asked, asked, 'off RESUME the tile asks the station nothing extra');
   }
   {
     const w = world({ boot: 'unavailable', cli: 'unavailable' });
