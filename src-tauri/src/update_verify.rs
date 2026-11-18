@@ -607,6 +607,23 @@ pub fn verify_windows_update(bytes: &[u8]) -> Result<(), String> {
     let file = scratch.path().join(format!("StarNet-update.{ext}"));
     std::fs::write(&file, bytes)
         .map_err(|e| format!("the code signature check could not run: the installer could not be saved for checking ({e}). Nothing was installed."))?;
+    let ran = run_bounded(authenticode_command(&file), AUTHENTICODE_LIMIT)?;
+    judge_authenticode(&parse_authenticode_report(&ran.output))
+}
+
+/// Windows PowerShell's own module folder, beside powershell.exe.
+#[cfg_attr(not(windows), allow(dead_code))]
+fn powershell_modules_path() -> PathBuf {
+    powershell_path().with_file_name("Modules")
+}
+
+/// The Get-AuthenticodeSignature run on `file`. PSModulePath is set to Windows PowerShell's own module folder, never
+/// inherited: a StarNet started from a PowerShell 7 session (the `starnet` command in such a terminal starts the app
+/// with the terminal's environment) carries that shell's module folders first, Windows PowerShell then finds
+/// PowerShell 7's Microsoft.PowerShell.Security, cannot load it, and Get-AuthenticodeSignature never answers, so
+/// every update read "unreadable" (found by the v0.15.2 release train, whose gate step runs in PowerShell 7).
+#[cfg_attr(not(windows), allow(dead_code))]
+fn authenticode_command(file: &Path) -> Command {
     let mut cmd = command(
         powershell_path(),
         [
@@ -620,15 +637,15 @@ pub fn verify_windows_update(bytes: &[u8]) -> Result<(), String> {
         .map(OsString::from)
         .collect(),
     );
-    cmd.env("STARNET_UPDATE_NEW", &file);
+    cmd.env("STARNET_UPDATE_NEW", file);
+    cmd.env("PSModulePath", powershell_modules_path());
     #[cfg(windows)]
     {
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         cmd.creation_flags(CREATE_NO_WINDOW);
     }
-    let ran = run_bounded(cmd, AUTHENTICODE_LIMIT)?;
-    judge_authenticode(&parse_authenticode_report(&ran.output))
+    cmd
 }
 
 // ------------------------------------------------------------------------------------------------ shared plumbing
@@ -1458,5 +1475,42 @@ mod tests {
             let bytes = std::fs::read(installer).unwrap();
             assert_eq!(verify_windows_update(&bytes), Ok(()));
         }
+    }
+
+    /// The check's Windows PowerShell never inherits PSModulePath. The control shows why: with a module folder first
+    /// that holds a PowerShell-7-only Microsoft.PowerShell.Security (what a PowerShell 7 session hands its children),
+    /// the same command prints no status at all, which the judge reads as "unreadable" for every installer.
+    #[cfg(windows)]
+    #[test]
+    fn the_check_does_not_inherit_the_callers_module_path() {
+        let ps = powershell_path();
+        let pinned = authenticode_command(&ps);
+        let module_path = pinned
+            .get_envs()
+            .find(|(k, _)| k.eq_ignore_ascii_case("PSModulePath"))
+            .and_then(|(_, v)| v.map(PathBuf::from));
+        assert_eq!(module_path, Some(powershell_modules_path()));
+        assert!(powershell_modules_path().join("Microsoft.PowerShell.Security").is_dir());
+        let ran = run_bounded(pinned, AUTHENTICODE_LIMIT).unwrap();
+        assert_eq!(parse_authenticode_report(&ran.output).status, "Valid", "{}", ran.output);
+
+        // control: a PowerShell-7-only Security module first on the path, as an app started from PowerShell 7 has it
+        let scratch = Scratch::new().unwrap();
+        let module = scratch.path().join("Microsoft.PowerShell.Security");
+        std::fs::create_dir_all(&module).unwrap();
+        std::fs::write(
+            module.join("Microsoft.PowerShell.Security.psd1"),
+            "@{ ModuleVersion='7.0.0.0'; GUID='a94c8c7e-9810-47c0-b8af-65089c13a35a'; CompatiblePSEditions=@('Core'); PowerShellVersion='7.0'; CmdletsToExport=@('Get-AuthenticodeSignature') }",
+        )
+        .unwrap();
+        let mut inherited = authenticode_command(&ps);
+        let mut poisoned = scratch.path().as_os_str().to_os_string();
+        poisoned.push(";");
+        poisoned.push(powershell_modules_path());
+        inherited.env("PSModulePath", poisoned);
+        let ran = run_bounded(inherited, AUTHENTICODE_LIMIT).unwrap();
+        let report = parse_authenticode_report(&ran.output);
+        assert_eq!(report.status, "", "{}", ran.output);
+        assert!(judge_authenticode(&report).unwrap_err().contains("unreadable"));
     }
 }
