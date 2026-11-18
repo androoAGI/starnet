@@ -652,7 +652,10 @@ export async function runSoak(drivers, opts, hooks) {
   };
 
   const seed = async () => {
-    const roster = await drivers.json('POST', '/api/roster', { updatedAt: now(), agents: [{ agentId: SOAK_AGENT, name: 'SOAK', system: 'You are the soak agent. Answer briefly.', provider: 'openrouter', model: MOCK_MODEL, approvalMode: 'full', executionProfile: 'trusted-project' }] });
+    // The soak agent's Full Access and reach are an authority change: the roster push names them (raise, raiseProfile) and is
+    // confirmed at the station's own desk (the fixture types the code the station printed, as its operator would). A plain
+    // push is clamped to ask-first, and every task run's shell call was then denied (0.15.2 CI, soak run 44229414812).
+    const roster = await (drivers.deskJson || drivers.json)('POST', '/api/roster', { updatedAt: now(), raise: [SOAK_AGENT], raiseProfile: [SOAK_AGENT], agents: [{ agentId: SOAK_AGENT, name: 'SOAK', system: 'You are the soak agent. Answer briefly.', provider: 'openrouter', model: MOCK_MODEL, approvalMode: 'full', executionProfile: 'trusted-project' }] });
     if (!(roster.body && roster.body.ok)) throw new Error('roster seed failed: ' + JSON.stringify(roster.body).slice(0, 300));
     const plan = buildRoutinePlan(opts.routines);
     for (const spec of plan) {
@@ -951,6 +954,7 @@ export function makeRealDrivers({ fixture, logFile, cronLib }) {
     isAlive() { const c = fixture.child; return !!(c && c.exitCode === null && !c.signalCode); },
     childrenOf: async (pid) => childrenOf(pid),
     json: (m, r, b) => fixture.json(m, r, b),
+    deskJson: (m, r, b) => fixture.deskJson(m, r, b),
     async runConversation(text) {
       const response = await fixture.request('/api/run', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
