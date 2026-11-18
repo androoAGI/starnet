@@ -203,6 +203,59 @@ jobs:
             npm run tauri -- build --verbose --bundles ${{ matrix.bundles }} ${RUST_TARGET:+--target $RUST_TARGET} ${SIGN_CFG:+--config "$SIGN_CFG"}
           fi
 
+      # REHEARSAL of the release train's update signer gates (GHSA-2hpj #10), before any tag exists. The
+      # first v0.15.2 train was the first time either gate ran on a hosted runner, and its Windows gate
+      # went red after the tag was public. These two steps run the same program on this build's signed
+      # artifacts, in the same shells the train uses, so the cut finds that on the release branch.
+      # An unsigned internal build (no signing secrets) has nothing to gate and says so.
+      - name: Rehearse the update signer gate on the signed installer
+        if: runner.os == 'Windows'
+        shell: pwsh
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $version = (Get-Content 'src-tauri/tauri.conf.json' -Raw | ConvertFrom-Json).version
+          $installers = @(Get-ChildItem -Path 'src-tauri/target' -Recurse -File -Filter "*_$($version)_*-setup.exe" |
+            Where-Object { $_.FullName -match '[\\/]release[\\/]bundle[\\/]nsis[\\/]' })
+          if ($installers.Count -ne 1) {
+            throw "[$env:TARGET] expected exactly one $version NSIS installer for the update signer rehearsal, found $($installers.Count)"
+          }
+          if ((Get-AuthenticodeSignature -LiteralPath $installers[0].FullName).Status -eq 'NotSigned') {
+            Write-Output "::notice::[$env:TARGET] the installer is unsigned (internal build); the update signer gate has nothing to check"
+            exit 0
+          }
+          cargo build --locked --manifest-path src-tauri/update-verify-gate/Cargo.toml --target-dir src-tauri/target
+          if ($LASTEXITCODE -ne 0) { throw "[$env:TARGET] the update signer gate did not build" }
+          $foreign = (Get-Command node -CommandType Application | Select-Object -First 1).Source
+          # This shell is PowerShell 7 and the gate inherits its module path on purpose: the shell's check must
+          # answer in that environment too (an app started from a PowerShell 7 terminal has it).
+          & 'src-tauri/target/debug/update-verify-gate.exe' windows $installers[0].FullName $foreign
+          if ($LASTEXITCODE -ne 0) {
+            throw "[$env:TARGET] the shell's own update signer check refused the signed installer (error above)"
+          }
+
+      - name: Rehearse the update signer gate on the updater archive
+        if: runner.os == 'macOS'
+        shell: bash
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -euo pipefail
+          app=$(find src-tauri/target -type d -name '*.app' -path '*/release/bundle/macos/*' | head -1)
+          archives=$(find src-tauri/target -type f -name '*.app.tar.gz' -path '*/release/bundle/macos/*')
+          count=$(printf '%s\n' "$archives" | grep -c . || true)
+          team=""
+          if [ -n "${app:-}" ] && [ -d "$app" ]; then team=$(codesign -dv "$app" 2>&1 | sed -n 's/^TeamIdentifier=//p' | head -1); fi
+          case "$team" in
+            ""|"not set") echo "::notice::[$TARGET] no Developer ID signed .app (internal build); the update signer gate has nothing to check"; exit 0 ;;
+          esac
+          if [ "$count" -eq 0 ]; then echo "::notice::[$TARGET] no updater archive (no updater key); the update signer gate has nothing to check"; exit 0; fi
+          [ "$count" -eq 1 ] || { echo "::error::[$TARGET] expected exactly one .app.tar.gz for the update signer rehearsal, found $count."; exit 1; }
+          cargo build --locked --manifest-path src-tauri/update-verify-gate/Cargo.toml --target-dir src-tauri/target
+          src-tauri/target/debug/update-verify-gate macos "$archives" "$app" "$team"
+          echo "::notice::[$TARGET] the shell's own update signer check admits $archives (team $team) ✓"
+
       - name: Submit macOS DMG for asynchronous notarization
         if: runner.os == 'macOS'
         shell: bash

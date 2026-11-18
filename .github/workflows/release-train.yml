@@ -603,13 +603,12 @@ jobs:
           cargo build --locked --manifest-path src-tauri/update-verify-gate/Cargo.toml --target-dir src-tauri/target
           if ($LASTEXITCODE -ne 0) { throw "[$env:TARGET] the update signer gate did not build" }
           $foreign = (Get-Command node -CommandType Application | Select-Object -First 1).Source
-          # Give the gate the environment an installed StarNet has. This step runs in PowerShell 7, which puts its
-          # own module folders first on PSModulePath; the check's Windows PowerShell child inherits them, cannot
-          # load PowerShell 7's Security module, and Get-AuthenticodeSignature never answers, so a valid installer
-          # reads "unreadable" (the first v0.15.2 train, run 44357622398; reproduced locally on the same signed
-          # installer). Without the variable Windows PowerShell builds its own module path, as it does for an app
-          # started from the desktop.
-          Remove-Item Env:PSModulePath -ErrorAction SilentlyContinue
+          # This step runs in PowerShell 7, which puts its own module folders first on PSModulePath, and the gate
+          # inherits them ON PURPOSE. v0.15.2's check handed them on to its Windows PowerShell child, which then
+          # could not load Get-AuthenticodeSignature, so a valid installer read "unreadable" (the first v0.15.2
+          # train, run 44357622398). The check now gives that child Windows PowerShell's own module folder
+          # (update_verify.rs authenticode_command); an app started from a PowerShell 7 terminal has this same
+          # environment, so this is the case the gate must keep proving. desktop-build rehearses it before a tag.
           & 'src-tauri/target/debug/update-verify-gate.exe' windows $installers[0].FullName $foreign
           if ($LASTEXITCODE -ne 0) {
             throw "[$env:TARGET] the shell's own update signer check refused the signed installer (error above); nothing is uploaded"

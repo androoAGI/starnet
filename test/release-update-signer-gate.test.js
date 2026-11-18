@@ -76,10 +76,42 @@ A.ok(/-Filter "\*_\$\(\$version\)_\*-setup\.exe"/.test(win.run) && /'\[\\\\\/\]r
   'Windows gate: exactly one signed NSIS installer of this version');
 A.ok(/& 'src-tauri\/target\/debug\/update-verify-gate\.exe' windows \$installers\[0\]\.FullName \$foreign/.test(win.run), 'Windows gate: runs the shell\'s check on that installer, with a foreign-signed control');
 A.eq((win.run.match(/if \(\$LASTEXITCODE -ne 0\) \{/g) || []).length, 2, 'Windows gate: a failed build or a refusal throws');
-// the step runs in PowerShell 7; its module path, inherited by the check's Windows PowerShell child, makes a valid installer
-// read "unreadable" (the first v0.15.2 train). The gate must be called without it, right before the call.
-A.ok(/Remove-Item Env:PSModulePath -ErrorAction SilentlyContinue\n\s*& 'src-tauri\/target\/debug\/update-verify-gate\.exe' windows/.test(win.run),
-  'Windows gate: the check runs without PowerShell 7\'s inherited module path, as an installed app does');
+// The step runs in PowerShell 7 and the gate inherits its module path on purpose: v0.15.2's check handed that path on to
+// its Windows PowerShell child, which then could not load Get-AuthenticodeSignature, and a valid installer read
+// "unreadable" (the first v0.15.2 train). The CHECK gives its child Windows PowerShell's own module folder; the gate
+// step must not hide a check that stops doing so, and desktop-build rehearses both gates before a tag exists.
+A.ok(/^        shell: pwsh$/m.test(win.text) && !/PSModulePath/.test(win.run.replace(/^\s*#.*$/gm, '')),
+  'Windows gate: runs in PowerShell 7 and leaves the inherited module path alone (the hostile case stays proven)');
+const shellRs = read('src-tauri/src/update_verify.rs');
+A.ok(/cmd\.env\("PSModulePath", powershell_modules_path\(\)\);/.test(shellRs) && /fn powershell_modules_path\(\) -> PathBuf \{\s*powershell_path\(\)\.with_file_name\("Modules"\)/.test(shellRs),
+  'the shell\'s check gives Windows PowerShell its own module folder, never the caller\'s');
+A.ok(/run_bounded\(authenticode_command\(&file\), AUTHENTICODE_LIMIT\)/.test(shellRs), 'verify_windows_update runs that command');
+A.ok(/fn the_check_does_not_inherit_the_callers_module_path\(\)/.test(shellRs), 'a Rust test runs the real check and its poisoned-path control');
+
+// ---- desktop-build rehearses both gates on the release branch, before any tag ----
+const db = read('.github/workflows/desktop-build.yml');
+const dbSteps = db.split(/\n(?=      - )/).filter(s => /^      - /.test(s)).map(text => ({
+  text, name: ((text.match(/^      - name: (.+)$/m) || [])[1] || '').trim(),
+  os: ((text.match(/^        if: runner\.os == '(\w+)'/m) || [])[1] || 'any'), run: (text.split(/^        run: \|\n/m)[1] || '')
+}));
+const dbAt = name => dbSteps.findIndex(s => s.name === name);
+const rWin = dbSteps[dbAt('Rehearse the update signer gate on the signed installer')];
+const rMac = dbSteps[dbAt('Rehearse the update signer gate on the updater archive')];
+A.ok(!!rWin && rWin.os === 'Windows' && /^        shell: pwsh$/m.test(rWin.text), 'desktop-build rehearses the Windows gate, in PowerShell 7 as the train runs it');
+A.ok(!!rMac && rMac.os === 'macOS' && /^        shell: bash$/m.test(rMac.text), 'desktop-build rehearses the macOS gate');
+A.ok(dbAt('Build desktop bundles') < dbAt(rWin.name) && dbAt(rWin.name) < dbAt('Upload distributable artifacts')
+  && dbAt('Build desktop bundles') < dbAt(rMac.name) && dbAt(rMac.name) < dbAt('Submit macOS DMG for asynchronous notarization'),
+  'both rehearsals run on the built + signed bytes, before they leave the runner');
+A.ok(/& 'src-tauri\/target\/debug\/update-verify-gate\.exe' windows \$installers\[0\]\.FullName \$foreign/.test(rWin.run)
+  && !/PSModulePath/.test(rWin.run.replace(/^\s*#.*$/gm, '')) && /\$installers\.Count -ne 1/.test(rWin.run),
+  'Windows rehearsal: the same call on the one installer, with the inherited module path left alone');
+A.ok(/\.Status -eq 'NotSigned'\) \{\n\s*Write-Output "::notice::[^\n]*\n\s*exit 0/.test(rWin.run), 'Windows rehearsal: only an unsigned internal build skips, and says so');
+A.ok(/src-tauri\/target\/debug\/update-verify-gate macos "\$archives" "\$app" "\$team"/.test(rMac.run) && /set -euo pipefail/.test(rMac.run)
+  && /\[ "\$count" -eq 1 \]/.test(rMac.run), 'macOS rehearsal: the same call on the one archive, fail closed');
+for (const s of [rWin, rMac]) {
+  A.ok(!/secrets\./.test(s.text) && !/APPLE_|AZURE_/.test(s.text), 'rehearsal: no secret enters the step (' + s.name + ')');
+  A.ok(/cargo build --locked --manifest-path src-tauri\/update-verify-gate\/Cargo\.toml --target-dir src-tauri\/target/.test(s.run), 'rehearsal: the tiny locked crate (' + s.name + ')');
+}
 A.ok(!/secrets\./.test(win.text), 'Windows gate: no secret enters the step');
 
 // ---- cheap: a tiny crate, locked, into the job's existing target dir ----
