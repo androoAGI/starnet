@@ -55,6 +55,9 @@ for (const [src, name, header] of [
   A.ok(b.length > 40 && b.length < 40000, name + ' is sliced from its shipped source');
   S[name] = b;
 }
+// the keys RESUME's touch rule ignores (a one-line constant beside watchResume)
+S.idleKeys = (app.match(/^  const RESUME_IDLE_KEYS = .*;$/m) || [''])[0];
+A.ok(/Alt/.test(S.idleKeys), 'RESUME_IDLE_KEYS is sliced from its shipped source');
 
 // THE STATION'S OWN ROWS: sidecar/index.js providerReadiness('claude-cli') hands project() these inputs per CLI state
 // (pinned below: its pending branch says 'unknown', the word the page waits on).
@@ -421,7 +424,7 @@ function page(script, opts) {
         return { installed: true, loggedIn: st.cli === 'ready' };
       },
       saveWakeDraft() {}, clearWakeDraft() {},
-      preflightWire: () => { counts.wire++; L('WAKE: one real call to ' + model); return new Promise(r => c.setTimeout(() => { L('WAKE: the wire answered'); r({ ok: true }); }, o.preflightMs || 4000)); },
+      preflightWire: () => { counts.wire++; L('WAKE: one real call to ' + model); return new Promise(r => c.setTimeout(() => { L('WAKE: the wire answered'); r(o.wireFails ? { ok: false, why: 'the model did not answer' } : { ok: true }); }, o.preflightMs || 4000)); },
       // resumeInto writes the saved agent's wire (its provider, then its model), as the real one does
       resumeInto: d => {
         counts.resumeInto++; entered = true;
@@ -447,7 +450,7 @@ function page(script, opts) {
     const App = new Function(...names,
       '"use strict";\n' +
       'let resumingSaved = null, waking = false, agent = null, prefilledKey = "", keyOverwriteConfirmed = false, pickedProvider = "claude-cli", gateActive = false;\n' +
-      'let doorSeq = 0, restoring = false, resumeWatch = 0, resumeTouchWired = false;\n' +
+      'let doorSeq = 0, restoring = false, resumeWatch = 0, resumeTouchWired = false;\n' + S.idleKeys + '\n' +
       // the real initConnect's order: prefilledKey, applyRecoveryMode, the WAKE latch and label re-armed, then selectProviderUI picks the saved provider
       'function initConnect(n, r, a) { el("in-key").value = ""; prefilledKey = el("in-key").value || ""; el("in-model").value = (a && a.model) || ""; el("in-name").value = n || ""; applyRecoveryMode(!!r && !!a, a); waking = false; { const wb = el("btn-wake"); wb.disabled = false; delete wb.dataset.idleLabel; } pickedProvider = Harness.getProv(); }\n' +
       [S.providerNeedsKey, S.providerLabel, S.resumeUnsettled, S.resumeAskLine, S.paintResumeBanner, S.resumeReask, S.watchResume, S.applyRecoveryMode,
@@ -459,7 +462,7 @@ function page(script, opts) {
       '  resumeReask, state: () => ({ waking, restoring }) };'
     )(...names.map(k => stubs[k]));
     // the Commander's own input on RESUME: a trusted event the screen hears (a script's synthetic one is untrusted)
-    const touch = (type, trusted) => el('screen-connect').listeners.filter(l => l.type === type && l.capture).forEach(l => l.fn({ type, isTrusted: trusted !== false }));
+    const touch = (type, trusted, key) => el('screen-connect').listeners.filter(l => l.type === type && l.capture).forEach(l => l.fn({ type, isTrusted: trusted !== false, key }));
     const errors = [];
     return { App, c, st, log, counts, entries, status, cache: readinessCache, el, touch, savedDoc, backup, errors, saved: () => doc(),
       useCodexBackup: () => { doc = codexDoc; }, useBackup: (n, p, m) => { doc = () => saveOf(n, p, m); }, release: () => statusGate && statusGate(),
@@ -777,6 +780,41 @@ function page(script, opts) {
     w.restore(w.backup('NOVA')); await w.c.advance(30000);
     A.ok(w.screen() === 'screen-future' && w.counts.resumeInto === 0 && w.st.asked === asked, 'a restore that fails on a gate screen stays on that gate — ' + story(w));
   }
+  {
+    // third review: a second backup picked while the first is still being written is not started (two restores opened the
+    // station twice, and the first to finish released WAKE and RETRY under the second)
+    const w = world({ boot: 'unavailable', cli: 'ready', importMs: 3000 });
+    w.App.renderResume(w.savedDoc());
+    w.App.restoreClick(); w.restore(w.backup('NOVA')); await w.c.advance(500);
+    w.App.restoreClick(); w.restore(w.backup('CYPHER')); await w.c.advance(100);
+    A.ok(w.counts.imports === 1 && /still being restored/.test(w.status.text) && w.App.state().restoring,
+      'a second backup picked during a restore is not started, and says why — ' + w.status.text + ' ' + story(w));
+    await w.c.advance(30000);
+    once(w, 'two backups picked one after the other', 'NOVA');
+    A.ok(!w.App.state().restoring, 'the restore releases WAKE and RETRY once it has re-entered');
+  }
+  {
+    // third review: the restore holds WAKE and RETRY through its own re-entry's question to the station, not only the import.
+    // RESUME STATION pressed while that question is out would have resumed the save the restore just replaced.
+    const w = world({ boot: 'unavailable', cli: 'ready', importMs: 200, latency: 3000, preflightMs: 200 });
+    w.App.renderResume(w.savedDoc());
+    w.App.restoreClick(); w.restore(w.backup('NOVA')); await w.c.advance(1000);
+    A.ok(w.counts.resumeInto === 0 && w.App.state().restoring, "(the restore's re-entry is asking the station) " + story(w));
+    w.App.onWake(); w.App.onConnectBack(); await w.c.advance(30000);
+    once(w, "RESUME STATION and RETRY pressed during the restore's re-entry", 'NOVA');
+    A.eq(w.counts.wire, 0, 'the held WAKE made no wire call');
+    A.ok(!w.App.state().restoring, 'the restore releases WAKE and RETRY once it has re-entered');
+  }
+  {
+    // ...and a restore whose re-entry lands on RESUME (the station says signed out) releases them there
+    const w = world({ boot: 'unavailable', cli: 'missing', importMs: 200, preflightMs: 200 });
+    w.App.renderResume(w.savedDoc());
+    w.App.restoreClick(); w.restore(w.backup('NOVA')); await w.c.advance(30000);
+    A.ok(w.screen() === 'screen-connect' && w.counts.resumeInto === 0 && !w.App.state().restoring && /RESUMING <b>NOVA/.test(w.banner()),
+      'a restore whose re-entry lands on RESUME shows the restored agent and releases WAKE and RETRY — ' + w.banner() + ' ' + story(w));
+    w.st.cli = 'ready'; w.App.onConnectBack(); await w.c.advance(30000);
+    once(w, 'RETRY after a restore that landed on RESUME', 'NOVA');
+  }
 
   // ---- RESUME keeps asking while the station has not settled ----
   {
@@ -820,6 +858,36 @@ function page(script, opts) {
     await w.c.advance(500); ['pointerdown', 'input', 'keydown', 'change'].forEach(t => w.touch(t, false));
     await w.c.advance(500); w.st.cli = 'ready'; await w.c.advance(20000);
     once(w, "a script's own synthetic events are no touch: an untouched RESUME still resumes");
+  }
+  for (const key of ['Alt', 'Meta', 'Shift', 'Control', 'OS', 'CapsLock', 'PrintScreen']) {
+    // third review: a modifier key on its own (Alt on the way to another window, a screenshot chord) is not using the screen
+    const w = world({ boot: 'unavailable', cli: 'unavailable' });
+    w.App.renderResume(w.savedDoc());
+    await w.c.advance(500); w.touch('keydown', true, key);
+    await w.c.advance(500); w.st.cli = 'ready'; await w.c.advance(20000);
+    once(w, 'a lone ' + key + ' key is no touch: RESUME still resumes by itself');
+  }
+  for (const key of ['a', 'Tab', 'Enter', 'Escape', ' ', 'ArrowDown']) {
+    const w = world({ boot: 'unavailable', cli: 'unavailable' });
+    w.App.renderResume(w.savedDoc());
+    await w.c.advance(500); w.touch('keydown', true, key);
+    await w.c.advance(500); w.st.cli = 'ready'; await w.c.advance(70000);
+    A.ok(w.counts.resumeInto === 0, 'RESUME touched (the ' + JSON.stringify(key) + ' key) never resumes by itself — ' + story(w));
+  }
+  {
+    // third review: a WAKE that bounced has already switched the station to the provider it tried. The banner still speaks for
+    // the SAVED provider, the one RETRY AUTO-RESUME resumes (it said "OPENROUTER is ready — press RETRY AUTO-RESUME").
+    const w = world({ boot: 'missing', cli: 'missing', wireFails: true, preflightMs: 200 });
+    w.App.renderResume(w.savedDoc());
+    w.App.pick('openrouter'); w.el('in-key').value = 'sk-or-typed'; w.el('in-model').value = 'openrouter/auto';
+    w.App.onWake(); await w.c.advance(5000);
+    A.ok(w.wire().prov === 'openrouter' && w.counts.wire === 1 && !w.App.state().waking && w.counts.resumeInto === 0, '(the WAKE tried OpenRouter and bounced on its wire test) ' + story(w));
+    A.ok(/Reconnect CLAUDE CODE below to continue/.test(w.banner()) && !/OPENROUTER/i.test(w.banner()),
+      'after a WAKE bounce the banner speaks for the saved provider (the one RETRY resumes), not the one WAKE tried — ' + w.banner());
+    w.st.cli = 'ready'; w.App.resumeReask(); await w.c.advance(1000);
+    A.ok(/CLAUDE CODE is ready — press RETRY AUTO-RESUME/.test(w.banner()), "and the tile's answer re-paints it for the saved provider — " + w.banner());
+    w.App.onConnectBack(); await w.c.advance(30000);
+    once(w, 'RETRY after a bounced WAKE on another provider');
   }
   {
     // #15: the model catalog open (a modal inside RESUME): RESUME never resumes under it

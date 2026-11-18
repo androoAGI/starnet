@@ -3378,10 +3378,11 @@ const App = (() => {
     return 'Reconnect ' + providerLabel(p) + ' below to continue.';
   }
   // The RESUME banner, re-painted from the station's latest answer (applyRecoveryMode, each answer watchResume reads, a WAKE
-  // that bounced, and each answer the screen's own Claude Code tile hears).
+  // that bounced, and each answer the screen's own Claude Code tile hears). It speaks for the SAVED provider, the one RETRY
+  // AUTO-RESUME resumes: a WAKE that bounced has already switched the station to the provider it tried (third review).
   function paintResumeBanner() {
     const banner = el('cc-recovery'); if (!banner || banner.classList.contains('hidden')) return;
-    banner.innerHTML = '▮ RESUMING <b>' + U.esc(banner.dataset.agentName || 'your agent') + '</b> — your agent is safe. ' + U.esc(resumeAskLine(Harness.getProv()));
+    banner.innerHTML = '▮ RESUMING <b>' + U.esc(banner.dataset.agentName || 'your agent') + '</b> — your agent is safe. ' + U.esc(resumeAskLine((resumingSaved && savedStationProv(resumingSaved)) || Harness.getProv()));
   }
   // The Claude Code tile just heard `claude auth status` (which feeds the station): while RESUME shows, re-ask the station and
   // re-paint the banner from its answer, so the banner never contradicts the tile beside it (second review).
@@ -3396,13 +3397,15 @@ const App = (() => {
      runs a fresh `claude auth status`, which feeds the station). ANY touch of the screen ends it: the Commander's own click,
      key or edit anywhere on RESUME (a provider or model picked, the model catalog opened — it lives inside the screen —, a
      key typed, RESTORE BACKUP), as do a re-entry, a WAKE and a restore (second review: it resumed under an open model
-     catalog, over a model just picked, and beside a restore). */
+     catalog, over a model just picked, and beside a restore). A modifier key on its own is not a touch (third review: Alt
+     on the way to another window, or a screenshot chord, ended the asking). */
+  const RESUME_IDLE_KEYS = /^(Shift|Control|Alt|AltGraph|Meta|OS|CapsLock|NumLock|ScrollLock|Fn|FnLock|PrintScreen)$/;
   let resumeWatch = 0, resumeTouchWired = false;
   function watchResume(provider) {
     const screen = el('screen-connect'), dialog = el('ov-model-dialog');
     if (!resumeTouchWired && screen.addEventListener) {
       resumeTouchWired = true;
-      ['pointerdown', 'keydown', 'input', 'change'].forEach(t => screen.addEventListener(t, e => { if (e.isTrusted) resumeWatch++; }, true));
+      ['pointerdown', 'keydown', 'input', 'change'].forEach(t => screen.addEventListener(t, e => { if (e.isTrusted && !(e.type === 'keydown' && RESUME_IDLE_KEYS.test(e.key || ''))) resumeWatch++; }, true));
     }
     const mine = ++resumeWatch, ticket = doorSeq, p = normalizeProviderId(provider), until = Date.now() + 60000;
     const untouched = () => mine === resumeWatch && ticket === doorSeq && !waking && !!resumingSaved && !(dialog && dialog.open)
@@ -6621,18 +6624,20 @@ const App = (() => {
       // ONE DOOR (second review): a restore replaces the save every other way in would resume. Never under a station that
       // already opened (the file chooser can outlast a WAKE that entered), never beside a WAKE still connecting; otherwise it
       // takes the door before the save is replaced (a RETRY still waiting on the station stands down) and holds WAKE and
-      // RETRY until the restored save re-enters.
+      // RETRY until the restored save has re-entered (third review: through its re-entry's own question to the station, not
+      // only the import). One restore at a time: a second backup picked meanwhile is not started.
       if (el('screen-game').classList.contains('active')) return;
-      if (waking) { dataStatus('RESUME STATION is still connecting — restore again once it finishes'); SFX.bad(); return; }
+      if (restoring) { dataStatus('a backup is still being restored — wait for it to finish'); SFX.bad(); return; }
+      if (waking) { dataStatus('the station is still connecting — wait for it to finish, then pick the backup again'); SFX.bad(); return; }
       doorSeq++;   // the restore takes the door (this also ends RESUME's own asking: the watch holds a ticket)
       restoring = true;
       let r;
       try { r = await Backup.importFile(f); }
       catch (e) { r = { ok: false, error: (e && e.message) || 'the backup could not be read' }; }
-      finally { restoring = false; }
       // bad(), not a bespoke error() — that cue never existed, so the `&&` guard silently swallowed
       // the only audible signal a restore had failed. bad() is the station's negative-outcome voice.
       if (!r.ok) {
+        restoring = false;
         dataStatus('import failed — ' + r.error); SFX.bad();
         // a RETRY this restore overtook may have left its veil up: settle the screen the way that RETRY would have (only
         // then: a restore that failed on RESUME, or on the prior-install gate's own RESTORE BACKUP, stays where it was)
@@ -6647,7 +6652,9 @@ const App = (() => {
         // a memory the Commander forgot is not resurrected by an old backup (Memory Core › declined can restore it)
         + (r.memoriesForgotten ? ' · ' + r.memoriesForgotten + ' forgotten ' + (r.memoriesForgotten > 1 ? 'memories' : 'memory') + ' left out' : ''));
       gateActive = false;
-      reentry();   // resume straight into the restored agent (or its RESUME screen if creds are still missing)
+      // resume straight into the restored agent (or its RESUME screen if creds are still missing); WAKE and RETRY stay held
+      // until that re-entry has landed, so neither can resume the save this restore just replaced
+      try { await reentry(); } finally { restoring = false; }
     };
 
     // FORWARD-VERSION GATE (P0.3), step 1 — the LOCAL cache. Save.load() returns null for a future save (so no
