@@ -3557,6 +3557,7 @@ const App = (() => {
       if (ready) {
         doorSeq++; resumingSaved = null; resumeInto(saved); return;   // entering takes the door: a WAKE still testing its wire stands down
       }
+      doorSeq++;   // re-rendering RESUME takes the door too: a WAKE pressed while this re-entry was asking (it holds this ticket) stands down, so the re-armed button never runs a second attempt beside it (third review)
       resumingSaved = saved;
       show('screen-connect'); initConnect(saved.agent.name, true, saved.agent);
       el('connect-msg').textContent = '';

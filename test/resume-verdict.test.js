@@ -683,6 +683,42 @@ function page(script, opts) {
       'a bounce after the WAKE took the door releases its own latch — msg: ' + w.msg() + ' ' + story(w));
   }
 
+  {
+    // third review: RESUME STATION pressed while RETRY's question is out holds RETRY's own ticket. RETRY lands back on RESUME and
+    // re-arms the button; the attempt still in flight stands down there, so a second press never runs beside it (it made two
+    // real wire calls).
+    const w = world({ boot: 'unavailable', cli: 'unavailable', latency: 2000, ready: { starnet: true }, credits: { ms: 5000 }, preflightMs: 10000 });
+    w.App.renderResume(w.savedDoc());
+    w.App.onConnectBack(); await w.c.advance(100);
+    w.App.pick('starnet'); w.el('in-model').value = 'starnet/claude-sonnet';
+    w.App.onWake(); await w.c.advance(2900);
+    A.ok(w.screen() === 'screen-connect' && !w.App.state().waking && !w.wake().disabled, '(RETRY landed back on RESUME and re-armed the button) ' + story(w));
+    w.App.pick('starnet'); w.el('in-model').value = 'starnet/claude-sonnet';
+    w.App.onWake(); await w.c.advance(60000);
+    A.ok(w.counts.wire === 1 && w.entries.length === 1 && w.counts.newOverseer === 0 && !w.c.errors.length,
+      'a WAKE pressed during RETRY\'s question stands down when RETRY re-renders RESUME: one wire call, one entry — ' + story(w));
+  }
+  {
+    // a fast double press of RESUME STATION is one attempt (one real wire call)
+    const w = world({ boot: 'unavailable', cli: 'ready', preflightMs: 500 });
+    w.App.renderResume(w.savedDoc());
+    w.App.onWake(); w.App.onWake(); await w.c.advance(100); w.App.onWake(); await w.c.advance(30000);
+    once(w, 'RESUME STATION pressed three times');
+    A.eq(w.counts.wire, 1, 'one wire call for a double press');
+  }
+  {
+    // the Claude Code tile's re-ask is RESUME's only: nothing is asked on the create screen, or once the station has opened
+    const w = world({ boot: 'ready', cli: 'ready' });
+    w.App.renderCreate();
+    const asked = w.st.asked; w.App.resumeReask(); await w.c.advance(1000);
+    A.eq(w.st.asked, asked, 'the tile re-asks nothing on the create screen');
+  }
+  // the door's state starts closed-to-nobody: the shipped declarations, not this file's copy of them
+  A.ok(/^  let doorSeq = 0, restoring = false;$/m.test(app) && /^  let resumeWatch = 0, resumeTouchWired = false;$/m.test(app),
+    'doorSeq, restoring, resumeWatch and resumeTouchWired start at 0 / false in the shipped source');
+  A.ok(/el\('btn-import'\)\.onclick = \(\) => \{ SFX\.click\(\); resumeWatch\+\+; fileImport\.value = ''; fileImport\.click\(\); \};/.test(app),
+    'RESTORE BACKUP clears the file input before opening the chooser (the same file picked again still fires)');
+
   // ---- RESTORE BACKUP takes the door ----
   {
     const w = world({ boot: 'unavailable', cli: 'unavailable', importMs: 300 });

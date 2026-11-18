@@ -189,8 +189,9 @@ function sandbox(opts) {
     'a key the station proved it holds is never described as "stored locally in this browser" only');
   A.ok(/notify, warnIfStationLacksKey, settleNotifs,/.test(station), 'StationUI exports the warning for onboarding');
   const app = read('frontend', 'app', 'app.js');
-  A.ok(/if \(Harness\.setBaseUrl\) warnStation\(await Harness\.setBaseUrl\(baseUrl, pickedProvider\)\);/.test(app)
-    && /if \(key\) warnStation\(await \(Harness\.validateAndSetKey \? Harness\.validateAndSetKey\(key, pickedProvider, model\)/.test(app),
+  // (11-17: WAKE checks its door between each save and its warning, so an attempt a re-entry overtook warns about nothing)
+  A.ok(/const endpoint = await Harness\.setBaseUrl\(baseUrl, pickedProvider\);\s*if \(door && !door\.open\(\)\) return true;\s*warnStation\(endpoint\);/.test(app)
+    && /const stored = await \(Harness\.validateAndSetKey \? Harness\.validateAndSetKey\(key, pickedProvider, model\) : Harness\.setKey\(key, pickedProvider\)\);\s*if \(door && !door\.open\(\)\) return true;\s*warnStation\(stored\);/.test(app),
     'onboarding (the first connect) shows the same warning when the station could not keep the key');
 
   A.report('engine-key-sync.test');
