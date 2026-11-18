@@ -205,7 +205,7 @@ const SYNC_BASELINE = {
   'subagents.js': 9,   // review 8.2 removed an uncalled duplicate of the subagent_stop hook payload (and its catch)
   'taskbrief-tools.js': 3,
   'terminal-sessions.js': 3,
-  'tools/builtin/browser.js': 43,
+  'tools/builtin/browser.js': 42,
   'tools/builtin/code.js': 3,
   'tools/builtin/comms.js': 1,
   'tools/builtin/connectors.js': 2,
