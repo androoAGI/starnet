@@ -170,10 +170,11 @@ function alive(pid) {
     // every step's sidecar is quiet: the boot-time floor probe (a live request to Microsoft 15 s after listen) is off
     A.eq(seen.SKYNET_EDGE_TTS_PROBE, '0', 'R5: the boot-time voice floor probe is switched off for every step');
     const env = runner.buildStepEnv({ Path: 'C:/bin', ComSpec: 'cmd.exe', SystemRoot: 'C:/Windows', HOME: 'C:/Users/x', APPDATA: 'C:/real', SKYNET_EDGE_TTS_PROBE: '1' }, 'C:/profile', 'win32');
-    A.eq(env, { Path: 'C:/bin', ComSpec: 'cmd.exe', SystemRoot: 'C:/Windows', HOME: 'C:/Users/x', APPDATA: 'C:/profile', LOCALAPPDATA: 'C:/profile', XDG_DATA_HOME: 'C:/profile', SKYNET_EDGE_TTS_PROBE: '0' },
-      'R5: Windows keeps mixed-case spawn variables and the real HOME (git identity); the profile wins APPDATA; the floor probe is off');
+    A.eq(env, { Path: 'C:/bin', ComSpec: 'cmd.exe', SystemRoot: 'C:/Windows', HOME: 'C:/Users/x', APPDATA: 'C:/profile', LOCALAPPDATA: 'C:/profile', XDG_DATA_HOME: 'C:/profile', SKYNET_EDGE_TTS_PROBE: '0', STARNET_DESK_CODE_TO_LOG: '1' },
+      'R5: Windows keeps mixed-case spawn variables and the real HOME (git identity); the profile wins APPDATA; the floor probe is off; desk codes go to the console the test reads');
     const posixEnv = runner.buildStepEnv({ PATH: '/bin', HOME: '/home/real' }, '/tmp/p', 'linux');
     A.eq(posixEnv.HOME, '/tmp/p', 'R5: POSIX HOME is the hermetic profile');
+    A.eq(posixEnv.STARNET_DESK_CODE_TO_LOG, '1', 'R5: a spawned station writes its desk codes to the console the test reads (on POSIX that console is a socket pair, which the station otherwise treats as a kept log)');
 
     // R6 per-step timing + the green summary release-preflight reads
     const r6 = await run({ listFile: list('r6.list', [pass1, pass2]) });

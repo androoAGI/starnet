@@ -1011,6 +1011,7 @@ async function main() {
     SKYNET_CRON_TICK_MS: String(DEFAULTS.cronTickMs), STARNET_CRON_TICK_MS: String(DEFAULTS.cronTickMs),
     SKYNET_CRON_TZ: 'UTC', STARNET_CRON_TZ: 'UTC',                     // the accounting enumerates occurrences in UTC
     SKYNET_CONSENT_TIMEOUT_MS: '2000',
+    STARNET_DESK_CODE_TO_LOG: '1',   // the soak is its station's operator: the seed's desk confirmation reads the code from the console (a socket pair on Linux, which the station otherwise treats as a kept log)
   };
   if (opts.maxParallel > 0) { env.SKYNET_CRON_MAX_PARALLEL = String(opts.maxParallel); env.STARNET_CRON_MAX_PARALLEL = String(opts.maxParallel); }
   if (!opts.aux) { env.SKYNET_AUX_BUDGET = '0'; env.STARNET_AUX_BUDGET = '0'; }   // aux passes off by default: deterministic mock answers feed them garbage

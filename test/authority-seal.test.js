@@ -348,7 +348,8 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
     for (const [cmd, cwd] of [
       ['cat "' + abs + '"', PROJ],
       ['cat ' + abs.replace(/\\/g, '/'), PROJ],
-      ['cat ' + abs.toUpperCase(), PROJ],
+      // (a path in another letter case names the same file only where names fold: on Linux /TMP/…/HOOKS.JSON is another file)
+      ...(isWin ? [['cat ' + abs.toUpperCase(), PROJ]] : []),
       ['cat hooks.json', DATA],
       ['cd "' + DATA + '" && echo {} > hooks.json', PROJ],
       ['git -C ' + DATA + ' diff hooks.json', PROJ],

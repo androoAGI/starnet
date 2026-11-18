@@ -4,7 +4,10 @@
    the six digits from ~/.pm2/logs and replayed them: FULL BYPASS on. Now a station whose console is kept (pm2, stderr
    redirected to a file or a socket) does not write the code; it says what is waiting and how to confirm it. An operator
    who wants the code in the log anyway says so with STARNET_DESK_CODE_TO_LOG=1. A station in a terminal, or whose console
-   is a pipe to the program that started it (the `starnet` terminal, the tests), is unchanged.
+   is a pipe to the program that started it (the `starnet` terminal, the tests), is unchanged on Windows. On Linux and macOS
+   node hands a child its console as a socket pair, which the station cannot tell from a console the journal keeps, so a
+   piped station there writes no code either and says how to get it (the gate and the fixtures set the operator's switch;
+   the `starnet` terminal's own station gets its codes over its private channel, not the console).
 
    The real sidecar, bare (browser mode). */
 'use strict';
@@ -26,7 +29,9 @@ async function bypassAsk(call, tok) {
   let st = null;
   try {
     // 1. pm2: its console is saved to a log, so no code is written there
-    st = await station(fresh(), { pm_id: '0' }, 'bare');
+    // (every station here says for itself whether codes go to its log: the gate's own switch is not inherited)
+    const OFF = { STARNET_DESK_CODE_TO_LOG: '', SKYNET_DESK_CODE_TO_LOG: '' };
+    st = await station(fresh(), Object.assign({ pm_id: '0' }, OFF), 'bare');
     const r = await bypassAsk(st.call, st.CLIENT);
     A.eq(r.status, 403, 'pm2: the client key cannot turn FULL BYPASS on by itself');
     const ch = r.body && r.body.deskConfirm;
@@ -47,9 +52,16 @@ async function bypassAsk(call, tok) {
     await st.stop(); st = null;
 
     // 3. an ordinary piped console (the tests, the starnet terminal's child) is unchanged
-    st = await station(fresh(), {}, 'bare');
+    st = await station(fresh(), OFF, 'bare');
     const r3 = await st.viaDesk('POST', '/api/permissions/bypass', { on: true });
-    A.eq(r3.status, 200, 'a console that is a pipe still shows the code');
+    if (process.platform === 'win32') A.eq(r3.status, 200, 'a console that is a pipe still shows the code');
+    else {
+      // the pipe is a socket pair here: no code, and the console says how to get one
+      A.eq(r3.status, 403, 'POSIX: a console that is a socket pair shows no code');
+      await sleep(400);
+      A.ok(!CODE_LINE.test(st.child.out()) && /kept in a log, so its code is not written here/.test(st.child.out()) && /STARNET_DESK_CODE_TO_LOG=1/.test(st.child.out()),
+        'POSIX: it says why and names the switch');
+    }
     await st.stop(); st = null;
 
     // 4. stderr redirected to a file (npm start 2> station.log, nohup, a service): no code in the file

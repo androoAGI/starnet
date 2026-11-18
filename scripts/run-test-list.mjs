@@ -100,6 +100,12 @@ export function buildStepEnv(parentEnv, profile, platform) {
   // (which sets the same switch), so without this every one alive past 15 s made a live request — or logged a
   // warning offline or in CI. A test that wants the probe sets it back in its own spawn env.
   env.SKYNET_EDGE_TTS_PROBE = '0';
+  // THE TEST IS THE STATION'S OPERATOR: a station a test spawns shows its desk codes on the console the test reads. On
+  // Linux and macOS node hands a child its console as a socket pair, which the station cannot tell from a console the
+  // journal keeps, so it writes no code there (sidecar/index.js deskCodeConsoleKept; a Windows pipe is not a socket and
+  // gets the code). The operator's own switch says it on every platform; without it the first Linux run of the desk
+  // lanes failed 104 test files (0.15.2 CI). A test of that rule sets the switch back in its own spawn env.
+  env.STARNET_DESK_CODE_TO_LOG = '1';
   return env;
 }
 

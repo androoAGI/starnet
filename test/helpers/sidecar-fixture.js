@@ -104,7 +104,10 @@ class SidecarFixture {
     // startFloorProbe): no live traffic from a gate. A test that wants the probe sets it back on in its env.
     // Readiness may ask the local CLI for auth status without a Settings page. Never discover a real
     // installed account in a test fixture; callers testing CLI behavior can supply their fixture bin.
-    const quiet = { SKYNET_EDGE_TTS_PROBE: '0', STARNET_CLAUDE_BIN: path.join(this.profile, 'fixture-cli-absent.cmd') };
+    // The fixture is this station's operator and reads its console for desk codes (this.desk). On Linux and macOS that
+    // console is a socket pair, which the station treats as a kept log and writes no code to, so the fixture says the
+    // operator's choice outright (scripts/run-test-list.mjs buildStepEnv does the same for every gate step).
+    const quiet = { SKYNET_EDGE_TTS_PROBE: '0', STARNET_CLAUDE_BIN: path.join(this.profile, 'fixture-cli-absent.cmd'), STARNET_DESK_CODE_TO_LOG: '1' };
     const env = Object.assign({}, process.env, hermeticProfile, quiet, this.env, extraEnv || {}, {
       SKYNET_PORT: String(this.port),
       STARNET_PORT: String(this.port),
