@@ -195,7 +195,9 @@ body.glass-demo #model-dock .model-dock-row-tier { color: var(--text); border-co
 body.glass-demo #model-dock .model-dock-row-tier[data-tier="S"],
 body.glass-demo #model-dock .model-dock-row.sel .model-dock-row-tier { color: var(--ph-bright); background: rgba(0,0,0,.22); border-color: var(--gd-edge); }
 body.glass-demo #model-dock .model-dock-row:is(:hover,:focus-visible) { background: var(--gd-hover); border-color: var(--gd-edge); box-shadow: inset 0 1px 0 var(--gd-light),0 2px 8px rgba(0,0,0,.2); }
-body.glass-demo #model-dock .model-dock-foot { grid-template-columns: auto auto; justify-content: space-between; gap: 8px; }
+/* a wrapping row, not a two-column grid (2026-11-18): in a 300px COMMS at the largest TEXT SIZE the two keys are wider
+   than the picker, and a grid pushed the second one out of its right edge. Side by side whenever both fit. */
+body.glass-demo #model-dock .model-dock-foot { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; }
 body.glass-demo #model-dock .model-dock-foot :is(button,a) {
   min-height: 30px; padding: 5px 8px; font-size: 16px; color: var(--text); border: 1px solid var(--gd-edge); border-radius: 4px;
   background: var(--gd-face); box-shadow: inset 0 1px 0 var(--gd-light);

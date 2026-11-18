@@ -1585,6 +1585,9 @@ body.no-curve #stage-wrap::before { background: none; box-shadow: none; }
 .model-dock {
   position: absolute; right: 8px; bottom: calc(100% + 8px); z-index: 80;
   width: min(322px, calc(100vw - 34px)); max-height: min(70vh, 414px, var(--comms-fit, 100vh));
+  /* never wider than the composer it rises from (2026-11-18): COMMS drags down to 300px, and a fixed-width picker hung
+     out of its left edge, under the seam. 16px = the 8px inset on each side. */
+  max-width: calc(100% - 16px);
   display: flex; flex-direction: column; gap: 7px; padding: 9px;
   overflow-y: auto; overscroll-behavior: contain;   /* --comms-fit: the room under the agent header (glass-comms.js) */
   color: var(--ph); background: var(--panel);

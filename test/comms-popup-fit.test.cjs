@@ -52,5 +52,24 @@ assert.match(app,/\.chat-slash \{[^}]*max-height: min\(244px, var\(--comms-fit/,
 assert.match(glass,/body\.glass-demo #model-dock \{[^}]*max-height: min\(65vh,480px,var\(--comms-fit[^}]*background: var\(--gd-pop\)/,'glass picker: fitted + opaque');
 assert.match(glass,/\.gd-agent-menu \{[^}]*max-height: min\(260px,var\(--comms-fit/,'agent menu');
 assert.match(glass,/#chat-panel\.comms-pop-over #chat-inputrow \{ z-index: 7; \}/,'lifted row clears the header z 6');
+/* WIDTH (11-18, a user's shot: with COMMS dragged narrow the picker hung out of its left edge, under the seam, its labels
+   cut). COMMS goes down to 300px (chatresize.js MIN) and both picker widths are fixed, so the base rule caps the picker at
+   the composer it rises from, and no later rule may lift that cap. The footer wraps instead of pushing a key out. */
+const resize=fs.readFileSync('frontend/app/chatresize.js','utf8');
+const commsMin=Number((resize.match(/\bMIN = (\d+)\b/)||[])[1]);
+assert(commsMin>0,'chatresize.js names the narrowest COMMS');
+const widths=[app.match(/\.model-dock \{[^}]*?\bwidth: min\((\d+)px/),glass.match(/body\.glass-demo #model-dock \{[^}]*?\bwidth: min\((\d+)px/)].map(m=>Number(m&&m[1]));
+assert(widths.every(w=>w>0),'both picker widths are still fixed px widths (if not, re-think this pin)');
+assert(widths.some(w=>w>commsMin-16),'the pin is live: a picker width is wider than the narrowest COMMS allows');
+assert.match(app,/\.model-dock \{[^}]*max-width: calc\(100% - 16px\);/,'the picker is never wider than its composer');
+for(const f of fs.readdirSync('frontend/css').filter(n=>n.endsWith('.css'))){
+  const css=fs.readFileSync('frontend/css/'+f,'utf8').replace(/\/\*[\s\S]*?\*\//g,'');
+  for(const m of css.matchAll(/([^{}]*)\{([^{}]*)\}/g)){
+    if(!/(#model-dock|\.model-dock)(?![\w-])\s*(,|$)/.test(m[1].trim().split(',').map(s=>s.trim()).filter(s=>/(#model-dock|\.model-dock)$/.test(s)).join(',')))continue;
+    const mw=m[2].match(/(?:^|[;\s])max-width:\s*([^;]+)/);
+    if(mw)assert.equal(mw[1].trim(),'calc(100% - 16px)',f+': no rule may lift the picker\'s width cap ('+m[1].trim().slice(0,60)+')');
+  }
+}
+assert.match(glass,/body\.glass-demo #model-dock \.model-dock-foot \{ display: flex; flex-wrap: wrap;/,'the picker footer wraps in a narrow COMMS');
 assert.doesNotMatch(app,/\.model-dock \{ position: fixed/,'a fixed picker resolves against the blurred panel, not the composer');
 console.log('comms-popup-fit: popups fit under the header, a tight riser covers it cleanly, menu stops at the composer');
