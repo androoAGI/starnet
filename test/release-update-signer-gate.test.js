@@ -76,6 +76,10 @@ A.ok(/-Filter "\*_\$\(\$version\)_\*-setup\.exe"/.test(win.run) && /'\[\\\\\/\]r
   'Windows gate: exactly one signed NSIS installer of this version');
 A.ok(/& 'src-tauri\/target\/debug\/update-verify-gate\.exe' windows \$installers\[0\]\.FullName \$foreign/.test(win.run), 'Windows gate: runs the shell\'s check on that installer, with a foreign-signed control');
 A.eq((win.run.match(/if \(\$LASTEXITCODE -ne 0\) \{/g) || []).length, 2, 'Windows gate: a failed build or a refusal throws');
+// the step runs in PowerShell 7; its module path, inherited by the check's Windows PowerShell child, makes a valid installer
+// read "unreadable" (the first v0.15.2 train). The gate must be called without it, right before the call.
+A.ok(/Remove-Item Env:PSModulePath -ErrorAction SilentlyContinue\n\s*& 'src-tauri\/target\/debug\/update-verify-gate\.exe' windows/.test(win.run),
+  'Windows gate: the check runs without PowerShell 7\'s inherited module path, as an installed app does');
 A.ok(!/secrets\./.test(win.text), 'Windows gate: no secret enters the step');
 
 // ---- cheap: a tiny crate, locked, into the job's existing target dir ----
