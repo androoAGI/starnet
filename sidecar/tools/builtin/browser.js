@@ -457,6 +457,10 @@
   ].filter(Boolean);
 
   function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
+  // How many browsers this process has started on each profile directory. A close that has to wait before it can remove
+  // its directory reads it again after every wait: a later browser on the same directory (the web reader reuses one, and
+  // starts its next browser without waiting for the last close) owns it from then on, and the close leaves it alone.
+  const PROFILE_LAUNCHES = new Map();
 
   function normalizeBrowserLocale(value) {
     const raw = String(value || '').trim().replace(/_/g, '-');
@@ -1436,6 +1440,7 @@
         networkProxy = await startPinnedProxy(proxyGuards(deps.lookup));
         for (const origin of allowedLocalOrigins) networkProxy.allowLocal(origin);
       }
+      PROFILE_LAUNCHES.set(profileDir, (PROFILE_LAUNCHES.get(profileDir) || 0) + 1);
       const args = ['--disable-blink-features=AutomationControlled', '--no-first-run', '--no-default-browser-check',
         '--remote-debugging-port=' + launchPort, '--window-size=1440,900',
         '--user-data-dir=' + profileDir];
@@ -3000,11 +3005,17 @@
       // loaded machine (a Linux CI run of v0.15.3 left the profile behind), so the removal now keeps trying for about five
       // more seconds, yielding between passes, and stops at the first pass that works. A run's temporary profile holds a
       // copy of the saved sign-ins, so a removal that still fails is said, never swallowed.
+      // Only the first pass runs before this close yields. Each later pass first checks that no newer browser was started
+      // on this directory while it waited; if one was, the directory is that browser's and is left to it.
       if (deps.cleanupProfile === true && !(opts && opts.keepProfile)) {
+        const launches = PROFILE_LAUNCHES.get(profileDir);
         let left = null;
         for (let pass = 0; pass < 11; pass++) {
           try { FS.rmSync(profileDir, { recursive: true, force: true, maxRetries: pass ? 0 : 4, retryDelay: 100 }); left = null; break; }
-          catch (e) { left = e; if (pass < 10) await sleep(500); }
+          catch (e) { left = e; }
+          if (pass === 10) break;
+          await sleep(500);
+          if (PROFILE_LAUNCHES.get(profileDir) !== launches) { left = null; break; }
         }
         if (left) failNote('browser.profile.rm', left);
       }

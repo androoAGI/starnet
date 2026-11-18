@@ -11,7 +11,8 @@ const pidSource = A.fnBody(source, 'function ownedPid()');
 if (!closeSource || closeSource.length > 6500 || !pidSource || pidSource.length > 300) throw Error('Invalid lifecycle source slice');
 
 function rig(opts = {}) {
-  const calls = [], removed = [], notes = [], timers = [];
+  const calls = [], removed = [], notes = [], timers = [], sleeps = [], rmPasses = [];
+  const launches = new Map([['/owned/profile', 1]]);
   let resolveExit;
   const exited = new Promise(resolve => { resolveExit = resolve; });
   const scope = {
@@ -27,11 +28,18 @@ function rig(opts = {}) {
     failNote: (tag, e) => notes.push({ tag, e }), swallow: () => () => {},
     setTimeout(fn, ms) { timers.push(ms); return setTimeout(fn, 0); }, clearTimeout,
     deps: { cleanupProfile: !opts.attached }, profileDir: '/owned/profile', heldFallbackDir: opts.fallback ? '/owned/fallback' : null,
-    FS: { rmSync(p) { removed.push(p); } }
+    // the profile removal: `rmFails` passes throw ENOTEMPTY (a still-leaving browser's children writing the profile) before
+    // one works; `successorAfter` sleeps in, a newer browser starts on the same directory
+    PROFILE_LAUNCHES: launches,
+    sleep(ms) { sleeps.push(ms); if (opts.successorAfter === sleeps.length) launches.set('/owned/profile', 2); return Promise.resolve(); },
+    FS: { rmSync(p, o) {
+      if (p === '/owned/profile') { rmPasses.push(o && o.maxRetries); if (rmPasses.length <= (opts.rmFails || 0)) throw Object.assign(new Error('ENOTEMPTY: injected'), { code: 'ENOTEMPTY' }); }
+      removed.push(p);
+    } }
   };
   function exit() { scope.procExited = true; resolveExit(true); }
   vm.runInNewContext(closeSource + ';this.closeDriver=close;' + pidSource + ';this.pid=ownedPid;', scope);
-  return { close: scope.closeDriver, pid: scope.pid, exit, calls, removed, notes, timers, proxy: () => scope.networkProxy, replaceProxy: proxy => { scope.networkProxy = proxy; } };
+  return { close: scope.closeDriver, pid: scope.pid, exit, calls, removed, notes, timers, sleeps, rmPasses, proxy: () => scope.networkProxy, replaceProxy: proxy => { scope.networkProxy = proxy; } };
 }
 async function rejection(fn) { try { await fn(); return null; } catch (e) { return e; } }
 
@@ -177,6 +185,31 @@ const total = ms => ms.reduce((sum, n) => sum + n, 0);
   await attached.close();
   A.eq(attached.calls, ['cdp.close'], 'attached user browser is neither sent Browser.close nor killed');
   A.eq(attached.removed, [], 'attached profile is never removed');
+  /* THE PROFILE REMOVAL WAITS FOR A SLOW BROWSER, AND NEVER TAKES A NEWER BROWSER'S DIRECTORY (v0.15.3). On Linux and macOS
+     the killed browser's children can still be writing the profile, so the first pass can fail (ENOTEMPTY); a run's
+     temporary profile holds a copy of the saved sign-ins, so the close keeps trying. But the web reader reuses one
+     directory and starts its next browser without waiting for the last close: once a newer browser has started on the
+     directory, the waiting close must leave it alone. */
+  const clean = rig({ exits: true });
+  await clean.close();
+  A.eq([clean.removed, clean.rmPasses, clean.sleeps, clean.notes.length], [['/owned/profile'], [4], [], 0], 'a removal that works at once: one pass, no wait');
+  const slow = rig({ exits: true, rmFails: 3 });
+  await slow.close();
+  A.eq([slow.removed, slow.rmPasses, slow.sleeps, slow.notes.length], [['/owned/profile'], [4, 0, 0, 0], [500, 500, 500], 0],
+    'a slow browser: the removal waits and tries again until it works, and says nothing');
+  const never = rig({ exits: true, rmFails: 99 });
+  await never.close();
+  A.eq([never.removed, never.rmPasses.length, never.sleeps.length, never.notes.map(n => n.tag)], [[], 11, 10, ['browser.profile.rm']],
+    'a removal that never works: eleven passes over about five seconds of waiting, then it is said');
+  const taken = rig({ exits: true, rmFails: 99, successorAfter: 2 });
+  await taken.close();
+  A.eq([taken.removed, taken.rmPasses.length, taken.sleeps.length, taken.notes.length], [[], 2, 2, 0],
+    'a newer browser started on the directory while the close waited: no further pass touches it, and nothing is reported');
+  const kept = rig({ exits: true, rmFails: 99 });
+  await kept.close({ keepProfile: true });
+  A.eq([kept.rmPasses.length, kept.sleeps.length], [0, 0], 'keepProfile: the removal is not attempted at all');
+  A.ok(source.includes('PROFILE_LAUNCHES.set(profileDir, (PROFILE_LAUNCHES.get(profileDir) || 0) + 1);\n      const args = ['),
+    'every browser this process starts is counted on its profile directory, right where its arguments are built');
   /* the run's OWN browser takes its staged upload copies with it when it closes, in a finally: a close that rejects (the
      stuck-Chromium path above) still drops them. The registry is the SESSION's now (run-paths-polish P1,
      upload-stage.js), so this is proven on the real session over a real staging root, not by the source of a wrapper.
