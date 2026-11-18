@@ -2995,7 +2995,10 @@
         }
       }
       // keepProfile: a dead browser being replaced — its successor is about to start on this same directory
-      if (deps.cleanupProfile === true && !(opts && opts.keepProfile)) { try { FS.rmSync(profileDir, { recursive: true, force: true }); } catch (_) {} }
+      // The removal is retried for about a second: on Linux and macOS only the browser's main process is killed above, and its
+      // children can still be writing the profile when the first pass runs (ENOTEMPTY). A run's temporary profile holds a copy
+      // of the saved sign-ins, so a removal that still fails is said, never swallowed.
+      if (deps.cleanupProfile === true && !(opts && opts.keepProfile)) { try { FS.rmSync(profileDir, { recursive: true, force: true, maxRetries: 4, retryDelay: 100 }); } catch (e) { failNote('browser.profile.rm', e); } }
       // the held-profile fallback's temporary dir is this driver's alone (a successor makes its own): always removed —
       // by its OWN variable, so the durable station profile can never be the one deleted
       if (heldFallbackDir) { try { FS.rmSync(heldFallbackDir, { recursive: true, force: true }); } catch (e) { failNote('browser.profile-held-fallback.rm', e); } }
