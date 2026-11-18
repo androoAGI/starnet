@@ -31,6 +31,7 @@ function bootSidecar(port, workspaces, attempts) {
     Object.assign(env, {
       SKYNET_PORT: String(port), SKYNET_WORKSPACES: workspaces, SKYNET_DEV: '1', SKYNET_QUEST_REFRESH: '0',
       SKYNET_CLOUD_URL: '', SKYNET_CREDITS_URL: '', SKYNET_EDGE_TTS: '0', SKYNET_LIVE_PRICES: '0',
+      STARNET_DESK_CODE_TO_LOG: '1',   // this test reads the station's console for its desk codes (a socket pair on Linux: a kept log to the station)
       LOCALAPPDATA: appSandbox, APPDATA: appSandbox, XDG_DATA_HOME: appSandbox
     });
     if (!path.resolve(workspaces).startsWith(path.resolve(os.tmpdir())) || port === 8787) throw new Error('refusing a non-isolated sidecar');

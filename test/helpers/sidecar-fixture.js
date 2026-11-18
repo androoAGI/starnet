@@ -106,14 +106,17 @@ class SidecarFixture {
     // installed account in a test fixture; callers testing CLI behavior can supply their fixture bin.
     // The fixture is this station's operator and reads its console for desk codes (this.desk). On Linux and macOS that
     // console is a socket pair, which the station treats as a kept log and writes no code to, so the fixture says the
-    // operator's choice outright (scripts/run-test-list.mjs buildStepEnv does the same for every gate step).
-    const quiet = { SKYNET_EDGE_TTS_PROBE: '0', STARNET_CLAUDE_BIN: path.join(this.profile, 'fixture-cli-absent.cmd'), STARNET_DESK_CODE_TO_LOG: '1' };
+    // operator's choice outright (scripts/run-test-list.mjs buildStepEnv does the same for every gate step). It is set after
+    // the test's own env: many tests blank every STARNET_/SKYNET_ variable they find (their hermeticEnv), the gate's included;
+    // a test that wants the station's own rule passes '0'.
+    const quiet = { SKYNET_EDGE_TTS_PROBE: '0', STARNET_CLAUDE_BIN: path.join(this.profile, 'fixture-cli-absent.cmd') };
     const env = Object.assign({}, process.env, hermeticProfile, quiet, this.env, extraEnv || {}, {
       SKYNET_PORT: String(this.port),
       STARNET_PORT: String(this.port),
       SKYNET_WORKSPACES: this.workspace,
       STARNET_WORKSPACES: this.workspace
     });
+    if (!env.STARNET_DESK_CODE_TO_LOG && !env.SKYNET_DESK_CODE_TO_LOG) env.STARNET_DESK_CODE_TO_LOG = '1';
     this._childEnv = env;
     const child = spawn(process.execPath, [this.entry].concat(this.args), {
       env,
