@@ -2995,10 +2995,19 @@
         }
       }
       // keepProfile: a dead browser being replaced — its successor is about to start on this same directory
-      // The removal is retried for about a second: on Linux and macOS only the browser's main process is killed above, and its
-      // children can still be writing the profile when the first pass runs (ENOTEMPTY). A run's temporary profile holds a copy
-      // of the saved sign-ins, so a removal that still fails is said, never swallowed.
-      if (deps.cleanupProfile === true && !(opts && opts.keepProfile)) { try { FS.rmSync(profileDir, { recursive: true, force: true, maxRetries: 4, retryDelay: 100 }); } catch (e) { failNote('browser.profile.rm', e); } }
+      // The removal is retried: on Linux and macOS only the browser's main process is killed above, and its children can
+      // still be writing the profile when the first pass runs (ENOTEMPTY). One second of retries was not always enough on a
+      // loaded machine (a Linux CI run of v0.15.3 left the profile behind), so the removal now keeps trying for about five
+      // more seconds, yielding between passes, and stops at the first pass that works. A run's temporary profile holds a
+      // copy of the saved sign-ins, so a removal that still fails is said, never swallowed.
+      if (deps.cleanupProfile === true && !(opts && opts.keepProfile)) {
+        let left = null;
+        for (let pass = 0; pass < 11; pass++) {
+          try { FS.rmSync(profileDir, { recursive: true, force: true, maxRetries: pass ? 0 : 4, retryDelay: 100 }); left = null; break; }
+          catch (e) { left = e; if (pass < 10) await sleep(500); }
+        }
+        if (left) failNote('browser.profile.rm', left);
+      }
       // the held-profile fallback's temporary dir is this driver's alone (a successor makes its own): always removed —
       // by its OWN variable, so the durable station profile can never be the one deleted
       if (heldFallbackDir) { try { FS.rmSync(heldFallbackDir, { recursive: true, force: true }); } catch (e) { failNote('browser.profile-held-fallback.rm', e); } }
