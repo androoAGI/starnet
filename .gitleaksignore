@@ -195,3 +195,13 @@ f3ec6c5d3f47da637ebab37e490bfc6084924e37:test/credential-store.spawn-adoption.te
 f3ec6c5d3f47da637ebab37e490bfc6084924e37:test/credential-store.spawn-adoption.test.js:generic-api-key:150
 f3ec6c5d3f47da637ebab37e490bfc6084924e37:test/credential-store.spawn-adoption.test.js:generic-api-key:151
 f3ec6c5d3f47da637ebab37e490bfc6084924e37:test/credential-store.spawn-adoption.test.js:generic-api-key:164
+
+# 0.15.2 release branch (reviewed 2026-11-17, secret-history run 44228638659): 6 exact lines, none a credential. The placeholder
+# OpenRouter key 'sk-or-v1-…-fixture' that three tests hand a mock provider on loopback (the browser sign-in run e2e, the crew-defaults
+# invariant and the usage-receipts invariant); read with each value masked, none has the shape of a real key.
+550c311bae3eceb69d19f7ff219ef0549a1874c0:test/usage-receipts.invariant.test.js:generic-api-key:57
+61b98858e5efea34161e7d7d0a9b7953e25b02c6:test/crew-defaults.invariant.test.js:generic-api-key:241
+7a867ffc1f524503d2ad285096c945a6396d63f8:test/crew-defaults.invariant.test.js:generic-api-key:312
+9395932a6c6980bf2ca0c3901813f59f456355ae:test/browser-signin-survives.run.e2e.test.js:generic-api-key:89
+cf61c20e4be29afbf2eb1bed1718168949801709:test/browser-signin-survives.run.e2e.test.js:generic-api-key:79
+cf61c20e4be29afbf2eb1bed1718168949801709:test/browser-signin-survives.run.e2e.test.js:generic-api-key:87
