@@ -49,7 +49,8 @@ for (const [src, name, header] of [
   [app, 'resumeReask', '  function resumeReask()'],
   // RESTORE BACKUP's two handlers (statements inside init(): the button, and the file it picks)
   [app, 'restoreClick', "    el('btn-import').onclick = () => {"],
-  [app, 'restorePick', '    fileImport.onchange = async () => {']
+  [app, 'restorePick', '    fileImport.onchange = async () => {'],
+  [app, 'dataStatus', '    const dataStatus = m => {']
 ]) {
   const b = A.fnBody(src, header);
   A.ok(b.length > 40 && b.length < 40000, name + ' is sliced from its shipped source');
@@ -828,6 +829,37 @@ function page(script, opts) {
     await w.c.advance(30000);
     once(w, 'two backups picked one after the other', 'NOVA');
     A.ok(!w.App.state().restoring, 'the restore releases WAKE and RETRY once it has re-entered');
+  }
+  {
+    // ...and one picked while the first restore's RE-ENTRY is still asking the station (its success line already written) is
+    // refused too; once that restore is done the status says what it restored again, never "still being restored"
+    const w = world({ boot: 'unavailable', cli: 'ready', importMs: 200, latency: 3000 });
+    w.App.renderResume(w.savedDoc());
+    w.App.restoreClick(); w.restore(w.backup('NOVA')); await w.c.advance(1000);
+    A.ok(/^restored NOVA — 3 records/.test(w.status.text) && w.App.state().restoring, '(the first restore is written; its re-entry is asking) ' + w.status.text);
+    w.App.restoreClick(); w.restore(w.backup('CYPHER')); await w.c.advance(100);
+    A.ok(w.counts.imports === 1 && /still being restored/.test(w.status.text), 'a second backup picked during the re-entry is not started — ' + w.status.text);
+    await w.c.advance(30000);
+    once(w, "a second backup picked during the first restore's re-entry", 'NOVA');
+    A.ok(/^restored NOVA — 3 records/.test(w.status.text) && !w.App.state().restoring,
+      'once the restore is done the status says what it restored again — ' + w.status.text);
+  }
+  {
+    // the status line of a restore: #data-status always; on the prior-install gate (where #data-status is hidden) the gate's
+    // own status line too, so a refused or failed restore there is never only a beep
+    const nodes = {};
+    const mk = () => ({ textContent: '', on: false, classList: { contains() { return this.o.on; }, o: null } });
+    const el = id => { if (!nodes[id]) { nodes[id] = mk(); nodes[id].classList.o = nodes[id]; } return nodes[id]; };
+    const dataStatus = new Function('el', S.dataStatus + '; return dataStatus;')(el);
+    el('lineage-status').textContent = 'inspect or restore the prior state';
+    dataStatus('import failed — file is not valid JSON');
+    A.ok(el('data-status').textContent === 'import failed — file is not valid JSON' && el('lineage-status').textContent === 'inspect or restore the prior state',
+      'off the gate a restore line goes to #data-status only');
+    el('screen-lineage').on = true;
+    dataStatus('import failed — file is not valid JSON');
+    A.eq(el('lineage-status').textContent, 'import failed — file is not valid JSON', 'on the prior-install gate the restore line also shows on the gate');
+    dataStatus('');
+    A.ok(el('data-status').textContent === '' && el('lineage-status').textContent === 'import failed — file is not valid JSON', 'a cleared line never blanks the gate');
   }
   {
     // third review: the restore holds WAKE and RETRY through its own re-entry's question to the station, not only the import.

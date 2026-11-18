@@ -6609,7 +6609,13 @@ const App = (() => {
 
     // data portability — the safety net for the localStorage-fragile agent. Export bundles nonsecret
     // starnet.* records + a memory snapshot into one file; import restores them on any browser.
-    const dataStatus = m => { const n = el('data-status'); if (n) n.textContent = m || ''; };
+    // (the prior-install gate has its own RESTORE BACKUP on the same file input, and #data-status is hidden while that gate
+    //  is up: there the line also goes to the gate's own status, so a refused or failed restore is never only a beep)
+    const dataStatus = m => {
+      const n = el('data-status'); if (n) n.textContent = m || '';
+      const gate = el('screen-lineage'), gateLine = el('lineage-status');
+      if (m && gate && gateLine && gate.classList.contains('active')) gateLine.textContent = m;
+    };
     el('btn-export').onclick = async () => {
       SFX.click(); dataStatus('exporting…');
       const r = await Backup.exportAll();
@@ -6648,14 +6654,16 @@ const App = (() => {
       SFX.boot();
       const mem = (typeof r.memoriesRestored === 'number') ? r.memoriesRestored
         : (r.memories ? r.memories + ' in file' : 0);
-      dataStatus('restored ' + (r.agentName || 'agent') + ' — ' + (r.records == null ? r.keys : r.records) + ' records'
+      const restoredLine = 'restored ' + (r.agentName || 'agent') + ' — ' + (r.records == null ? r.keys : r.records) + ' records'
         + (mem ? ' + ' + mem + ' memories' : '')
         // a memory the Commander forgot is not resurrected by an old backup (Memory Core › declined can restore it)
-        + (r.memoriesForgotten ? ' · ' + r.memoriesForgotten + ' forgotten ' + (r.memoriesForgotten > 1 ? 'memories' : 'memory') + ' left out' : ''));
+        + (r.memoriesForgotten ? ' · ' + r.memoriesForgotten + ' forgotten ' + (r.memoriesForgotten > 1 ? 'memories' : 'memory') + ' left out' : '');
+      dataStatus(restoredLine);
       gateActive = false;
       // resume straight into the restored agent (or its RESUME screen if creds are still missing); WAKE and RETRY stay held
-      // until that re-entry has landed, so neither can resume the save this restore just replaced
-      try { await reentry(); } finally { restoring = false; }
+      // until that re-entry has landed, so neither can resume the save this restore just replaced. A second backup refused
+      // meanwhile wrote "still being restored": once this restore is done the line says what it restored again.
+      try { await reentry(); } finally { restoring = false; dataStatus(restoredLine); }
     };
 
     // FORWARD-VERSION GATE (P0.3), step 1 — the LOCAL cache. Save.load() returns null for a future save (so no
