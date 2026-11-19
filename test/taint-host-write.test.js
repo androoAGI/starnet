@@ -61,7 +61,8 @@ const { makePathTrust } = require('../sidecar/pathtrust.js');
   // index.js wires the run's latch
   const idx = require('./helpers/source.js').readSidecarIndex();
   // review2 #12: the latch is handed as its source (truthy = tainted), so the card can say what the run read
-  A.ok(/tainted: \(\) => execution\.taintedBy\(\) \|\| \(typeof o\.connectorAuthority\?\.taintedBy === 'function' && o\.connectorAuthority\.taintedBy\(\)\) \|\| ''/.test(idx), 'the run hands its taint latch (own or inherited) to the path guard');
+  // FULL POWER NEVER ASKS (owner decision 2026-11-19): ...except on a Full Access agent's own job, where no write card is raised
+  A.ok(/tainted: \(\) => \(fullPowerNow\(\) && !untrustedEntryRun\) \? ''\s*: \(execution\.taintedBy\(\) \|\| \(typeof o\.connectorAuthority\?\.taintedBy === 'function' && o\.connectorAuthority\.taintedBy\(\)\) \|\| ''\)/.test(idx), 'the run hands its taint latch (own or inherited) to the path guard, unless Full Power holds on a job the Commander started');
   try { fs.rmSync(base, { recursive: true, force: true }); } catch (_) { /* a temp folder left behind is harmless */ }
   A.report('taint-host-write.test');
 })().catch(e => { console.error(e); process.exit(1); });

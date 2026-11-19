@@ -77,6 +77,14 @@ many of these — they win on any wording conflict.
     ask. The StarNet window, the headless model and personality routes, and a config import now keep it at Full
     Access with no question (`sidecar/index.js` handleRoster). Turning Full Access ON is still confirmed once at
     the desk. Only a client-key caller under the desktop shell (never the window) still drops it.
+    **An update keeps it:** the one-time permission-seal upgrade seals FULL BYPASS and every agent's Full Access
+    as they are (0.15.2 and 0.15.3 sealed them off, so every updater had to turn each agent on again;
+    `sidecar/authority-seal.js`). **No write card either:** a Full Access agent's own job writes host files
+    after reading outside content with no card and no unattended refusal (`sidecar/index.js` runPathTrust).
+    **`.env` and `.git` again:** whole-host Full Power reaches them, as this decision always said (0.15.2 and
+    0.15.3 refused them; `sidecar/permissions.js`, `sidecar/pathtrust.js`). A fenced or remote Full Access
+    agent stays under that floor, and the credential floor (SSH and signing keys, cloud logins, browser
+    profiles) stays above every Full Power.
 - **Truthful telemetry is THE core law.** The app must never assert state the harness can't
   prove. Object = capability: a prop in the world is a real grant, not decoration. Tool
   surface must never exceed wired reality.

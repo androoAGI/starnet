@@ -25690,7 +25690,11 @@ async function runOnceCore(o) {
     // fix-sec2 review 5: once the run read outside content (its own latch, or one it inherited), a write gets no
     // host-wide pass: outside its workspace and the trusted projects it asks a watched run, and an unattended one is refused
     // review2 #12: the source itself (truthy = tainted), so the path card can say what the run read
-    tainted: () => execution.taintedBy() || (typeof o.connectorAuthority?.taintedBy === 'function' && o.connectorAuthority.taintedBy()) || ''
+    // FULL POWER NEVER ASKS (owner decision 2026-11-19): on a Full Access agent's own job (or under FULL BYPASS) the
+    // latch raises no write card and refuses no unattended write, as the dispatch boundary no longer does
+    // (taint.js postTaintBoundary). A run that outside content STARTED keeps it, Full Access or not.
+    tainted: () => (fullPowerNow() && !untrustedEntryRun) ? ''
+      : (execution.taintedBy() || (typeof o.connectorAuthority?.taintedBy === 'function' && o.connectorAuthority.taintedBy()) || '')
   });
   /* ONE PATH OBJECT PER RUN (run-paths lane, sidecar/run-paths.js). Every tool reads ctx.paths, so a relative path means
      the same folder to fs.*, shell, terminal, verify, media and browser.upload, and every receipt names a path the next

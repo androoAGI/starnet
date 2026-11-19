@@ -251,13 +251,15 @@
 
     function consent(call, tool) {
       const scope = scopeOf(tool);
-      // 1. HARDLINE — unreachable past any flag, Full Power included (GHSA-2hpj #2: it used to run after the full-power
-      // return below, so any Full Access skipped the .env/.git floor its own comment promised).
+      // FULL POWER: the Commander's explicit host-wide authority outranks StarNet policy floors, the .env/.git hardline
+      // included (DECISIONS.md "FULL POWER MEANS THE WHOLE LOCAL COMPUTER" names both; 0.15.2/0.15.3 moved the hardline
+      // above this return, GHSA-2hpj #2, and a Full Power agent could no longer write a project's .env: owner decision
+      // 2026-11-19 restores the order). Host-wide only: a fenced or remote Full Access agent reaches the bypass tier
+      // below, under the hardline. Input/schema validity, OS permissions and downstream prerequisites still report normally.
+      if (unrestrictedNow()) return { allow: true, scope: scope, reason: 'full-power' };
+      // 1. HARDLINE — unreachable past any other flag.
       const hr = hardline ? hardline(call, tool) : null;
       if (hr) return { allow: false, scope: scope, hardline: true, reason: String(hr) + ANTI_RETRY };
-      // FULL POWER: the Commander's explicit host-wide authority outranks StarNet's other policy tiers.
-      // Input/schema validity, OS permissions and downstream service prerequisites still report normally.
-      if (unrestrictedNow()) return { allow: true, scope: scope, reason: 'full-power' };
       // 2. BYPASS — boot Full Access, live master bypass, or persisted per-agent Full Access.
       if (bypassNow()) return { allow: true, scope: scope, reason: 'full-access' };
       // 2.4 UNATTENDED TERMINAL GRANT — checked BEFORE the exec lockout because opening that lockout for exactly

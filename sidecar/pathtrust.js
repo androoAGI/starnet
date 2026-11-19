@@ -236,14 +236,18 @@
       // policy restrictions, not path syntax validity or the distinction between this computer and a share.
       if (raw.indexOf('\0') >= 0) throw new Error('illegal path (NUL): ' + raw);
       if (/^[\\/]{2}/.test(raw)) throw new Error('network paths (UNC) are not local computer paths: ' + raw);
-      // Host-wide Full Power intentionally bypasses project blessings, cross-agent workspace ownership and symlink
-      // containment. It does NOT bypass the floors (GHSA-2hpj #2): .env, .git and credential files stay refused, on
-      // the path as named and on the real target a link resolves to. The OS remains the authority on the rest.
+      // Host-wide Full Power intentionally bypasses project blessings, cross-agent workspace ownership, symlink
+      // containment and the protected-file floor (.env, .git): DECISIONS.md "FULL POWER MEANS THE WHOLE LOCAL COMPUTER"
+      // names those two, and 0.15.2/0.15.3 (GHSA-2hpj #2) refused them, so a Full Power agent could not write a
+      // project's own .env (owner decision 2026-11-19 restores them). The CREDENTIAL floor stays, on the path as named
+      // and on the real target a link resolves to: SSH and signing keys, cloud logins, browser profiles. The OS remains
+      // the authority on the rest.
       if (unrestrictedHost && !taintedWrite) {
-        const fhr = hardlineReason(raw, norm);
+        const credOf = (p) => { const c = credentialFloor(p); return c ? 'reading ' + p + ' is blocked by the credential floor (' + c + ') — no setting reaches it, Full Power included' : null; };
+        const fhr = credOf(norm);
         if (fhr) throw new Error(fhr);
         const freal = await realpathDeepest(norm);
-        const frhr = hardlineReason(freal, freal);
+        const frhr = credOf(freal);
         if (frhr) throw new Error(frhr + ' (reached via ' + norm + ')');
         return { base: (P.parse(norm).root || P.dirname(norm)), abs: norm, unrestrictedHost: true };
       }

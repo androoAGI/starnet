@@ -94,8 +94,8 @@ const projectbless = require('../sidecar/projectbless.js');
   A.ok(/file: String\(i\.path/.test(promptSrc) && /taintedBy: String\(i\.taintedBy/.test(promptSrc) && /argsSummary: String\(proposedRoot/.test(promptSrc),
     'the desk run\'s path card gets the file and the source; argsSummary stays the folder (an ALWAYS anchors to it)');
   A.ok(/if \(fields && fields\.file\) Object\.assign\(row, \{ file: fields\.file, taintedBy:/.test(IDX), 'the prompt row carries them to the page');
-  A.ok(/tainted: \(\) => execution\.taintedBy\(\) \|\| \(typeof o\.connectorAuthority\?\.taintedBy === 'function' && o\.connectorAuthority\.taintedBy\(\)\) \|\| ''/.test(IDX),
-    'the guard is handed the source itself');
+  A.ok(/tainted: \(\) => \(fullPowerNow\(\) && !untrustedEntryRun\) \? ''\s*: \(execution\.taintedBy\(\) \|\| \(typeof o\.connectorAuthority\?\.taintedBy === 'function' && o\.connectorAuthority\.taintedBy\(\)\) \|\| ''\)/.test(IDX),
+    'the guard is handed the source itself (nothing on a Full Access agent\'s own job: FULL POWER NEVER ASKS, 2026-11-19)');
   // breakage 9 (review-sec2): that card is fresh, so the station applies any yes as once and the page offers once or deny
   A.ok(/i\.tainted === true \? \{ fresh: true \} : \{\}/.test(promptSrc), 'a tainted path card is asked fresh');
   A.ok(/if \(orig && fields && fields\.fresh\) orig\.freshConsent = true;/.test(IDX), 'so handleConsent turns ALWAYS, session and FULL into once (no Full Access is kept for one write)');

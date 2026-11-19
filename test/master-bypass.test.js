@@ -37,13 +37,18 @@ const hardline = (call) => (call && call.args && /(^|\/)\.env$/.test(call.args.p
   A.ok(!r.allow && r.hardline === true, 'FULL BYPASS never reaches past the hardline floor');
 }
 
-// ---- 2b. the hardline floor sits above explicit Full Power too (GHSA-2hpj #2) ----
+// ---- 2b. explicit host-wide Full Power outranks the .env/.git hardline (DECISIONS "FULL POWER MEANS THE WHOLE LOCAL
+//          COMPUTER"; 0.15.2/0.15.3 refused it, owner decision 2026-11-19 restores it) ----
 {
   const consent = makeConsentBroker({ bypass: () => true, unrestrictedHost: () => true, hardline: hardline, surface: 'autonomous' });
   const r = consent({ name: 'fs.write', args: { path: '.env' } }, WRITE);
-  A.ok(!r.allow && r.hardline === true, 'Full Power never reaches past the hardline floor (.env)');
+  A.ok(r.allow && r.reason === 'full-power', 'host-wide Full Power writes a project .env with no prompt');
   const ok = consent(writeCall, WRITE);
-  A.ok(ok.allow && ok.reason === 'full-power', 'Full Power still allows everything the floor does not name, with no prompt');
+  A.ok(ok.allow && ok.reason === 'full-power', 'and everything else, with no prompt');
+  // a Full Access agent WITHOUT the whole-host reach (TRUSTED PROJECT, Remote SSH) stays under the hardline
+  const fenced = makeConsentBroker({ bypass: () => true, unrestrictedHost: () => false, hardline: hardline, surface: 'autonomous' });
+  const fr = fenced({ name: 'fs.write', args: { path: '.env' } }, WRITE);
+  A.ok(!fr.allow && fr.hardline === true, 'a fenced Full Access agent never reaches past the hardline floor (.env)');
 }
 
 // ---- 3. a throwing bypass predicate fails CLOSED ----

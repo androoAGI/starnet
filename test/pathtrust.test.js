@@ -181,13 +181,17 @@ function scriptPrompt(decision) {
     let msg = '';
     try { await h.pt.guard(path.join(home, '.ssh', 'id_ed25519'), { scope: 'read', surface: 'autonomous', fullAccess: true }); } catch (e) { msg = e.message; }
     A.ok(/credential floor/.test(msg) && /no setting reaches it, Full Power included/.test(msg), 'the refusal names the floor and says no switch reaches it — got: ' + msg);
-    // GHSA-2hpj #2: Full Power no longer reaches the floors (credential stores, .env, .git), on the named path or a link's target
+    // Full Power does not reach the CREDENTIAL floor (GHSA-2hpj #2), on the named path or a link's target...
     await rejects(h.pt.guard(path.join(home, '.ssh', 'id_ed25519'), { scope: 'read', surface: 'autonomous', unrestrictedHost: true }),
       'Full Power does not reach the credential floor');
-    await rejects(h.pt.guard(path.join(home, 'proj', '.env'), { scope: 'write', surface: 'autonomous', unrestrictedHost: true }),
-      'Full Power does not reach the .env floor');
-    await rejects(h.pt.guard(path.join(home, 'proj', '.git', 'config'), { scope: 'write', surface: 'autonomous', unrestrictedHost: true }),
-      'Full Power does not reach the .git floor');
+    // ...but it reaches a project's .env and .git again (DECISIONS "FULL POWER MEANS THE WHOLE LOCAL COMPUTER"; 0.15.2/0.15.3
+    // refused them, owner decision 2026-11-19 restores them)
+    const envOk = await h.pt.guard(path.join(home, 'proj', '.env'), { scope: 'write', surface: 'autonomous', unrestrictedHost: true });
+    A.ok(envOk && envOk.unrestrictedHost === true, 'Full Power writes a project .env');
+    const gitOk = await h.pt.guard(path.join(home, 'proj', '.git', 'config'), { scope: 'write', surface: 'autonomous', unrestrictedHost: true });
+    A.ok(gitOk && gitOk.unrestrictedHost === true, 'Full Power writes inside a project .git');
+    await rejects(h.pt.guard(path.join(home, 'proj', '.env'), { scope: 'write', surface: 'autonomous', fullAccess: true }),
+      'without the whole-host reach, Full Access still does not reach the .env floor');
     const power = await h.pt.guard(path.join(home, 'notes.ssh.txt'), { scope: 'read', surface: 'autonomous', unrestrictedHost: true });
     A.ok(power && power.unrestrictedHost === true, 'Full Power still reaches the rest of this computer');
     // a symlink named innocently that points INTO a credential store is caught on its real target. Non-admin
@@ -254,13 +258,14 @@ function scriptPrompt(decision) {
     }
   }
 
-  // ---- Full Power: the whole local computer with no project card, except the floors (GHSA-2hpj #2) ----
+  // ---- Full Power: the whole local computer with no project card, a project's .env included (owner decision 2026-11-19) ----
   {
     const h = harness();
     const never = scriptPrompt('deny');
-    await rejects(h.pt.guard(path.join(proj, '.env'), {
+    const envFile = await h.pt.guard(path.join(proj, '.env'), {
       scope: 'write', surface: 'autonomous', prompt: never, unrestrictedHost: true
-    }), 'Full Power does not reach the protected-file floor');
+    });
+    A.ok(envFile && envFile.unrestrictedHost === true, 'Full Power reaches the project .env');
     const hostFile = await h.pt.guard(path.join(proj, 'notes.txt'), {
       scope: 'write', surface: 'autonomous', prompt: never, unrestrictedHost: true
     });
