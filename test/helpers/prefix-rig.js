@@ -159,11 +159,16 @@ function hermeticEnv(base, extra) {
 }
 
 /* normalize — what differs between two boots of the same build, and nothing else: the run and call ids, the Task Brief
-   id, the clock, and this boot's temp folders and ports. `known` are the exact strings of this boot (its workspace, its
+   id, the clock, the app version, and this boot's temp folders and ports. `known` are the exact strings of this boot (its workspace, its
    profile, its ports). */
 const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g;
 const TODAY_RE = /Today is [A-Z][a-z]+, [A-Z][a-z]+ \d{1,2}, \d{4}/g;
 const CLI_PROMPT_FILE_RE = /starnet-claude-cli-\d+-\d+-[0-9a-f]+\.txt/g;
+/* The [RUNTIME] block names the app version (package.json), which every release moves. The golden was recorded with
+   0.15.2 in that line, so the line is read as that version: a version bump alone leaves every hash where it was, and
+   any other byte of the block still counts. (The harness build line is fixed by STARNET_BUILD_DESCRIBE above.) */
+const GOLDEN_APP_VERSION = '0.15.2';
+const APP_VERSION_RE = /(StarNet app version at run start: )\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?/g;
 function normalize(s, known) {
   let out = String(s);
   for (const [from, to] of (known || [])) {
@@ -171,7 +176,8 @@ function normalize(s, known) {
     const forms = [from, from.replace(/\\/g, '/'), from.replace(/\\/g, '\\\\')];
     for (const f of forms) out = out.split(f).join(to);
   }
-  return out.replace(UUID_RE, '<ID>').replace(TODAY_RE, 'Today is <DATE>').replace(CLI_PROMPT_FILE_RE, '<SYSTEM_PROMPT_FILE>');
+  return out.replace(UUID_RE, '<ID>').replace(TODAY_RE, 'Today is <DATE>').replace(CLI_PROMPT_FILE_RE, '<SYSTEM_PROMPT_FILE>')
+    .replace(APP_VERSION_RE, (_, lead) => lead + GOLDEN_APP_VERSION);
 }
 
 /* digests — what a golden holds for one capture: the sha256 of each call's whole normalized request, of its system text

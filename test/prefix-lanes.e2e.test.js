@@ -10,8 +10,8 @@
         the same from a floor without the SERVER CART (cartless), the crew lead call (lead), a dispatched worker's first
         call (worker), and the comms call on claude-cli (its system prompt file, argv and stdin). The sha256 of each call
         (whole request, system text, tools array) was recorded on the base, 57c741da7, in
-        test/fixtures/prefix-lanes-golden.json; the run id, the Task Brief id, the date and the temp paths are the only
-        things normalized. Red on any commit that moves a default byte. Every switch set to 0 sends the same bytes
+        test/fixtures/prefix-lanes-golden.json; the run id, the Task Brief id, the date, the app version (a
+        release bump moves that one line) and the temp paths are the only things normalized. Red on any commit that moves a default byte. Every switch set to 0 sends the same bytes
         as every switch unset.
 
    ON, one lane at a time: what left, that nothing else moved, and the saving in bytes on each call.
