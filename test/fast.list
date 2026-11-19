@@ -981,6 +981,7 @@ test/browser-chip-wait.test.js
 test/pollgate.test.js
 test/poll-fetch-deadline.test.js
 test/ctx-gauge-memo.test.js
+test/ctx-overhead-selflock.test.js
 test/routine-origin-race.test.js
 test/returnstore-rate-sync.test.js
 test/returnstore-recovery.test.js

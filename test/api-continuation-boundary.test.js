@@ -107,7 +107,10 @@ function assertLocked(r, tool, c, label) {
   A.ok(clean.next(initial.tool, write, { surface: 'interactive', prompt: true }).postTaint.needsConfirmation, 'and asks a watched run');
   const upload = call({ url: ORIGIN + '/read', method: 'POST', body: '{"f":"$' + '{file:notes.txt}"}' });
   A.ok(!clean.next(initial.tool, upload).sameOriginApi, 'a file reference is never a continuation');
-  A.ok(!clean.next(initial.tool, upload, { fullAccess: true }).postTaint.allow, 'and Full Access does not send it unasked');
+  // FULL POWER NEVER ASKS (owner decision 2026-11-19): Full Access sends it; a run outside content started does not.
+  A.ok(!clean.next(initial.tool, upload).postTaint.allow, 'and an ask-first agent does not send it unasked');
+  A.ok(clean.next(initial.tool, upload, { fullAccess: true }).postTaint.allow, 'Full Access sends it without asking');
+  A.ok(!clean.next(initial.tool, upload, { fullAccess: true, untrustedEntry: true }).postTaint.allow, 'unless outside content started the run');
   A.ok(!clean.next(initial.tool, call({ url: OTHER + '/send' })).sameOriginApi, 'different origin cannot continue');
   A.ok(!clean.next(initial.tool, call({ headers: { Authorization: 'Bearer $' + '{OTHER_KEY}' } })).sameOriginApi, 'new key cannot continue');
   A.ok(!clean.next(initial.tool, c, { inherited: 'worker context' }).sameOriginApi, 'inherited taint cannot continue');
