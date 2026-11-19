@@ -116,18 +116,30 @@ A.eq(taint.postTaintBoundary(SHELL, { taintedBy: 'web_fetch', surface: 'interact
   { allow: true, needsConfirmation: false, oneShot: true }, 'even Always collapses to this exact post-taint call');
 A.eq(taint.postTaintBoundary(SHELL, { taintedBy: 'web_fetch', surface: 'interactive', hasPrompt: true, decision: 'deny' }),
   { allow: false, needsConfirmation: false, oneShot: false }, 'denial remains fail-closed');
-// GHSA-2hpj #2: Full Access keeps zero prompts for everything EXCEPT a host process after taint: text the run read must
-// not drive this computer's terminal unasked. A watched run confirms that one call; an unattended one is refused.
+// FULL POWER NEVER ASKS (owner decision 2026-11-19): 0.15.2/0.15.3 held a host process behind this boundary on Full Access,
+// which asked once PER COMMAND in any chat that had read a page and refused unattended runs. Full Access is zero prompts
+// for every tool again, watched or not, after taint as before it.
 A.eq(taint.postTaintBoundary(SHELL, { taintedBy: 'web_fetch', surface: 'interactive', hasPrompt: true, fullAccess: true }),
-  { allow: false, needsConfirmation: true, oneShot: false }, 'Full Access does not lift the execute lock after taint: a watched run confirms the one shell call');
-A.eq(taint.postTaintBoundary(SHELL, { taintedBy: 'web_fetch', surface: 'interactive', hasPrompt: true, fullAccess: true, decision: 'once' }),
-  { allow: true, needsConfirmation: false, oneShot: true }, 'and that confirmation runs exactly this call');
+  { allow: true, needsConfirmation: false, oneShot: false }, 'Full Access survives taint without asking: a watched run raises no card for a shell command');
 A.eq(taint.postTaintBoundary(SHELL, { taintedBy: 'web_fetch', surface: 'autonomous', hasPrompt: false, fullAccess: true }),
-  { allow: false, needsConfirmation: false, oneShot: false }, 'an unattended Full Access run that read outside content is refused the shell');
+  { allow: true, needsConfirmation: false, oneShot: false }, 'an unattended Full Access run that read outside content keeps its shell');
+A.eq(taint.postTaintBoundary(VERIFY, { taintedBy: 'web_fetch', surface: 'interactive', hasPrompt: true, fullAccess: true }),
+  { allow: true, needsConfirmation: false, oneShot: false }, 'verify.run (a host process too) is never asked for either');
 A.eq(taint.postTaintBoundary(VERIFY, { taintedBy: 'web_fetch', surface: 'autonomous', hasPrompt: false, fullAccess: true }),
-  { allow: false, needsConfirmation: false, oneShot: false }, 'verify.run (a host process too) is held the same way');
+  { allow: true, needsConfirmation: false, oneShot: false }, 'and runs unattended');
 A.eq(taint.postTaintBoundary(WEB_REQ, { taintedBy: 'web_fetch', surface: 'autonomous', hasPrompt: false, fullAccess: true }),
-  { allow: true, needsConfirmation: false, oneShot: false }, 'Full Access still survives taint without asking for a tool that is not a host process');
+  { allow: true, needsConfirmation: false, oneShot: false }, 'Full Access survives taint without asking for every other tool too');
+// the groundhog loop itself: five commands in one tainted chat on a Full Access agent raise no card (0.15.3 raised five)
+{
+  let cards = 0;
+  for (let i = 0; i < 5; i++) if (taint.postTaintBoundary(SHELL, { taintedBy: 'web_fetch', surface: 'interactive', hasPrompt: true, fullAccess: true, call: { name: 'shell.exec', args: { command: 'node step' + i + '.js' } } }).needsConfirmation) cards++;
+  A.eq(cards, 0, 'five shell commands after a page read: no approval card on Full Access');
+}
+// what Full Access still does not lift here: a run a payload started, and an ask-first agent
+A.eq(taint.postTaintBoundary(SHELL, { taintedBy: 'line trigger payload', surface: 'interactive', hasPrompt: true, fullAccess: true, untrustedEntry: true }),
+  { allow: false, needsConfirmation: true, oneShot: false }, 'a run started by outside content still confirms its shell call, Full Access or not');
+A.eq(taint.postTaintBoundary(SHELL, { taintedBy: 'web_fetch', surface: 'interactive', hasPrompt: true, fullAccess: false }),
+  { allow: false, needsConfirmation: true, oneShot: false }, 'an ask-first agent still asks after taint');
 A.eq(taint.postTaintBoundary(FS_WRITE, { taintedBy: 'web_fetch', surface: 'autonomous', hasPrompt: false }),
   { allow: true, needsConfirmation: false, oneShot: false }, 'ordinary jailed file analysis remains usable');
 

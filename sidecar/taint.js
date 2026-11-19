@@ -189,12 +189,15 @@
     // typed the job at all, so "zero prompts" would hand the payload's author the terminal. Owner-typed runs keep
     // the override exactly as before, including one that later read a web page.
     // ...and never for a fresh-consent tool (station.power): a run that read a page asks before it widens the leash
-    // ...and never for a host process (shell.exec, verify.run; GHSA-2hpj #2): text the run read must not drive this
-    // computer's terminal with no prompt. A watched run confirms that one call; an unattended one is refused.
-    // ...and never for a web_request that attaches workspace files (GHSA-2hpj #6): text the run read must not pick a file for
-    // the host to read and send. A watched run confirms that one call; an unattended one is refused.
-    if (opts.fullAccess === true && opts.untrustedEntry !== true && tool.freshConsent !== true && impactOfTool(tool) !== 'workspace-process'
-      && !(isWebRequest(tool, opts.call) && requestCarriesFiles(opts.call))) return { allow: true, needsConfirmation: false, oneShot: false };
+    /* FULL POWER NEVER ASKS (owner decision 2026-11-19, Andrew; reverses the taint half of GHSA-2hpj #2 and #6). 0.15.2 and
+       0.15.3 held a host process (shell.exec, verify.run) and a web_request that attaches workspace files behind this
+       boundary even on Full Access: a watched run got one card PER COMMAND, the card's "Full access" key bought nothing on
+       an agent that already had it, the lock followed the chat into every later task, and an unattended Full Access run
+       was refused outright (customer report on 0.15.3). Full Access is the Commander's standing choice that this agent
+       acts without asking, and it holds after the run reads a page, for every tool. What still stands here: a run a
+       payload STARTED (untrustedEntry) and a fresh-consent tool. What still stands elsewhere: the hardline and credential
+       floors (permissions.js, pathtrust.js), which no Full Power reaches. */
+    if (opts.fullAccess === true && opts.untrustedEntry !== true && tool.freshConsent !== true) return { allow: true, needsConfirmation: false, oneShot: false };
     if (opts.surface !== 'interactive' || opts.hasPrompt !== true) return { allow: false, needsConfirmation: false, oneShot: false };
     if (opts.decision == null) return { allow: false, needsConfirmation: true, oneShot: false };
     const allow = /^(?:once|session|always|full)$/i.test(String(opts.decision || ''));

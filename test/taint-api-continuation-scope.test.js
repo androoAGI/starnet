@@ -154,14 +154,17 @@ const cont = (scope, url, extra) => taint.sameOriginContinuation(scope, wr, call
   A.ok(taint.scopeAfterSource(null, wr, call(EX + '/x', KEY), { wasTainted: false, responseOrigin: EX, responseText: 'y'.repeat((1 << 20) + 50) }).seen.length <= (1 << 20), 'what is kept of the responses is bounded (1 MB)');
 }
 
-// ---- the post-taint boundary: an upload asks even under Full Access; untainted use is unchanged ----
+// ---- the post-taint boundary: an upload asks on an ask-first agent, never on Full Access (FULL POWER NEVER ASKS, owner
+//      decision 2026-11-19); a payload-started run keeps the lock; untainted use is unchanged ----
 {
   const upload = call(GH + '/repos/me/site/contents/a.png', { method: 'PUT', body: '{"content":"' + FILE('a.png') + '"}' });
   const plain = call(GH + '/repos/me/site/issues', { method: 'POST', body: '{"title":"t"}' });
   const B = (c, o) => taint.postTaintBoundary(wr, Object.assign({ taintedBy: 'web_request', call: c }, o));
-  A.eq(B(upload, { fullAccess: true, surface: 'autonomous', hasPrompt: false }), { allow: false, needsConfirmation: false, oneShot: false }, 'an unattended Full Access run does not send a file after taint');
-  A.eq(B(upload, { fullAccess: true, surface: 'interactive', hasPrompt: true }), { allow: false, needsConfirmation: true, oneShot: false }, 'a watched Full Access run asks for that one upload');
-  A.eq(B(upload, { fullAccess: true, surface: 'interactive', hasPrompt: true, decision: 'always' }), { allow: true, needsConfirmation: false, oneShot: true }, 'a yes sends that one call (always collapses to once)');
+  A.eq(B(upload, { fullAccess: true, surface: 'autonomous', hasPrompt: false }), { allow: true, needsConfirmation: false, oneShot: false }, 'an unattended Full Access run sends its file after taint');
+  A.eq(B(upload, { fullAccess: true, surface: 'interactive', hasPrompt: true }), { allow: true, needsConfirmation: false, oneShot: false }, 'a watched Full Access run is not asked for the upload');
+  A.eq(B(upload, { fullAccess: true, untrustedEntry: true, surface: 'autonomous', hasPrompt: false }).allow, false, 'a payload-started Full Access run does not send a file after taint');
+  A.eq(B(upload, { surface: 'interactive', hasPrompt: true }), { allow: false, needsConfirmation: true, oneShot: false }, 'a watched ask-first run asks for that one upload');
+  A.eq(B(upload, { surface: 'interactive', hasPrompt: true, decision: 'always' }), { allow: true, needsConfirmation: false, oneShot: true }, 'a yes sends that one call (always collapses to once)');
   A.eq(B(upload, { surface: 'interactive', hasPrompt: true, decision: 'deny' }).allow, false, 'a no is refused');
   A.eq(B(plain, { fullAccess: true, surface: 'autonomous', hasPrompt: false }).allow, true, 'a request without files keeps the owner\'s Full Access posture, as before');
   A.eq(B(plain, { fullAccess: true, untrustedEntry: true, surface: 'autonomous', hasPrompt: false }).allow, false, 'and an untrusted entry still overrides it');

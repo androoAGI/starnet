@@ -62,6 +62,15 @@ many of these — they win on any wording conflict.
     overridden): the fence narrows reach, never tools. Every other reach is unchanged (Full Power = whole computer).
     One predicate decides it everywhere: `sidecar/execution-profiles.js` `reachesWholeHost` / `fencesHost`.
     Asked for by a user running unattended "departments" who wanted no approvals but not their whole PC.
+  - **Amended 2026-11-19 (Andrew) — FULL POWER NEVER ASKS.** "Full power is full power": once the Commander
+    sets an agent to Full Access (or turns FULL BYPASS on) it stays zero prompts, for every tool, whatever the run
+    has read. 0.15.2 and 0.15.3 (GHSA-2hpj #2 and #6) asked before EVERY shell command, and before a request that
+    attaches a file, once a chat had read outside content, and refused both on unattended runs; a customer on
+    0.15.3 reported the card on every command. That half of the advisory fix is reversed
+    (`sidecar/taint.js` `postTaintBoundary`). Never re-add a per-call card, or an unattended refusal, on a Full
+    Access agent's own job. What still holds: a run that outside content STARTED (a webhook or watched-folder
+    payload, a forwarded message: `untrustedEntry`) keeps the taint lock, a fresh-consent tool still asks, and
+    the hardline and credential floors stay above Full Power.
 - **Truthful telemetry is THE core law.** The app must never assert state the harness can't
   prove. Object = capability: a prop in the world is a real grant, not decoration. Tool
   surface must never exceed wired reality.

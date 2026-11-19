@@ -61,9 +61,12 @@ function verdictsOf(o) {
   const shell = taint.postTaintBoundary(PROBE, { taintedBy: o.initialTaint || null, surface: o.surface || 'autonomous', hasPrompt: !!o.prompt, fullAccess: !withheld, untrustedEntry: untrusted });
   return { untrusted, withheld, fullAccess: !withheld, lockLifted: shell.allow === true };
 }
-// ...and the shell itself stays held after taint even on the Commander's own Full Access job (GHSA-2hpj #2)
-A.eq(taint.postTaintBoundary(SHELL, { taintedBy: 'upstream line output', surface: 'autonomous', hasPrompt: false, fullAccess: true }).allow, false,
-  'a tainted step of the Commander\'s own Full Access job is still refused the shell unattended');
+// ...and the shell is the Commander's own Full Access job's too, after taint (FULL POWER NEVER ASKS, owner decision 2026-11-19);
+// a payload-started line keeps the lock (untrustedEntry)
+A.eq(taint.postTaintBoundary(SHELL, { taintedBy: 'upstream line output', surface: 'autonomous', hasPrompt: false, fullAccess: true }).allow, true,
+  'a tainted step of the Commander\'s own Full Access job keeps the shell unattended');
+A.eq(taint.postTaintBoundary(SHELL, { taintedBy: 'upstream line output', surface: 'autonomous', hasPrompt: false, fullAccess: true, untrustedEntry: true }).allow, false,
+  'the same step on a line a payload started is refused the shell');
 const pick = (r) => ({ untrusted: r.untrusted, withheld: r.withheld, fullAccess: r.fullAccess, lockLifted: r.lockLifted });
 
 /* ---------- 1. HUB: the hooks narrow, never widen; the seed stamp mirrors the run verdicts ---------- */
