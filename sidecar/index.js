@@ -17930,11 +17930,8 @@ async function handleConfigImport(req, res) {
         name: a.name || cur.name, model: a.model || cur.model,
         provider: a.provider ? normalizeProviderId(a.provider) : cur.provider, role: a.role || cur.role
       });
-      // review2 #6: an import that points a Full Access agent at another model or provider drops it to ask-first
-      if (cur.approvalMode === 'full' && fullAccessDriveOf(next) !== fullAccessDriveOf(cur)) {
-        next.approvalMode = 'ask';
-        importNotes.push('"' + String(next.name || a.agentId).slice(0, 40) + '" asks first now: the import changed its model or provider. Give it Full Access again in its dossier.');
-      }
+      // FULL ACCESS IS LOCKED ON (owner decision 2026-11-19): an import that changes a Full Access agent's model or
+      // provider leaves it at Full Access (0.15.2 and 0.15.3 dropped it to ask-first)
       agentRoster.set(a.agentId, next);
     }
     saveAgentRoster(); applied.push('roster');
@@ -22671,25 +22668,23 @@ async function handleRoster(req, res) {
      skills) keeps Full Access only when it asks to (keepFull: [ids], sent by the page when the Commander edits the
      agent) and the desk confirms, showing the new instructions; any other such push drops the agent to ask-first, named
      in `clamped`. Under the desktop shell, the key GET / serves (CLIENT_TOKEN: the CLI, the bridges, any command an agent
-     runs) cannot change a Full Access agent's persona at all without dropping it. */
-  const askedKeep = new Set((Array.isArray(body.keepFull) ? body.keepFull : []).map(String));
+     runs) cannot change a Full Access agent's persona at all without dropping it.
+     FULL ACCESS IS LOCKED ON (owner decision 2026-11-19, Andrew: "once the user sets it to Full Access it should be locked
+     on full power"). That rule, as 0.15.2 and 0.15.3 shipped it, also asked the desk to "keep Full Access" whenever the
+     Commander changed a Full Access agent's model, provider, instructions or skills in the StarNet window, and dropped the
+     agent to ask-first without a word when the window's push did not ask (a page booting from its save, a prompt
+     recomposed after an update). The StarNet window's pushes now keep a Full Access agent at Full Access through every
+     such change: no dialog, no drop (`keepFull` is still accepted and ignored: older pages send it). The rule above
+     still holds, unchanged, for a client-key push under the desktop shell, which is never the Commander's edit in the
+     window: a change to what drives the agent, or to its stored instructions, drops it. */
   const clientKeyPush = !!CLIENT_TOKEN && !apiauth.apiTokenOk(req, API_TOKEN);
-  const redriven = [];
-  for (const a of incomingRows) {
-    const id = String((a && a.agentId) || ''), prev = previousRoster.get(id);
-    if (!a || a.approvalMode !== 'full' || !prev || prev.approvalMode !== 'full') continue;   // a raise was asked above
-    if (fullAccessDriveOf(a) !== fullAccessDriveOf(prev) || (clientKeyPush && String(a.system || '') !== String(prev.system || ''))) redriven.push(id);
-  }
-  if (redriven.length) {
-    const keepAsked = redriven.filter(id => askedKeep.has(id)).sort();
-    if (keepAsked.length) {
-      const first = rowOf(keepAsked[0]);
-      if (!deskGate(req, res, 'approval-full', 'keep:' + keepAsked.map(id => id + '=' + fullAccessDriveOf(rowOf(id))).join(','), {
-        names: keepAsked.map(nameOf).join(', '), count: keepAsked.length, keep: true,
-        model: deskProofMod.cutPoints(String(first.model || 'the station default'), 80) + (first.provider ? ' (' + deskProofMod.cutPoints(String(first.provider), 40) + ')' : ''),
-        excerpt: deskProofMod.cutPoints(fullAccessInstructions(first.system).trim(), 500) })) return;
+  if (clientKeyPush) {
+    const drop = new Set();
+    for (const a of incomingRows) {
+      const id = String((a && a.agentId) || ''), prev = previousRoster.get(id);
+      if (!a || a.approvalMode !== 'full' || !prev || prev.approvalMode !== 'full') continue;   // a raise was asked above
+      if (fullAccessDriveOf(a) !== fullAccessDriveOf(prev) || String(a.system || '') !== String(prev.system || '')) drop.add(id);
     }
-    const drop = new Set(redriven.filter(id => keepAsked.indexOf(id) < 0));
     if (drop.size) {
       clamped = clamped.concat([...drop]);
       incomingRows = incomingRows.map(a => (a && drop.has(String(a.agentId || ''))) ? Object.assign({}, a, { approvalMode: 'ask' }) : a);
@@ -22743,10 +22738,12 @@ async function handleAgentModel(req, res) {
     return json(409, pageRefusal(out, agentId));
   }
   // no page: nothing was awaited since `cur` was read, so this writes onto the roster as it is now
-  // review2 #6 (route census): a new model for a Full Access agent drops it to ask-first, as a roster push and a new
-  // personality do (Full Access is given again at the desk). The effort alone is not part of what drives it.
+  // FULL ACCESS IS LOCKED ON (owner decision 2026-11-19): a new model keeps a Full Access agent at Full Access (0.15.2 and
+  // 0.15.3 dropped it to ask-first). Only a client-key caller under the desktop shell still drops it, as its roster push
+  // does (handleRoster): never the StarNet window, never a bare station's own terminal. The effort alone never did.
   const raw = agentRosterRaw.get(agentId);
-  const dropFull = cur.approvalMode === 'full' && fullAccessDriveOf(Object.assign({}, cur, { model, provider })) !== fullAccessDriveOf(cur);
+  const dropFull = cur.approvalMode === 'full' && !!CLIENT_TOKEN && !apiauth.apiTokenOk(req, API_TOKEN)
+    && fullAccessDriveOf(Object.assign({}, cur, { model, provider })) !== fullAccessDriveOf(cur);
   const next = Object.assign({}, cur, { model, provider }, effort ? { reasoningEffort: effort } : {}, dropFull ? { approvalMode: 'ask' } : {});
   // LEANER CREW DEFAULTS (W3.3): an effort named here is a hand pick, never a class default the crew rule may lower
   if (effort) { if (CrewDefaults.isOn(crewDefaultsMode())) next.effortSource = 'pin'; else delete next.effortSource; }
@@ -22886,8 +22883,11 @@ async function handleAgentPersonality(req, res) {
   const system = typeof body.system === 'string' ? body.system : '';
   if (!system.trim() || system.length > 400000) return json(409, { error: 'no StarNet page is open to compose the new prompt, and none was sent' });
   const raw = agentRosterRaw.get(agentId);
-  // review2 #6: new instructions for a Full Access agent drop it to ask-first (Full Access is given again at the desk)
-  const dropFull = cur.approvalMode === 'full' && fullAccessDriveOf(Object.assign({}, cur, { system })) !== fullAccessDriveOf(cur);
+  // FULL ACCESS IS LOCKED ON (owner decision 2026-11-19): a new personality keeps a Full Access agent at Full Access. Only a
+  // client-key caller under the desktop shell (never the StarNet window, never a bare station's own terminal) still
+  // drops it, as a client-key roster push that rewrites the instructions does (handleRoster).
+  const dropFull = cur.approvalMode === 'full' && !!CLIENT_TOKEN && !apiauth.apiTokenOk(req, API_TOKEN)
+    && fullAccessDriveOf(Object.assign({}, cur, { system })) !== fullAccessDriveOf(cur);
   agentRoster.set(agentId, Object.assign({}, cur, { system }, dropFull ? { approvalMode: 'ask' } : {}));
   agentRosterRaw.set(agentId, Object.assign({}, raw && typeof raw === 'object' ? raw : {}, { personaId: personality }, dropFull ? { approvalMode: 'ask' } : {}));
   if (!saveAgentRoster()) { agentRoster.set(agentId, cur); if (raw) agentRosterRaw.set(agentId, raw); else agentRosterRaw.delete(agentId); return json(500, { error: 'could not save the roster' }); }

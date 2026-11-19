@@ -71,6 +71,12 @@ many of these — they win on any wording conflict.
     Access agent's own job. What still holds: a run that outside content STARTED (a webhook or watched-folder
     payload, a forwarded message: `untrustedEntry`) keeps the taint lock, a fresh-consent tool still asks, and
     the hardline and credential floors stay above Full Power.
+    **LOCKED ON once set (same day):** "once the user sets it to Full Access it should be locked on full power".
+    0.15.2 and 0.15.3 raised a "Keep Full Access?" desk dialog when the Commander changed a Full Access agent's
+    model, provider, instructions or skills, and dropped the agent to ask-first when the window's push did not
+    ask. The StarNet window, the headless model and personality routes, and a config import now keep it at Full
+    Access with no question (`sidecar/index.js` handleRoster). Turning Full Access ON is still confirmed once at
+    the desk. Only a client-key caller under the desktop shell (never the window) still drops it.
 - **Truthful telemetry is THE core law.** The app must never assert state the harness can't
   prove. Object = capability: a prop in the world is a real grant, not decoration. Tool
   surface must never exceed wired reality.

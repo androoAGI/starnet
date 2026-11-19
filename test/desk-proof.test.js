@@ -341,11 +341,16 @@ const rnd = n => { const b = Buffer.alloc(n); for (let i = 0; i < n; i++) b[i] =
     A.ok(roster.indexOf("deskGate(req, res, 'execution-profile'") > 0 && roster.indexOf("deskGate(req, res, 'execution-profile'") < roster.indexOf('replaceAgentRoster(incomingRows)'), 'a wider execution profile asks first');
     A.ok(/profileClamped = widened;[\s\S]{0,300}executionProfile: \(previousRoster\.get\(String\(a\.agentId\)\) \|\| \{\}\)\.executionProfile \|\| 'station-gear'/.test(roster), 'a push that does not ask keeps the profile the station holds');
     // review2 #6 (behaviour in test/roster-raise.http.test.js): what drives a Full Access agent is part of its Full Access
-    A.ok(roster.indexOf('fullAccessDriveOf(a) !== fullAccessDriveOf(prev)') > 0 && roster.indexOf("deskGate(req, res, 'approval-full', 'keep:'") > 0
-      && roster.indexOf("deskGate(req, res, 'approval-full', 'keep:'") < roster.indexOf('replaceAgentRoster(incomingRows)'), 'a changed drive keeps Full Access only on the desk\'s yes, before the roster is replaced');
-    A.ok(/const clientKeyPush = !!CLIENT_TOKEN && !apiauth\.apiTokenOk\(req, API_TOKEN\);/.test(roster) && /clientKeyPush && String\(a\.system \|\| ''\) !== String\(prev\.system \|\| ''\)/.test(roster), 'under the shell, the served key cannot change a Full Access agent\'s persona at all without dropping it');
-    A.ok(/const dropFull = cur\.approvalMode === 'full' && fullAccessDriveOf\(/.test(A.fnBody(IDX, 'async function handleAgentPersonality(')), 'the headless personality route drops a Full Access agent whose instructions change');
-    A.ok(/if \(cur\.approvalMode === 'full' && fullAccessDriveOf\(next\) !== fullAccessDriveOf\(cur\)\) \{\s*next\.approvalMode = 'ask';/.test(IDX), 'so does a config import that swaps its model or provider');
+    // FULL ACCESS IS LOCKED ON (owner decision 2026-11-19): the StarNet window's push keeps a Full Access agent at Full Access
+    // through any change, with no "keep" question; only a client-key caller under the shell still drops it
+    A.ok(roster.indexOf("'keep:'") < 0, 'no push is asked to keep Full Access at the desk any more');
+    A.ok(/const clientKeyPush = !!CLIENT_TOKEN && !apiauth\.apiTokenOk\(req, API_TOKEN\);\s*if \(clientKeyPush\) \{/.test(roster)
+      && /if \(fullAccessDriveOf\(a\) !== fullAccessDriveOf\(prev\) \|\| String\(a\.system \|\| ''\) !== String\(prev\.system \|\| ''\)\) drop\.add\(id\);/.test(roster)
+      && roster.indexOf('drop.add(id)') < roster.indexOf('replaceAgentRoster(incomingRows)'), 'under the shell, the served key still cannot change what drives a Full Access agent, or its persona, without dropping it');
+    const clientOnly = /const dropFull = cur\.approvalMode === 'full' && !!CLIENT_TOKEN && !apiauth\.apiTokenOk\(req, API_TOKEN\)\s*&& fullAccessDriveOf\(/;
+    A.ok(clientOnly.test(A.fnBody(IDX, 'async function handleAgentPersonality(')), 'the headless personality route drops a Full Access agent only for a client-key caller under the shell');
+    A.ok(clientOnly.test(A.fnBody(IDX, 'async function handleAgentModel(')), 'and so does the headless model route');
+    A.ok(!/next\.approvalMode = 'ask';\s*importNotes\.push/.test(IDX), 'a config import that swaps a Full Access agent\'s model or provider leaves it at Full Access');
     A.ok(/keepFull\.length \? \{ keepFull \} : \{\}/.test(read('frontend/app/app.js')) && /settleRefusedRaise\(raise\.concat\(keepFull\), rosterRefusalWords\(\)\)/.test(read('frontend/app/app.js')), 'the page asks to keep Full Access through an edit, and shows ask-first when the desk says no');
     // review2 breakages 1 and 2 (behaviour in test/roster-raise.http.test.js)
     A.ok(roster.indexOf('x-starnet-desk-proof') < 0, 'which question a push is asked is decided by its body, never by a proof header');
