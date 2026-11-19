@@ -2592,7 +2592,11 @@ const Chat = (() => {
     } catch (_) {}
     const currentState = state && (!state.model || state.model === selectedModel) ? state : null;
     const limit = (currentState && currentState.limit) || selectedLimit;
-    const projected = currentState && currentState.used > 0 && (currentState.measured || currentState.projected) ? currentState.used : 0;
+    // ⛔ a projection resting only on the MODEL-level overhead (basis 'model': a chat with no reading of its own) never
+    // blocks: the run it would block is the only thing that can correct that overhead, so one bad fit locked every new
+    // chat on the model out for good (the CTX lockout, 2026-11-19). The dialogue check below still guards a giant paste.
+    const projected = currentState && currentState.used > 0 && (currentState.measured || currentState.projected)
+      && currentState.basis !== 'model' ? currentState.used : 0;
     return contextIssueFor(proposed, limit, projected);
   }
   function getHistory() { return activeWs ? activeWs.history.slice() : []; }

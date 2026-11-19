@@ -56,7 +56,14 @@ const Harness = (() => {
      you have paid for another turn, which is most of what "it never works" felt like. The stored value
      is a real past measurement, it is only ever used to produce a tilde-marked projection, and the very
      next turn overwrites it — so a system-prompt or toolset change (which does move the overhead)
-     self-corrects on first use rather than persisting a lie. */
+     self-corrects on first use rather than persisting a lie.
+
+     ⛔ BUT ONLY A PLAUSIBLE ONE (user report 2026-11-19, the CTX lockout). "The next turn overwrites it" fails
+     when the projection itself stops the next turn: the composer refuses a send at 90%, so an oversized fit made
+     every new chat on that agent + model read full, /new could not escape (the fit is per model, not per chat),
+     and no run ever came to correct it. An overhead of half the run's window or more is not a per-request
+     constant (the sidecar folds a run at ~65% of it): plausibleOverhead refuses to learn one, and contextState
+     refuses to project from one already stored. ctx-overhead-selflock.test.js pins both. */
   const LS_OVERHEAD = 'starnet.ctx.overhead';
   const OVERHEAD_MAX = 40;   // bounded: a few models per provider, never an unbounded localStorage row
   // Each entry is CtxGauge.calibrate's { overhead } fit. A stored entry that is not a usable fit is
@@ -76,6 +83,16 @@ const Harness = (() => {
     } catch (_) {}
     return out;
   })();
+  // the share of the run's window past which a learned overhead is an artefact, never a harness floor
+  const OVERHEAD_MAX_SHARE = 0.5;
+  // is this { overhead } fit something a request on `model` could really carry every time? An unknown window
+  // (0) has no ceiling to judge against, and the gauge shows no fill without one anyway.
+  function plausibleOverhead(cal, model) {
+    if (!cal || !(cal.overhead >= 0)) return false;
+    const limit = contextLimitOf(model) || 0, run = runWindowOf(model) || 0;
+    const win = (run > 0 && (!limit || run < limit)) ? run : limit;
+    return !win || cal.overhead < win * OVERHEAD_MAX_SHARE;
+  }
   function rememberOverhead(key, cal) {
     if (!cal) return;
     overheadByModel[key] = cal; contextRev++;
@@ -135,7 +152,10 @@ const Harness = (() => {
        instead would have inflated the overhead ~4x and every projection with it. */
     const firstOfRun = !!(reg && !reg.seen);
     if (reg) reg.seen = true;
-    if (firstOfRun && m && hasEst()) rememberOverhead(reg.agentId + SEP + m, CtxGauge.calibrateFromEstimate(payload.tokensIn, reg.sentEstimate + (reg.stepDelta || 0)));
+    if (firstOfRun && m && hasEst()) {
+      const cal = CtxGauge.calibrateFromEstimate(payload.tokensIn, reg.sentEstimate + (reg.stepDelta || 0));
+      if (plausibleOverhead(cal, m)) rememberOverhead(reg.agentId + SEP + m, cal);   // an impossible fit keeps the last good one
+    }
     const prev = contextByKey[key];
     const baseline = firstOfRun ? payload.tokensIn
       : ((prev && prev.runId === (payload.runId || '')) ? prev.baseline : 0);
@@ -1112,29 +1132,33 @@ const Harness = (() => {
     // the state, so the next send's fit takes it off the overhead (historyfit.js fitModel)
     if (hasRec && rec.stepDelta) base.stepDelta = rec.stepDelta;
 
+    // `basis` says what the answer rests on — live | measured (a reading of THIS conversation) | conversation (grown
+    // from its own baseline) | model (the model-level overhead only) | none. The composer may hard-block a send on
+    // the first three, never on 'model' (chat.js composerContextIssue: the CTX lockout of 2026-11-19).
     // 1. in flight — report what the provider says the model is holding this second
-    if (hasRec && rec.live) return Object.assign(base, { used: rec.used, measured: true, projected: false });
+    if (hasRec && rec.live) return Object.assign(base, { used: rec.used, measured: true, projected: false, basis: 'live' });
 
     const est = Array.isArray(messages) ? estOf(messages) : null;
     // 2. this transcript was itself measured (a run's FIRST turn carried exactly these messages) and
     //    nothing has been added since — an exact reading beats projecting the same thing.
     if (hasRec && rec.baseline > 0 && est !== null && est === rec.sentEstimate) {
-      return Object.assign(base, { used: rec.baseline, measured: true, projected: false });
+      return Object.assign(base, { used: rec.baseline, measured: true, projected: false, basis: 'measured' });
     }
-    if (hasRec && est === null) return Object.assign(base, { used: rec.used, measured: true, projected: false });   // caller passed no transcript
+    if (hasRec && est === null) return Object.assign(base, { used: rec.used, measured: true, projected: false, basis: 'measured' });   // caller passed no transcript
     // 3. this conversation HAS a measurement, just not of its current shape: grow from its own
     //    baseline. Better than the model-level fit because that baseline already contains this chat's
     //    real overhead AND anything the sidecar compacted away — neither has to be re-guessed.
     if (hasRec && rec.baseline > 0 && est !== null && hasEst()) {
-      return Object.assign(base, { used: CtxGauge.projectFromBaseline(rec.baseline, rec.sentEstimate, messages), measured: false, projected: true });
+      return Object.assign(base, { used: CtxGauge.projectFromBaseline(rec.baseline, rec.sentEstimate, messages), measured: false, projected: true, basis: 'conversation' });
     }
-    // 4. never measured here — fall back to the model's learned overhead plus this transcript
+    // 4. never measured here — fall back to the model's learned overhead plus this transcript. A stored fit that
+    //    could not be a real harness floor (plausibleOverhead) is not projected from: "calibrating" beats a full bar.
     const cal = overheadByModel[aid + SEP + model];
-    if (est !== null && cal && hasEst()) {
-      return Object.assign(base, { used: CtxGauge.projectFrom(cal, messages), measured: false, projected: true });
+    if (est !== null && cal && hasEst() && plausibleOverhead(cal, model)) {
+      return Object.assign(base, { used: CtxGauge.projectFrom(cal, messages), measured: false, projected: true, basis: 'model' });
     }
-    if (hasRec) return Object.assign(base, { used: rec.used, measured: true, projected: false });
-    return Object.assign(base, { used: 0, measured: false, projected: false });
+    if (hasRec) return Object.assign(base, { used: rec.used, measured: true, projected: false, basis: 'measured' });
+    return Object.assign(base, { used: 0, measured: false, projected: false, basis: 'none' });
   }
 
   function normalizeModel(m) {

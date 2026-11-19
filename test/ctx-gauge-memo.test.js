@@ -102,6 +102,7 @@ A.ok(/contextRevision: \(\) => contextRev/.test(hSrc), 'Harness exports contextR
 const store = new Map();
 const h = vm.runInNewContext(hSrc.slice(hFrom, hTo) + '\n({ registerRun, foldContextCost, endContextRun, rev: () => contextRev });', {
   CtxGauge, console: { warn() {}, log() {} }, getModel: () => 'model-a', contextLimitOf: () => 200000,
+  runWindowOf: () => 0,   // foldContextCost judges a learned overhead against the run's window (plausibleOverhead, 2026-11-19)
   localStorage: { getItem: k => (store.has(k) ? store.get(k) : null), setItem: (k, v) => store.set(k, String(v)), removeItem: k => store.delete(k) }
 }, { filename: 'harness.js#occupancy' });
 let r0 = h.rev();
