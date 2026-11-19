@@ -122,8 +122,6 @@ const NAMES = Object.freeze(LEGACY_NAMES.concat(['permissions.allow.json', 'remo
 // sealed in parts by their owner (index.js), not as one value
 const PART_NAMES = Object.freeze(['cron.jobs.json']);
 const ALL_NAMES = Object.freeze(NAMES.concat(PART_NAMES));
-// what the one-time upgrade seals off instead of taking on the file's word (final review #5): FULL BYPASS and Full Access
-const UPGRADE_ASKS = Object.freeze(['permissions.bypass.json', 'agent.roster.json']);
 
 // What the safe default means for each file, in the words the page shows.
 const CONSEQUENCE = Object.freeze({
@@ -302,18 +300,10 @@ function lowerOf(name, value, cap, nowMs) {
 
 // lowers(name, prev, next) -> true when `next` takes away power `prev` gave (a file with no rule: always true, the safe
 // side: its floor moves). prev null: nothing was sealed before it (the upgrade), so there is nothing to take away.
-/* THE UPGRADE KEEPS THE TOOLS (Andrew's call, 2026-11-14). The one-time upgrade lowered the roster against an empty cap, so
-   besides Full Access it also took every agent's wider execution profile (This Computer, Trusted Project, Remote SSH) back
-   to Station Gear: on his real station all 13 agents came up asking first AND without their tools and connectors. Full
-   Access and FULL BYPASS are the power a planted file could hand itself without a single ask, so those two still need the
-   Commander again; a profile only sets where an agent may work, and with Full Access gone every consequential call in it
-   still asks first. So the upgrade's cap is the file's own profiles: Full Access is lowered, the profiles stay. */
-function upgradeCapOf(name, value) {
-  if (name !== 'agent.roster.json') return {};
-  const rows = plainObject(value) && Array.isArray(value.agents) ? value.agents : (Array.isArray(value) ? value : []);
-  return { agents: rows.filter(plainObject).filter(r => Object.prototype.hasOwnProperty.call(r, 'executionProfile'))
-    .map(r => ({ agentId: r.agentId, executionProfile: r.executionProfile })) };
-}
+/* THE UPGRADE TAKES NOTHING (2026-11-14 Andrew: it keeps the tools; 2026-11-19 Andrew: it keeps Full Access and FULL BYPASS
+   too). The one-time upgrade used to lower the roster, first against an empty cap (every agent lost Full Access AND its
+   wider execution profile: all 13 of his agents came up asking first, on Station Gear), then against the file's own
+   profiles (Full Access still lowered). It now seals every file as it is: see boot(). */
 function lowers(name, prev, next, nowMs) {
   if (prev === null) return false;
   const r = lowerOf(name, prev, next, nowMs);
@@ -730,14 +720,12 @@ function makeAuthoritySeal(opts) {
     for (const x of present) {
       let value = typeof x.f.wrap === 'function' ? x.f.wrap(x.v) : x.v;
       if (!plainObject(value)) { failed.push(x.f.name); continue; }
-      /* DEFENCE IN DEPTH (final review #5): the upgrade takes each file on its word, and a same-user process that could
-         still wipe every trace (on a computer whose shell keeps no record, or with that record removed too) would have its
-         planted FULL BYPASS or Full Access sealed. So those two are not taken on the upgrade's word: they are sealed off,
-         and the Commander turns them on again, each confirmed at the desk as any raise is. Everything else is kept. */
-      if (UPGRADE_ASKS.indexOf(x.f.name) >= 0) {
-        const low = lowerOf(x.f.name, strip(value), upgradeCapOf(x.f.name, strip(value)), now());
-        if (low && low.dropped.length) { value = low.value; for (const d of low.dropped) lowered.push(d); }
-      }
+      /* THE UPGRADE KEEPS FULL ACCESS (owner decision 2026-11-19, Andrew: "once the user sets it to Full Access it should be
+         locked on full power"). 0.15.2 and 0.15.3 sealed FULL BYPASS and every agent's Full Access OFF here (final review #5,
+         defence in depth against a planted file on a computer with no trace of an earlier seal), so everyone who updated
+         found every agent asking first and had to turn each one on again at the desk. An update never takes away what the
+         Commander set: every file is sealed as it is, FULL BYPASS and Full Access included. After the upgrade the seal
+         holds as before: a change made outside StarNet is not obeyed. `lowered` stays in the result and the notice, empty. */
       known.set(x.f.name, null);            // nothing was sealed before the upgrade: no floor to move
       try { x.f.write(seal(x.f.name, value)); sealed.push(x.f.name); }
       catch (e) { failed.push(x.f.name); }

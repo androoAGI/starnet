@@ -132,8 +132,8 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
     A.eq(r.mode, 'migrated', 'first keyed boot with files and no marker: the upgrade');
     A.eq(r.sealed.sort(), ['hooks-allowed.json', 'hooks.json', 'permissions.bypass.json'], 'it seals every present file, as it is');
     A.ok(marker.writes === 1 && marker.value && marker.value[S.FIELD], 'and writes the sealed marker');
-    // final review #5 (defence in depth): FULL BYPASS is not taken on the upgrade's word; it is turned on again at the desk
-    A.ok(seal.open('permissions.bypass.json', d.files['permissions.bypass.json']).value.on === false, 'a migrated FULL BYPASS is sealed off (turned on again at the desk)');
+    // THE UPGRADE KEEPS FULL ACCESS (owner decision 2026-11-19): an update never takes away what the Commander set
+    A.ok(seal.open('permissions.bypass.json', d.files['permissions.bypass.json']).value.on === true, 'a migrated FULL BYPASS is sealed ON, as the Commander left it');
     A.eq(seal.open('hooks.json', d.files['hooks.json']).value, { hooks: [{ event: 'pre', command: 'x' }] }, 'a legacy array hooks.json is wrapped as { hooks } and sealed');
     const n = seal.notices().find(x => x.kind === 'migrated');
     A.ok(n && /sealed/.test(n.text) && /once, on this upgrade/.test(n.text) && /hooks\.json/.test(n.text), 'the upgrade is one visible notice naming what was sealed (' + (n && n.text) + ')');
@@ -900,24 +900,25 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
       A.eq(st.notices().filter(n => /^marker-/.test(n.kind)).length, 0, '#5: and says nothing about a missing record');
     }
     {
-      // DEFENCE IN DEPTH: the real upgrade (no record anywhere) seals everything as it is, except FULL BYPASS and Full Access
+      // THE UPGRADE KEEPS FULL ACCESS (owner decision 2026-11-19): the real upgrade (no record anywhere) seals everything as
+      // it is, FULL BYPASS and Full Access included. 0.15.2 and 0.15.3 sealed those two off (final review #5).
       const files = planted(), mk = memMarker();
       const st = S.makeAuthoritySeal({ key: KEY, now: () => 5000, marker: mk });
       const r = st.boot(listOf(files));
       A.eq(r.mode, 'migrated', '#5: with no record anywhere this is the upgrade');
       const bp = st.open('permissions.bypass.json', files['permissions.bypass.json']);
-      A.ok(bp.ok && bp.value.on === false, '#5: the upgrade seals FULL BYPASS off (not taken on the file\'s word)');
+      A.ok(bp.ok && bp.value.on === true, 'the upgrade seals FULL BYPASS on, as it was');
       const ro = st.open('agent.roster.json', files['agent.roster.json']);
-      A.ok(ro.ok && ro.value.agents.find(a => a.agentId === 'agent').approvalMode === 'ask', '#5: and Full Access as ask');
+      A.ok(ro.ok && ro.value.agents.find(a => a.agentId === 'agent').approvalMode === 'full', 'and Full Access as Full Access');
       A.eq(ro.value.agents.find(a => a.agentId === 'agent').system, 'PWN', 'everything else in the roster is kept as it was');
       const n = st.notices().find(x => x.kind === 'migrated');
-      A.ok(n && /FULL BYPASS on/.test(n.text) && /Full Access for "Overseer"/.test(n.text) && /confirm at the desk/.test(n.text), '#5: the upgrade notice names what to turn on again, at the desk');
-      A.eq(r.lowered.length, 2, '#5: the boot reports both');
+      A.ok(n && !/Not carried over/.test(n.text) && !/Turn (it|them) on again/.test(n.text), 'the upgrade notice asks the Commander to turn nothing on again: ' + (n && n.text));
+      A.eq(r.lowered.length, 0, 'the boot reports nothing taken away');
     }
     {
       // THE UPGRADE KEEPS THE TOOLS (Andrew, 2026-11-14): his 0.15.0 roster had every agent on Full Access with a wider
       // profile; the upgrade took both, so 13 agents came up asking first AND on Station Gear (no tools, no connectors).
-      // Full Access is still not taken on the file's word; the execution profiles are.
+      // 2026-11-19 (Andrew): Full Access is kept too. The upgrade takes nothing.
       const roster = { version: 1, agents: [
         { agentId: 'a1', name: 'Ultron', approvalMode: 'full', executionProfile: 'this-computer' },
         { agentId: 'a2', name: 'Cypher', approvalMode: 'full', executionProfile: 'trusted-project' },
@@ -931,11 +932,11 @@ const roundTrip = v => JSON.parse(JSON.stringify(v));
       const ro = st.open('agent.roster.json', files['agent.roster.json']);
       const row = id => ro.value.agents.find(a => a.agentId === id);
       A.ok(ro.ok, 'keep-tools: the sealed roster opens');
-      A.eq([row('a1').approvalMode, row('a2').approvalMode], ['ask', 'ask'], 'keep-tools: Full Access is still lowered to ask');
+      A.eq([row('a1').approvalMode, row('a2').approvalMode, row('a3').approvalMode], ['full', 'full', 'ask'], 'keep-all: Full Access is kept for the agents that had it, and given to nobody else');
       A.eq([row('a1').executionProfile, row('a2').executionProfile, row('a3').executionProfile], ['this-computer', 'trusted-project', 'safe-cell'],
         'keep-tools: every execution profile is kept as it was (tools and connectors stay)');
       A.ok(!Object.prototype.hasOwnProperty.call(row('a4'), 'executionProfile'), 'keep-tools: a row with no profile is not given one');
-      A.eq(r.lowered, ['Full Access for "Ultron"', 'Full Access for "Cypher"'], 'keep-tools: only Full Access is reported as not carried over');
+      A.eq(r.lowered, [], 'keep-all: nothing is reported as not carried over');
       const n = st.notices().find(x => x.kind === 'migrated');
       A.ok(n && !/execution profile/.test(n.text), 'keep-tools: the notice no longer says a profile was taken');
       // after the upgrade a raise is still capped by the seal: an outside edit to a wider profile is not obeyed
