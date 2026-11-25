@@ -200,6 +200,20 @@ async function collect(provider, req) { const out = []; for await (const e of pr
     A.eq(models[0].id, 'claude-x', 'catalog id parsed');
     A.eq(models[0].supportsTools, true, 'Anthropic native models are marked tool-capable');
   }
+  // An SDK-style official base must reach the same catalog as the default (#190).
+  for (const [baseUrl, modelsUrl] of [
+    ['https://api.anthropic.com/', 'https://api.anthropic.com/v1/models'],
+    ['https://api.anthropic.com/v1', 'https://api.anthropic.com/v1/models'],
+    ['https://proxy.test/', 'https://proxy.test/models'],
+  ]) {
+    let requested;
+    const p = makeAnthropicProvider({ baseUrl, key: 'KEY', fetch: async url => {
+      requested = url;
+      return Response.json({ data: [] });
+    } });
+    await p.listModels();
+    A.eq(requested, modelsUrl, 'catalog URL for ' + baseUrl);
+  }
   // D2 (#90). A /models answer the API REFUSED is still an empty catalog to every caller, but the adapter keeps its
   // status so the key check can say "rejected this key (HTTP 401)" instead of blaming an empty catalog.
   {
