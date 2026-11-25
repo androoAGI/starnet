@@ -162,7 +162,8 @@
   }
 
   function cleanBaseUrl(value) {
-    return String(value || DEFAULT_BASE).trim().replace(/\/+$/, '');
+    const base = String(value || DEFAULT_BASE).trim().replace(/\/+$/, '');
+    return base.toLowerCase() + '/v1' === DEFAULT_BASE ? DEFAULT_BASE : base;
   }
   function headerBag(key, accept, betas) {
     const h = {
