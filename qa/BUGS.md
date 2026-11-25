@@ -4,11 +4,11 @@
 One tracked file per bug under `qa/bugs/`; this is only the index. File a new bug with
 `node scripts/qa/bugs.mjs --new --title "..." --surface <surface>`.
 
-**31** open (open+claimed) of 461 total — 0 P0 · 0 P1 · 31 P2
+**31** open (open+claimed) of 462 total — 0 P0 · 0 P1 · 31 P2
 
 Engineering status is separate from delivery and customer recovery. Legacy rows without origin are not a customer census.
 
-User/owner reports: **123** · source fixed: **103** · installer verified: **6** · customer confirmed: **1** · still reported failing: **5** · recovery unconfirmed: **117**.
+User/owner reports: **124** · source fixed: **104** · installer verified: **6** · customer confirmed: **1** · still reported failing: **5** · recovery unconfirmed: **118**.
 
 | Report | Family | Source | Installer | Customer |
 | --- | --- | --- | --- | --- |
@@ -30,6 +30,7 @@ User/owner reports: **123** · source fixed: **103** · installer verified: **6*
 | [Stored OpenAI API key silently outranks a live ChatGPT sign-in at Wake](bugs/f46a1875-stored-openai-api-key-silently-outranks-a-live-c.md) | genesis-provider-credential-selection | fixed | unverified | unconfirmed |
 | [Unlink failures silently hide account recovery controls](bugs/99a1517b-unlink-failures-silently-hide-account-recovery-c.md) | recovery-truth | fixed | unverified | unconfirmed |
 | [Wake mistakes DEV configuration for an OpenAI API credential](bugs/32f959e0-wake-mistakes-dev-configuration-for-an-openai-ap.md) | genesis-provider-credential-selection | fixed | unverified | unconfirmed |
+| [The official Anthropic API root sends model discovery to /models](bugs/b1e69bfd-anthropic-api-root.md) | anthropic-onboarding | fixed | unverified | unconfirmed |
 | [Valid BYOK wake is blocked by an empty managed wallet](bugs/2b6d70fb-byok-blocked-by-empty-managed-wallet.md) | execution-configuration | fixed | unverified | unconfirmed |
 | [Casual replies continue after the local output ceiling](bugs/2e6344fc-casual-replies-continue-after-the-local-output-c.md) | response-latency | fixed | unverified | unconfirmed |
 | [Live Doctor overrides selected model reasoning with none](bugs/2a9cb952-doctor-forces-unsupported-reasoning.md) | execution-configuration | fixed | unverified | unconfirmed |
@@ -215,6 +216,7 @@ User/owner reports: **123** · source fixed: **103** · installer verified: **6*
 | P1 | fixed | onboarding | [Wake mistakes DEV configuration for an OpenAI API credential](bugs/32f959e0-wake-mistakes-dev-configuration-for-an-openai-ap.md) | onboarding-conversation-0912 | 0250793ac |
 | P1 | fixed | providers | [A provider 403 that says Forbidden tells the Commander the station restarted](bugs/38da5ee4-a-provider-403-that-says-forbidden-tells-the-com.md) | sweep/providers | 613beeac9 |
 | P1 | fixed | providers | [An unpriced run is booked and shown as a proven zero-dollar metered run](bugs/237b40d3-an-unpriced-run-is-booked-and-shown-as-a-proven.md) | sweep/providers | 3c53fa524 |
+| P1 | fixed | providers | [The official Anthropic API root sends model discovery to /models](bugs/b1e69bfd-anthropic-api-root.md) | providers | ab2d997ae6ad594716e5579e03268efa0ce5282d |
 | P1 | fixed | providers | [Valid BYOK wake is blocked by an empty managed wallet](bugs/2b6d70fb-byok-blocked-by-empty-managed-wallet.md) | reliability-followup | 5b5f50a1d |
 | P1 | fixed | providers | [Casual replies continue after the local output ceiling](bugs/2e6344fc-casual-replies-continue-after-the-local-output-c.md) | agent/response-audit-0915-7c2a | fc4c9e0f415251870778da1405086c421aff0670 |
 | P1 | fixed | providers | [Claude continuation reminders can become rejected assistant prefill](bugs/d81c4e15-claude-continuation-reminders-can-become-rejecte.md) | agent/release-0112-audit-0910 | 9441660d0 |
